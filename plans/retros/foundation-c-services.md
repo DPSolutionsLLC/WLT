@@ -2,7 +2,7 @@
 id: foundation-c-services
 type: feature
 iter: null
-commits: ["53d0167"]
+commits: ["5ccf83a"]
 date: 2026-08-16
 files:
   - lib/supabase/scoped.ts
