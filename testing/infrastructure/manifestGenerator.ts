@@ -36,7 +36,13 @@ function parseList(value: string | undefined): string[] {
 }
 
 function extractSection(markdown: string, heading: string): string {
-  const pattern = new RegExp(`^##\\s+${heading}\\s*$([\\s\\S]*?)(?=^##\\s|\\Z)`, "im");
+  // End-of-input is `(?![\s\S])`, not `\Z` — JavaScript has no \Z, so it was read as a literal
+  // "Z" and, under the "i" flag, matched the first lowercase "z" in the section. Every section
+  // was silently cut off at the first word containing a z ("squeezed", "organization").
+  const pattern = new RegExp(
+    `^##\\s+${heading}\\s*$([\\s\\S]*?)(?=^##\\s|(?![\\s\\S]))`,
+    "im",
+  );
   const match = pattern.exec(markdown);
   if (!match) return "";
 

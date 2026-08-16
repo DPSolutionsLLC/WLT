@@ -23,6 +23,14 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+// Runs before first paint, so the page never renders light and then flips to dark. A deferred
+// or componentised version cannot do this — the class has to be on <html> before the browser
+// paints. This is the one sanctioned use of dangerouslySetInnerHTML in the codebase, and it is
+// safe because the string is a constant: no user input reaches it. The try/catch is for
+// browsers where localStorage is blocked; a storage failure must not blank the page.
+// suppressHydrationWarning on <html> is what keeps React from objecting to the added class.
+const THEME_SCRIPT = `try{var t=localStorage.theme;var d=t==="dark"||(t!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}`;
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -32,6 +40,9 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans">
         {children}
       </body>

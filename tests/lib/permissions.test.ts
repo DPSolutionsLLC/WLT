@@ -23,6 +23,9 @@ function sessionUser(role: Role): SessionUser {
     counselorPosition: null,
     firstName: "Test",
     lastName: "User",
+    username: null,
+    themePreference: "system",
+    isActive: true,
   };
 }
 

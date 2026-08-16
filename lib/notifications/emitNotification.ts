@@ -10,11 +10,12 @@ export type EmitNotificationParams = {
   recipientUserIds?: string[];
 };
 
-// Uses the service-role client, not the caller's session. Resolving default_roles to user ids
-// means reading OTHER users in the ward, and the `users` SELECT policy in migration 019 is
-// self-only (the known gap handed to phase 1 in plans/retros/foundation-b-schema.md). This is
-// a server-only module; it reads ids to address rows and returns none of that data to the
-// caller. Revisit once phase 1 decides how ward-wide user reads work.
+// Uses the service-role client, not the caller's session — still correct after migration 020
+// replaced the self-only `users` SELECT policy with a ward-scoped one. The reason was never
+// only the read: this module inserts `notifications` rows addressed to OTHER users and reads
+// `notification_user_prefs` rows belonging to them, and no caller's own session can do either.
+// It is a server-only module; it reads ids to address rows and returns none of that data to
+// the caller.
 async function resolveRoleRecipients(
   supabase: SupabaseClient<Database>,
   wardId: string,

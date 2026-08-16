@@ -12,6 +12,21 @@ export const ROLES = [
 ] as const;
 export type Role = (typeof ROLES)[number];
 
+// Every role name a user will ever see. Kept beside ROLES so a role added there fails to
+// compile until someone decides what to call it on screen.
+export const ROLE_LABELS: Record<Role, string> = {
+  bishop: "Bishop",
+  counselor: "Counselor",
+  ward_secretary: "Ward Secretary",
+  executive_secretary: "Executive Secretary",
+  org_president: "Organization President",
+  org_counselor: "Organization Counselor",
+  org_secretary: "Organization Secretary",
+  music_coordinator: "Music Coordinator",
+  ward_council_member: "Ward Council Member",
+  sacrament_manager: "Sacrament Manager",
+};
+
 export const ORGANIZATION_TYPES = [
   "bishopric",
   "elders_quorum",
@@ -207,4 +222,7 @@ export type SessionUser = {
   counselorPosition: 1 | 2 | null;
   firstName: string | null;
   lastName: string | null;
+  username: string | null;
+  themePreference: ThemePreference;
+  isActive: boolean;
 };

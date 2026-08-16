@@ -26,11 +26,16 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  const { error } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
 
   if (error && error.name !== "AuthSessionMissingError") {
     console.warn("Supabase session refresh failed", error.message);
   }
 
-  return response;
+  // The user comes back alongside the response so middleware.ts can decide where to send the
+  // request without standing up a second client and paying for a second round trip.
+  return { response, user };
 }

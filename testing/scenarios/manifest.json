@@ -1,5 +1,60 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 0,
-  "scenarios": []
+  "scenarioCount": 2,
+  "scenarios": [
+    {
+      "id": "auth:scenario-001-role-shell",
+      "path": "auth/scenario-001-role-shell",
+      "name": "Role-appropriate shell",
+      "scope": "auth-a-session-shell",
+      "part": 1,
+      "tags": [
+        "auth",
+        "smoke",
+        "rbac"
+      ],
+      "prerequisites": "none",
+      "purpose": "The sidebar is the most visible expression of the role matrix, and it is the one thing a unit\ntest cannot confirm — that the right words appear on a real screen, at phone width, in the\nright theme. `tests/lib/navigation.test.ts` proves the filtering function is correct; this\nproves the shell actually renders what that function returned. Seeding matters because\ncomparing roles means five accounts that differ only by role, which is tedious and\nerror-prone to build by hand.",
+      "checklist": [
+        "Bishop's sidebar lists every module, including Admin and Audit Log",
+        "Counselor's sidebar is identical to the bishop's, item for item and in the same order",
+        "Ward secretary sees Calendar, Talks, Program, Music, Agendas — and no Visits, Tithing, or Admin",
+        "Music coordinator sees Calendar, Talks, Music — and nothing else",
+        "EQ president sees Visits, Goals, Youth Activities — and no Talks, Program, or Admin",
+        "Every role also sees Dashboard, which is not permission-filtered",
+        "Every sidebar link opens or 404s; none returns a \"not permitted\" error",
+        "The top bar shows \"Harness Test Ward\", the signed-in name, and the role in plain words",
+        "At 375px the sidebar is an off-canvas drawer, not a squeezed column, and the ☰ toggle is thumb-reachable at the bottom left",
+        "Tapping a link in the drawer navigates and closes the drawer",
+        "The theme button cycles Light → Dark → System, and the change is instant",
+        "Dark mode survives a reload with no white flash, and every panel has a visible border",
+        "Signing out returns to `/login`, and pressing Back does not restore the shell"
+      ],
+      "seedCommand": "npm run seed -- auth/scenario-001-role-shell"
+    },
+    {
+      "id": "auth:scenario-002-deactivated-account",
+      "path": "auth/scenario-002-deactivated-account",
+      "name": "Deactivated account",
+      "scope": "auth-a-session-shell",
+      "part": 1,
+      "tags": [
+        "auth",
+        "full",
+        "rbac"
+      ],
+      "prerequisites": "none",
+      "purpose": "Deactivation is enforced on every request rather than by revoking the token, because the\nserver never holds the user's JWT. That makes the interesting case a user who is *already\nsigned in* when they are deactivated — their cookie is still perfectly valid, and the app has\nto refuse them anyway. That state is tedious to reach by hand and is exactly what seeding is\nfor. The second half, a deactivated user getting past the password prompt and then being\nturned away with a message they can act on, is the part a unit test cannot show.",
+      "checklist": [
+        "`formerclerk` gets past the password prompt, then sees \"This account has been deactivated. Contact a member of the bishopric.\"",
+        "`formerclerk` is left signed out — reloading `/dashboard` lands on `/login`, not the shell",
+        "The bishop's session loads the shell normally before step 6",
+        "After step 6, the bishop's next navigation redirects to `/login` without needing a reload of the whole browser",
+        "`audit_log` has a `login` row with `module = 'auth'` for the bishop's successful sign-in",
+        "`audit_log` has NO `login` row for `formerclerk`",
+        "Signing out normally writes a `logout` row with `module = 'auth'`"
+      ],
+      "seedCommand": "npm run seed -- auth/scenario-002-deactivated-account"
+    }
+  ]
 }
