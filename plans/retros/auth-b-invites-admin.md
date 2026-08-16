@@ -2,7 +2,7 @@
 id: auth-b-invites-admin
 type: feature
 iter: null
-commits: ["b6a5e69"]
+commits: ["8f10ec1"]
 date: 2026-08-16
 files:
   - lib/validation/invite.ts
