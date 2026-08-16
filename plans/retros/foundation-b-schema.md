@@ -2,7 +2,7 @@
 id: foundation-b-schema
 type: feature
 iter: null
-commits: ["a21e71d"]
+commits: ["78ef8fe"]
 date: 2026-08-15
 files:
   - supabase/migrations/001_extensions.sql
