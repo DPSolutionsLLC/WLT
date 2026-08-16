@@ -24,8 +24,14 @@ cross-cutting services every later phase depends on.
 ## Step 1 — Project Setup
 
 ```
-npx create-next-app@latest . --typescript --tailwind --app --eslint
+npx create-next-app@latest . --typescript --tailwind --app --eslint --no-agents-md --disable-git
 ```
+
+> Run this in a **temp directory and copy the generated files in**, not in the repo root.
+> It refuses to run in a directory containing `plans/` and `SPEC.md`, and without
+> `--no-agents-md` it writes its own `CLAUDE.md`, overwriting this project's
+> source-of-truth instructions. `--disable-git` prevents a nested `git init`.
+> Do not copy in the generated `.gitignore` — the repo's version is already correct.
 
 Add dependencies (ask before installing anything not on this list):
 
@@ -45,11 +51,11 @@ Add dependencies (ask before installing anything not on this list):
 | `.env.local.example` | Every var from SPEC.md §Environment Variables, with empty values |
 | `.env.local` | Gitignored. Real values |
 | `lib/supabase/browser.ts` | `createBrowserClient()` — anon key |
-| `lib/supabase/server.ts` | `createServerClient()` — cookie-based session |
+| `lib/supabase/server.ts` | `createServerClient()` — cookie-based session. **`async`** — `cookies()` is async in Next 15+. Use `getAll`/`setAll` only |
 | `lib/supabase/service.ts` | Service-role client. **Server-only.** Add a runtime guard that throws if imported client-side |
 | `types/database.ts` | Generated: `supabase gen types typescript` |
 | `types/domain.ts` | Roles, enums, permission matrix |
-| `tailwind.config.ts` | `darkMode: 'class'`, mobile-first |
+| `app/globals.css` | `@custom-variant dark (&:where(.dark, .dark *));` plus theme tokens. Tailwind v4 is CSS-first — there is no `tailwind.config.ts` |
 
 Configure dark mode via a `class` on `<html>` driven by `users.theme_preference`, with a
 `system` option reading `prefers-color-scheme`.
