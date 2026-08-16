@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "types": ["node"]
+  },
+  "//": "erasableSyntaxOnly is the load-bearing flag: it bans the syntax Node's --experimental-strip-types cannot remove (enums, namespaces, parameter properties). verbatimModuleSyntax is deliberately off — types/domain.ts lives in the CJS root package, and importing app types across that boundary is worth more than the flag.",
+  "include": ["infrastructure/**/*.ts", "scenarios/**/*.ts"],
+  "//exclude": "_templates is written at the depth a real scenario sits at (scenarios/<scope>/<name>/), not the depth the template file itself lives at, so it is not compiled here.",
+  "exclude": ["scenarios/_templates"]
+}

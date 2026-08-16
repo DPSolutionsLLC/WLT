@@ -1,0 +1,6 @@
+{
+  "name": "wlt-testing-harness",
+  "private": true,
+  "type": "module",
+  "//": "Marks this subtree as ESM so Node's --experimental-strip-types can run the .ts files directly. Deliberately has no dependencies and needs no npm install — the harness uses @supabase/supabase-js and dotenv from the root package.json, which Node resolves by walking up to the root node_modules. Scripts live in the root package.json: npm run seed, seed:clean, manifest, harness:typecheck."
+}
