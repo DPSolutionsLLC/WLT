@@ -6,7 +6,9 @@
 **Structure:** Sequential — plan 2 of 3 (A → B → C)
 
 > **Prerequisite:** [foundation-a-scaffold.md](foundation-a-scaffold.md) is complete and
-> its Definition of Done passes. `npx supabase start` brings up a local database.
+> its Definition of Done passes. There is **no local database** — see CLAUDE.md §9.
+> `npm run db:link` connects to the hosted project; every `db:*` script runs `--linked`.
+> **`npm run db:reset` wipes that hosted database.**
 > **Next:** [foundation-c-services.md](foundation-c-services.md).
 
 ---
@@ -31,10 +33,11 @@ graph visible.
 
 ---
 
-## ⚠️ Spec conflicts to resolve before writing SQL
+## ✅ Spec conflicts — RESOLVED 2026-08-15
 
-These are real contradictions between SPEC.md and CLAUDE.md. Per CLAUDE.md §1, flag and
-fix the spec in the same change — do not silently pick a side.
+These were real contradictions between SPEC.md and CLAUDE.md. Per CLAUDE.md §1, the fix
+lands in the spec in the same change. **All five are now decided — there is nothing left to
+confirm before writing SQL.** Task 9 records each one back into SPEC.md.
 
 ### 1. Eleven tables have no `ward_id` (blocking)
 
@@ -47,7 +50,7 @@ omits it on eleven:
 `activity_attendees` · `activity_private_notes` · `notification_user_prefs` ·
 `tithing_entries` · `conversation_messages`
 
-**Recommendation: add `ward_id uuid NOT NULL REFERENCES wards(id)` to all eleven.**
+**DECIDED: add `ward_id uuid NOT NULL REFERENCES wards(id)` to all eleven.**
 
 Reasons, in order of weight:
 - It is what the non-negotiable rule requires.
@@ -70,16 +73,13 @@ consistency for you rather than trusting application code.
 `hymns` remains the sole documented exception. Put a comment in migration 006 saying so,
 so plan C's ward-isolation test skips it deliberately rather than by accident.
 
-**If the user prefers the subquery approach instead, stop and confirm before writing
-migration 019** — it changes every child policy.
-
 ### 2. `users` cannot support youth PIN accounts
 
 FEATURES.md §Module 17 defines youth accounts as **username + PIN, no email**. SPEC.md's
 `users` table has neither column. Phase 1 ([01-auth-rbac.md](01-auth-rbac.md)) builds that
 flow and would need its own migration.
 
-**Recommendation:** add to migration 002, since this phase builds all tables at once:
+**DECIDED:** add to migration 002, since this phase builds all tables at once:
 
 ```sql
 username   text,
@@ -98,7 +98,38 @@ SPEC.md's role comment lists nine roles; FEATURES.md defines ten. The `CHECK` co
 in migration 002 must include `sacrament_manager`, matching `ROLES` in `types/domain.ts`
 from plan A.
 
-### 4. Already-approved deviations (from 00-foundation.md, no decision needed)
+### 4. `members.notes` is bishopric-only, and RLS cannot restrict a column
+
+FEATURES.md §Module 1 makes member notes visible to the bishopric only. An RLS policy grants
+or denies a **row**, never a column — so a `notes` column on `members` cannot be protected by
+the security boundary CLAUDE.md rule 2 requires.
+
+**DECIDED (user, 2026-08-15): a separate `member_notes` table.**
+
+```sql
+CREATE TABLE member_notes (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  ward_id    uuid NOT NULL REFERENCES wards(id),
+  member_id  uuid NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  body       text NOT NULL,
+  created_by uuid NOT NULL REFERENCES users(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+```
+
+- Lives in migration `003_roster.sql`, alongside `members`.
+- Policy: `is_bishopric() AND ward_id = current_ward_id()`, separate per operation.
+- `members` gets **no** `notes` column. The rejected alternative — keeping the column and
+  never selecting it for non-bishopric roles — fails silently the first time anyone writes
+  `select('*')`, and puts the boundary in application code instead of the database.
+- This table is **not in SPEC.md**. Task 9 adds it.
+- Plan C's ward-isolation test covers it like any other ward-scoped table; it is also worth
+  an explicit "a non-bishopric role reads zero rows" case.
+
+---
+
+### 5. Already-approved deviations (from 00-foundation.md, no decision needed)
 
 - `sundays.date UNIQUE` → **`UNIQUE (ward_id, date)`**. Plain `UNIQUE` would stop a second
   ward ever having a Sunday on the same date. Spec bug.
@@ -110,7 +141,7 @@ from plan A.
 - `notification_user_prefs` — add `UNIQUE (user_id, trigger_key)`.
 - `document_chunks.embedding` — build the `ivfflat` index **after** seeding, not before.
 
-### 5. Minor, no action
+### 6. Minor, no action
 
 FEATURES.md lists "Home address" on the member record; SPEC.md puts `address` on
 `households`. SPEC.md is right — address is a household property. No change.
@@ -125,7 +156,7 @@ FEATURES.md lists "Home address" on the member record; SPEC.md puts `address` on
 |---|---|---|
 | 001 | `001_extensions.sql` | `vector`, `pgcrypto` |
 | 002 | `002_core.sql` | `wards`, `organizations`, `users`, `invites` |
-| 003 | `003_roster.sql` | `households`, `members`, `member_organizations` |
+| 003 | `003_roster.sql` | `households`, `members`, `member_organizations`, `member_notes` |
 | 004 | `004_calendar.sql` | `sundays`, `conducting_rotation` |
 | 005 | `005_talks.sql` | `topics`, `assignments`, `assignment_approvals`, `assignment_comments`, `assignment_history`, `prayer_assignments` |
 | 006 | `006_music.sql` | `hymns`, `hymn_selections`, `musical_numbers` |
@@ -156,7 +187,7 @@ FEATURES.md lists "Home address" on the member record; SPEC.md puts `address` on
 
 | File | Action | Purpose |
 |---|---|---|
-| `supabase/seed.sql` | create | `\i` includes the four seed files so `db:reset` runs them |
+| `supabase/config.toml` | modify | `[db.seed].sql_paths` lists the four seed files in dependency order. Replaces the planned `supabase/seed.sql`: the seed runner executes plain SQL and does not support psql `\i` meta-commands, and `sql_paths` is already an ordered list |
 | `types/database.ts` | modify | Regenerated — replaces plan A's stub |
 | `SPEC.md` | modify | Record the four resolved conflicts above |
 
@@ -164,7 +195,12 @@ FEATURES.md lists "Home address" on the member record; SPEC.md puts `address` on
 
 ## Dependencies
 
-No new packages. Uses the Supabase CLI and the local Docker database from plan A.
+No new packages. Uses the Supabase CLI (the `supabase` devDependency, v2.114) against the
+**linked hosted project** from plan A. There is no local database — see CLAUDE.md §9.
+
+Verified ready as of 2026-08-15: the CLI reaches the remote without prompting for a
+password (credentials cached by `db:link`), and `supabase_migrations.schema_migrations` on
+the remote is **empty** — this phase starts from a genuinely clean database.
 
 Column definitions come **verbatim from [SPEC.md](../SPEC.md) §Database Schema**, except
 where this plan's conflict section overrides them.
@@ -190,8 +226,21 @@ where this plan's conflict section overrides them.
 - snake_case throughout (conventions.md).
 - `date` for Sundays, visit dates, meeting dates, goal periods. `timestamptz` for events
   and timestamps. Never a local-time string.
-- Run `npm run db:reset` after **each** migration, not at the end. A dependency-order
-  mistake at 005 is trivial to find immediately and painful to find at 017.
+- **Filenames:** `supabase db push` reads the version from the digits before the first
+  underscore, so `001_extensions.sql` is a valid migration and applies in numeric order —
+  verified against CLI 2.114, not assumed. Later phases that run `supabase migration new`
+  get 14-digit timestamps, which sort after `019`. The two styles coexist correctly; do
+  not renumber anything.
+- **Apply with `npm run db:push` after each migration, not at the end.** A dependency-order
+  mistake at 005 is trivial to find immediately and painful to find at 017. `db:push`
+  applies only what the remote has not seen, so it is the cheap inner-loop command. Use
+  `npx supabase db push --dry-run` first if you want to see what it would apply.
+- **`npm run db:reset` is the ordering proof, and it wipes the hosted database.** Run it
+  deliberately at the end of Task 1 and again after Task 7 — not as a fix-up between
+  migrations. On hosted it is a full remote drop and re-apply, not a fast local rebuild.
+- **Rolling back on hosted is manual.** There is no local database to throw away, so a bad
+  migration that has already been pushed is fixed either by a corrective migration or by
+  editing the file and paying for a full `db:reset`. Get each file right before pushing it.
 
 ---
 
@@ -292,12 +341,9 @@ data leak, and Postgres defaults it off.
 - Write **separate policies per operation** (SELECT / INSERT / UPDATE / DELETE) rather than
   one `FOR ALL`. `FOR ALL` with a `USING` clause and no `WITH CHECK` lets a user update a
   row *into* another ward. Every INSERT and UPDATE policy needs an explicit `WITH CHECK`.
-- **`members.notes` is bishopric-visible only** (FEATURES.md §Module 1). Column-level
-  restriction is not expressible in an RLS policy — either split the notes into a separate
-  bishopric-only table, or enforce it in the data-access layer and never select the column
-  for non-bishopric roles. **Recommend the separate table** (`member_notes`), because the
-  data-access approach fails silently the first time someone writes `select('*')`.
-  Confirm with the user before adding a table not in SPEC.md.
+- **`member_notes` is bishopric-only** — see conflict 4 above, already decided. Policies are
+  `is_bishopric() AND ward_id = current_ward_id()`, written per operation. `members` itself
+  has no `notes` column, so no non-bishopric query can reach the data by any path.
 - The private-notes policy has **no bishopric branch**. Not for the bishop, not for an
   admin, not for a support query (CLAUDE.md rule 5). Plan C asserts this explicitly.
 - `hymns` gets a simple "authenticated users can read" policy — no ward predicate.
@@ -344,11 +390,18 @@ Do **not** grant `anon` access to `sacrament_assignments` or `programs` directly
 **Details:**
 - **Every seed statement is idempotent** — `ON CONFLICT DO NOTHING`. `db:reset` runs them
   on every schema change.
-- **Hymns need a real data source.** There are 341 hymns in the standard hymnbook. Do not
-  invent numbers or titles — a wrong hymn number prints on a real program that a
-  congregation sings from. If no authoritative list is available offline, seed the schema
-  and a small verified subset, and flag to the user that the full list needs sourcing.
-  Say so plainly rather than generating plausible-looking data.
+- **`db:push` does not run seeds; `db:reset` does.** `supabase/config.toml` already has
+  `[db.seed] enabled = true` with `sql_paths = ["./seed.sql"]`, and `db reset --linked`
+  honours it (verified — there is a `--no-seed` flag to opt out). To load seeds without a
+  full wipe, run `npx supabase db push --include-seed`. Idempotency is what makes that safe
+  to repeat.
+- **Hymns — DECIDED (user, 2026-08-15): seed a verified subset now, source the full 341
+  before phase 6.** Do not invent numbers or titles; a wrong hymn number prints on a real
+  program that a congregation sings from. Seed only hymns whose number and title are known
+  with confidence, and put a header comment in `hymns.sql` stating plainly that the list is
+  **partial** and must be completed before [06-program-music.md](06-program-music.md) ships
+  hymn selection. Flag the gap in the handoff too — a partial seed that looks complete is
+  worse than an obviously empty one.
 - `topic_tags` drives AI hymn matching in phase 6. Rough tags are fine to start.
 - Trigger keys must match SPEC.md §Trigger Keys **exactly** — `emitNotification()` in plan
   C looks them up by string, and a typo means a notification that silently never fires.
@@ -381,6 +434,7 @@ npm run db:types
 2. Add `username` and `pin_hash` to `users`.
 3. Add `sacrament_manager` to the `users.role` comment.
 4. Change `sundays.date UNIQUE` to `UNIQUE (ward_id, date)`.
+5. Add the `member_notes` table, and remove `notes` from `members` — conflict 4 above.
 
 Keep it surgical — schema corrections only, no rewrite. SPEC.md is a source-of-truth
 document; leaving it wrong means the next phase re-derives the same bug.
@@ -393,12 +447,21 @@ The RLS test suite is plan C. This plan ships two structural checks that must no
 
 | File | Cases |
 |---|---|
-| `tests/db/rls-enabled.test.ts` | Query `pg_tables` joined to `pg_class.relrowsecurity`; **fail if any table in `public` lacks RLS**. Runs against a fresh `db:reset` |
-| `tests/db/migrations.test.ts` | All 19 migrations apply to an empty database with no error |
+| `tests/db/rls-enabled.test.ts` | Query `pg_tables` joined to `pg_class.relrowsecurity`; **fail if any table in `public` lacks RLS** |
+| `tests/db/migrations.test.ts` | Every file in `supabase/migrations/` appears in `supabase_migrations.schema_migrations` on the remote — catches a migration written but never pushed |
 
 The first is the highest-leverage test in the phase: 00-foundation.md's pitfall list notes
 that a table added later without `ENABLE ROW LEVEL SECURITY` is silently exposed. This test
 catches that for every future phase, permanently.
+
+**Both tests run over the network against the shared hosted project** (CLAUDE.md §9). Both
+are strictly read-only, which is what makes them safe to run repeatedly. They use the
+service-role client — they inspect catalog tables, they do not test RLS behaviour.
+
+Note the shape of the second test changed because of the hosted decision: *"all 19
+migrations apply to an empty database"* cannot be a vitest test here, because a test run
+must never wipe a shared database. That check is `npm run db:reset`, run deliberately by a
+human — it lives in Validation Commands below, not in the suite.
 
 ## Test Scenarios (Harness)
 
@@ -411,7 +474,11 @@ Worth noting in the handoff so it is not forgotten.
 ## Validation Commands
 
 ```bash
-# Full rebuild from scratch — the real test of migration ordering
+# Inner loop while writing migrations — applies only what the remote lacks
+npm run db:push
+
+# Full rebuild from scratch — the real test of migration ordering.
+# ⚠️ WIPES THE HOSTED DATABASE. Deliberate, end-of-task command; not a fix-up.
 npm run db:reset
 
 # Regenerate and verify types
@@ -425,7 +492,7 @@ npm run lint
 npm run build
 ```
 
-Manual verification:
+Manual verification — run these in the Supabase dashboard SQL editor:
 
 ```sql
 -- Must return zero rows
@@ -442,7 +509,7 @@ WHERE grantee = 'anon';
 
 ## Integration Notes
 
-- **Depends on** plan A: `supabase/config.toml`, a running local database, the `db:*` scripts.
+- **Depends on** plan A: `supabase/config.toml`, a linked hosted project, the `db:*` scripts.
 - **Hands off to** plan C: a complete schema for the four cross-cutting services to write
   against, and the RLS policies its six test files assert.
 - **Breaking change:** `types/database.ts` goes from stub to real. Anything typed against

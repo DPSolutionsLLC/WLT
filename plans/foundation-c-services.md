@@ -63,9 +63,20 @@ they do not get deferred.
 
 No new packages. Uses the clients from plan A and the schema from plan B.
 
-**Test isolation:** these tests write to the local database. Run them against
-`npm run db:reset` state, and have each suite clean up its own fixtures in `afterAll`. Do
-not point them at a hosted project.
+**Test isolation:** there is no local database. These suites run over the network against
+the **shared hosted project** (CLAUDE.md §9), and they write. That makes isolation a
+correctness requirement, not hygiene:
+
+- Each suite creates its own fixtures with unique identifiers and deletes them in
+  `afterAll`, by id.
+- **No suite may assume a table starts empty.** Assert on rows you created; never on
+  `count()` of a whole table, and never on "the only row".
+- **Never `TRUNCATE`, and never call `npm run db:reset` to clean up between runs.** Both
+  are a production wipe here, not a local rebuild.
+- A failed run leaves fixtures behind. Make teardown idempotent and make fixture ids
+  recognisable, so orphans can be found and removed.
+- Tests are slower than they would be locally — every assertion is a network round trip.
+  Prefer a few well-chosen assertions over exhaustive row-by-row checking.
 
 ---
 
@@ -318,12 +329,14 @@ that are tedious to set up by hand.
 ## Validation Commands
 
 ```bash
-npm run db:reset
 npm test
 npm run typecheck
 npm run lint
 npm run build
 ```
+
+`npm run db:reset` is **not** part of this loop — it wipes the hosted database and the
+suites are written to run repeatedly without it.
 
 Then the full Phase 0 Definition of Done from [00-foundation.md](00-foundation.md):
 

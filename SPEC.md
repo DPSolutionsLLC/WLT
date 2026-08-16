@@ -51,11 +51,13 @@ created_at      timestamptz DEFAULT now()
 ### `users`
 ```sql
 id              uuid PRIMARY KEY REFERENCES auth.users(id)
-ward_id         uuid REFERENCES wards(id)
+ward_id         uuid NOT NULL REFERENCES wards(id)
 first_name      text
 last_name       text
 email           text
-role            text  -- 'bishop' | 'counselor' | 'ward_secretary' | 'executive_secretary' | 'org_president' | 'org_counselor' | 'org_secretary' | 'music_coordinator' | 'ward_council_member'
+username        text   -- youth PIN accounts only; unique per ward, case-insensitive
+pin_hash        text   -- hash only, never a raw PIN, never logged
+role            text  -- 'bishop' | 'counselor' | 'ward_secretary' | 'executive_secretary' | 'org_president' | 'org_counselor' | 'org_secretary' | 'music_coordinator' | 'ward_council_member' | 'sacrament_manager'
 org_id          uuid REFERENCES organizations(id)  -- null for bishopric/ward-level roles
 counselor_position  integer  -- 1 or 2 for counselors; null otherwise
 is_active       boolean DEFAULT true
@@ -100,13 +102,27 @@ category        text  -- 'adult' | 'youth' | 'child'
 gender          text  -- 'male' | 'female'
 status          text DEFAULT 'active'  -- 'active' | 'moved_out' | 'do_not_contact'
 phone           text
-notes           text  -- bishopric-visible only
 created_at      timestamptz DEFAULT now()
+-- No `notes` column. Member notes are bishopric-only, and RLS grants or denies a row,
+-- never a column — so they live in `member_notes` below, behind their own policy.
+```
+
+### `member_notes`
+```sql
+id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
+member_id       uuid NOT NULL REFERENCES members(id) ON DELETE CASCADE
+body            text NOT NULL
+created_by      uuid REFERENCES users(id)
+created_at      timestamptz DEFAULT now()
+updated_at      timestamptz DEFAULT now()
+-- RLS: is_bishopric() AND ward_id = current_ward_id(), on every operation
 ```
 
 ### `member_organizations`
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
 member_id       uuid REFERENCES members(id)
 org_id          uuid REFERENCES organizations(id)
 -- Links members to their organizations for filtered roster views
@@ -116,7 +132,7 @@ org_id          uuid REFERENCES organizations(id)
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
 ward_id         uuid REFERENCES wards(id)
-date            date NOT NULL UNIQUE
+date            date NOT NULL  -- UNIQUE (ward_id, date), not UNIQUE alone
 type            text DEFAULT 'standard'  -- 'standard' | 'fast_sunday' | 'stake_conference' | 'general_conference' | 'holiday' | 'special'
 notes           text
 conducting_user_id  uuid REFERENCES users(id)
@@ -185,6 +201,7 @@ created_at      timestamptz DEFAULT now()
 ### `assignment_approvals`
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
 assignment_id   uuid REFERENCES assignments(id)
 user_id         uuid REFERENCES users(id)
 approved        boolean
@@ -195,6 +212,7 @@ created_at      timestamptz DEFAULT now()
 ### `assignment_comments`
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
 assignment_id   uuid REFERENCES assignments(id)
 sunday_id       uuid REFERENCES sundays(id)  -- for month-level comments
 user_id         uuid REFERENCES users(id)
@@ -206,6 +224,7 @@ created_at      timestamptz DEFAULT now()
 ### `assignment_history`
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
 member_id       uuid REFERENCES members(id)
 assignment_id   uuid REFERENCES assignments(id)
 outcome         text  -- 'accepted' | 'declined' | 'cancelled' | 'completed'
@@ -308,6 +327,7 @@ created_at      timestamptz DEFAULT now()
 ### `visit_private_notes`
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
 visit_log_id    uuid REFERENCES visit_logs(id)
 user_id         uuid REFERENCES users(id)
 notes           text NOT NULL
@@ -318,6 +338,7 @@ created_at      timestamptz DEFAULT now()
 ### `report_read_status`
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
 user_id         uuid REFERENCES users(id)
 report_type     text  -- 'visit_log' | 'youth_activity'
 report_id       uuid  -- references visit_logs.id or activity_logs.id
@@ -367,6 +388,7 @@ created_at      timestamptz DEFAULT now()
 ### `activity_attendees`
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
 event_id        uuid REFERENCES activity_events(id)
 user_id         uuid REFERENCES users(id)
 assigned_by     uuid REFERENCES users(id)  -- null if self-added
@@ -389,6 +411,7 @@ created_at      timestamptz DEFAULT now()
 ### `activity_private_notes`
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
 activity_log_id uuid REFERENCES activity_logs(id)
 user_id         uuid REFERENCES users(id)
 notes           text NOT NULL
@@ -423,9 +446,10 @@ created_at      timestamptz DEFAULT now()
 ### `tithing_entries`
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
 session_id      uuid REFERENCES tithing_sessions(id)
 entry_number    integer NOT NULL  -- auto-incremented within session
-checks          jsonb  -- array of {check_number, amount}
+checks          jsonb  -- array of {check_number, amount}; amount is INTEGER CENTS
 bills_100       integer DEFAULT 0
 bills_50        integer DEFAULT 0
 bills_20        integer DEFAULT 0
@@ -496,6 +520,7 @@ created_at      timestamptz DEFAULT now()
 ### `notification_user_prefs`
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
 user_id         uuid REFERENCES users(id)
 trigger_key     text NOT NULL
 is_enabled      boolean DEFAULT true  -- user-level override
@@ -564,6 +589,7 @@ created_at      timestamptz DEFAULT now()
 ### `conversation_messages` *(framework only — no UI in v1)*
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
 thread_id       uuid REFERENCES conversation_threads(id)
 user_id         uuid REFERENCES users(id)
 body            text

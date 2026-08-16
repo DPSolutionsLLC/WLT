@@ -68,7 +68,17 @@ schema_paths = []
 enabled = true
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = ["./seed.sql"]
+# ORDER MATTERS. topics and notification_settings both carry a NOT NULL ward_id and are
+# seeded per ward with a cross join, so the ward must exist before they run. hymns has no
+# ward_id and can go first. Listed explicitly rather than via a glob so the order is not
+# left to alphabetical accident, and so the files stay plain SQL — the seed runner does not
+# support psql backslash meta-commands like \i.
+sql_paths = [
+  "./seed/hymns.sql",
+  "./seed/ward.sql",
+  "./seed/topics.sql",
+  "./seed/notification_triggers.sql",
+]
 
 [db.network_restrictions]
 # Enable management of network restrictions.

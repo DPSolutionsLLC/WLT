@@ -9,6 +9,12 @@
 > [foundation-c-services.md](foundation-c-services.md). Do not start B until A's
 > Definition of Done passes.
 
+> ⚠️ **COMPLETE (c5ca596), and partly superseded.** Every instruction below about
+> `supabase start`, Docker Desktop, a local Postgres, or `--local` is **obsolete** — the
+> project uses a linked hosted database instead (CLAUDE.md §9, decided after this plan
+> ran). The `db:*` scripts in §Task 8 below are not the ones in `package.json`. Read this
+> file as a record of what was built, not as instructions to follow.
+
 ---
 
 ## Overview

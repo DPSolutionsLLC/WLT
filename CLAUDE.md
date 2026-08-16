@@ -198,6 +198,13 @@ right prompt, calls with the right params, and handles an API error.
 
 Flag these when they become relevant; do not silently pick a side.
 
+- **Local vs hosted database — DECIDED: hosted.** There is no local Docker stack. The dev
+  machine is Windows 11 Home with 2 cores, 7.7 GB RAM, and ~10 GB free disk — not enough
+  for Docker Desktop plus the ten containers `supabase start` runs. All `db:*` scripts
+  target the linked hosted project `WLT` (`dtlvpeqirajfbqaydcgr`) via `--linked`. Do not
+  re-propose `supabase start` or add `db:start`/`db:stop` back. Consequences: `npm run
+  db:reset` **wipes the hosted database**, and RLS tests run over the network against a
+  shared project, so they must clean up after themselves and cannot assume an empty table.
 - **Second AI vendor — DECIDED.** Embeddings use OpenAI `text-embedding-3-small` (1536
   dims) alongside the Anthropic key. Two vendors is accepted. Do not re-propose Voyage AI
   or Supabase `gte-small`; switching later means a schema migration and a full re-embed
