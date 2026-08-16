@@ -17,6 +17,7 @@ const CREDENTIALS_MESSAGE = "Email or password is incorrect.";
 export type LoginFormProps = {
   redirectTo?: string;
   didResetPassword?: boolean;
+  didRegister?: boolean;
 };
 
 // redirectTo arrives in a query string, so a caller can put anything in it. Only a same-site
@@ -27,7 +28,11 @@ function safeRedirect(target: string | undefined, fallback: string): string {
   return target;
 }
 
-export function LoginForm({ redirectTo, didResetPassword }: LoginFormProps) {
+export function LoginForm({
+  redirectTo,
+  didResetPassword,
+  didRegister,
+}: LoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -93,6 +98,12 @@ export function LoginForm({ redirectTo, didResetPassword }: LoginFormProps) {
         {didResetPassword && (
           <p className="text-sm text-success">
             Your password has been updated. Sign in with it below.
+          </p>
+        )}
+
+        {didRegister && (
+          <p className="text-sm text-success">
+            Your account is ready. Sign in with your email and new password.
           </p>
         )}
 

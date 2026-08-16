@@ -27,6 +27,13 @@ export const ROLE_LABELS: Record<Role, string> = {
   sacrament_manager: "Sacrament Manager",
 };
 
+// Roles an emailed invite may carry, and the roles the admin user list may assign. A
+// sacrament_manager is a youth account authenticated by username and PIN with no email at all,
+// so it is created by its own flow in auth-c rather than by an invite link.
+export const INVITABLE_ROLES: readonly Role[] = ROLES.filter(
+  (role) => role !== "sacrament_manager",
+);
+
 export const ORGANIZATION_TYPES = [
   "bishopric",
   "elders_quorum",

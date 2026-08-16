@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 2,
+  "scenarioCount": 4,
   "scenarios": [
     {
       "id": "auth:scenario-001-role-shell",
@@ -55,6 +55,61 @@
         "Signing out normally writes a `logout` row with `module = 'auth'`"
       ],
       "seedCommand": "npm run seed -- auth/scenario-002-deactivated-account"
+    },
+    {
+      "id": "auth:scenario-003-invite-registration",
+      "path": "auth/scenario-003-invite-registration",
+      "name": "Invite to registration, end to end",
+      "scope": "auth-b-invites-admin",
+      "part": 1,
+      "tags": [
+        "auth",
+        "smoke",
+        "admin"
+      ],
+      "prerequisites": "none",
+      "purpose": "The invite link crosses three contexts — an authenticated admin page, a URL copied out of the\nbrowser, and a second browser with no session at all. That handoff is what breaks, and no unit\ntest spans it: the library tests prove the invite cannot be escalated or replayed, but they\nnever touch a clipboard or a fresh browser profile. Seeding gives a bishopric account to\ngenerate from, and the notification triggers that make the \"admin setting changed\" half of the\njourney observable.",
+      "checklist": [
+        "The generated link is shown once with a copy button and a stated 7-day, single-use expiry",
+        "The registration page names the invited role (\"Music Coordinator\") and offers no way to change it",
+        "Registration succeeds and lands on `/login` with a confirmation message, not straight into the app",
+        "The new account signs in and sees the music coordinator sidebar — Calendar, Talks, Music",
+        "The new account's sidebar has no Admin, Visits, or Tithing entry",
+        "Opening the same invite URL a second time is refused",
+        "`notifications` has an `admin_setting_changed` row addressed to `counselor1`, whose body names the bishop and the invited role",
+        "`audit_log` has an `invite_created` row with `module = 'admin'`",
+        "`audit_log` has a `user_registered` row with `module = 'auth'`, whose `user_id` is the new account",
+        "Neither audit row's `detail` contains the token"
+      ],
+      "seedCommand": "npm run seed -- auth/scenario-003-invite-registration"
+    },
+    {
+      "id": "auth:scenario-004-admin-user-management",
+      "path": "auth/scenario-004-admin-user-management",
+      "name": "Admin user management and the lockout guard",
+      "scope": "auth-b-invites-admin",
+      "part": 1,
+      "tags": [
+        "auth",
+        "full",
+        "admin"
+      ],
+      "prerequisites": "none",
+      "purpose": "The last-bishop guard is a refusal, and refusals are where this app's rules live. A unit test\nproves the guard returns the right answer; only a walkthrough proves the answer reaches the\nscreen as a readable sentence on the row the admin was touching, instead of a 500 page or a raw\nPostgres error. The same walkthrough is the only place the stacked-card layout at 375px gets\nlooked at. Setting up a ward with exactly one bishop plus a spare account to promote is fiddly\nby hand and exact when seeded.",
+      "checklist": [
+        "The list shows all five accounts with name, role, organization, and an active/inactive control",
+        "The signed-in user's own row is marked \"(you)\" and its role select and active button are both disabled",
+        "Promoting `spare` to Bishop succeeds and the row shows the new role after the page refreshes",
+        "With two bishops, deactivating `spare` succeeds",
+        "As `counselor1`, deactivating the last active bishop is refused with \"This is the only active bishop. Assign another bishop before changing this account.\"",
+        "Changing that same bishop's role is refused with the same message",
+        "Deactivating `secretary` succeeds, and that account can no longer sign in",
+        "`notifications` has `admin_setting_changed` rows naming the acting person and describing each change by name — e.g. \"Mark Andersen updated Miguel Cortez: role changed from Ward Council Member to Bishop.\"",
+        "`audit_log` has a `user_updated` row with `module = 'admin'` for every successful change, with the acting user as `user_id`",
+        "`audit_log` has no `user_updated` row for the refused changes",
+        "At 375px the list is stacked cards with full-width controls, not a sideways-scrolling table"
+      ],
+      "seedCommand": "npm run seed -- auth/scenario-004-admin-user-management"
     }
   ]
 }
