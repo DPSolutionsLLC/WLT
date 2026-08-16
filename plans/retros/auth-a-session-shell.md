@@ -2,7 +2,7 @@
 id: auth-a-session-shell
 type: feature
 iter: null
-commits: ["253ec0c"]
+commits: ["e403c51"]
 date: 2026-08-16
 files:
   - supabase/migrations/020_users_ward_read.sql
