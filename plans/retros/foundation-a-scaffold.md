@@ -2,7 +2,7 @@
 id: foundation-a-scaffold
 type: feature
 iter: null
-commits: ["e72e484"]
+commits: ["c5ca596"]
 date: 2026-08-15
 files:
   - AGENTS.md
