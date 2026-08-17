@@ -10,6 +10,6 @@ Quick-reference for the retrolearn command. One line per entry.
 - [auth-a-session-shell](auth-a-session-shell.md) — session resolution, adult sign-in, deactivation enforcement, middleware guard, role-filtered app shell, ward-scoped users read (e403c51)
 - [auth-b-invites-admin](auth-b-invites-admin.md) — role-bearing invite links, atomic single-use redemption, registration page, admin user management, last-bishop lockout guard (8f10ec1)
 - [auth-c-youth-pin](auth-c-youth-pin.md) — youth username+PIN accounts, synthetic .invalid auth addresses, 5-failure lockout, separate youth shell, `pin_hash` dropped (e8f3a66)
-- [roster-a-data-and-pages](roster-a-data-and-pages.md) — roster data layer with an active-only default, browse and detail pages, household/member CRUD, bishopric-only member notes, `apply_roster_import`, `users` column grant closed (pending commit)
+- [roster-a-data-and-pages](roster-a-data-and-pages.md) — roster data layer with an active-only default, browse and detail pages, household/member CRUD, bishopric-only member notes, `apply_roster_import`, `users` column grant closed (f185c7d)
 
 ## Bug Fixes

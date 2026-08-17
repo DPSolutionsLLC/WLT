@@ -2,7 +2,7 @@
 id: roster-a-data-and-pages
 type: feature
 iter: null
-commits: []
+commits: ["f185c7d"]
 date: 2026-08-17
 files:
   - supabase/migrations/022_roster_import.sql
