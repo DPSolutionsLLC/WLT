@@ -2,7 +2,7 @@
 id: roster-b-picker-and-orgs
 type: feature
 iter: null
-commits: []
+commits: ["d6cb4da"]
 date: 2026-08-17
 files:
   - components/roster/MemberPicker.tsx
