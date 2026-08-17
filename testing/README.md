@@ -89,6 +89,13 @@ ward other than the test ward.
 programs, visits and private notes, youth activities, goals, agendas, tithing, sacrament
 administration, and notifications.
 
+Accounts come in two shapes. `createTestUser()` builds an adult account that signs in with an
+email address and `HARNESS_TEST_PASSWORD`. `createYouthAccount()` builds a
+`sacrament_manager` account that signs in at `/pin` with a username and a PIN — no email, and
+the PIN is a parameter because the checklist has to name the digits the tester will type. Pair
+it with `setYouthLoginAttempts()` to seed a failed-attempt count, which is the only practical
+way to reach the lockout boundary more than once.
+
 Not yet covered, because those phases have no schema use yet: knowledge documents and
 embeddings (phase 5), AI settings (phase 6), and conversation threads (no v1 UI). Add factories
 alongside the phase that needs them.

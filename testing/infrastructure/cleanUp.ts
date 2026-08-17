@@ -4,6 +4,7 @@ import {
   DEVELOPMENT_WARD_ID,
   TEST_EMAIL_DOMAIN,
   TEST_WARD_ID,
+  TEST_YOUTH_EMAIL_DOMAIN,
 } from "./seedUtils.ts";
 
 // ============================================================================
@@ -62,8 +63,13 @@ export async function cleanUpTestData(): Promise<CleanUpResult> {
     throw new Error(`Could not list auth users: ${listError.message}`);
   }
 
+  // Both domains. Adult harness accounts sit on TEST_EMAIL_DOMAIN; youth accounts carry the
+  // synthetic .invalid address keyed by the test ward id. Matching only the first left youth
+  // logins working on a shared project after a "clean".
+  const harnessDomains = [TEST_EMAIL_DOMAIN, TEST_YOUTH_EMAIL_DOMAIN];
+
   const harnessUsers = (listed?.users ?? []).filter((user) =>
-    (user.email ?? "").endsWith(`@${TEST_EMAIL_DOMAIN}`),
+    harnessDomains.some((domain) => (user.email ?? "").endsWith(`@${domain}`)),
   );
 
   let authUsersDeleted = 0;
@@ -84,6 +90,7 @@ async function main(): Promise<void> {
   console.log(`Cleaning harness data from ${describeTarget()}`);
   console.log(`  ward id: ${TEST_WARD_ID}`);
   console.log(`  auth users on: @${TEST_EMAIL_DOMAIN}`);
+  console.log(`                 @${TEST_YOUTH_EMAIL_DOMAIN}`);
 
   const result = await cleanUpTestData();
 

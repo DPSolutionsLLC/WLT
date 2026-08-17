@@ -2326,7 +2326,6 @@ export type Database = {
           is_active: boolean
           last_name: string | null
           org_id: string | null
-          pin_hash: string | null
           role: string
           theme_preference: string
           username: string | null
@@ -2341,7 +2340,6 @@ export type Database = {
           is_active?: boolean
           last_name?: string | null
           org_id?: string | null
-          pin_hash?: string | null
           role: string
           theme_preference?: string
           username?: string | null
@@ -2356,7 +2354,6 @@ export type Database = {
           is_active?: boolean
           last_name?: string | null
           org_id?: string | null
-          pin_hash?: string | null
           role?: string
           theme_preference?: string
           username?: string | null
@@ -2635,6 +2632,44 @@ export type Database = {
           },
           {
             foreignKeyName: "youth_activity_profiles_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      youth_login_attempts: {
+        Row: {
+          created_at: string
+          failed_count: number
+          id: string
+          last_failed_at: string | null
+          locked_until: string | null
+          username: string
+          ward_id: string
+        }
+        Insert: {
+          created_at?: string
+          failed_count?: number
+          id?: string
+          last_failed_at?: string | null
+          locked_until?: string | null
+          username: string
+          ward_id: string
+        }
+        Update: {
+          created_at?: string
+          failed_count?: number
+          id?: string
+          last_failed_at?: string | null
+          locked_until?: string | null
+          username?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "youth_login_attempts_ward_id_fkey"
             columns: ["ward_id"]
             isOneToOne: false
             referencedRelation: "wards"

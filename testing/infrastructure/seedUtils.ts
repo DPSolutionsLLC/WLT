@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { syntheticYouthEmail } from "../../lib/auth/syntheticYouthEmail.ts";
 import { getAdminClient } from "./adminClient.ts";
 import { loadEnvironment } from "./envLoader.ts";
 import type {
@@ -35,6 +36,13 @@ import type {
 
 export const TEST_WARD_ID = "11111111-1111-4111-8111-111111111111";
 export const TEST_EMAIL_DOMAIN = "harness.wardleadershiptools.test";
+
+// Youth accounts do not sit on TEST_EMAIL_DOMAIN — they carry the synthetic address
+// syntheticYouthEmail() builds, which is keyed by ward id. cleanUp.ts has to match both
+// domains or a youth auth user survives `npm run seed:clean` and leaves a working login on a
+// shared project. It also makes the next seed take updateUserById instead of createUser, which
+// fails for any PIN under six characters — a confusing failure a long way from its cause.
+export const TEST_YOUTH_EMAIL_DOMAIN = `youth.${TEST_WARD_ID}.invalid`;
 
 // The Development Ward from supabase/seed/ward.sql. Named here only so the guard in
 // cleanUp.ts can prove it is never the delete target.
@@ -245,6 +253,117 @@ export async function createTestUser(options: CreateUserOptions): Promise<TestUs
   }
 
   return { id: userId, handle: options.handle, email, password, role: options.role, orgId };
+}
+
+export type TestYouthAccount = {
+  id: string;
+  username: string;
+  pin: string;
+};
+
+export type CreateYouthAccountOptions = {
+  username: string;
+  pin: string;
+  firstName?: string;
+  lastName?: string;
+  isActive?: boolean;
+};
+
+// createTestUser() always builds an email account. A youth account has no email at all: it
+// signs in with a username and a PIN, where the PIN is the password on a synthetic Supabase
+// Auth address (plans/auth-c-youth-pin.md).
+//
+// The address comes from the app's own syntheticYouthEmail() rather than being rebuilt here.
+// Two copies of that format would drift, and the drift would show up as a seeded youth account
+// that cannot sign in for no visible reason.
+//
+// The PIN is a parameter rather than an environment variable, unlike testPassword(): a
+// scenario checklist has to name the exact digits the tester will type, and six digits behind
+// a rate limiter is not a secret worth protecting the way a real password is.
+export async function createYouthAccount(
+  options: CreateYouthAccountOptions,
+): Promise<TestYouthAccount> {
+  const supabase = getAdminClient();
+  const username = options.username.toLowerCase();
+  const email = syntheticYouthEmail(username, TEST_WARD_ID);
+
+  const { data: existing } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+  const alreadyThere = existing?.users.find((user) => user.email === email);
+
+  let userId: string;
+
+  if (alreadyThere) {
+    userId = alreadyThere.id;
+    const { error } = await supabase.auth.admin.updateUserById(userId, {
+      password: options.pin,
+    });
+    if (error) {
+      throw new Error(`Could not reset the PIN for ${username}: ${error.message}`);
+    }
+  } else {
+    // email_confirm: true — there is no inbox to confirm from, and an unconfirmed account
+    // cannot sign in.
+    const { data, error } = await supabase.auth.admin.createUser({
+      email,
+      password: options.pin,
+      email_confirm: true,
+    });
+
+    if (error || !data.user) {
+      throw new Error(
+        `Could not create the youth auth user ${username}: ${error?.message ?? "no user returned"}`,
+      );
+    }
+
+    userId = data.user.id;
+  }
+
+  // email stays null, matching createYouthAccount() in lib/auth/youthAccounts.ts: the
+  // synthetic address lives in auth.users only.
+  const { error: rowError } = await supabase.from("users").upsert(
+    {
+      id: userId,
+      ward_id: TEST_WARD_ID,
+      first_name: options.firstName ?? username,
+      last_name: options.lastName ?? "Harness",
+      email: null,
+      username,
+      role: "sacrament_manager",
+      org_id: null,
+      counselor_position: null,
+      is_active: options.isActive ?? true,
+    },
+    { onConflict: "id" },
+  );
+
+  if (rowError) {
+    throw new Error(
+      `Could not create the users row for ${username}: ${rowError.message}`,
+    );
+  }
+
+  return { id: userId, username, pin: options.pin };
+}
+
+// Seeds the failed-attempt counter directly, which is the only sane way to reach the fifth
+// failure repeatedly. `youth_login_attempts` has RLS enabled and no policies (migration 021),
+// so the admin client is the only thing that can write it.
+export async function setYouthLoginAttempts(options: {
+  username: string;
+  failedCount: number;
+  lockedUntil?: string | null;
+}): Promise<string> {
+  return insertRow(
+    "youth_login_attempts",
+    {
+      ward_id: TEST_WARD_ID,
+      username: options.username.toLowerCase(),
+      failed_count: options.failedCount,
+      locked_until: options.lockedUntil ?? null,
+      last_failed_at: new Date().toISOString(),
+    },
+    "ward_id,username",
+  );
 }
 
 // ============================================================================
@@ -791,6 +910,7 @@ export const NOTIFICATION_TRIGGERS: Array<{ key: string; defaultRoles: Role[] }>
   { key: "sacrament_assignments_sent", defaultRoles: ["bishop", "counselor"] },
   { key: "sacrament_assignments_overdue", defaultRoles: ["bishop", "counselor"] },
   { key: "sacrament_manager_changed", defaultRoles: ["bishop", "counselor"] },
+  { key: "youth_account_locked", defaultRoles: ["bishop", "counselor"] },
 ];
 
 export async function seedNotificationTriggers(): Promise<number> {

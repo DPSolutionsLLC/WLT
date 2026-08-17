@@ -1,9 +1,11 @@
 import { NotPermitted } from "@/app/(app)/admin/NotPermitted";
 import { InviteForm } from "@/app/(app)/admin/users/InviteForm";
 import { UserRow } from "@/app/(app)/admin/users/UserRow";
+import { YouthAccountForm } from "@/app/(app)/admin/users/YouthAccountForm";
 import { listWardOrganizations, listWardUsers } from "@/lib/auth/adminUsers";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
+import { listYouthAccounts } from "@/lib/auth/youthAccounts";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 // The layout above already gated on admin.view. This second check is not redundant: Phase 11's
@@ -17,17 +19,27 @@ export default async function AdminUsersPage() {
     return <NotPermitted detail="Managing accounts is limited to the bishopric." />;
   }
 
-  const [users, organizations] = await Promise.all([
+  const [users, organizations, youthAccounts] = await Promise.all([
     listWardUsers(user.wardId, supabase),
     listWardOrganizations(user.wardId, supabase),
+    listYouthAccounts(user.wardId, supabase),
   ]);
+
+  // Youth accounts get their own section below, so the adult list does not show rows with no
+  // email, no organization, and controls that do not apply to them.
+  const adultUsers = users.filter((wardUser) => wardUser.role !== "sacrament_manager");
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold text-foreground">Users</h1>
         <p className="mt-1 text-sm text-muted">
-          {users.length} {users.length === 1 ? "account" : "accounts"} in this ward.
+          {users.length} {users.length === 1 ? "account" : "accounts"} in this ward
+          {youthAccounts.length > 0 &&
+            `, ${youthAccounts.length} of them youth ${
+              youthAccounts.length === 1 ? "account" : "accounts"
+            }`}
+          .
         </p>
       </div>
 
@@ -44,7 +56,7 @@ export default async function AdminUsersPage() {
         </div>
 
         <ul className="flex flex-col gap-3">
-          {users.map((wardUser) => (
+          {adultUsers.map((wardUser) => (
             <UserRow
               key={wardUser.id}
               user={wardUser}
@@ -54,6 +66,8 @@ export default async function AdminUsersPage() {
           ))}
         </ul>
       </section>
+
+      <YouthAccountForm accounts={youthAccounts} />
     </div>
   );
 }

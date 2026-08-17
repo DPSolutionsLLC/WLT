@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { isForbiddenError } from "@/lib/auth/errors";
+import { isForbiddenError, isPinLockedError } from "@/lib/auth/errors";
 
 export type RouteErrorContext = {
   route: string;
@@ -9,6 +9,16 @@ export type RouteErrorContext = {
 };
 
 const FORBIDDEN_MESSAGE = "You do not have permission to do that.";
+
+// The one place this app names the reason a sign-in failed. Everything else about PIN login is
+// deliberately indistinguishable (see app/api/auth/pin-login/route.ts), but by the time anyone
+// reads this the account is already known to exist, and a teenager staring at a PIN they know
+// is correct needs to be told why it keeps failing.
+export function pinLockedMessage(remainingMinutes: number): string {
+  return `Too many attempts. Try again in ${remainingMinutes} ${
+    remainingMinutes === 1 ? "minute" : "minutes"
+  }.`;
+}
 
 export class InvalidRequestBodyError extends Error {
   constructor(cause: unknown) {
@@ -45,6 +55,14 @@ export function respondToRouteError(
 ): NextResponse {
   if (isForbiddenError(error)) {
     return NextResponse.json({ error: FORBIDDEN_MESSAGE }, { status: 403 });
+  }
+
+  // 429, not 403. The credentials may well be correct; what is being refused is the rate.
+  if (isPinLockedError(error)) {
+    return NextResponse.json(
+      { error: pinLockedMessage(error.remainingMinutes) },
+      { status: 429 },
+    );
   }
 
   if (error instanceof InvalidRequestBodyError) {

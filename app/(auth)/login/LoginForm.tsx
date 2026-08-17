@@ -140,6 +140,15 @@ export function LoginForm({
         >
           Forgot your password?
         </Link>
+
+        {/* Two entry points with no route between them is a support call. A youth account has
+            no email, so this form can never work for one. */}
+        <Link
+          href="/pin"
+          className="text-center text-sm text-primary underline underline-offset-4"
+        >
+          Youth sign-in
+        </Link>
       </form>
     </Card>
   );

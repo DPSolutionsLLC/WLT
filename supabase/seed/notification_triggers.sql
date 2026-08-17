@@ -2,7 +2,7 @@
 --
 -- The keys below must match SPEC.md §Trigger Keys EXACTLY. emitNotification() (plan C) looks
 -- them up by string, so a typo here is a notification that silently never fires — no error,
--- no log, just nothing arriving. Twenty-two keys; count them against the spec if you edit.
+-- no log, just nothing arriving. Twenty-three keys; count them against the spec if you edit.
 --
 -- default_roles is the role list that receives the trigger unless a user opts out in
 -- notification_user_prefs. Bishop and counselor always appear together: bishopric admin
@@ -44,6 +44,9 @@ cross join (values
   -- Sacrament administration
   ('sacrament_assignments_sent',    array['bishop', 'counselor']),
   ('sacrament_assignments_overdue', array['bishop', 'counselor']),
-  ('sacrament_manager_changed',     array['bishop', 'counselor'])
+  ('sacrament_manager_changed',     array['bishop', 'counselor']),
+
+  -- Youth accounts
+  ('youth_account_locked',          array['bishop', 'counselor'])
 ) as trigger(key, default_roles)
 on conflict (ward_id, trigger_key) do nothing;

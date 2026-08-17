@@ -56,7 +56,9 @@ first_name      text
 last_name       text
 email           text
 username        text   -- youth PIN accounts only; unique per ward, case-insensitive
-pin_hash        text   -- hash only, never a raw PIN, never logged
+-- No pin_hash column. Migration 021 dropped it: the PIN is the password on a synthetic
+-- Supabase Auth account ({username}@youth.{ward-uuid}.invalid), so Supabase owns the hashing
+-- and there is exactly one credential store. See plans/retros/auth-c-youth-pin.md.
 role            text  -- 'bishop' | 'counselor' | 'ward_secretary' | 'executive_secretary' | 'org_president' | 'org_counselor' | 'org_secretary' | 'music_coordinator' | 'ward_council_member' | 'sacrament_manager'
 org_id          uuid REFERENCES organizations(id)  -- null for bishopric/ward-level roles
 counselor_position  integer  -- 1 or 2 for counselors; null otherwise
@@ -79,6 +81,21 @@ expires_at      timestamptz
 used_at         timestamptz
 created_at      timestamptz DEFAULT now()
 ```
+
+### `youth_login_attempts`
+```sql
+id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
+username        text NOT NULL   -- lower-cased; keyed by username, not user id, so an attempt
+                                -- against an unknown username is still counted
+failed_count    integer NOT NULL DEFAULT 0
+locked_until    timestamptz     -- five consecutive failures locks for 15 minutes
+last_failed_at  timestamptz
+created_at      timestamptz DEFAULT now()
+UNIQUE (ward_id, username)
+```
+RLS enabled with **no policies**: only the PIN login route touches it, and that route runs with
+the service-role client because its caller is unauthenticated by definition. Never stores a PIN.
 
 ### `households`
 ```sql

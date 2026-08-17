@@ -566,7 +566,10 @@ A tool for the assigned youth (priest or teacher quorum member) to manage and di
 ### Youth Account Authentication
 Youth accounts use **username + PIN** instead of email + password:
 - Username assigned by bishopric admin (e.g. first initial + last name)
-- PIN is a 4–6 digit code set at account creation
+- PIN is a 6 digit code set at account creation. (Originally specified as 4–6. Supabase Auth
+  enforces a six-character minimum on the password-update call, so a shorter PIN could be
+  created but never reset — and a reset is the only way to unblock a locked-out youth. Six
+  digits is also the default iPhone passcode length, so it is a familiar shape.)
 - No email required — account created entirely by bishopric admin
 - PIN resets handled by bishopric admin directly (no email flow)
 - Email field is optional on youth accounts

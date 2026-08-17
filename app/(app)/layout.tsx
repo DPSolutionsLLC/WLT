@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopNav } from "@/components/layout/TopNav";
 import { visibleNavigationItems } from "@/lib/auth/navigation";
@@ -15,6 +16,12 @@ import { ROLE_LABELS } from "@/types/domain";
 // (plans/retros/foundation-a-scaffold.md).
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await requireSessionUser();
+
+  // The mirror of the check in app/(youth)/layout.tsx. Together the two make the shells
+  // mutually exclusive by construction: a youth account cannot render this layout at all, so
+  // no page beneath it can leak through a nav filter that was got wrong.
+  if (user.role === "sacrament_manager") redirect("/sacrament");
+
   const supabase = await createServerSupabaseClient();
 
   // resolveRoleAccess throws on a read failure, deliberately. Do not add a fallback to
