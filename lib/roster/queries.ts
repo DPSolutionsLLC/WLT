@@ -283,8 +283,13 @@ async function readMembersForHouseholds(
   householdIds: string[],
   statuses: readonly MemberStatus[],
   category?: MemberCategory,
+  memberIds?: string[],
 ): Promise<Member[]> {
   if (householdIds.length === 0) return [];
+
+  // An empty restriction means "no member qualifies", never "no restriction". `.in("id", [])`
+  // matches nothing, which is correct, but returning early says so without a round trip.
+  if (memberIds && memberIds.length === 0) return [];
 
   let query = supabase
     .from("members")
@@ -295,6 +300,10 @@ async function readMembersForHouseholds(
 
   if (category) {
     query = query.eq("category", category);
+  }
+
+  if (memberIds) {
+    query = query.in("id", memberIds);
   }
 
   const { data, error } = await query
@@ -335,10 +344,16 @@ function groupByHousehold(
 // themselves: a household whose members all filter out still appears, with an empty expand.
 // Dropping it would make the household count move whenever a category is selected, and that
 // count is the one number on the page a reader trusts.
+//
+// `organizationId` narrows the same way, for the same reason: an elders quorum president
+// browsing households sees their own members inside each one, and the household count does not
+// move underneath them (roster-b Decision 4). It is a convenience filter, never a boundary —
+// clearing it genuinely shows the whole ward.
 export type ListHouseholdsOptions = {
   search?: string;
   statuses?: readonly MemberStatus[];
   category?: MemberCategory;
+  organizationId?: string;
 };
 
 // Two queries and an in-memory group rather than a PostgREST embed, for the reason
@@ -389,6 +404,10 @@ export async function listHouseholds(
 
   const households = (data ?? []).map(mapHouseholdRow);
 
+  const organizationMemberIds = opts?.organizationId
+    ? await readMemberIdsInOrganization(supabase, wardId, opts.organizationId)
+    : undefined;
+
   // Every member of a matched household, not only the ones whose name matched: expanding a
   // household that came up in a search should show the whole family.
   const members = await readMembersForHouseholds(
@@ -397,6 +416,7 @@ export async function listHouseholds(
     households.map((household) => household.id),
     statuses,
     opts?.category,
+    organizationMemberIds,
   );
 
   return groupByHousehold(households, members);

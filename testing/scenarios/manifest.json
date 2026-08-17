@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 7,
+  "scenarioCount": 8,
   "scenarios": [
     {
       "id": "auth:scenario-001-role-shell",
@@ -206,6 +206,53 @@
         "At 375px the household view is stacked cards with full-width controls, no sideways"
       ],
       "seedCommand": "npm run seed -- roster/scenario-007-roster-browse-and-notes"
+    },
+    {
+      "id": "roster:scenario-008-member-picker-and-organizations",
+      "path": "roster/scenario-008-member-picker-and-organizations",
+      "name": "The member picker across every consumer shape",
+      "scope": "roster-b-picker-and-orgs",
+      "part": 1,
+      "tags": [
+        "roster",
+        "full",
+        "picker"
+      ],
+      "prerequisites": "none",
+      "purpose": "`MemberPicker`'s props are frozen after this phase — Phases 4, 7, 8 and 10 all consume it, and\nchanging the signature later means touching every module. So the walkthrough has to exercise\nevery shape a later phase will use while there is still time to change the interface.\n\nA unit test proves the filter resolves. Only a walkthrough proves the modal is usable one-handed\non a 375px screen during a meeting, which is its actual job. Seeding a roster with the right\nspread of categories, genders and statuses is fiddly by hand and exact when seeded.",
+      "checklist": [
+        "As `bishop`, `/roster` loads with the Organization filter set to **All organizations**",
+        "Selecting members in the all-members view reveals a bar naming the count; deselecting them",
+        "The bar does **not** appear in the household view — selection is offered in the flat list",
+        "Bulk-assigning 9 members reports the number actually assigned",
+        "Re-running the same assign reports 0 assigned and 9 already members, and is not an error",
+        "Assigning a member who is already in the organization does not create a duplicate row in",
+        "Pressing Assign with no organization chosen is refused by the form, without a request",
+        "Filtering by Primary returns exactly the members just assigned plus the 2 seeded ones",
+        "Sarah Brooks's Organizations panel shows Relief Society and Primary ticked",
+        "Unticking every organization saves, and the panel shows none afterwards",
+        "The confirmation names what changed — \"2 removed\", not a bare \"Saved\"",
+        "Carlos Ruiz (moved out) still has a member page and a working Organizations panel",
+        "As `eqpres`, `/roster` redirects to `?organizationId=<elders quorum>` and the filter shows",
+        "As `eqpres`, clearing the Organization filter shows the whole ward roster. **This is",
+        "As `eqpres`, the Organizations panel on a member is read-only text with no checkboxes and",
+        "As `eqpres`, no selection checkboxes and no bulk-assign bar appear anywhere",
+        "`audit_log` has a `members_bulk_assigned` row whose `detail` carries `requested`,",
+        "`audit_log` has a `member_organizations_updated` row whose `detail` carries `added` and",
+        "At 375px the bulk-assign bar is fixed to the bottom of the viewport and reachable with one",
+        "Every row, checkbox and control is at least 44px tall",
+        "Correct in both light and dark mode",
+        "It opens as a modal, groups members under their household name, and lists Jonah Whitfield",
+        "`Escape` closes it and focus returns to the button that opened it",
+        "The page behind does not scroll while it is open",
+        "Neither `moved_out` member (Carlos, Marta) appears under **any** filter setting",
+        "Both `do_not_contact` members (Helen, Zara) are hidden until the override control is used,",
+        "Selecting in single mode replaces the previous choice rather than adding to it",
+        "Selected members appear as removable chips, and removing one updates the list",
+        "Typing in the search flattens the household grouping to matching members; clearing it",
+        "Searching a family name (`smith`) matches everyone in both Smith households"
+      ],
+      "seedCommand": "npm run seed -- roster/scenario-008-member-picker-and-organizations"
     }
   ]
 }

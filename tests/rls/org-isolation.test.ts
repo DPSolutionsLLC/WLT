@@ -10,17 +10,23 @@ describe("organization isolation", () => {
   let fixtures: Fixtures;
   let eqPresident: SupabaseClient<Database>;
   let rsPresident: SupabaseClient<Database>;
+  let wardBBishop: SupabaseClient<Database>;
 
   let eldersQuorumLogId: string;
   let reliefSocietyLogId: string;
 
+  let eldersQuorumMemberId: string;
+  let reliefSocietyMemberId: string;
+  let wardBMemberId: string;
+
   beforeAll(async () => {
-    fixtures = await seedFixtures(["eqPresident", "rsPresident"], {
+    fixtures = await seedFixtures(["eqPresident", "rsPresident", "wardBBishop"], {
       crossOrgVisibility: false,
     });
 
     eqPresident = await asRole(fixtures, "eqPresident");
     rsPresident = await asRole(fixtures, "rsPresident");
+    wardBBishop = await asRole(fixtures, "wardBBishop");
 
     const { data, error } = await fixtures.service
       .from("visit_logs")
@@ -44,6 +50,48 @@ describe("organization isolation", () => {
 
     eldersQuorumLogId = data.find((row) => row.org_id === fixtures.eldersQuorumId)!.id;
     reliefSocietyLogId = data.find((row) => row.org_id === fixtures.reliefSocietyId)!.id;
+
+    const insertMember = async (wardId: string, lastName: string) => {
+      const { data: row, error: memberError } = await fixtures.service
+        .from("members")
+        .insert({
+          ward_id: wardId,
+          first_name: "Org",
+          last_name: `${lastName} ${fixtures.runId}`,
+          category: "adult",
+          status: "active",
+        })
+        .select("id")
+        .single();
+      if (memberError) throw new Error(memberError.message);
+      return row.id;
+    };
+
+    eldersQuorumMemberId = await insertMember(fixtures.wardAId, "Quorum");
+    reliefSocietyMemberId = await insertMember(fixtures.wardAId, "Society");
+    wardBMemberId = await insertMember(fixtures.wardBId, "WardB");
+
+    const { error: membershipError } = await fixtures.service
+      .from("member_organizations")
+      .insert([
+        {
+          ward_id: fixtures.wardAId,
+          member_id: eldersQuorumMemberId,
+          org_id: fixtures.eldersQuorumId,
+        },
+        {
+          ward_id: fixtures.wardAId,
+          member_id: reliefSocietyMemberId,
+          org_id: fixtures.reliefSocietyId,
+        },
+        {
+          ward_id: fixtures.wardBId,
+          member_id: wardBMemberId,
+          org_id: fixtures.wardBOrgId,
+        },
+      ]);
+
+    if (membershipError) throw new Error(membershipError.message);
   });
 
   afterAll(async () => {
@@ -152,6 +200,70 @@ describe("organization isolation", () => {
 
       expect(error).toBeNull();
       expect(updated?.map((row) => row.id)).toEqual([reliefSocietyLogId]);
+    });
+  });
+
+  // member_organizations is in migration 019's WARD-scoped policy loop, not the org-scoped one.
+  // That makes its isolation story deliberately different from visit_logs above, and the
+  // difference is the whole reason roster-b's organization default is described as a
+  // convenience rather than a boundary.
+  describe("member_organizations", () => {
+    it("hides another ward's memberships entirely", async () => {
+      const { data, error } = await eqPresident
+        .from("member_organizations")
+        .select("id")
+        .eq("member_id", wardBMemberId);
+
+      expect(error).toBeNull();
+      expect(data ?? []).toEqual([]);
+    });
+
+    it("hides this ward's memberships from another ward", async () => {
+      const { data, error } = await wardBBishop
+        .from("member_organizations")
+        .select("id")
+        .eq("member_id", eldersQuorumMemberId);
+
+      expect(error).toBeNull();
+      expect(data ?? []).toEqual([]);
+    });
+
+    // THE UNCOMFORTABLE HALF, asserted on purpose — the way tests/rls/youth-isolation.test.ts
+    // asserts its own. An org president CAN read another organization's memberships, because
+    // the table is ward-scoped. Nothing is broken; this is what the policy says. A later reader
+    // must not mistake lib/roster/organizationScope.ts for a security boundary, and this test is
+    // where they will find out.
+    it("lets an org president read another organization's memberships", async () => {
+      const { data, error } = await eqPresident
+        .from("member_organizations")
+        .select("id, org_id")
+        .eq("member_id", reliefSocietyMemberId);
+
+      expect(error).toBeNull();
+      expect(data?.map((row) => row.org_id)).toEqual([fixtures.reliefSocietyId]);
+    });
+
+    // What makes bulk assign idempotent: re-assigning a member who is already there is a
+    // no-op under ON CONFLICT DO NOTHING rather than an error the user has to interpret.
+    it("rejects a duplicate (member_id, org_id)", async () => {
+      const { error } = await fixtures.service.from("member_organizations").insert({
+        ward_id: fixtures.wardAId,
+        member_id: eldersQuorumMemberId,
+        org_id: fixtures.eldersQuorumId,
+      });
+
+      expect(error).not.toBeNull();
+      expect(error?.code).toBe("23505");
+    });
+
+    it("refuses a cross-ward insert", async () => {
+      const { error } = await eqPresident.from("member_organizations").insert({
+        ward_id: fixtures.wardBId,
+        member_id: wardBMemberId,
+        org_id: fixtures.wardBOrgId,
+      });
+
+      expect(error).not.toBeNull();
     });
   });
 });

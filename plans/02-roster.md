@@ -81,13 +81,27 @@ two-column layout with detail beside the list.
 | Component | Notes |
 |---|---|
 | `HouseholdList` | Virtualized if over ~200 households. Search, filter, expand-to-members |
-| `MemberPicker` | **The most reused component in the app.** Modal or inline. Props: `filter` (category, org, status), `multiple`, `excludeIds`, `onSelect`. Browses by household per FEATURES.md. Shows `ReliabilityFlag` when the caller passes `showFlags` |
+| `MemberPicker` | **The most reused component in the app.** Modal or inline. Props: `value`/`onChange`, `user`, `filter` (categories, genders, statuses, org, household), `multiple`, `max`, `excludeIds`, `allowDoNotContact`, `showFlags`, `mode`. Browses by household per FEATURES.md. Shows `ReliabilityFlag` when the caller passes `showFlags` |
 | `MemberStatusBadge` | Active / Moved Out / Do Not Contact |
 | `ReliabilityFlag` | Renders pattern flags. Bishopric-only. Implemented in Phase 4; stub the interface here |
 | `HouseholdForm` / `MemberForm` | Zod-validated, shared schema with the API |
 
 Design `MemberPicker`'s props carefully now — Phases 4, 7, 8, and 10 all consume it, and
 changing its signature later means touching every module.
+
+**`MemberPicker` is controlled — `value`/`onChange`, not `onSelect`.** An earlier draft of this
+plan sketched `onSelect`, which fits a single-select modal and fights everything else: Phase 4
+picks three speakers for one Sunday and Phase 10 picks pairs for sacrament assignments, and both
+need to render the current selection *outside* the picker and remove from it. A controlled array
+handles single and multiple with one interface — `multiple: false` still passes an array of
+length 0 or 1, so no consumer branches on the shape. Changed during roster-b
+([roster-b-picker-and-orgs.md](roster-b-picker-and-orgs.md) Decision 1).
+
+`user` is required alongside them, so the picker can apply the caller's organization default
+itself rather than relying on every future consumer to remember to pass one
+([roster-b-picker-and-orgs.md](roster-b-picker-and-orgs.md) Decision 4). **The props are frozen
+from roster-b onwards.** A later phase needing something the list above does not cover should
+raise it rather than adding a prop quietly.
 
 **`Do Not Contact` members** must be visually distinct everywhere and excluded from
 assignment and visit pickers by default. Allow an explicit override with a confirmation,
@@ -139,6 +153,14 @@ and stream the parse rather than buffering the whole file.
 - Editable from the member detail page (bishopric and the relevant org leader)
 - A member can belong to multiple orgs
 - Bulk-assign from the roster list: select members → assign to org
+
+**Org leaders cannot edit membership yet — a deliberate gap, not an oversight.** roster-b gated
+both write routes on `roster.manage`, which only the bishopric holds. No permission in
+`PERMISSIONS` expresses "may edit membership of my own organization", and inventing one would
+have put a role decision in the wrong phase. An org leader sees their members' organizations as
+read-only text. Phase 11 ([11-notifications-admin.md](11-notifications-admin.md)) owns the role
+access matrix and should decide
+([roster-b-picker-and-orgs.md](roster-b-picker-and-orgs.md) Task 6).
 
 Bishopric fulfils the Young Men presidency in this ward, so there is no separate YM
 organization. Do not create one; the sacrament module (Phase 10) draws from youth members

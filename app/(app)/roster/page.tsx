@@ -1,14 +1,17 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { BulkAssignBar } from "@/app/(app)/roster/BulkAssignBar";
 import { RosterFilters } from "@/app/(app)/roster/RosterFilters";
 import { RosterViewToggle } from "@/app/(app)/roster/RosterViewToggle";
 import { HouseholdForm } from "@/components/roster/HouseholdForm";
 import { HouseholdList } from "@/components/roster/HouseholdList";
 import { MemberForm } from "@/components/roster/MemberForm";
-import { MemberList } from "@/components/roster/MemberList";
 import { Card } from "@/components/ui/Card";
 import { NotPermitted } from "@/components/ui/NotPermitted";
+import { listWardOrganizations } from "@/lib/auth/adminUsers";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
+import { defaultOrganizationFilter } from "@/lib/roster/organizations";
 import {
   listHouseholds,
   listMembers,
@@ -33,8 +36,15 @@ export type RosterPageProps = {
     search?: string;
     category?: string;
     status?: string;
+    organizationId?: string;
   }>;
 };
+
+// The value that means "the whole ward" in the URL. An ABSENT organizationId means "nobody has
+// chosen yet, apply the role's default"; this sentinel means "somebody cleared it on purpose".
+// Without the distinction, an org president could never see the whole roster — the default
+// would reapply on every navigation.
+export const ALL_ORGANIZATIONS = "all";
 
 function toViewMode(value: string | undefined): RosterViewMode {
   return (ROSTER_VIEW_MODES as readonly string[]).includes(value ?? "")
@@ -79,6 +89,37 @@ export default async function RosterPage({ searchParams }: RosterPageProps) {
   const category = toCategory(params.category);
   const status = toStatus(params.status);
 
+  const organizations = await listWardOrganizations(user.wardId, supabase);
+
+  // roster-b Decision 4: the organization default is applied HERE, not buried inside
+  // listMembers, so it is visible in the URL, overridable, and testable without a database.
+  // The redirect is what makes it visible — an org president landing on /roster is sent to
+  // /roster?organizationId=<their org> so the filter control and the address bar agree.
+  //
+  // It cannot loop: after the redirect the parameter is present, and this branch requires it to
+  // be absent.
+  const roleDefaultOrganizationId = defaultOrganizationFilter(user);
+
+  if (params.organizationId === undefined && roleDefaultOrganizationId) {
+    const target = new URLSearchParams();
+    if (params.view) target.set("view", params.view);
+    if (search.trim() !== "") target.set("search", search.trim());
+    if (category !== "") target.set("category", category);
+    if (status !== "") target.set("status", status);
+    target.set("organizationId", roleDefaultOrganizationId);
+
+    redirect(`/roster?${target.toString()}`);
+  }
+
+  // A cleared filter and an unrecognised id both mean the whole ward. This is a convenience
+  // filter, never a boundary — see lib/roster/organizationScope.ts.
+  const organizationId =
+    params.organizationId && params.organizationId !== ALL_ORGANIZATIONS
+      ? (organizations.find(
+          (organization) => organization.id === params.organizationId,
+        )?.id ?? undefined)
+      : undefined;
+
   // ROSTER_BROWSE_STATUSES is passed explicitly, never left to the library default. This is a
   // browse surface rather than a calculation, and a do-not-contact member is still in the ward
   // — but moved_out stays an explicit choice.
@@ -88,6 +129,7 @@ export default async function RosterPage({ searchParams }: RosterPageProps) {
   if (search.trim() !== "") query.search = search.trim();
   if (category !== "") query.category = category;
   if (status !== "") query.status = status;
+  if (params.organizationId) query.organizationId = params.organizationId;
 
   // The household list is read in both views: the flat list needs family names to show beside
   // each member, and the add-member form needs them for its household select.
@@ -95,7 +137,12 @@ export default async function RosterPage({ searchParams }: RosterPageProps) {
     listHouseholds(
       user.wardId,
       view === "household"
-        ? { search: search || undefined, statuses, category: category || undefined }
+        ? {
+            search: search || undefined,
+            statuses,
+            category: category || undefined,
+            organizationId,
+          }
         : { statuses },
       supabase,
     ),
@@ -106,13 +153,15 @@ export default async function RosterPage({ searchParams }: RosterPageProps) {
             search: search || undefined,
             category: category || undefined,
             statuses,
+            organizationId,
           },
           supabase,
         )
       : Promise.resolve([]),
   ]);
 
-  const isFiltered = search.trim() !== "" || category !== "" || status !== "";
+  const isFiltered =
+    search.trim() !== "" || category !== "" || status !== "" || organizationId !== undefined;
   const resultCount = view === "household" ? households.length : members.length;
 
   return (
@@ -135,7 +184,14 @@ export default async function RosterPage({ searchParams }: RosterPageProps) {
       </div>
 
       <Card>
-        <RosterFilters view={view} search={search} category={category} status={status} />
+        <RosterFilters
+          view={view}
+          search={search}
+          category={category}
+          status={status}
+          organizations={organizations}
+          organizationId={params.organizationId ?? ALL_ORGANIZATIONS}
+        />
       </Card>
 
       {/* Stacked at 375px; list beside the management panel from md up. */}
@@ -165,7 +221,12 @@ export default async function RosterPage({ searchParams }: RosterPageProps) {
           ) : view === "household" ? (
             <HouseholdList households={households} canManage={canManage} />
           ) : (
-            <MemberList members={members} householdNames={householdNameMap(households)} />
+            <BulkAssignBar
+              members={members}
+              householdNames={householdNameMap(households)}
+              organizations={organizations}
+              canManage={canManage}
+            />
           )}
         </section>
 

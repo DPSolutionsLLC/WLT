@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopNav } from "@/components/layout/TopNav";
+import { QueryProvider } from "@/components/providers/QueryProvider";
 import { visibleNavigationItems } from "@/lib/auth/navigation";
 import { resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
@@ -53,7 +54,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           wardName={ward?.name ?? "Ward Leadership Tools"}
           roleLabel={ROLE_LABELS[user.role]}
         />
-        <main className="flex-1 p-4 pb-24 md:pb-4">{children}</main>
+        {/* The authenticated shell is the only place with a client fetch, so the query cache
+            lives here and not in the root layout. The (auth) and (youth) shells have none and
+            should not acquire one. */}
+        <main className="flex-1 p-4 pb-24 md:pb-4">
+          <QueryProvider>{children}</QueryProvider>
+        </main>
       </div>
     </div>
   );

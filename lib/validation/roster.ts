@@ -39,3 +39,27 @@ export const createMemberNoteSchema = z.object({
   body: z.string().trim().min(1, "Enter a note.").max(5000),
 });
 export type CreateMemberNoteInput = z.infer<typeof createMemberNoteSchema>;
+
+// Organization ids and nothing else. A field the server accepts and then discards is the silent
+// drop CLAUDE.md rule 9 exists to prevent (plans/retros/auth-c-youth-pin.md) — if a future
+// caller needs to say something more about a membership, it belongs in a column first.
+//
+// An empty array is valid and means "remove this member from every organization", which is why
+// there is no min(1) here.
+export const setMemberOrganizationsSchema = z.object({
+  organizationIds: z
+    .array(z.uuid("Choose an organization from the list."))
+    .max(20, "That is more organizations than a ward has."),
+});
+export type SetMemberOrganizationsInput = z.infer<typeof setMemberOrganizationsSchema>;
+
+// 500 is a UI selection cap, not an import cap. A roster larger than one screenful of
+// checkboxes belongs in roster-c's CSV import, which has its own preview-and-confirm step.
+export const bulkAssignSchema = z.object({
+  memberIds: z
+    .array(z.uuid("That member id is not valid."))
+    .min(1, "Select at least one member.")
+    .max(500, "Select 500 members or fewer."),
+  organizationId: z.uuid("Choose an organization."),
+});
+export type BulkAssignInput = z.infer<typeof bulkAssignSchema>;

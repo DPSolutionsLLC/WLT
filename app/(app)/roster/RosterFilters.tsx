@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import type { WardOrganization } from "@/lib/auth/adminUsers";
 import {
   MEMBER_CATEGORIES,
   MEMBER_STATUSES,
@@ -17,6 +18,8 @@ export type RosterFiltersProps = {
   search: string;
   category: MemberCategory | "";
   status: MemberStatus | "";
+  organizations: WardOrganization[];
+  organizationId: string;
 };
 
 const SELECT_CLASSES =
@@ -38,7 +41,14 @@ const STATUS_LABELS: Record<MemberStatus, string> = {
 
 // Pushes to the search params rather than holding the result set, so the page above stays a
 // Server Component and a filtered roster is a link somebody can share or reload.
-export function RosterFilters({ view, search, category, status }: RosterFiltersProps) {
+export function RosterFilters({
+  view,
+  search,
+  category,
+  status,
+  organizations,
+  organizationId,
+}: RosterFiltersProps) {
   const router = useRouter();
 
   const [searchTerm, setSearchTerm] = useState(search);
@@ -47,6 +57,7 @@ export function RosterFilters({ view, search, category, status }: RosterFiltersP
     search?: string;
     category?: string;
     status?: string;
+    organizationId?: string;
   }): void {
     const params = new URLSearchParams();
     params.set("view", view);
@@ -54,10 +65,14 @@ export function RosterFilters({ view, search, category, status }: RosterFiltersP
     const nextSearch = next.search ?? searchTerm;
     const nextCategory = next.category ?? category;
     const nextStatus = next.status ?? status;
+    const nextOrganizationId = next.organizationId ?? organizationId;
 
     if (nextSearch.trim() !== "") params.set("search", nextSearch.trim());
     if (nextCategory !== "") params.set("category", nextCategory);
     if (nextStatus !== "") params.set("status", nextStatus);
+    // Always written, including the "all" sentinel: an absent parameter would let the role's
+    // organization default reapply on the next navigation and quietly undo the clearing.
+    params.set("organizationId", nextOrganizationId);
 
     router.push(`/roster?${params.toString()}`);
   }
@@ -120,6 +135,30 @@ export function RosterFilters({ view, search, category, status }: RosterFiltersP
           {MEMBER_STATUSES.map((option) => (
             <option key={option} value={option}>
               {STATUS_LABELS[option]}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* A convenience, not a boundary. An org leader lands here on their own organization and
+          can clear it to see the whole ward — that is intended, not a leak. */}
+      <div className="flex flex-col gap-1.5 md:w-44">
+        <label
+          htmlFor="roster-organization"
+          className="text-sm font-medium text-foreground"
+        >
+          Organization
+        </label>
+        <select
+          id="roster-organization"
+          className={SELECT_CLASSES}
+          value={organizationId}
+          onChange={(event) => apply({ organizationId: event.target.value })}
+        >
+          <option value="all">All organizations</option>
+          {organizations.map((organization) => (
+            <option key={organization.id} value={organization.id}>
+              {organization.name}
             </option>
           ))}
         </select>

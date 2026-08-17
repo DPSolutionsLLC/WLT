@@ -2,12 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MemberEditor } from "@/app/(app)/roster/member/[id]/MemberEditor";
 import { MemberNotes } from "@/app/(app)/roster/member/[id]/MemberNotes";
+import { MemberOrganizations } from "@/app/(app)/roster/member/[id]/MemberOrganizations";
 import { MemberStatusBadge } from "@/components/roster/MemberStatusBadge";
 import { Card } from "@/components/ui/Card";
 import { NotPermitted } from "@/components/ui/NotPermitted";
+import { listWardOrganizations } from "@/lib/auth/adminUsers";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { listMemberNotes } from "@/lib/roster/memberNotes";
+import { listMemberOrganizations } from "@/lib/roster/organizations";
 import { getMember, listHouseholds } from "@/lib/roster/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -48,6 +51,14 @@ export default async function MemberDetailPage({ params }: MemberDetailPageProps
   const notes = canManage ? await listMemberNotes(user.wardId, id, supabase) : [];
   const households = canManage
     ? await listHouseholds(user.wardId, undefined, supabase)
+    : [];
+
+  // Memberships are read for everyone who can view the roster — which organizations someone
+  // belongs to is not sensitive. The list of organizations to CHOOSE from is only needed by a
+  // caller who can edit, so it is fetched inside the branch.
+  const memberships = await listMemberOrganizations(user.wardId, id, supabase);
+  const organizations = canManage
+    ? await listWardOrganizations(user.wardId, supabase)
     : [];
 
   return (
@@ -120,6 +131,15 @@ export default async function MemberDetailPage({ params }: MemberDetailPageProps
           <MemberEditor member={member} households={households} />
         </Card>
       )}
+
+      <Card>
+        <MemberOrganizations
+          memberId={member.id}
+          organizations={organizations}
+          initialMemberships={memberships}
+          canManage={canManage}
+        />
+      </Card>
 
       {canManage && (
         <Card>
