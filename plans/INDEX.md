@@ -25,7 +25,13 @@ plan set — each file is written to be sufficient on its own.
 | 10 | Sacrament administration & public assignments | [10-sacrament-admin.md](10-sacrament-admin.md) | 3 | Medium |
 | 11 | Notification UI, admin pages, audit viewer, dashboards | [11-notifications-admin.md](11-notifications-admin.md) | all | Medium |
 | 12 | Theme polish, accessibility, multi-ward scaffolding | [12-polish-multiward.md](12-polish-multiward.md) | all | Small |
+| — | Deployment — Vercel, env vars, auth URLs, SMTP | [deployment.md](deployment.md) | 1 | Small |
 | — | Code conventions reference | [conventions.md](conventions.md) | — | — |
+
+**Deployment is unnumbered on purpose.** It is not a phase after 12. It depends only on Phase 1
+and is *required* by Phase 6, whose public program pages are meaningless without a URL a ward
+member can open. Doing it early also makes every "test on a real phone" step in the harness a
+real test rather than an approximation.
 
 ---
 

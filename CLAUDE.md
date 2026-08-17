@@ -43,6 +43,7 @@ unless the spec is wrong, in which case flag it and update the spec in the same 
 | Sacrament ordinance assignments, youth manager, public link | [plans/10-sacrament-admin.md](plans/10-sacrament-admin.md) |
 | Notification UI, admin pages, audit viewer, dashboards | [plans/11-notifications-admin.md](plans/11-notifications-admin.md) |
 | Theme polish, accessibility, multi-ward scaffolding | [plans/12-polish-multiward.md](plans/12-polish-multiward.md) |
+| Hosting, environment variables, Supabase auth URLs, SMTP | [plans/deployment.md](plans/deployment.md) |
 | Detailed code style, file naming, test patterns | [plans/conventions.md](plans/conventions.md) |
 
 Never load more than **two** plan files at once. If a task spans more phases than that,
