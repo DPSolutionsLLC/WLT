@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 6,
+  "scenarioCount": 7,
   "scenarios": [
     {
       "id": "auth:scenario-001-role-shell",
@@ -169,6 +169,43 @@
         "Reloading Admin → Users after the reset does **not** show the PIN again"
       ],
       "seedCommand": "npm run seed -- auth/scenario-006-pin-lockout"
+    },
+    {
+      "id": "roster:scenario-007-roster-browse-and-notes",
+      "path": "roster/scenario-007-roster-browse-and-notes",
+      "name": "Roster browse, edit, and the notes boundary",
+      "scope": "roster-a-data-and-pages",
+      "part": 1,
+      "tags": [
+        "roster",
+        "full",
+        "rls"
+      ],
+      "prerequisites": "none",
+      "purpose": "The notes boundary is a refusal, and refusals are where this app's rules live. A unit test\nproves the query returns nothing; only a walkthrough proves the panel is **absent from the\npage** rather than rendered empty, and that a bishop and an org president see genuinely\ndifferent screens. The same walkthrough is the only place the status filter gets checked\nend to end — a moved-out member reaching a browse page by default is the quiet bug 02-roster.md\nopens with. Seeding a ward with households across all three statuses plus notes on specific\nmembers is slow and error-prone by hand, and exact when seeded.",
+      "checklist": [
+        "The default `/roster` view is the household view, and it lists all 6 households",
+        "Expanding a household shows its members with a status badge on each",
+        "The 2 `moved_out` members (Carlos and Marta Ruiz) are absent until \"Moved Out\" is",
+        "The `do_not_contact` member (Helen Nguyen) **is** shown, with a visually distinct badge",
+        "Jonah Whitfield appears in the all-members view and is not silently lost",
+        "Both \"Smith\" households are listed separately and their addresses tell them apart",
+        "Searching `smit` matches both Smith households; searching `marta` matches nothing until",
+        "Filtering Category to Youth narrows the members shown inside each household, and the",
+        "As `bishop`, the member detail page shows the notes panel with both seeded notes",
+        "A third note saves and appears at the top of the list",
+        "Editing a phone number saves and the value survives a reload",
+        "Changing Carlos Ruiz to Active makes him appear in the default view; changing him back to",
+        "Adding the Petersen household writes a `new_household_added` row to `notifications`",
+        "As `eqpres`, the notes panel is **absent from the page**, not present and empty",
+        "As `eqpres`, no edit control and no \"Add household\" / \"Add member\" section appears",
+        "The view toggle choice survives a page reload",
+        "`audit_log` has `household_created`, `member_updated`, and `member_note_created` rows",
+        "The `member_updated` row for the status change carries a `statusTransition` of",
+        "No `audit_log` `detail` field anywhere contains note text",
+        "At 375px the household view is stacked cards with full-width controls, no sideways"
+      ],
+      "seedCommand": "npm run seed -- roster/scenario-007-roster-browse-and-notes"
     }
   ]
 }

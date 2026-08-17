@@ -2707,6 +2707,10 @@ export type Database = {
           version: string
         }[]
       }
+      apply_roster_import: {
+        Args: { p_households: Json; p_members: Json; p_ward_id: string }
+        Returns: Json
+      }
       current_org_id: { Args: never; Returns: string }
       current_user_role: { Args: never; Returns: string }
       current_ward_id: { Args: never; Returns: string }

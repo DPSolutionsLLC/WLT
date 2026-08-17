@@ -91,12 +91,16 @@ describe("users ward-scoped read", () => {
   // RLS-denied UPDATE returns no error and zero rows rather than raising — so the only proof
   // is re-reading the row with the service client
   // (plans/retros/foundation-c-services.md).
+  //
+  // theme_preference is the column under test because migration 022 narrowed the authenticated
+  // UPDATE grant to that one column. Any other column now fails on the column privilege first,
+  // which would prove the grant rather than the ROW boundary this assertion is about.
   it("cannot update another ward member's row", async () => {
     const target = fixtures.user("bishop");
 
     const { data: updated, error } = await musicCoordinatorA
       .from("users")
-      .update({ first_name: "tampered" })
+      .update({ theme_preference: "dark" })
       .eq("id", target.id)
       .select("id");
 
@@ -105,18 +109,17 @@ describe("users ward-scoped read", () => {
 
     const { data: after } = await fixtures.service
       .from("users")
-      .select("first_name")
+      .select("theme_preference")
       .eq("id", target.id)
       .single();
 
-    expect(after?.first_name).toBe("bishop");
+    expect(after?.theme_preference).toBe("system");
   });
 
-  // Self-UPDATE of one's OWN row is deliberately not asserted here. users_update_self
-  // (migration 019) permits it column-for-column, which means a user can currently rewrite
-  // their own `role`. RLS grants rows, not columns, so closing that needs column-level GRANTs
-  // rather than a policy — out of scope for this plan, which was told to leave
-  // users_update_self alone. Recorded as a known gap in the retro for auth-b.
+  // Self-UPDATE of one's OWN row is asserted in tests/rls/users-column-grant.test.ts, not here.
+  // users_update_self (migration 019) permits it column-for-column; migration 022 narrowed the
+  // authenticated grant to theme_preference alone, which is what stops a user rewriting their
+  // own role. That is a GRANT boundary rather than a policy boundary, so it has its own suite.
 
   // No INSERT policy exists — account creation is a service-role operation in auth-b and
   // auth-c, deliberately. INSERT is the one operation RLS refuses with an actual error.

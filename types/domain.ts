@@ -71,6 +71,9 @@ export type MemberGender = (typeof MEMBER_GENDERS)[number];
 export const MEMBER_STATUSES = ["active", "moved_out", "do_not_contact"] as const;
 export type MemberStatus = (typeof MEMBER_STATUSES)[number];
 
+export const ROSTER_VIEW_MODES = ["household", "list"] as const;
+export type RosterViewMode = (typeof ROSTER_VIEW_MODES)[number];
+
 export const SUNDAY_TYPES = [
   "standard",
   "fast_sunday",

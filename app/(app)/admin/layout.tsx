@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { NotPermitted } from "@/app/(app)/admin/NotPermitted";
+import { NotPermitted } from "@/components/ui/NotPermitted";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";

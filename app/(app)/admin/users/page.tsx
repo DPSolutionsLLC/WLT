@@ -1,7 +1,7 @@
-import { NotPermitted } from "@/app/(app)/admin/NotPermitted";
 import { InviteForm } from "@/app/(app)/admin/users/InviteForm";
 import { UserRow } from "@/app/(app)/admin/users/UserRow";
 import { YouthAccountForm } from "@/app/(app)/admin/users/YouthAccountForm";
+import { NotPermitted } from "@/components/ui/NotPermitted";
 import { listWardOrganizations, listWardUsers } from "@/lib/auth/adminUsers";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";

@@ -19,6 +19,7 @@ export type NavigationItem = {
 };
 
 export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
+  { label: "Roster", href: "/roster", permission: "roster.view" },
   { label: "Calendar", href: "/calendar", permission: "calendar.view" },
   { label: "Talks", href: "/talks/pipeline", permission: "talks.view" },
   { label: "Topics", href: "/talks/topics", permission: "topics.view" },

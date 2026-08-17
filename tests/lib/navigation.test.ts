@@ -75,6 +75,18 @@ describe("role-filtered navigation", () => {
     expect(hrefsFor("org_secretary").filter((href) => href.startsWith("/admin"))).toEqual([]);
   });
 
+  // The roster is the module every other one browses through, so it is first in the list and
+  // reaches everyone with roster.view — which is every role except the music coordinator and
+  // the youth account.
+  it("shows the roster to every role that holds roster.view", () => {
+    for (const role of ROLES) {
+      const canSeeRoster = hrefsFor(role).includes("/roster");
+      const expected = role !== "music_coordinator" && role !== "sacrament_manager";
+
+      expect(canSeeRoster, `role "${role}" disagrees on /roster`).toBe(expected);
+    }
+  });
+
   it("shows the audit log to the bishopric and to nobody else", () => {
     for (const role of ROLES) {
       const canSeeAuditLog = hrefsFor(role).includes("/admin/audit-log");

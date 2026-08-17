@@ -8,6 +8,9 @@ export type NotPermittedProps = {
 // A refused page renders this instead of throwing. A ForbiddenError escaping a Server Component
 // becomes a 500, and in production Next.js replaces its message with a generic one — so the
 // user would see a server fault where the truthful answer is "you are not permitted".
+//
+// Lives in components/ui/ rather than under one module because /admin and /roster both use it
+// (conventions.md §Components: a component used by two modules moves, it is not copied).
 export function NotPermitted({ detail }: NotPermittedProps) {
   return (
     <Card>

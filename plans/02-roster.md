@@ -40,9 +40,18 @@ Getting this default wrong quietly corrupts every downstream number.
 layer applies the org filter so an EQ president's picker shows EQ members by default
 without them having to filter manually.
 
-**`members.notes` is bishopric-visible only.** Do not include the column in the general
-member select. Query it separately in the bishopric-only detail view so a serialization
-mistake cannot leak it.
+**Member notes are bishopric-visible only, and they are not a column.** An earlier draft of
+this plan said `members.notes` was a column to leave out of the general select. There is no
+such column and there must not be one: migration 003 put notes in their own `member_notes`
+table precisely because **RLS grants or denies a row, never a column**, so a bishopric-only
+column on `members` could not have been protected by the security boundary CLAUDE.md rule 2
+requires ([foundation-b-schema retro](retros/foundation-b-schema.md)).
+
+The intent survives and is stronger: `select('*')` on `members` cannot leak notes because
+there is nothing to leak. Reads and writes of `member_notes` go through
+`lib/roster/memberNotes.ts`, kept separate from `lib/roster/queries.ts` so that "did this
+response include notes?" is answerable from an import list. Corrected during roster-a
+([roster-a-data-and-pages.md](roster-a-data-and-pages.md) Decision 1).
 
 ---
 
