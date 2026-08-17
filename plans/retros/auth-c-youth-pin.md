@@ -2,7 +2,7 @@
 id: auth-c-youth-pin
 type: feature
 iter: null
-commits: ["80004f5"]
+commits: ["e8f3a66"]
 date: 2026-08-17
 files:
   - supabase/migrations/021_youth_accounts.sql
