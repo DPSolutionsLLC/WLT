@@ -55,6 +55,13 @@ as production. A preview build of a branch mid-migration can write to real ward 
 disable preview deployments, or accept it explicitly while the project is one developer and one
 ward — but make it a decision rather than a default.
 
+**DECIDED (2026-08-18): preview deployments are disabled.** Only `main` deploys. The exposure
+being avoided is a branch build running a half-finished migration against the ward's live data,
+which has no staging step to catch it and no second database to fall back on. The cost accepted
+is that a branch cannot be click-tested on a real URL before merge — local `npm run dev` plus
+the harness remains the pre-merge test. Revisit this when a second Supabase project exists;
+that is the change that makes previews safe, not a change in how careful the branch is.
+
 ---
 
 ## Step 3 — Supabase Auth URL configuration
@@ -148,6 +155,14 @@ Add `npm run build` to the validation block of every future plan, after `npm tes
   `fileParallelism` is off. A GitHub Action running the suite on every push would write to the
   production database and rate-limit real sign-ins. Tests stay a local, deliberate act until
   there is a separate Supabase project to point them at.
+- **A build with no environment variables set still succeeds.** Verified on 2026-08-18: moving
+  `.env.local` aside and running `npm run build` exits 0 and generates all 26 pages. The three
+  client factories in `lib/supabase/` read `process.env` *inside* the function with `!`
+  assertions, so nothing is evaluated at build time, and every route that touches Supabase is
+  dynamic (`ƒ`) rather than prerendered. The consequence: a green Vercel deploy proves nothing
+  about the environment. A missing or misspelled variable surfaces as a runtime error on first
+  use, not as a failed build. **Set all six variables before trusting any deploy**, and treat
+  the Step 5 checks — not the build status — as the evidence the environment is right.
 - **`NEXT_PUBLIC_` is a one-way door.** Anything with that prefix is inlined into the client
   bundle at build time and is public forever, including in any deploy already shipped. Rotating
   the key is the only remedy.
