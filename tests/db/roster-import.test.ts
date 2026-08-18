@@ -173,6 +173,9 @@ describe("apply_roster_import", () => {
     // Helen matched. Her incoming category is the same and her phone is null, so nothing about
     // her changed and the function reports no update.
     expect(result.membersUpdated).toBe(0);
+    // Matched is not updated. Helen is the tenth row and she matched, even though nothing about
+    // her was written — the preview counts her the same way, and the two screens have to agree.
+    expect(result.membersMatched).toBe(1);
 
     const { data: members, error } = await bishop
       .from("members")
@@ -236,6 +239,10 @@ describe("apply_roster_import", () => {
     expect(result.membersCreated).toBe(0);
     expect(result.householdsUpdated).toBe(0);
     expect(result.membersUpdated).toBe(0);
+    // Every row matched and none of them changed. This is the pair the result screen reports —
+    // "10 already in the roster, 0 changed" — because reporting only the zero against a preview
+    // that counted ten reads as though the import skipped everybody.
+    expect(result.membersMatched).toBe(PAYLOAD.length);
 
     expect(await countRows("households")).toBe(householdsBefore);
     expect(await countRows("members")).toBe(membersBefore);

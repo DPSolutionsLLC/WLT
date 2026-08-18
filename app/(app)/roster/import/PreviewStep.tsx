@@ -55,8 +55,19 @@ export function PreviewStep({
           <Count label="Households to create" value={preview.newHouseholds.length} />
           <Count label="Households already in the roster" value={preview.matchedHouseholdCount} />
           <Count label="Members to create" value={preview.newMemberCount} />
-          <Count label="Members to update" value={preview.matchedMemberCount} />
+          {/* "Already in the roster", not "to update". This count is how many rows MATCH somebody
+              — the database only writes the ones whose values actually differ, so re-importing an
+              unchanged export matches everybody and updates nobody. Labelling it "to update"
+              promised a number the result screen then contradicted. */}
+          <Count label="Members already in the roster" value={preview.matchedMemberCount} />
         </div>
+
+        {preview.matchedMemberCount > 0 && (
+          <p className="mt-3 border-t border-border pt-3 text-sm text-muted">
+            Only columns with a value in this file overwrite what is already there, so some of
+            these will not change.
+          </p>
+        )}
 
         {/* Decision 5, stated out loud. An import never marks, deactivates, or removes anyone,
             and a user who is not told that will wonder what happened to everybody else. */}

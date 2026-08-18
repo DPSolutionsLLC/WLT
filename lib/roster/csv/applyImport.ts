@@ -10,6 +10,11 @@ export type ImportResult = {
   householdsCreated: number;
   householdsUpdated: number;
   membersCreated: number;
+  // How many rows matched somebody already in the roster, and how many of those the function
+  // actually wrote. They are different numbers: migration 022 only counts an update when a value
+  // changed, so re-importing an unchanged export matches everybody and updates nobody. Reporting
+  // only the second one against a preview that counted the first reads as a silent skip.
+  membersMatched: number;
   membersUpdated: number;
   newHouseholdNames: string[];
   problems: RowProblem[];
@@ -155,10 +160,16 @@ export async function applyRosterImport(
   // The counts the FUNCTION returned, never the length of what was submitted. A write refused by
   // policy is a zero-row success, not an error (plans/retros/foundation-c-services.md) — reading
   // the submitted length would report a successful import of nothing.
+  const membersCreated = readCount(payload, "members_created");
+
   const result: ImportResult = {
     householdsCreated: readCount(payload, "households_created"),
     householdsUpdated: readCount(payload, "households_updated"),
-    membersCreated: readCount(payload, "members_created"),
+    membersCreated,
+    // Every deduped payload row either created somebody or matched somebody, so the difference is
+    // the match count without a second round trip. Derived from the same map the function was
+    // handed, which is what keeps it consistent with the preview's own deduping.
+    membersMatched: Math.max(0, members.length - membersCreated),
     membersUpdated: readCount(payload, "members_updated"),
     newHouseholdNames: await readHouseholdNames(supabase, wardId, readIds(payload)),
     problems: [...problems],

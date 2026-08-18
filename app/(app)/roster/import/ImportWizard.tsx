@@ -47,6 +47,25 @@ type ImportResponse = {
 
 const NETWORK_ERROR = "Could not reach the server. Check your connection and try again.";
 
+// Worded exactly as the server's own 400, so the user reads one sentence whichever side catches
+// it — the same reason limits.ts holds the size copy for both.
+const FILE_CHANGED_ERROR = "The file changed since you previewed it. Preview again.";
+
+// A throw from these fetches is usually NOT a network failure. The browser refuses to upload a
+// file that changed on disk since it was chosen — Chrome aborts with ERR_UPLOAD_FILE_CHANGED,
+// surfaced as a bare TypeError — which is precisely what happens when somebody edits the export
+// while the preview is open. That request never reaches the server, so the fileHash check on the
+// route never gets to answer and "check your connection" is the one thing that is not wrong.
+// Re-reading a byte of the file tells the two apart.
+async function describeRequestFailure(chosen: File): Promise<string> {
+  try {
+    await chosen.slice(0, 1).arrayBuffer();
+    return NETWORK_ERROR;
+  } catch {
+    return FILE_CHANGED_ERROR;
+  }
+}
+
 export function ImportWizard() {
   const router = useRouter();
 
@@ -148,7 +167,7 @@ export function ImportWizard() {
       setStep("preview");
     } catch (error) {
       console.error("Could not build the import preview", error);
-      setFormError(NETWORK_ERROR);
+      setFormError(await describeRequestFailure(file));
     } finally {
       setIsBusy(false);
     }
@@ -182,7 +201,7 @@ export function ImportWizard() {
       router.refresh();
     } catch (error) {
       console.error("Could not import the roster", error);
-      setFormError(NETWORK_ERROR);
+      setFormError(await describeRequestFailure(file));
     } finally {
       setIsBusy(false);
     }
@@ -221,7 +240,7 @@ export function ImportWizard() {
 
   if (step === "done" && result) {
     const created = result.membersCreated;
-    const updated = result.membersUpdated;
+    const matched = result.membersMatched;
 
     return (
       <div className="flex flex-col gap-4">
@@ -229,14 +248,21 @@ export function ImportWizard() {
           <h2 className="text-base font-semibold text-foreground">Import finished</h2>
           {/* The counts the SERVER returned, never the ones the preview estimated. A write
               refused by policy is a zero-row success, and reporting the estimate would call
-              that a success too. */}
+              that a success too.
+
+              Matched AND changed, because they differ: the database only writes a member whose
+              values actually moved. Reporting "0 updated" against a preview that said 40 reads
+              as though the import skipped everybody, which is the opposite of what happened. */}
           <ul className="mt-3 text-sm text-muted">
             <li>
               {result.householdsCreated} households created, {result.householdsUpdated} updated
             </li>
             <li>
-              {created} {created === 1 ? "member" : "members"} created, {updated}{" "}
-              {updated === 1 ? "member" : "members"} updated
+              {created} {created === 1 ? "member" : "members"} created
+            </li>
+            <li>
+              {matched} {matched === 1 ? "member" : "members"} already in the roster,{" "}
+              {result.membersUpdated} changed
             </li>
           </ul>
           <Link
