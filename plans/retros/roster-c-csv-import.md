@@ -2,7 +2,7 @@
 id: roster-c-csv-import
 type: feature
 iter: null
-commits: ["6d405a6", "dcceee1"]
+commits: ["6d405a6", "aa284c2"]
 date: 2026-08-18
 files:
   - lib/roster/csv/limits.ts
@@ -37,7 +37,7 @@ everything from it, guarded by a SHA-256 the preview returned.
 **This entry covers the browser walkthrough, which happened a day after the code landed.** The
 code was committed at `6d405a6` with 452 tests green and *nothing exercised through a browser*.
 Harness scenario 009 was then walked end to end: 45 checks, 43 passed, 2 real reporting bugs
-found and fixed. `6d405a6` is the feature; `dcceee1` is the walkthrough's two fixes and this
+found and fixed. `6d405a6` is the feature; `aa284c2` is the walkthrough's two fixes and this
 entry.
 
 Every guarantee the scenario exists to prove held on the first run. A second identical import
