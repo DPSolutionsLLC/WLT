@@ -83,6 +83,10 @@ export default async function RosterPage({ searchParams }: RosterPageProps) {
 
   const canManage = can(user, "roster.manage", roleAccess);
 
+  // The empty state already links to the import, but a ward that has any data at all would
+  // otherwise have no route to it but typing the URL.
+  const canImport = can(user, "roster.import", roleAccess);
+
   const params = await searchParams;
   const view = toViewMode(params.view);
   const search = params.search ?? "";
@@ -176,11 +180,22 @@ export default async function RosterPage({ searchParams }: RosterPageProps) {
           </p>
         </div>
 
-        <RosterViewToggle
-          view={view}
-          hasViewParam={params.view !== undefined}
-          query={query}
-        />
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
+          <RosterViewToggle
+            view={view}
+            hasViewParam={params.view !== undefined}
+            query={query}
+          />
+
+          {canImport && (
+            <Link
+              href="/roster/import"
+              className="text-sm text-primary underline underline-offset-4"
+            >
+              Import from LCR
+            </Link>
+          )}
+        </div>
       </div>
 
       <Card>

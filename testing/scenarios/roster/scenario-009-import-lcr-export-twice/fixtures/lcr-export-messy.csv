@@ -1,0 +1,46 @@
+Individual Phone,Preferred Name,Family Name,Gender,Age Category,Street Address,Individual Phone
+,Mark,Andersen,M,Adult,"12 Oak Street, Apt 4"
+555-0102,Julia,Andersen,F,Adult,"12 Oak Street, Apt 4"
+,Carlos,Andersen,M,Adult,"12 Oak Street, Apt 4"
+,Ethan,Andersen,M,Young Men,"12 Oak Street, Apt 4"
+555-0103,Sarah,Brooks,F,Adult,48 Willow Lane
+,Grace,Brooks,F,Young Women,48 Willow Lane
+,Noah,Brooks,M,Primary,48 Willow Lane
+555-0106,David,Nguyen,M,Adult,7 Cedar Court
+,Kevin,Nguyen,M,Young Men,7 Cedar Court
+555-0109,Ada,Okafor,F,Adult,"22 Elm Avenue, Unit 2"
+,Emeka,Okafor,M,Primary,"22 Elm Avenue, Unit 2"
+,Zara,Okafor,F,Young Women,"22 Elm Avenue, Unit 2"
+555-0108,Jonah,Whitfield,M,Adult,5 Maple Close
+,Ruby,Whitfield,F,Primary,5 Maple Close
+,Sam,Whitfield,M,Young Men,5 Maple Close
+555-0107,Tomas,Ruiz,M,Adult,
+,Marta,Ruiz,F,Young Women,
+555-0104,Daniel,Smith,M,Adult,3 North Road
+,Rachel,Smith,F,Adult,3 North Road
+,Owen,Smith,M,Young Men,3 North Road
+555-0105,Peter,Smith,M,Adult,91 South Road
+,Chloe,Smith,F,Young Women,91 South Road
+,Lily,Smith,F,Primary,91 South Road
+555-0110,Erik,Petersen,M,Adult,14 Birch Way
+,Inga,Petersen,F,Adult,14 Birch Way
+,Lars,Petersen,M,Young Men,14 Birch Way
+555-0111,Ruth,Kaufman,F,Adult,8 Spruce Terrace
+,Simon,Kaufman,M,Adult,8 Spruce Terrace
+,Talia,Kaufman,F,Young Women,8 Spruce Terrace
+555-0112,Rosa,Delgado,F,Adult,"60 Aspen Drive, Apt 12"
+,Miguel,Delgado,M,Adult,"60 Aspen Drive, Apt 12"
+,Sofia,Delgado,F,Primary,"60 Aspen Drive, Apt 12"
+555-0113,Kenji,Yamada,M,Adult,31 Poplar Street
+,Aiko,Yamada,F,Adult,31 Poplar Street
+,Hana,Yamada,F,Young Women,31 Poplar Street
+555-0114,Anders,Sørensen,M,Adult,19 Fir Lane
+,Ingrid,Sørensen,F,Adult,19 Fir Lane
+,Nils,Sørensen,M,Young Men,19 Fir Lane
+555-0115,Grace,Vaughn,F,Adult,44 Hawthorn Row
+,Elias,Vaughn,M,Adult,44 Hawthorn Row
+555-0116,Nathan,,M,Adult,60 Cypress Way
+,Ophelia,,F,Adult,60 Cypress Way
+555-0117,Quinn,Ashford,F,Senior,"77 Rowan Grove, Apt 1"
+,Rhys,Ashford
+,Tessa,"Bramwell,F,Adult,88 Juniper Path

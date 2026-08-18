@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 8,
+  "scenarioCount": 9,
   "scenarios": [
     {
       "id": "auth:scenario-001-role-shell",
@@ -253,6 +253,60 @@
         "Searching a family name (`smith`) matches everyone in both Smith households"
       ],
       "seedCommand": "npm run seed -- roster/scenario-008-member-picker-and-organizations"
+    },
+    {
+      "id": "roster:scenario-009-import-lcr-export-twice",
+      "path": "roster/scenario-009-import-lcr-export-twice",
+      "name": "Import an LCR export, twice",
+      "scope": "roster-c-csv-import",
+      "part": 1,
+      "tags": [
+        "roster",
+        "full",
+        "import",
+        "destructive"
+      ],
+      "prerequisites": "none",
+      "purpose": "Import is destructive-adjacent, and the guarantee that matters — running it twice changes nothing\nand loses no notes — can only be observed by actually running it twice against a roster that\nalready has data and notes. A unit test proves the counts; only a second real run proves the\nsecond run is safe.\n\nThe mapping step is also the one screen in this phase whose failure mode is silent. A\n`Family Name`/household mix-up produces a plausible-looking import that is entirely wrong — 40\nhouseholds named after individuals instead of 14 named after families — and only a human\ncomparing the preview against the file catches it.",
+      "checklist": [
+        "The mapping step prefills First name, Last name, Gender, Category, Address and Phone",
+        "A sample value from the first data row is shown beside each select",
+        "`Family Name` is **not** silently mapped to Household name — that select starts empty",
+        "Continue is blocked while Household name is unmapped, with a message naming it, not a",
+        "Setting Household name to `Family Name` unblocks Continue",
+        "The preview reports 40 rows read",
+        "The preview reports 11 new households and 3 already in the roster",
+        "The preview lists the new households by name, so a mis-mapped household column would show",
+        "The preview reports 34 members to create and 6 to update",
+        "The preview states that 1 member is in the roster and not in this file, and will not be",
+        "Nothing on the preview screen is written in the past tense",
+        "**Leaving the preview without confirming writes nothing** — `households` and `members` row",
+        "Nothing appears in `audit_log` or `notifications` for the previewed-only run",
+        "The confirm button is labelled with what it will do — \"Import 40 members\" — not \"Confirm\"",
+        "Confirming imports the file and the result summary counts match the preview",
+        "`/roster` shows the imported households grouped correctly",
+        "Addresses containing commas are intact — Andersen is `12 Oak Street, Apt 4`, not",
+        "`Sørensen` imported with the ø intact, not as `S?rensen`",
+        "Carlos Andersen was matched and updated, **not** duplicated, and is still `moved_out`",
+        "Mark Andersen still has phone `555-0101` — the blank column in the file did not blank it",
+        "Helen Nguyen is unchanged: still `do_not_contact`, still in the Nguyen household",
+        "`audit_log` has exactly one `roster_imported` row for this import, with `module = 'roster'`",
+        "`notifications` has **one** summarising `new_household_added` row titled \"11 new households",
+        "**Running the identical import a second time reports 0 created and 0 updated**",
+        "**After the second import, `households` and `members` row counts are unchanged**",
+        "**After the second import, both `member_notes` rows on Sarah Brooks are still present,",
+        "The second import adds a second `roster_imported` audit row and **no** second notification",
+        "`lcr-export-messy.csv` previews with a problem per bad row, each showing the row number as",
+        "The two rows missing a last name (file rows 42 and 43) are reported and excluded; the good",
+        "The short row (file row 45, `Rhys Ashford`) imports with no address and no problem",
+        "The `Senior` category row is reported and **still imports**, with no category",
+        "The duplicate header appears in the mapping selects as `Individual Phone` and",
+        "The unterminated-quote row (file row 46) is reported as a problem, not as a server error.",
+        "At 375px each wizard step is full-width and one at a time, with the mapping labels above",
+        "Every select and button is at least 44px tall",
+        "Correct in both light and dark mode"
+      ],
+      "seedCommand": "npm run seed -- roster/scenario-009-import-lcr-export-twice"
     }
   ]
 }
