@@ -15,5 +15,6 @@ Quick-reference for the retrolearn command. One line per entry.
 - [roster-c-csv-import](roster-c-csv-import.md) — LCR CSV import wizard, dependency-free RFC 4180 parser, no-write preview, single-transaction apply; scenario 009 walked, preview/result count mismatch and file-changed error message fixed, alias table still unverified against a real export (6d405a6)
 - [deployment](deployment.md) — live on Vercel at wlt-iota.vercel.app, Node 22 pinned, previews disabled in `vercel.json`, Supabase auth URLs and Resend SMTP configured, password reset verified end to end; a build with no env vars still exits 0 (0a4c33a, 1febf89)
 - [calendar-a-rules-and-api](calendar-a-rules-and-api.md) — UTC date-only helpers, Fast Sunday as a re-running resolution rule with a 409 confirm path, versioned conducting rotation, ward-configurable default speaker count; select-column concatenation and a shape-only date schema both fixed (6d5048f)
+- [calendar-b-month-view](calendar-b-month-view.md) — month grid and 375px card list, Sunday detail and editor, the 409 confirm dialog worded by consequence, nine pipeline-stage tokens and real reserved-region props for Phase 4; scenario 010 walked with no code defects, but surfaced that the rotation should be monthly (pending commit)
 
 ## Bug Fixes

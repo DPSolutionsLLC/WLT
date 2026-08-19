@@ -441,6 +441,7 @@ export async function createSunday(options: {
   conductingUserId?: string;
   speakingSlots?: number;
   notes?: string;
+  fastSundayPinned?: boolean;
 }): Promise<string> {
   return insertRow("sundays", {
     id: options.id ?? testUuid(`sunday:${options.date}`),
@@ -450,7 +451,36 @@ export async function createSunday(options: {
     conducting_user_id: options.conductingUserId ?? null,
     speaking_slots: options.speakingSlots ?? 3,
     notes: options.notes ?? null,
+    fast_sunday_pinned: options.fastSundayPinned ?? false,
   });
+}
+
+// The three rows that make up ONE rotation, all sharing an effective_from. A rotation change
+// inserts a whole new set rather than updating this one (migration 023), which is what makes
+// "applies forward only" true by construction — so a scenario seeding two rotations calls this
+// twice with different dates rather than editing rows in place.
+export async function createConductingRotation(options: {
+  effectiveFrom: string;
+  userIds: [string | null, string | null, string | null];
+}): Promise<string[]> {
+  const ids: string[] = [];
+
+  for (const [index, userId] of options.userIds.entries()) {
+    ids.push(
+      await insertRow(
+        "conducting_rotation",
+        {
+          ward_id: TEST_WARD_ID,
+          position: index + 1,
+          user_id: userId,
+          effective_from: options.effectiveFrom,
+        },
+        "ward_id,position,effective_from",
+      ),
+    );
+  }
+
+  return ids;
 }
 
 // ============================================================================

@@ -127,6 +127,17 @@ guards:
 sacrament program may be affected. Update the program template now?" Confirm or dismiss;
 never propagate silently (FEATURES.md §Module 15).
 
+**The default speaker count already exists — reuse it, do not rebuild it.** Phase 3 shipped
+`wards.settings.default_speaking_slots`, read by `lib/calendar/wardCalendarSettings.ts` and written
+through `PATCH /api/ward-settings/calendar` under `admin.manage_ward`. `calendar-b` puts a control
+on `/calendar` (`app/(app)/calendar/CalendarSettingsPanel.tsx`); `/admin/ward-settings` renders the
+same setting through the **same route**. Do not add a second write path, and do not duplicate the
+forward-only rule — the route already returns the sentence that states it, and both surfaces render
+that sentence verbatim.
+
+`apply_fast_sunday()` (migration 023) reads the same key in SQL, so a second writer that skipped
+the route would put the TypeScript and plpgsql halves out of step.
+
 ---
 
 ## Step 5 — Audit Log Viewer

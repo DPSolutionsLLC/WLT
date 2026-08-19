@@ -14,6 +14,24 @@
   --success: #15803d;
   --warning: #b45309;
   --danger: #b91c1c;
+
+  /* Talk-pipeline stage colours. The NAMES are the contract between Phase 3 and Phase 4 and match
+     PIPELINE_STAGES in types/domain.ts exactly; the hex values are not, and Phase 4 owns the
+     semantics and may retune them. Nothing in Phase 3 renders one — they are defined here so the
+     Sunday cell's layout is designed around a palette that already exists.
+
+     A progression, not nine unrelated hues: cool and muted at plan, warming through the middle,
+     resolved green at complete, so how far along a Sunday is reads without a legend. Every value
+     clears 4.5:1 against --surface. */
+  --stage-plan: #64748b;
+  --stage-review: #2563eb;
+  --stage-approve: #4f46e5;
+  --stage-request: #7c3aed;
+  --stage-confirm: #a21caf;
+  --stage-notify: #be123c;
+  --stage-speak: #c2410c;
+  --stage-appreciate: #a16207;
+  --stage-complete: #15803d;
 }
 
 .dark {
@@ -28,6 +46,19 @@
   --success: #4ade80;
   --warning: #fbbf24;
   --danger: #f87171;
+
+  /* Every stage token is redefined here, not just the ones that "needed" it. A token defined only
+     in :root renders as its light value against #141414, which is the exact failure this
+     project's dark-mode rule exists to prevent. */
+  --stage-plan: #94a3b8;
+  --stage-review: #60a5fa;
+  --stage-approve: #818cf8;
+  --stage-request: #a78bfa;
+  --stage-confirm: #e879f9;
+  --stage-notify: #fb7185;
+  --stage-speak: #fb923c;
+  --stage-appreciate: #fbbf24;
+  --stage-complete: #4ade80;
 }
 
 @theme inline {
@@ -42,6 +73,15 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
+  --color-stage-plan: var(--stage-plan);
+  --color-stage-review: var(--stage-review);
+  --color-stage-approve: var(--stage-approve);
+  --color-stage-request: var(--stage-request);
+  --color-stage-confirm: var(--stage-confirm);
+  --color-stage-notify: var(--stage-notify);
+  --color-stage-speak: var(--stage-speak);
+  --color-stage-appreciate: var(--stage-appreciate);
+  --color-stage-complete: var(--stage-complete);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

@@ -59,6 +59,21 @@ export const PIPELINE_STAGES = [
 ] as const;
 export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
+// Beside PIPELINE_STAGES for the same reason ROLE_LABELS sits beside ROLES: a stage added there
+// fails to compile until somebody decides what it is called on screen. The matching colour tokens
+// are --stage-<name> in app/globals.css and use these same nine keys.
+export const PIPELINE_STAGE_LABELS: Record<PipelineStage, string> = {
+  plan: "Planning",
+  review: "In Review",
+  approve: "Approved",
+  request: "Requested",
+  confirm: "Confirmed",
+  notify: "Notified",
+  speak: "Speaking",
+  appreciate: "Appreciation",
+  complete: "Complete",
+};
+
 export const THEME_PREFERENCES = ["light", "dark", "system"] as const;
 export type ThemePreference = (typeof THEME_PREFERENCES)[number];
 

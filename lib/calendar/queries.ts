@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { BISHOPRIC_ROLES } from "@/lib/auth/permissions";
 import {
   lastDayOfMonth,
   monthOf,
@@ -66,6 +67,14 @@ export type ConductingRotationRow = {
   position: RotationPosition;
   userId: string | null;
   effectiveFrom: DateOnly;
+};
+
+export type BishopricUser = {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  role: "bishop" | "counselor";
+  counselorPosition: 1 | 2 | null;
 };
 
 // Why a calendar change would void work somebody has already done. calendar-b words its dialog
@@ -923,6 +932,56 @@ export async function updateSunday(
   if (!sunday) return null;
 
   return { status: "applied", sunday, assignmentsReverted };
+}
+
+// Who may be picked to conduct, and the source of every name the calendar renders. Bishop and
+// counselor only — conducting is a bishopric assignment, so a ward_secretary who may EDIT the
+// Sunday still cannot put themselves in the conducting slot.
+//
+// Read through the caller's client: migration 020 makes `users` ward-readable, so no escalation is
+// needed and RLS stays the boundary (CLAUDE.md rule 2).
+export async function listBishopricUsers(
+  wardId: string,
+  client?: SupabaseClient<Database>,
+): Promise<BishopricUser[]> {
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, first_name, last_name, role, counselor_position")
+    .eq("ward_id", wardId)
+    .in("role", BISHOPRIC_ROLES as unknown as string[])
+    .eq("is_active", true)
+    .order("role")
+    .order("counselor_position", { nullsFirst: true });
+
+  if (error) {
+    console.error(`Could not read the bishopric — ${error.message}`, { wardId });
+    throw new Error(`Could not read the bishopric: ${error.message}`);
+  }
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    role: row.role === "bishop" ? "bishop" : "counselor",
+    counselorPosition:
+      row.counselor_position === 1 || row.counselor_position === 2
+        ? row.counselor_position
+        : null,
+  }));
+}
+
+// The full name, never an honorific. `users` records no gender, so "Bro." would be a guess this
+// module cannot make — and a wrong one on a bishopric member's name is worse than a plain name.
+export function bishopricDisplayName(user: BishopricUser): string {
+  return [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || "Unnamed account";
+}
+
+// id → name, which is all any calendar component needs. Passing the map rather than the user list
+// keeps ConductingLabel from having to know what a bishopric user is.
+export function conductingNameMap(users: BishopricUser[]): Record<string, string> {
+  return Object.fromEntries(users.map((user) => [user.id, bishopricDisplayName(user)]));
 }
 
 // For the notification body only, so a failure here degrades the message rather than failing an

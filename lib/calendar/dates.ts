@@ -147,3 +147,58 @@ export function countSundaysBetween(from: DateOnly, to: DateOnly): number {
 export function lastDayOfMonth(value: DateOnly): DateOnly {
   return addDaysUtc(monthStart(addMonths(value, 1)), -1);
 }
+
+// ---------------------------------------------------------------------------------------------
+// Month helpers for the calendar UI (calendar-b).
+//
+// `today` is a PARAMETER on every function here, never a `new Date()` inside one. That is what
+// makes these testable without freezing the clock, and it keeps the "what month am I looking at"
+// decision in the page — where the session and the request live — rather than hidden in a helper.
+// ---------------------------------------------------------------------------------------------
+
+const MONTH_PARAM_PATTERN = /^\d{4}-\d{2}$/;
+
+// A mistyped ?month= falls back to the current month rather than erroring. Somebody who edits the
+// address bar should get a calendar, not a stack trace — the URL is a view, not a command.
+export function parseMonthParam(value: string | undefined, today: DateOnly): DateOnly {
+  if (value !== undefined && MONTH_PARAM_PATTERN.test(value) && isValidDateOnly(`${value}-01`)) {
+    return `${value}-01`;
+  }
+
+  return monthStart(today);
+}
+
+// Every formatter below passes timeZone: "UTC" explicitly. Without it, Intl formats a UTC-midnight
+// Date in the BROWSER's zone and a reader west of UTC sees the previous day — the same drift
+// parseDateOnly exists to stop, arriving one layer later where a user actually reads it.
+const MONTH_LABEL_FORMAT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  month: "long",
+  year: "numeric",
+});
+
+const SUNDAY_LABEL_FORMAT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  weekday: "long",
+  month: "long",
+  day: "numeric",
+});
+
+export function monthLabel(value: DateOnly): string {
+  return MONTH_LABEL_FORMAT.format(parseDateOnly(value));
+}
+
+export function formatSundayLabel(value: DateOnly): string {
+  return SUNDAY_LABEL_FORMAT.format(parseDateOnly(value));
+}
+
+// How many empty cells sit before the 1st in a Sunday-first month grid: 0 when the month opens on
+// a Sunday, 6 when it opens on a Saturday. Pure arithmetic so the grid's padding is testable
+// without rendering anything.
+export function leadingBlankDays(value: DateOnly): number {
+  return parseDateOnly(monthStart(value)).getUTCDay();
+}
+
+export function daysInMonth(value: DateOnly): number {
+  return Number(lastDayOfMonth(value).slice(8, 10));
+}

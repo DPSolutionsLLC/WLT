@@ -179,19 +179,66 @@ Phase 4.
 
 ## Definition of Done
 
-- [ ] Sundays auto-generate for 12 months ahead and on demand
-- [ ] Generation is idempotent and never overwrites edits
-- [ ] Fast Sunday resolves to the first non-displaced Sunday, and **re-resolves** when a
+- [x] Sundays auto-generate for 12 months ahead and on demand — on demand via
+      `ensureMonthGenerated()`, twelve months via the explicit bishopric range action. The
+      scheduled Edge Function is deferred (Deviation 1)
+- [x] Generation is idempotent and never overwrites edits
+- [x] Fast Sunday resolves to the first non-displaced Sunday, and **re-resolves** when a
       Sunday's type changes after generation
-- [ ] April and October pre-marked as general conference, with Fast Sunday shifted
-- [ ] Re-resolution onto a Sunday with assignments warns and confirms rather than
+- [x] April and October pre-marked as general conference, with Fast Sunday shifted
+- [x] Re-resolution onto a Sunday with assignments warns and confirms rather than
       silently zeroing speaking slots
-- [ ] Conducting auto-populates from the rotation and is editable per Sunday
-- [ ] Editing conducting or the rotation notifies the other two bishopric members
-- [ ] Calendar renders as a grid on desktop and a card list on mobile, light and dark
-- [ ] All authenticated roles can read the calendar; only bishopric can write
-- [ ] Pipeline-status and colour tokens are defined and ready for Phase 4
-- [ ] All ten tests in the Tests table pass
+- [x] Conducting auto-populates from the rotation and is editable per Sunday
+- [x] Editing conducting or the rotation notifies the other two bishopric members
+- [x] Calendar renders as a grid on desktop and a card list on mobile, light and dark
+      — built in `calendar-b`, confirmed by scenario 010
+- [x] All authenticated roles can read the calendar; only bishopric can write —
+      `calendar.view` gates reading, `calendar.manage` and `admin.manage_ward` gate the two kinds
+      of write (Deviation 5)
+- [x] Pipeline-status and colour tokens are defined and ready for Phase 4
+- [x] All ten tests in the Tests table pass
+
+### Correction — the colour tokens are CSS, not a Tailwind config
+
+Step 5 asks for the pipeline-stage colours to be "defined in the Tailwind config". There is no
+`tailwind.config.ts` in this project and there will not be one: this is Tailwind v4, whose theme is
+CSS-first. The nine tokens live in `app/globals.css` as `--stage-<name>` in both `:root` and
+`.dark`, mapped into utilities through `@theme inline` as `--color-stage-<name>`.
+
+The **names** match `PIPELINE_STAGES` in `types/domain.ts` exactly and are the contract between
+Phase 3 and Phase 4. The hex values are not — Phase 4 owns the semantics and may retune them.
+`PIPELINE_STAGE_LABELS` sits beside `PIPELINE_STAGES` for the same reason.
+
+Nothing in Phase 3 renders a stage colour. Defining them now is what stops Phase 4 rebuilding the
+Sunday cell to fit a palette that did not exist when the cell was designed.
+
+### Scenario 010 — results
+
+`testing/scenarios/calendar/scenario-010-fast-sunday-shift`, 46 checks.
+
+**Walked 2026-08-19. No code defects found.** The Fast Sunday collision path behaved as specified in
+both directions, the three assignments survived at `pipeline_stage = 'plan'` rather than being
+deleted, and the permission seats each saw what they should.
+
+Two things the walkthrough surfaced that were not code defects:
+
+1. **A rotation change does not rewrite Sundays that already have a conductor**, contrary to what
+   `calendar-b`'s plan expected. `conducting_user_id` is stored, not computed (Step 3), and
+   `populateConducting()` only fills rows that are still null — so a new rotation reaches months
+   generated after its effective date. That is exactly what the forward-only sentence promises.
+   The scenario's checklist was corrected to observe April rather than the second half of March,
+   which is the better check because it exercises generation and the new anchor together.
+
+2. **The rotation cadence is wrong for this ward, and the requirement was never written down.**
+   Step 3 specifies a rotation advancing one step per *Sunday*, and that is what shipped. The ward
+   actually rotates conducting **month by month** — one bishopric member takes every Sunday in a
+   month. This is a product requirement that no test could have caught, because the code does
+   correctly what the spec asked for. It is the kind of finding a walkthrough exists for.
+
+   Organization presidencies want the same thing for their own Sunday meetings, independently of
+   sacrament meeting. Both land in `plans/calendar-c-rotation-cadence.md` — they need a migration
+   (a cadence column, an organization column, and per-Sunday org conducting), so neither is a patch
+   to `calendar-b`.
 
 ---
 
