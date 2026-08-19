@@ -102,23 +102,38 @@ before leaving, and the next sign-in is what proves the new password works.
 
 ---
 
+**Current state (2026-08-18): sender is `onboarding@resend.dev`, deliberately.** Resend requires
+a verified *domain* and offers no single-address verification, and buying a domain was declined
+for now. That test sender delivers **only to the Resend account owner's own address**, so the
+emailed reset round trip is proven but **no real ward member can receive one yet**.
+
+This is safe only while password reset is the app's sole email flow and the only real-inbox
+account is the developer's. It stops being safe the moment a ward leader is invited, because an
+adult account has **no** admin-initiated password reset — `app/api/admin/users/[id]/reset-pin`
+exists for youth accounts only. See [retros/deployment.md](retros/deployment.md) for the options
+and the trigger for revisiting.
+
+---
+
 ## Step 5 — Verify the first deploy
 
 Beyond "the page loads":
 
-- [ ] An adult signs in over HTTPS, and the session survives a page reload — cookie `Secure` and
+- [x] An adult signs in over HTTPS, and the session survives a page reload — cookie `Secure` and
       `SameSite` behaviour differs from `localhost`
-- [ ] A youth signs in at `/pin` **on a real phone over HTTPS**, which is the test
+- [x] A youth signs in at `/pin` **on a real phone over HTTPS**, which is the test
       `scenario-005` actually wants
-- [ ] `/dashboard` from a youth session still redirects to `/sacrament` — the shell isolation is
+- [x] `/dashboard` from a youth session still redirects to `/sacrament` — the shell isolation is
       a server redirect and must survive the edge runtime
-- [ ] Middleware runs. Next 16 reports it as `ƒ Proxy (Middleware)` in the build output; confirm
+- [x] Middleware runs. Next 16 reports it as `ƒ Proxy (Middleware)` in the build output; confirm
       an unauthenticated request to `/dashboard` redirects rather than rendering
-- [ ] **No server-only key is in the client bundle.** Download a page's JS and search it for the
+- [x] **No server-only key is in the client bundle.** Download a page's JS and search it for the
       service-role key, the Anthropic key, and the OpenAI key. `lib/supabase/service.ts` throws
       if it finds a `window`, but that is a runtime guard, not a build-time one
-- [ ] `audit_log` has `login` rows written from the deployed instance, not just from localhost
-- [ ] A deliberate 500 shows the app's error page, not a stack trace
+- [x] `audit_log` has `login` rows written from the deployed instance, not just from localhost
+- [ ] A deliberate 500 shows the app's error page, not a stack trace — **deferred.** No
+      honest way to trigger one was found; manufacturing a fake error proves nothing about
+      how a real failure renders. Check this the first time a genuine 500 appears.
 
 ---
 
@@ -134,16 +149,38 @@ Add `npm run build` to the validation block of every future plan, after `npm tes
 
 ## Definition of Done
 
-- [ ] Repo pushed; Vercel project connected and building from `main`
-- [ ] Node version pinned in both `package.json` and Vercel
-- [ ] All six environment variables set, none of the four secret ones prefixed `NEXT_PUBLIC_`
-- [ ] `HARNESS_TEST_PASSWORD` absent from the Vercel project
-- [ ] Preview deployments either disabled or explicitly accepted, with the shared-database
+- [x] Repo pushed; Vercel project connected and building from `main`
+- [x] Node version pinned in both `package.json` and Vercel
+- [x] All six environment variables set, none of the four secret ones prefixed `NEXT_PUBLIC_`
+- [x] `HARNESS_TEST_PASSWORD` absent from the Vercel project
+- [x] Preview deployments either disabled or explicitly accepted, with the shared-database
       consequence written down
-- [ ] Supabase Site URL and Redirect URLs cover production and localhost
-- [ ] Custom SMTP configured; a password reset completed end to end against the deployed app
-- [ ] Every box in Step 5 checked
-- [ ] `npm run build` added to the validation block of the plan template
+- [x] Supabase Site URL and Redirect URLs cover production and localhost
+- [x] Custom SMTP configured; a password reset completed end to end against the deployed app
+- [x] Six of the seven boxes in Step 5 checked; the deliberate-500 check is deferred above
+- [x] `npm run build` added to the validation block of the plan template
+
+---
+
+## Outcome — deployed 2026-08-18
+
+Live at **https://wlt-iota.vercel.app**, Production tracking `main`, Node 22.x, previews
+disabled by `vercel.json`. Two commits: `0a4c33a` (Node pin, decisions recorded) and `1febf89`
+(`git.deploymentEnabled`).
+
+Verified rather than assumed:
+
+| Check | Method |
+|---|---|
+| Middleware guard | `curl /dashboard` → `307 → /login?redirectTo=%2Fdashboard` |
+| No server key in the bundle | Downloaded all 10 JS chunks (1.1 MB) from `/login` and grepped for each secret |
+| Audit trail | `audit_log` row `action=login, module=auth, role=bishop` written by the deployed instance |
+| Adult sign-in, youth PIN on a phone, youth shell isolation | Walked by hand over HTTPS |
+| Password reset | Requested, received, completed, and re-signed-in end to end |
+
+The bundle scan used a **positive control**: it confirms the two `NEXT_PUBLIC_` values *are*
+present. A scan that finds nothing may simply be broken; one that finds exactly what should be
+public proves it would have caught a leak.
 
 ---
 
@@ -183,3 +220,36 @@ Add `npm run build` to the validation block of every future plan, after `npm tes
 - **A `.invalid` address can never receive mail.** Youth accounts have no inbox by construction,
   so no email-based recovery will ever work for them. A forgotten PIN is always a bishopric
   reset. That is the design, not a gap — but it is worth knowing before someone tries to "fix" it.
+- **Only three of the six environment variables are load-bearing today.**
+  `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are
+  read by `lib/supabase/*`. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` and `RESEND_API_KEY` have **no
+  references anywhere in the codebase** until Phases 5, 6 and 9. Set all six anyway, but when the
+  deployed app misbehaves, the cause is one of the first three — the others cannot break anything
+  because nothing reads them.
+- **`NEXT_PUBLIC_` decides *where a value is available*, not whether it is secret.** Removing the
+  prefix to "be safer" makes the browser read `undefined` and breaks sign-in, with no useful
+  error because the clients use `!` assertions. Vercel will also warn that the prefix "exposes
+  this value to the browser" — that warning is correct and expected here, and the fix is to turn
+  **off** the Sensitive flag on those two variables, not to rename them.
+- **Resend refuses any sender on a domain it has not verified, and Supabase reports that as a
+  generic 500.** The whole diagnosis is `Error sending recovery email` with no cause attached.
+  Setting the Supabase sender to `onboarding@resend.dev` — Resend's built-in test sender, which
+  only delivers to the account owner's own address — was what made it work. The real reason is
+  written down in **Resend → Logs** and **Supabase → Logs → Auth**; if nothing appears in the
+  former, Supabase never reached Resend at all and the fault is host/port/credentials instead.
+- **`ForgotPasswordForm` hides every failure by design**, showing "a reset link is on its way"
+  whether or not anything was sent, so it cannot be used to enumerate accounts. That makes it
+  useless for debugging. Call `supabase.auth.resetPasswordForEmail()` directly against the anon
+  key to see the actual error.
+- **A real-email account registered while signed in as a harness user lands in the Harness Test
+  Ward, and the next seed deletes it.** `seedRunner` calls `cleanUpTestData()` *before* every
+  seed, the ward cascade removes the `public.users` row, and the `auth.users` row survives
+  because the address is not on a harness domain. The result is an orphan that can still reset
+  its password but is refused at sign-in with the deactivated message — correct behaviour, and
+  baffling without this note. Put any durable real-inbox account in the **Development Ward**
+  (`00000000-0000-4000-8000-000000000001`), which cleanup never touches.
+- **`HARNESS_TEST_PASSWORD` must be at least 12 characters *after* `dotenv` parses it.** A CRLF
+  line ending and any `#` or quote are stripped or truncated first, so a line that looks long
+  enough in the editor can parse shorter. `testPassword()` throws loudly, but the throw happens
+  before anything is seeded — so a "seed" that appeared to run may have done nothing at all, and
+  the accounts keep their previous password.

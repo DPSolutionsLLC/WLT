@@ -184,14 +184,20 @@ by category and gender, not from a YM org.
 
 ## Definition of Done
 
-- [ ] Household and flat roster views work, with search and filters, at 375px and desktop
-- [ ] Member and household create/edit work with Zod validation on both sides
-- [ ] CSV import: map → preview → confirm, idempotent, transactional
-- [ ] Import errors are reported per row with a row number and a clear reason
-- [ ] `MemberPicker` works standalone and its props cover the needs of Phases 4, 7, 8, 10
-- [ ] `notes` never appears in a non-bishopric response
-- [ ] Organization membership editable individually and in bulk
-- [ ] All seven tests pass
+- [x] Household and flat roster views work, with search and filters, at 375px and desktop
+- [x] Member and household create/edit work with Zod validation on both sides
+- [x] CSV import: map → preview → confirm, idempotent, transactional
+- [x] Import errors are reported per row with a row number and a clear reason
+- [x] `MemberPicker` works standalone and its props cover the needs of Phases 4, 7, 8, 10
+- [x] `notes` never appears in a non-bishopric response
+- [x] Organization membership editable individually and in bulk
+- [x] All seven tests pass
+
+**Closed 2026-08-18**, with one caveat recorded rather than papered over: harness
+**`scenario-008` (roster-b) has still never been walked**. `roster-b`'s retro handed it forward
+to be run before Phase 4 and `roster-c` did not run it either, so the member picker and
+organization-membership boxes above rest on automated tests and informal checking rather than a
+walked scenario. See [retros/roster-c-csv-import.md](retros/roster-c-csv-import.md).
 
 ---
 
