@@ -78,6 +78,34 @@ Assignment types determine rotation eligibility (FEATURES.md table):
 Set `counts_toward_rotation` from the type automatically; do not make the user pick twice.
 It is stored rather than derived so a later policy change does not rewrite history.
 
+### Non-negotiable: a voided assignment must not count as a talk that was given
+
+Phase 3 can send an assignment **backwards** to stage `plan`. It happens whenever a calendar
+change voids work — a Sunday is marked stake conference or holiday, a Sunday becomes Fast
+Sunday, speaking slots are cut below the speakers already in them, or Fast Sunday re-resolves
+onto a Sunday that already has speakers. `lib/calendar/queries.ts` reverts those assignments
+rather than deleting them, because the planning work behind one is somebody's
+(03-calendar.md §Pitfall 5).
+
+**Two rules follow, and both are load-bearing:**
+
+1. **Speaker history, rotation eligibility, and every "who has spoken recently" calculation
+   count an assignment only when it reached `complete`** — never a row that merely exists, and
+   never `counts_toward_rotation` on its own. A reverted assignment sits at `plan`, so a
+   stage-filtered query excludes it for free. An existence-filtered query counts a talk that
+   never happened, quietly suppresses that member from the rotation for months, and there is no
+   symptom until somebody asks why a family has not been asked to speak in a year.
+
+2. **`counts_toward_rotation` is not a "cancelled" flag.** It records whether an assignment
+   TYPE counts — a high council speaker does not count toward the ward's member rotation, per
+   the table above. Setting it to false to mean "this got cancelled" conflates two unrelated
+   ideas in one boolean, and would make the column unreadable for its actual purpose. Do not
+   do it, and do not accept a PR that does.
+
+`tests/db/fast-sunday-collision.test.ts` proves the revert lands. The corresponding assertion
+on this side — that a reverted assignment is absent from speaker history — belongs in
+`rotation-eligibility.test.ts` and must be written when Step 8 is built.
+
 | Route | Method | Does |
 |---|---|---|
 | `/api/assignments` | GET | By `sunday_id` or month. Includes member, topic, stage |
@@ -224,7 +252,7 @@ Overdue and due-soon goals surface as alerts on the planning calendar cells from
 | `approval-gate.test.ts` | 2-of-3 approvals cannot reach APPROVE; 3-of-3 can |
 | `approval-invalidation.test.ts` | Editing an approved assignment clears approvals and notifies |
 | `decline-flow.test.ts` | A decline returns to `plan`, clears the speaker, and emits the notification |
-| `rotation-eligibility.test.ts` | `counts_toward_rotation` set correctly per type |
+| `rotation-eligibility.test.ts` | `counts_toward_rotation` set correctly per type; an assignment reverted to `plan` by a calendar change is absent from speaker history (Step 2) |
 | `reliability-flags.test.ts` | Each of the four flags fires on its boundary condition and not before |
 | `goal-status.test.ts` | on_track / due_soon / overdue boundaries, including never-fulfilled |
 | `bishopric-only.test.ts` | Every route in this phase 403s for a secretary, org president, and youth account |

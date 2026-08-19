@@ -84,6 +84,29 @@ export const SUNDAY_TYPES = [
 ] as const;
 export type SundayType = (typeof SUNDAY_TYPES)[number];
 
+// A Record, not a lookup with a fallback, for the same reason ROLE_LABELS is one: a type added
+// to SUNDAY_TYPES fails to compile until somebody decides what it is called on screen.
+export const SUNDAY_TYPE_LABELS: Record<SundayType, string> = {
+  standard: "Standard",
+  fast_sunday: "Fast Sunday",
+  stake_conference: "Stake Conference",
+  general_conference: "General Conference",
+  holiday: "Holiday",
+  special: "Special",
+};
+
+// A Sunday of one of these types cannot BE Fast Sunday, so Fast Sunday moves past it.
+// `special` is deliberately absent: a special meeting still holds a fast and testimony meeting
+// unless somebody says otherwise. 03-calendar.md §Step 2 defines the set.
+export const FAST_SUNDAY_DISPLACING_TYPES: readonly SundayType[] = [
+  "stake_conference",
+  "general_conference",
+  "holiday",
+];
+
+export const ROTATION_POSITIONS = [1, 2, 3] as const;
+export type RotationPosition = (typeof ROTATION_POSITIONS)[number];
+
 export const TOPIC_CATEGORIES = [
   "doctrinal",
   "scriptural",

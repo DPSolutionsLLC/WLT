@@ -191,7 +191,86 @@ Phase 4.
 - [ ] Calendar renders as a grid on desktop and a card list on mobile, light and dark
 - [ ] All authenticated roles can read the calendar; only bishopric can write
 - [ ] Pipeline-status and colour tokens are defined and ready for Phase 4
-- [ ] All five tests pass
+- [ ] All ten tests in the Tests table pass
+
+---
+
+## Deviations recorded during implementation
+
+Five places where `plans/calendar-a-rules-and-api.md` deliberately departs from this file or
+from SPEC.md. Each was decided before implementation, not discovered after. See that plan's
+"Decisions Already Made" for the full reasoning.
+
+1. **The scheduled Edge Function is deferred, not built.** Step 1 asks for a Supabase Edge
+   Function keeping 12 months of Sundays ahead. There is no `supabase/functions/` directory and
+   no cron infrastructure in this repo, and the on-demand path makes the job redundancy rather
+   than a requirement: nobody can view a month whose Sundays do not exist, because loading the
+   month generates them (`ensureMonthGenerated`). Shipped as on-demand generation plus an
+   explicit bishopric "generate a range" action; the cron is a known gap.
+
+2. **`sundays.fast_sunday_pinned` is a new column (migration 023).** A manual override has to
+   survive re-resolution, and `type` alone cannot record one: generation itself writes
+   `type = 'fast_sunday'` on the Sunday the rule chose, so every month would read as pinned.
+
+3. **The Fast Sunday rule stays in TypeScript; only the write is SQL.**
+   `resolveFastSunday()` decides which Sunday, and `apply_fast_sunday()` (migration 023)
+   applies it in one transaction. Putting the rule in plpgsql too would put it in two
+   languages — the drift `buildImportPreview.ts` was written to avoid.
+
+4. **The collision check blocks on assignments, not on prayers.** Step 2 says warn when the
+   incoming Sunday "already has assignments or prayers". A fast Sunday still has an invocation
+   and a benediction, so prayers are not orphaned by `speaking_slots = 0` — speakers are.
+   `prayerCount` is reported in the warning for context and only `assignmentCount > 0` blocks.
+
+5. **Mutation auth is `calendar.manage`; rotation reorder is `admin.manage_ward`.** The route
+   table in this file says "Bishopric" for every mutation, but `lib/auth/permissions.ts`
+   already grants `calendar.manage` to `ward_secretary`, and maintaining the Sunday calendar is
+   exactly a secretary's job. The permission matrix is the source of truth (CLAUDE.md §7).
+   Reordering the rotation is different — it is a bishopric composition decision that notifies
+   the other two — so it uses `admin.manage_ward`, which only `bishop` and `counselor` hold.
+
+**Signature deviation.** Step 3 types `resolveConductingUser()`'s parameters as `Date` and its
+return as `string`. Both are `DateOnly` (`YYYY-MM-DD`) strings instead, per the timezone pitfall
+below, and the return is nullable because a ward with no configured rotation must render a
+calendar rather than throw.
+
+**Speaking slots are per-Sunday and capped at 15.** `MAX_SPEAKING_SLOTS` in
+`lib/validation/calendar.ts` is the only ceiling — the database requires nothing beyond
+`speaking_slots >= 0`. A testimony-style meeting or a farewell with the whole family speaking is
+a real Sunday, and the bishopric sets the count themselves. `calendar-b`'s Sunday editor must
+expose this as a free number input, not a three-option select.
+
+**The default speaker count is a WARD SETTING, not a constant.** Stored at
+`wards.settings.default_speaking_slots` (jsonb — no migration), read by
+`lib/calendar/wardCalendarSettings.ts` and written through
+`PATCH /api/ward-settings/calendar` under `admin.manage_ward`. `apply_fast_sunday()` reads the
+same key in SQL when it restores a Sunday that stops being fast, so the TypeScript and the
+plpgsql halves must stay in step — `tests/db/calendar-generation.test.ts` asserts both.
+
+Both readers fall back to 3 on a missing, malformed or out-of-range value rather than throwing,
+following `mergeRoleAccess()` in `lib/auth/permissions.ts`. A bad setting must not be able to
+break a calendar edit.
+
+**Applies forward only.** Changing the default affects Sundays generated afterwards; it never
+rewrites Sundays already on the calendar, which may already carry assignments. This matches the
+conducting rotation's own forward-only rule. The API returns the sentence that says so, and
+`calendar-b` renders it verbatim.
+
+**UI lands in two places, one route.** `calendar-b` Task 6b puts the control on the calendar
+page; Phase 11's admin settings page reads and writes the same route. Do not duplicate the rule.
+
+**Future update — a hand-set slot count does not survive a Fast Sunday round trip.**
+`apply_fast_sunday()` restores the ward's default when a Sunday stops being Fast Sunday
+(migration 023 documents this, and Step 2 above asks for it). So a Sunday hand-set to 15, which
+then becomes Fast Sunday and later stops being one, comes back as the ward default rather than
+15 — that one edit is silently discarded. Acceptable today because the sequence is rare and the
+restore is what makes re-resolution predictable. The fix, when it is worth doing, is a
+remembered pre-fast value on the row; it is a migration, so it belongs in its own slice.
+
+**Known gap handed to Phase 4.** `apply_fast_sunday()` reverts affected assignments to `plan`.
+This file asks for a notification to the planner when that happens, and there is no trigger key
+for it in `supabase/seed/notification_triggers.sql`. Recorded rather than inventing a key that
+fires into nothing.
 
 ---
 

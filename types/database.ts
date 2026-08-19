@@ -844,7 +844,7 @@ export type Database = {
       conducting_rotation: {
         Row: {
           created_at: string
-          effective_from: string | null
+          effective_from: string
           id: string
           position: number
           user_id: string | null
@@ -852,7 +852,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          effective_from?: string | null
+          effective_from: string
           id?: string
           position: number
           user_id?: string | null
@@ -860,7 +860,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          effective_from?: string | null
+          effective_from?: string
           id?: string
           position?: number
           user_id?: string | null
@@ -2094,6 +2094,7 @@ export type Database = {
           conducting_user_id: string | null
           created_at: string
           date: string
+          fast_sunday_pinned: boolean
           id: string
           notes: string | null
           presiding_override: string | null
@@ -2106,6 +2107,7 @@ export type Database = {
           conducting_user_id?: string | null
           created_at?: string
           date: string
+          fast_sunday_pinned?: boolean
           id?: string
           notes?: string | null
           presiding_override?: string | null
@@ -2118,6 +2120,7 @@ export type Database = {
           conducting_user_id?: string | null
           created_at?: string
           date?: string
+          fast_sunday_pinned?: boolean
           id?: string
           notes?: string | null
           presiding_override?: string | null
@@ -2706,6 +2709,14 @@ export type Database = {
         Returns: {
           version: string
         }[]
+      }
+      apply_fast_sunday: {
+        Args: {
+          p_fast_sunday_id: string
+          p_month_start: string
+          p_ward_id: string
+        }
+        Returns: Json
       }
       apply_roster_import: {
         Args: { p_households: Json; p_members: Json; p_ward_id: string }
