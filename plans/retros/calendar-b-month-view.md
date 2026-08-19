@@ -2,7 +2,7 @@
 id: calendar-b-month-view
 type: feature
 iter: null
-commits: []
+commits: ["b4b721d"]
 date: 2026-08-19
 files:
   - app/globals.css
