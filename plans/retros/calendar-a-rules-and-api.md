@@ -2,7 +2,7 @@
 id: calendar-a-rules-and-api
 type: feature
 iter: null
-commits: ["6482ece"]
+commits: ["6d5048f"]
 date: 2026-08-18
 files:
   - supabase/migrations/023_calendar.sql
