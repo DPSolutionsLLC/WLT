@@ -18,6 +18,7 @@ export type {
   ProgramStatus,
   PublicPageType,
   Role,
+  RotationCadence,
   SacramentAssignmentType,
   SundayType,
   TopicCategory,

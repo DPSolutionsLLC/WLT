@@ -1,6 +1,7 @@
 import { CalendarSettingsPanel } from "@/app/(app)/calendar/CalendarSettingsPanel";
 import { ConductingRotationPanel } from "@/app/(app)/calendar/ConductingRotationPanel";
 import { MonthNavigation } from "@/app/(app)/calendar/MonthNavigation";
+import { OrgRotationPanel } from "@/app/(app)/calendar/OrgRotationPanel";
 import { MonthGrid } from "@/components/calendar/MonthGrid";
 import { SundayCard } from "@/components/calendar/SundayCard";
 import { Card } from "@/components/ui/Card";
@@ -16,14 +17,21 @@ import {
   monthStart,
   parseMonthParam,
 } from "@/lib/calendar/dates";
+import { manageableOrgIds } from "@/lib/calendar/orgRotationScope";
 import {
   conductingNameMap,
   ensureMonthGenerated,
   listBishopricUsers,
   listConductingRotation,
+  listOrgLeadershipUsers,
+  listRotationOrganizations,
   listSundays,
+  type ConductingRotationRow,
 } from "@/lib/calendar/queries";
-import { activeRotation } from "@/lib/calendar/resolveConductingUser";
+import {
+  activeRotation,
+  type RotationEntry,
+} from "@/lib/calendar/resolveConductingUser";
 import { readDefaultSpeakingSlots } from "@/lib/calendar/wardCalendarSettings";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { MAX_SPEAKING_SLOTS } from "@/lib/validation/calendar";
@@ -65,22 +73,29 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     ? await ensureMonthGenerated(user.wardId, month, supabase)
     : await listSundays(user.wardId, range, supabase);
 
-  const [rotation, bishopricUsers, defaultSpeakingSlots] = await Promise.all([
-    listConductingRotation(user.wardId, supabase),
-    listBishopricUsers(user.wardId, supabase),
-    readDefaultSpeakingSlots(user.wardId, supabase),
-  ]);
+  const [rotation, bishopricUsers, organizations, orgLeadershipUsers, defaultSpeakingSlots] =
+    await Promise.all([
+      // Every rotation in the ward — the bishopric's and each organization's — in one read.
+      listConductingRotation(user.wardId, {}, supabase),
+      listBishopricUsers(user.wardId, supabase),
+      listRotationOrganizations(user.wardId, supabase),
+      listOrgLeadershipUsers(user.wardId, undefined, supabase),
+      readDefaultSpeakingSlots(user.wardId, supabase),
+    ]);
 
   const conductingNames = conductingNameMap(bishopricUsers);
+  const orgLeadershipNames = conductingNameMap(orgLeadershipUsers);
 
-  const currentRotation = activeRotation(
-    rotation.map((entry) => ({
-      position: entry.position,
-      userId: entry.userId,
-      effectiveFrom: entry.effectiveFrom,
-    })),
-    today,
+  // The rotation panels are rendered for organizations this viewer may MANAGE, and for nobody
+  // else — absent, not disabled. manageableOrgIds() is the second of two boundaries; migration
+  // 024's policies are the first (lib/calendar/orgRotationScope.ts).
+  const manageableIds = new Set(manageableOrgIds(user, organizations, roleAccess));
+  const manageableOrganizations = organizations.filter((organization) =>
+    manageableIds.has(organization.id),
   );
+
+  const currentRotation = activeRotationFor(rotation, null, today);
+  const defaultEffectiveFrom = firstSundayOnOrAfter(addDaysUtc(today, 1));
 
   return (
     <div className="flex flex-col gap-6">
@@ -127,6 +142,32 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
 
       {/* Set-once controls, collapsed, like the roster's add-household panel. */}
       <div className="flex flex-col gap-3">
+        {manageableOrganizations.map((organization) => {
+          const organizationRotation = activeRotationFor(rotation, organization.id, today);
+
+          return (
+            <Card key={organization.id}>
+              <details>
+                <summary className="min-h-11 cursor-pointer list-none text-sm font-semibold text-foreground">
+                  {organization.name} conducting rotation
+                </summary>
+                <div className="mt-3 border-t border-border pt-3">
+                  <OrgRotationPanel
+                    organization={organization}
+                    leadershipUsers={orgLeadershipUsers.filter(
+                      (leader) => leader.orgId === organization.id,
+                    )}
+                    leadershipNames={orgLeadershipNames}
+                    activeRotation={organizationRotation}
+                    activeCadence={organizationRotation[0]?.cadence ?? "weekly"}
+                    defaultEffectiveFrom={defaultEffectiveFrom}
+                  />
+                </div>
+              </details>
+            </Card>
+          );
+        })}
+
         {canManageRotation && (
           <Card>
             <details>
@@ -138,7 +179,8 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
                   bishopricUsers={bishopricUsers}
                   bishopricNames={conductingNames}
                   activeRotation={currentRotation}
-                  defaultEffectiveFrom={firstSundayOnOrAfter(addDaysUtc(today, 1))}
+                  activeCadence={currentRotation[0]?.cadence ?? "weekly"}
+                  defaultEffectiveFrom={defaultEffectiveFrom}
                 />
               </div>
             </details>
@@ -161,5 +203,27 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
         </Card>
       </div>
     </div>
+  );
+}
+
+// The set of three rows in force TODAY for one rotation. `orgId: null` is the bishopric's
+// sacrament-meeting rotation; a uuid is that organization's. Rows for other rotations are
+// filtered out FIRST — activeRotation() picks the latest effective_from across whatever it is
+// given, so mixing two rotations would let the Elders Quorum's newer set hide the bishopric's.
+function activeRotationFor(
+  rows: ConductingRotationRow[],
+  orgId: string | null,
+  today: string,
+): RotationEntry[] {
+  return activeRotation(
+    rows
+      .filter((row) => row.orgId === orgId)
+      .map((row) => ({
+        position: row.position,
+        userId: row.userId,
+        effectiveFrom: row.effectiveFrom,
+        cadence: row.cadence,
+      })),
+    today,
   );
 }

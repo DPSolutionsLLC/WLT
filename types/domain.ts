@@ -122,6 +122,26 @@ export const FAST_SUNDAY_DISPLACING_TYPES: readonly SundayType[] = [
 export const ROTATION_POSITIONS = [1, 2, 3] as const;
 export type RotationPosition = (typeof ROTATION_POSITIONS)[number];
 
+// How fast a rotation advances. 03-calendar.md Step 3 describes the weekly cycle, which is the
+// default and what every existing ward runs; monthly hands over at the month boundary, one
+// person taking every Sunday in a month.
+export const ROTATION_CADENCES = ["weekly", "monthly"] as const;
+export type RotationCadence = (typeof ROTATION_CADENCES)[number];
+
+// Sentences, not the words "Weekly" and "Monthly". This is the control most likely to be set
+// wrong by somebody who has not read a plan, and "Monthly" alone does not distinguish "one
+// person per month" from "the rotation restarts monthly".
+export const ROTATION_CADENCE_LABELS: Record<RotationCadence, string> = {
+  weekly: "A different person each Sunday",
+  monthly: "One person for the whole month",
+};
+
+// The organization types that hold a presidency and may therefore run their own conducting
+// rotation. `bishopric` is absent because its rotation IS the sacrament-meeting one, keyed by a
+// NULL org_id (migration 024, Part 2); `other` is absent because it has no presidency to rotate.
+export const ROTATION_ELIGIBLE_ORG_TYPES: readonly OrganizationType[] =
+  ORGANIZATION_TYPES.filter((type) => type !== "bishopric" && type !== "other");
+
 export const TOPIC_CATEGORIES = [
   "doctrinal",
   "scriptural",

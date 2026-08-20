@@ -843,30 +843,43 @@ export type Database = {
       }
       conducting_rotation: {
         Row: {
+          cadence: string
           created_at: string
           effective_from: string
           id: string
+          org_id: string | null
           position: number
           user_id: string | null
           ward_id: string
         }
         Insert: {
+          cadence?: string
           created_at?: string
           effective_from: string
           id?: string
+          org_id?: string | null
           position: number
           user_id?: string | null
           ward_id: string
         }
         Update: {
+          cadence?: string
           created_at?: string
           effective_from?: string
           id?: string
+          org_id?: string | null
           position?: number
           user_id?: string | null
           ward_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "conducting_rotation_org_fkey"
+            columns: ["org_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id", "ward_id"]
+          },
           {
             foreignKeyName: "conducting_rotation_user_id_ward_id_fkey"
             columns: ["user_id", "ward_id"]
@@ -2082,6 +2095,62 @@ export type Database = {
           },
           {
             foreignKeyName: "sacrament_send_log_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sunday_org_conducting: {
+        Row: {
+          created_at: string
+          id: string
+          org_id: string
+          sunday_id: string
+          user_id: string | null
+          ward_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          org_id: string
+          sunday_id: string
+          user_id?: string | null
+          ward_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          org_id?: string
+          sunday_id?: string
+          user_id?: string | null
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sunday_org_conducting_org_id_ward_id_fkey"
+            columns: ["org_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "sunday_org_conducting_sunday_id_ward_id_fkey"
+            columns: ["sunday_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "sundays"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "sunday_org_conducting_user_id_ward_id_fkey"
+            columns: ["user_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "sunday_org_conducting_ward_id_fkey"
             columns: ["ward_id"]
             isOneToOne: false
             referencedRelation: "wards"

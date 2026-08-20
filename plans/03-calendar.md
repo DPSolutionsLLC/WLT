@@ -98,6 +98,19 @@ Default cycle: Bishop → 1st Counselor → 2nd Counselor, advancing one step pe
 Compute from an anchor date and the count of Sundays elapsed, so it is deterministic and
 does not depend on prior rows being correct.
 
+> **Corrected by `calendar-c` (2026-08-19).** The weekly cycle above is the DEFAULT, not the only
+> rule. A rotation carries a **cadence** — `weekly` or `monthly` — on every row
+> (migration 024, Part 1). Monthly advances one step per calendar month, so one bishopric member
+> takes every Sunday in a month, anchored on the month containing `effective_from`. Scenario 010's
+> walkthrough found that monthly is how this ward actually runs; the requirement had never been
+> written down, and no test could have caught it because the code matched this spec exactly.
+>
+> The same machinery, at either cadence, now serves the six organizations with a presidency:
+> `conducting_rotation.org_id` is NULL for the bishopric's sacrament-meeting rotation and a
+> uuid for an organization's own (migration 024, Part 2). Who conducts an organization's meeting
+> on one Sunday is stored in `sunday_org_conducting`, by the same stored-not-computed rule the
+> next paragraph gives for sacrament conducting.
+
 **Every Sunday's `conducting_user_id` is stored, not computed at read time.** Auto-populate
 it on generation, then let the bishopric override any individual Sunday. A computed value
 would silently rewrite history when the rotation changes.
@@ -109,6 +122,13 @@ Rules:
 - **Both actions notify the other two** — `admin_setting_changed`
 - Changing the rotation does **not** retroactively rewrite Sundays already assigned; it
   applies from `effective_from` forward. Say so in the UI
+- **The same is true of the cadence.** Changing it INSERTS a new set of rows rather than
+  updating the old one, so forward-only is true by construction and not by a second mechanism
+  (`calendar-c` Decision 1). The UI sentence names the cadence as well as the order
+- An **organization presidency** manages their own rotation and nobody else's, under the new
+  `calendar.manage_org_conducting` permission — narrowed to their own organization by RLS
+  (migration 024, Parts 5 and 6) and by `lib/calendar/orgRotationScope.ts`. Changes notify the
+  rest of that presidency — `org_conducting_rotation_changed`
 
 ---
 
@@ -239,6 +259,58 @@ Two things the walkthrough surfaced that were not code defects:
    sacrament meeting. Both land in `plans/calendar-c-rotation-cadence.md` — they need a migration
    (a cadence column, an organization column, and per-Sunday org conducting), so neither is a patch
    to `calendar-b`.
+
+### Scenario 011 — results
+
+`testing/scenarios/calendar/scenario-011-rotation-cadence`, 37 checks.
+
+**Not yet walked.** The implementation is complete and every automated check passes:
+migration 024 is applied to the linked project, `types/database.ts` is regenerated, and
+`npm run lint`, `npm run typecheck`, `npm run test` (650 tests, 49 files) and `npm run build`
+all pass. `tests/rls/org-conducting.test.ts` runs green against the hosted project, so the
+policy boundary is proven from the database side before anyone opens a browser. Record the
+walkthrough results here when it is walked.
+
+**Defect found during the walkthrough, and fixed.** Every month except the seeded one showed
+"Not set" for every Sunday. The cause was not the cadence work: `generateSundayRange()` inserts
+the Sunday rows and assigns conductors in two separate statements, and supabase-js has no
+transaction API, so the error the tester hit while migration 024 was still unapplied left the rows
+behind with no conductor. `ensureMonthGenerated()` then returned early on "this month has rows",
+which made the damage permanent — nothing in the UI could repair it, and no test covered the
+state because no test had ever produced it.
+
+The abort is routine, not exotic: Next.js prefetches the prev/next month links in
+`MonthNavigation`, so opening one month executes the neighbouring months' server render, and a
+cancelled prefetch abandons the write partway. Months the tester never visited were left
+half-built.
+
+`ensureMonthGenerated()` now repairs both halves of the wreckage:
+
+- **Conductors** — filled whenever any Sunday in the month has none. Safe on a read because both
+  passes only fill gaps: `populateConducting()` touches nulls, `populateOrgConducting()` inserts
+  with `ignoreDuplicates`, so neither can overwrite a conductor a human set.
+- **Fast Sunday** — re-resolved only when the month has none AND at least one Sunday could be
+  one. That combination is unreachable by any legitimate edit, because `generateSundays()` always
+  picks one unless every Sunday is displaced and `updateSunday()` re-resolves on every type
+  change. A month that genuinely has none — a stake conference weekend — fails the second half of
+  the condition and is left alone, which is what stops this re-running an RPC on every page view.
+
+Four regression tests in `tests/db/calendar-generation.test.ts` pin it, in their own `describe`
+on dedicated months: the rest of that file shares one calendar and inherits state in order, so a
+repair test that mutated those months would break its neighbours.
+
+**The real fix is a transaction, and this is not one.** `generateSundayRange()` still performs
+three separate writes with no atomicity, because @supabase/supabase-js has no transaction API.
+Repair-on-read makes the damage self-healing rather than permanent; it does not make generation
+atomic. A plpgsql function in the shape of `apply_fast_sunday()` would — record it as the honest
+fix if this recurs.
+
+**Known gap carried forward from this slice.** Switching the cadence does not re-populate a month
+that is already generated, by design — `conducting_user_id` is stored and `populateConducting()`
+only fills rows that are still null. A ward that switches to monthly and then looks at an
+already-generated next month sees the old weekly assignment and may read it as a bug. The honest
+fix is a "re-apply the rotation to this month" action that clears and re-populates, which is its
+own decision about destroying overrides. Scenario 011's Notes say so; it is not built here.
 
 ---
 

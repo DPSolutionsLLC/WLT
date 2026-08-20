@@ -9,19 +9,24 @@ const BISHOP = "user-bishop";
 const FIRST_COUNSELOR = "user-first";
 const SECOND_COUNSELOR = "user-second";
 
+// Every literal here carries cadence: "weekly" and every assertion below is UNCHANGED. That is
+// the point of this suite after calendar-c: 'weekly' is the default the migration writes onto
+// every existing row, and this file is the proof that adding the cadence changed nothing about
+// the rule 03-calendar.md Step 3 describes. The monthly rule lives in tests/lib/rotationCadence.
+
 // January 2026 Sundays: the 4th, 11th, 18th and 25th.
 const JANUARY_SET: RotationEntry[] = [
-  { position: 1, userId: BISHOP, effectiveFrom: "2026-01-01" },
-  { position: 2, userId: FIRST_COUNSELOR, effectiveFrom: "2026-01-01" },
-  { position: 3, userId: SECOND_COUNSELOR, effectiveFrom: "2026-01-01" },
+  { position: 1, userId: BISHOP, effectiveFrom: "2026-01-01", cadence: "weekly" },
+  { position: 2, userId: FIRST_COUNSELOR, effectiveFrom: "2026-01-01", cadence: "weekly" },
+  { position: 3, userId: SECOND_COUNSELOR, effectiveFrom: "2026-01-01", cadence: "weekly" },
 ];
 
 // A change inserts a WHOLE NEW SET at a new effective_from rather than updating the old one
 // (migration 023), which is what makes "applies forward only" true by construction.
 const MARCH_SET: RotationEntry[] = [
-  { position: 1, userId: SECOND_COUNSELOR, effectiveFrom: "2026-03-01" },
-  { position: 2, userId: BISHOP, effectiveFrom: "2026-03-01" },
-  { position: 3, userId: FIRST_COUNSELOR, effectiveFrom: "2026-03-01" },
+  { position: 1, userId: SECOND_COUNSELOR, effectiveFrom: "2026-03-01", cadence: "weekly" },
+  { position: 2, userId: BISHOP, effectiveFrom: "2026-03-01", cadence: "weekly" },
+  { position: 3, userId: FIRST_COUNSELOR, effectiveFrom: "2026-03-01", cadence: "weekly" },
 ];
 
 describe("activeRotation", () => {
@@ -113,9 +118,9 @@ describe("resolveConductingUser", () => {
   // Skipping an unfilled position would quietly give one counselor twice the turns.
   it("returns null for an unfilled position instead of skipping to the next one", () => {
     const withGap: RotationEntry[] = [
-      { position: 1, userId: BISHOP, effectiveFrom: "2026-01-01" },
-      { position: 2, userId: null, effectiveFrom: "2026-01-01" },
-      { position: 3, userId: SECOND_COUNSELOR, effectiveFrom: "2026-01-01" },
+      { position: 1, userId: BISHOP, effectiveFrom: "2026-01-01", cadence: "weekly" },
+      { position: 2, userId: null, effectiveFrom: "2026-01-01", cadence: "weekly" },
+      { position: 3, userId: SECOND_COUNSELOR, effectiveFrom: "2026-01-01", cadence: "weekly" },
     ];
 
     expect(resolveConductingUser("2026-01-11", withGap, "2026-01-01")).toBeNull();

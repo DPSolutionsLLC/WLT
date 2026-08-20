@@ -172,6 +172,8 @@ describe("calendar generation", () => {
       wardId,
       {
         effectiveFrom: "2026-01-01",
+        orgId: null,
+        cadence: "weekly",
         positions: [
           { position: 1, userId: fixtures.user("bishop").id },
           { position: 2, userId: fixtures.user("counselor1").id },
@@ -228,6 +230,127 @@ describe("calendar generation", () => {
 
     const again = await ensureMonthGenerated(wardId, "2026-07-01", bishop);
     expect(again).toEqual(generated);
+  });
+
+  // Repairing a half-finished generation.
+  //
+  // generateSundayRange() inserts the Sunday rows, resolves Fast Sunday, and assigns conductors
+  // in three separate statements — supabase-js has no transaction API — so anything that abandons
+  // the request in between leaves the month partly built. A cancelled Next.js prefetch of the
+  // prev/next month link does exactly that. ensureMonthGenerated() used to return early on "this
+  // month has rows", which made the damage permanent: no action in the UI could repair it.
+  //
+  // These run on their own months, generated here. The rest of this file shares one calendar and
+  // inherits state in order; a repair test that mutated those months would break its neighbours.
+  describe("repairing a half-finished generation", () => {
+    const CONDUCTOR_GAP = "2027-02";
+    const FAST_SUNDAY_GAP = "2027-03";
+    const ALL_DISPLACED = "2027-05";
+    const HAND_SET = "2027-06";
+
+    beforeAll(async () => {
+      for (const month of [CONDUCTOR_GAP, FAST_SUNDAY_GAP, ALL_DISPLACED, HAND_SET]) {
+        await ensureMonthGenerated(wardId, `${month}-01`, bishop);
+      }
+    });
+
+    // The wreckage is simulated rather than produced by breaking generation, because its SHAPE is
+    // what ensureMonthGenerated has to recognise, not the failure that caused it.
+    it("fills conductors on a month whose Sundays exist but never got one", async () => {
+      const before = await readMonth(CONDUCTOR_GAP);
+      expect(before.every((sunday) => sunday.conductingUserId !== null)).toBe(true);
+
+      const { error } = await fixtures.service
+        .from("sundays")
+        .update({ conducting_user_id: null })
+        .eq("ward_id", wardId)
+        .gte("date", `${CONDUCTOR_GAP}-01`)
+        // lastDayOfMonth, never a pasted "-31": February has no 31st and Postgres answers
+        // "date/time field value out of range" rather than an empty result.
+        .lte("date", lastDayOfMonth(`${CONDUCTOR_GAP}-01`));
+      expect(error).toBeNull();
+
+      const repaired = await ensureMonthGenerated(wardId, `${CONDUCTOR_GAP}-15`, bishop);
+
+      expect(repaired.map((sunday) => sunday.conductingUserId)).toEqual(
+        before.map((sunday) => sunday.conductingUserId),
+      );
+      // Gap-filling, not regeneration: nothing else about the month moves.
+      expect(repaired.map((sunday) => sunday.date)).toEqual(before.map((s) => s.date));
+      expect(repaired.map((sunday) => sunday.type)).toEqual(before.map((s) => s.type));
+    });
+
+    // The other kind of wreckage the same abort leaves: apply_fast_sunday() never ran, so the
+    // month has no Fast Sunday at all.
+    it("restores a Fast Sunday to a month that lost it", async () => {
+      const before = await readMonth(FAST_SUNDAY_GAP);
+      const originalFastSunday = fastSundayOf(before);
+      expect(originalFastSunday).not.toBeNull();
+
+      const { error } = await fixtures.service
+        .from("sundays")
+        .update({ type: "standard", speaking_slots: 3 })
+        .eq("ward_id", wardId)
+        .eq("id", originalFastSunday!.id);
+      expect(error).toBeNull();
+
+      const repaired = await ensureMonthGenerated(wardId, `${FAST_SUNDAY_GAP}-15`, bishop);
+
+      expect(fastSundayOf(repaired)?.date).toBe(originalFastSunday!.date);
+      expect(fastSundayOf(repaired)?.speakingSlots).toBe(0);
+    });
+
+    // A month that genuinely has no Fast Sunday — a stake conference weekend — must be left
+    // alone. Without the second half of the condition this would force one onto a Sunday the
+    // bishopric had deliberately displaced, on every page view.
+    it("leaves a month with every Sunday displaced without a Fast Sunday", async () => {
+      const month = await readMonth(ALL_DISPLACED);
+
+      for (const sunday of month) {
+        const { error } = await fixtures.service
+          .from("sundays")
+          .update({ type: "stake_conference" })
+          .eq("ward_id", wardId)
+          .eq("id", sunday.id);
+        expect(error).toBeNull();
+      }
+
+      const after = await ensureMonthGenerated(wardId, `${ALL_DISPLACED}-15`, bishop);
+
+      expect(fastSundayOf(after)).toBeNull();
+      expect(after.every((sunday) => sunday.type === "stake_conference")).toBe(true);
+    });
+
+    // The guarantee that makes it safe to repair on a READ at all: a conductor a human set is
+    // never overwritten (03-calendar.md Step 3).
+    it("leaves a hand-set conductor alone while filling its neighbours", async () => {
+      const month = await readMonth(HAND_SET);
+      const [first, second] = month;
+
+      const { error } = await fixtures.service
+        .from("sundays")
+        .update({ conducting_user_id: null })
+        .eq("ward_id", wardId)
+        .eq("id", second.id);
+      expect(error).toBeNull();
+
+      const overridden = fixtures.user("counselor2").id;
+      const { error: overrideError } = await fixtures.service
+        .from("sundays")
+        .update({ conducting_user_id: overridden })
+        .eq("ward_id", wardId)
+        .eq("id", first.id);
+      expect(overrideError).toBeNull();
+
+      const repaired = await ensureMonthGenerated(wardId, `${HAND_SET}-15`, bishop);
+
+      expect(repaired.find((sunday) => sunday.id === first.id)?.conductingUserId).toBe(
+        overridden,
+      );
+      expect(repaired.find((sunday) => sunday.id === second.id)?.conductingUserId).toBe(
+        second.conductingUserId,
+      );
+    });
   });
 
   // The ward's default speaker count is a setting, and it has TWO readers that must agree: the
@@ -318,6 +441,8 @@ describe("calendar generation", () => {
         wardId,
         {
           effectiveFrom: "2026-01-01",
+          orgId: null,
+          cadence: "weekly",
           positions: [
             { position: 1, userId: fixtures.user("counselor1").id },
             { position: 2, userId: fixtures.user("counselor2").id },

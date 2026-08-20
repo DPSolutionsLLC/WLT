@@ -2,7 +2,7 @@
 --
 -- The keys below must match SPEC.md §Trigger Keys EXACTLY. emitNotification() (plan C) looks
 -- them up by string, so a typo here is a notification that silently never fires — no error,
--- no log, just nothing arriving. Twenty-three keys; count them against the spec if you edit.
+-- no log, just nothing arriving. Twenty-four keys; count them against the spec if you edit.
 --
 -- default_roles is the role list that receives the trigger unless a user opts out in
 -- notification_user_prefs. Bishop and counselor always appear together: bishopric admin
@@ -24,6 +24,13 @@ cross join (values
 
   -- Admin
   ('admin_setting_changed',         array['bishop', 'counselor']),
+
+  -- Calendar
+  -- Recipients are resolved EXPLICITLY by lib/notifications/notifyOrgLeadership.ts, so this
+  -- default_roles list is the opt-out surface rather than the address list: a change to the
+  -- Elders Quorum rotation reaches the Elders Quorum presidency only, never every president
+  -- in the ward.
+  ('org_conducting_rotation_changed', array['org_president', 'org_counselor', 'org_secretary']),
 
   -- Visits
   ('visit_overdue',                 array['org_president', 'org_counselor', 'org_secretary']),

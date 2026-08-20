@@ -138,6 +138,28 @@ that sentence verbatim.
 `apply_fast_sunday()` (migration 023) reads the same key in SQL, so a second writer that skipped
 the route would put the TypeScript and plpgsql halves out of step.
 
+**"May manage my own organization's data" already has a shape — follow it, do not invent a
+second one.** `plans/retros/roster-b-picker-and-orgs.md` recorded that no permission expressed
+this and handed the decision to this phase. `calendar-c` answered it for the calendar
+(Decision 5) and the answer is now the established pattern:
+
+1. A **narrow permission** naming the capability — `calendar.manage_org_conducting` — granted to
+   `bishop`, `counselor`, `org_president` and `org_counselor`, and deliberately **not** to
+   `org_secretary`. Never widen an existing ward-wide permission to reach an org case; widening
+   `calendar.manage` would have handed an Elders Quorum president the whole sacrament calendar.
+2. **RLS as the boundary**, with the predicate
+   `ward_id = current_ward_id() and (is_bishopric() or org_id = current_org_id())`
+   (migration 024, Parts 5 and 6). Where a NULL `org_id` means something other than "no
+   organization", the org branch must also require `org_id is not null` — otherwise every user
+   whose own `org_id` is NULL matches it.
+3. **A pure scope function as the second boundary** — `lib/calendar/orgRotationScope.ts` —
+   importing types only, so a client component can render the right panels without dragging
+   `next/headers` into the browser bundle. It returns the manageable ids; the route checks the
+   permission **and** membership of that list, never either alone.
+
+The roster gap `roster-b` deferred should be closed with this same three-part shape rather than a
+second mechanism. `tests/rls/org-conducting.test.ts` is the suite to copy for proving it.
+
 ---
 
 ## Step 5 — Audit Log Viewer

@@ -17,6 +17,7 @@ import type {
   ProgramStatus,
   PublicPageType,
   Role,
+  RotationCadence,
   SacramentAssignmentType,
   SundayType,
   TopicCategory,
@@ -455,13 +456,19 @@ export async function createSunday(options: {
   });
 }
 
-// The three rows that make up ONE rotation, all sharing an effective_from. A rotation change
-// inserts a whole new set rather than updating this one (migration 023), which is what makes
-// "applies forward only" true by construction — so a scenario seeding two rotations calls this
-// twice with different dates rather than editing rows in place.
+// The three rows that make up ONE rotation, all sharing an effective_from AND a cadence. A
+// rotation change inserts a whole new set rather than updating this one (migration 023), which
+// is what makes "applies forward only" true by construction — so a scenario seeding two
+// rotations calls this twice with different dates rather than editing rows in place. The same
+// holds for a cadence change (migration 024, Part 1).
+//
+// `orgId` omitted is the BISHOPRIC's sacrament-meeting rotation, which is what a NULL org_id
+// means in the database. Passing an organization id seeds that organization's own rotation.
 export async function createConductingRotation(options: {
   effectiveFrom: string;
   userIds: [string | null, string | null, string | null];
+  cadence?: RotationCadence;
+  orgId?: string;
 }): Promise<string[]> {
   const ids: string[] = [];
 
@@ -471,16 +478,41 @@ export async function createConductingRotation(options: {
         "conducting_rotation",
         {
           ward_id: TEST_WARD_ID,
+          org_id: options.orgId ?? null,
           position: index + 1,
           user_id: userId,
           effective_from: options.effectiveFrom,
+          cadence: options.cadence ?? "weekly",
         },
-        "ward_id,position,effective_from",
+        "ward_id,org_id,position,effective_from",
       ),
     );
   }
 
   return ids;
+}
+
+// Who conducts ONE organization's meeting on ONE Sunday. Seeding this row IS seeding an
+// override — there is no is_override flag, exactly as there is none on
+// sundays.conducting_user_id (migration 024, Part 4).
+//
+// `userId` omitted seeds "nobody assigned yet", which is a real state and what an unfilled
+// rotation position resolves to.
+export async function createSundayOrgConducting(options: {
+  sundayId: string;
+  orgId: string;
+  userId?: string;
+}): Promise<string> {
+  return insertRow(
+    "sunday_org_conducting",
+    {
+      ward_id: TEST_WARD_ID,
+      sunday_id: options.sundayId,
+      org_id: options.orgId,
+      user_id: options.userId ?? null,
+    },
+    "ward_id,sunday_id,org_id",
+  );
 }
 
 // ============================================================================
@@ -927,6 +959,10 @@ export const NOTIFICATION_TRIGGERS: Array<{ key: string; defaultRoles: Role[] }>
   { key: "issue_flagged_post_sunday", defaultRoles: ["bishop", "counselor"] },
   { key: "appreciation_comments_ready", defaultRoles: ["bishop", "counselor"] },
   { key: "admin_setting_changed", defaultRoles: ["bishop", "counselor"] },
+  {
+    key: "org_conducting_rotation_changed",
+    defaultRoles: ["org_president", "org_counselor", "org_secretary"],
+  },
   { key: "visit_overdue", defaultRoles: ["org_president", "org_counselor", "org_secretary"] },
   { key: "visit_flagged_for_ward_council", defaultRoles: ["bishop", "counselor", "ward_council_member"] },
   { key: "new_household_added", defaultRoles: ["bishop", "counselor", "org_president", "ward_secretary"] },

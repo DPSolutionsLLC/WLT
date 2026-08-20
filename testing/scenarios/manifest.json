@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 10,
+  "scenarioCount": 11,
   "scenarios": [
     {
       "id": "auth:scenario-001-role-shell",
@@ -233,6 +233,63 @@
         "`eqpres` sees no Calendar link in the sidebar, and `/calendar` shows \"Not permitted\" with a"
       ],
       "seedCommand": "npm run seed -- calendar/scenario-010-fast-sunday-shift"
+    },
+    {
+      "id": "calendar:scenario-011-rotation-cadence",
+      "path": "calendar/scenario-011-rotation-cadence",
+      "name": "Monthly cadence and an organization rotation",
+      "scope": "calendar-c-rotation-cadence",
+      "part": 1,
+      "tags": [
+        "calendar",
+        "full",
+        "rotation",
+        "permissions"
+      ],
+      "prerequisites": "none",
+      "purpose": "Two things no unit test can reach.\n\nFirst, that switching the bishopric to monthly and then generating a month produces **one name\nacross every Sunday** — the visible shape of the requirement, and the thing scenario 010 revealed\nwas wrong. The rule itself is pinned by `tests/lib/rotationCadence.test.ts`; what a walkthrough\nproves is that the control reads as a sentence a bishopric can set correctly without a plan in\nfront of them, and that the month they are already looking at does not silently re-shuffle.\n\nSecond, that an Elders Quorum president can manage their own rotation and is genuinely stopped —\n**by RLS, from the browser console, not just by a hidden button** — from touching the sacrament\nrotation or another organization's.\n\nThe permission boundary is the higher-risk half. This is the first org-scoped write in the app,\nand a route that forgot its scope check would look completely normal on screen.\n\nMay 2026 has five Sundays and opens on a Friday, so the grid has leading blanks and the monthly\ncadence has to hold across five Sundays rather than four — both cases scenario 010's March cannot\nshow.",
+      "checklist": [
+        "Every Sunday in a freshly opened month shows a conductor — **no month reads \"Not set\" on",
+        "The month you were looking at when you signed in keeps its **weekly** conductors after the",
+        "The cadence control reads as a **sentence** — \"One person for the whole month\" — not the",
+        "The forward-only sentence mentions the **cadence**, not just the order",
+        "The position labels change with the cadence: \"First month of the cycle\", not \"First Sunday",
+        "Switching to monthly effective 2026-06-01 leaves **May unchanged** — still a different",
+        "June's four Sundays (06-07, 06-14, 06-21, 06-28) all show the **same** conductor",
+        "July's Sundays all show the **next** person in the order",
+        "August's show the third",
+        "Saving a second rotation on 2026-06-01 shows the server's message — \"A sacrament meeting",
+        "Saving a rotation effective **mid-month** (try 2026-09-16) governs the rest of September at",
+        "`bishop` sees an **Elders Quorum conducting rotation** panel beside the bishopric one",
+        "`bishop` sees a **Relief Society** panel that says nobody in Relief Society has an account",
+        "`eqpres` sees an Elders Quorum rotation panel and **no** bishopric panel",
+        "`eqpres` sees **no** Relief Society panel",
+        "Saving the Elders Quorum rotation succeeds and says the rest of the presidency were notified",
+        "`eqcounselor` receives an `org_conducting_rotation_changed` notification; `eqpres` does not;",
+        "A June Sunday detail page has an **Organization meetings** section listing Elders Quorum and",
+        "Relief Society is **absent** from that section — it has no rotation, so it has nothing to",
+        "The third rotation position is empty in the seed, so the third month reads **\"Not set\"** and",
+        "`eqpres` can override one Sunday's Elders Quorum conductor, one row at a time — there is no",
+        "Saving says the change is for that Sunday only and the rotation is unchanged",
+        "That override survives re-opening the month, and the Sundays either side are **unchanged**",
+        "Re-generating the month (open July, then come back) does **not** revert the override",
+        "`rspres` sees the Elders Quorum conductor **read-only**, with no select and no Save button",
+        "`secretary` sees **no** organization rotation panel at all, and no Organization meetings",
+        "`eqpres` sees no Calendar settings input and cannot edit any Sunday's type or sacrament",
+        "`eqpres` PATCHing `/api/conducting-rotation` with `orgId: null` gets **403**",
+        "`eqpres` PATCHing it with the **Relief Society** org id gets **403**",
+        "`eqpres` PATCHing `/api/sundays/<id>/org-conducting` with the Relief Society org id gets",
+        "All three refused writes leave `audit_log` **untouched**",
+        "With the route bypassed entirely, a direct PostgREST insert into `conducting_rotation` for",
+        "The same direct insert with `org_id: null` is refused too — this is the one migration 024's",
+        "May 2026 opens on a **Friday**, so the grid shows five leading blank cells before the 1st",
+        "All five May Sundays appear, in the correct week rows",
+        "At 375px the grid is replaced by a card list — no horizontal scrolling anywhere",
+        "Dark mode: the cadence select, the Organization meetings rows and every badge are legible",
+        "No cell or row anywhere shows a raw uuid",
+        "The month grid is **unchanged** by this slice — no organization conducting appears in a"
+      ],
+      "seedCommand": "npm run seed -- calendar/scenario-011-rotation-cadence"
     },
     {
       "id": "roster:scenario-007-roster-browse-and-notes",

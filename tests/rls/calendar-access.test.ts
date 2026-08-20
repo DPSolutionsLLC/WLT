@@ -3,12 +3,16 @@
 // Cross-ward isolation for the two calendar tables, plus the read-for-all grant every calendar
 // consumer depends on.
 //
-// This suite also DOCUMENTS an asymmetry rather than asserting a lie. Migration 019 puts
-// `sundays` and `conducting_rotation` in the ward-scoped policy loop, which grants INSERT, UPDATE
-// and DELETE to every authenticated member of the ward — an org_secretary included. RLS stops a
-// cross-WARD write and nothing else, so `assertCan(user, "calendar.manage")` in the route is the
-// real write boundary here. Asserting a denial that does not exist would be worse than naming the
-// gap.
+// This suite also DOCUMENTS an asymmetry rather than asserting a lie — one now NARROWED, not
+// removed. Migration 019 put `sundays` and `conducting_rotation` in the ward-scoped policy loop,
+// which granted INSERT, UPDATE and DELETE to every authenticated member of the ward, an
+// org_secretary included.
+//
+// Migration 024, Part 6 closed the `conducting_rotation` half: writing it now requires the
+// bishopric or the caller's own organization, and tests/rls/org-conducting.test.ts is the suite
+// that proves it. `sundays` KEEPS the asymmetry, so `assertCan(user, "calendar.manage")` in the
+// route is still the real write boundary for a Sunday. Asserting a denial that does not exist
+// would be worse than naming the gap.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -132,13 +136,37 @@ describe("calendar access", () => {
     }
   });
 
-  // Documenting the gap, not asserting a denial that does not exist. An org_secretary holds
-  // neither calendar.view nor calendar.manage in lib/auth/permissions.ts, yet migration 019 lets
-  // them write this table directly. Every mutating calendar route therefore carries
-  // assertCan(user, "calendar.manage") — that check, not RLS, is what stops them.
+  // The conducting_rotation half of the gap, now CLOSED by migration 024, Part 6. An
+  // org_secretary holds no calendar permission at all and their organization is not the
+  // bishopric, so the policy — not the route — is what refuses this.
+  it("stops an org_secretary writing the bishopric rotation", async () => {
+    const orgSecretary = await asRole(fixtures, "eqSecretary");
+
+    const { error } = await orgSecretary
+      .from("conducting_rotation")
+      .insert({
+        ward_id: fixtures.wardAId,
+        org_id: null,
+        position: 2,
+        user_id: fixtures.user("bishop").id,
+        effective_from: "2027-06-06",
+        cadence: "weekly",
+      })
+      .select("id");
+
+    // An INSERT that fails its WITH CHECK is a hard error, unlike a filtered UPDATE.
+    expect(error).not.toBeNull();
+  });
+
+  // Documenting the gap that REMAINS, not asserting a denial that does not exist. An
+  // org_secretary holds neither calendar.view nor calendar.manage in lib/auth/permissions.ts,
+  // yet migration 019 still lets them write `sundays` directly. Every mutating calendar route
+  // therefore carries assertCan(user, "calendar.manage") — that check, not RLS, is what stops
+  // them.
   //
-  // If this test ever starts FAILING, migration 019 has been tightened and that is good news:
-  // update this test rather than loosening the policy back.
+  // If this test ever starts FAILING, `sundays` has been tightened the way
+  // `conducting_rotation` was in migration 024, and that is good news: update this test rather
+  // than loosening the policy back.
   it("shows that ward-level RLS alone does not stop an org_secretary writing a Sunday", async () => {
     const orgSecretary = await asRole(fixtures, "eqSecretary");
 

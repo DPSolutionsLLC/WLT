@@ -141,6 +141,26 @@ export function countSundaysBetween(from: DateOnly, to: DateOnly): number {
   return (parseDateOnly(to).getTime() - parseDateOnly(from).getTime()) / MS_PER_WEEK;
 }
 
+// Whole calendar months from one date to another: 0 for two dates in the same month, 1 from any
+// day in March to any day in April, -1 the other way.
+//
+// Pure string arithmetic. This is the one date helper in the module that never constructs a Date
+// at all, which makes it timezone-proof by having nothing to get wrong — the strongest possible
+// version of the defence the rest of this file spends its effort on. parseDateOnly still runs on
+// both arguments so a malformed input throws here rather than producing a plausible number.
+//
+// A negative result is returned as-is, matching countSundaysBetween. The caller decides what a
+// date before the anchor means.
+export function countMonthsBetween(from: DateOnly, to: DateOnly): number {
+  parseDateOnly(from);
+  parseDateOnly(to);
+
+  const yearDelta = Number(to.slice(0, 4)) - Number(from.slice(0, 4));
+  const monthDelta = Number(to.slice(5, 7)) - Number(from.slice(5, 7));
+
+  return yearDelta * 12 + monthDelta;
+}
+
 // The last day of the month `value` falls in — 28, 29, 30 or 31, worked out rather than assumed.
 // Building a range end by pasting "-31" onto a month is how you ask Postgres for 2026-02-31 and
 // get a 500 instead of a calendar.

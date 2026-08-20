@@ -1076,6 +1076,9 @@ appreciation_comments_ready
 -- Admin
 admin_setting_changed
 
+-- Calendar
+org_conducting_rotation_changed
+
 -- Visits
 visit_overdue
 visit_flagged_for_ward_council

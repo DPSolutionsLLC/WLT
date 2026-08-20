@@ -11,6 +11,7 @@ export const PERMISSIONS = [
 
   "calendar.view",
   "calendar.manage",
+  "calendar.manage_org_conducting",
 
   "talks.view",
   "talks.plan",
@@ -116,6 +117,14 @@ const EXECUTIVE_SECRETARY_PERMISSIONS: readonly KnownPermission[] = [
 // organization-wide by intent and narrowed to one org by RLS (current_org_id()), not here.
 const ORG_LEADERSHIP_PERMISSIONS: readonly KnownPermission[] = [
   "roster.view",
+  // Deliberately NOT calendar.manage. Widening that would let an Elders Quorum president edit
+  // the sacrament meeting calendar, the bishopric rotation and every Sunday's type. This
+  // permission says only "may manage AN organization's conducting"; WHICH one is narrowed to
+  // the holder's own by RLS (migration 024) and by lib/calendar/orgRotationScope.ts.
+  //
+  // It is absent from ORG_SECRETARY_PERMISSIONS on purpose: a secretary may be PICKED to
+  // conduct, but deciding who conducts is a presidency decision.
+  "calendar.manage_org_conducting",
   "visits.view",
   "visits.create",
   "visits.manage_goals",

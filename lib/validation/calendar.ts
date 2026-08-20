@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isValidDateOnly } from "@/lib/calendar/dates";
-import { ASSIGNMENT_TYPES, SUNDAY_TYPES } from "@/types/domain";
+import { ASSIGNMENT_TYPES, ROTATION_CADENCES, SUNDAY_TYPES } from "@/types/domain";
 
 // No wardId on any schema here, ever — it comes from the session (conventions.md §Validation).
 // A schema that accepts a wardId is a schema someone will eventually trust.
@@ -118,16 +118,29 @@ export type SundayRangeInput = z.infer<typeof sundayRangeSchema>;
 
 export const conductingRotationSchema = z.object({
   effectiveFrom: dateOnlySchema,
+  // Null is the bishopric's sacrament-meeting rotation (migration 024, Part 2). Required rather
+  // than optional so the route's two permission gates are chosen by something the caller stated
+  // rather than by something that defaulted.
+  orgId: z.uuid("Choose an organization.").nullable(),
+  cadence: z.enum(ROTATION_CADENCES),
   positions: z
     .array(
       z.object({
         position: z.union([z.literal(1), z.literal(2), z.literal(3)]),
-        userId: z.uuid("Choose a bishopric member from the list.").nullable(),
+        userId: z.uuid("Choose someone from the list.").nullable(),
       }),
     )
     .length(3, "A rotation has exactly three positions."),
 });
 export type ConductingRotationInput = z.infer<typeof conductingRotationSchema>;
+
+// One organization per request. There is no bulk form of this: a save over six organizations
+// makes a partial failure impossible to report honestly.
+export const sundayOrgConductingSchema = z.object({
+  orgId: z.uuid("Choose an organization."),
+  userId: z.uuid("Choose someone from the list.").nullable(),
+});
+export type SundayOrgConductingInput = z.infer<typeof sundayOrgConductingSchema>;
 
 // The ward's default speaker count, edited in the app rather than in code. min(1) rather than
 // min(0): a Sunday can legitimately have zero speakers, but a ward whose DEFAULT is zero would

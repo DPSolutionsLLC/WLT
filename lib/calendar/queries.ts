@@ -28,9 +28,14 @@ import type { Database, Json } from "@/types/database";
 import {
   ASSIGNMENT_TYPES,
   FAST_SUNDAY_DISPLACING_TYPES,
+  ORGANIZATION_TYPES,
+  ROTATION_CADENCES,
+  ROTATION_ELIGIBLE_ORG_TYPES,
   ROTATION_POSITIONS,
   SUNDAY_TYPES,
   type AssignmentType,
+  type OrganizationType,
+  type RotationCadence,
   type RotationPosition,
   type SundayType,
 } from "@/types/domain";
@@ -67,6 +72,9 @@ export type ConductingRotationRow = {
   position: RotationPosition;
   userId: string | null;
   effectiveFrom: DateOnly;
+  cadence: RotationCadence;
+  // Null is the bishopric's sacrament-meeting rotation (migration 024, Part 2).
+  orgId: string | null;
 };
 
 export type BishopricUser = {
@@ -75,6 +83,46 @@ export type BishopricUser = {
   lastName: string | null;
   role: "bishop" | "counselor";
   counselorPosition: 1 | 2 | null;
+};
+
+// All three org leadership roles, not only the president. A secretary rarely conducts, but a
+// ward that wants it should not be told no by a schema — and a ward that does not want it
+// simply never picks them.
+export const ORG_LEADERSHIP_ROLES = [
+  "org_president",
+  "org_counselor",
+  "org_secretary",
+] as const;
+
+export type OrgLeadershipRole = (typeof ORG_LEADERSHIP_ROLES)[number];
+
+export type OrgLeadershipUser = {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  role: OrgLeadershipRole;
+  orgId: string;
+};
+
+// An organization that may hold a conducting rotation of its own.
+export type RotationOrganization = {
+  id: string;
+  name: string;
+  type: OrganizationType;
+};
+
+// Everything ConductingLabel needs to turn a stored id into a name, and nothing more. Both
+// BishopricUser and OrgLeadershipUser satisfy it structurally, so one name map can cover the
+// sacrament meeting and every organization on the same page.
+export type ConductingCandidate = {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+};
+
+export type SundayOrgConducting = {
+  orgId: string;
+  userId: string | null;
 };
 
 // Why a calendar change would void work somebody has already done. calendar-b words its dialog
@@ -133,6 +181,8 @@ type RotationRow = {
   position: number;
   user_id: string | null;
   effective_from: string;
+  cadence: string;
+  org_id: string | null;
 };
 
 // One string literal, never a `+` concatenation. Concatenation widens the type to `string`,
@@ -142,29 +192,45 @@ type RotationRow = {
 const SUNDAY_COLUMNS =
   "id, date, type, notes, conducting_user_id, speaking_slots, slot_config, presiding_override, fast_sunday_pinned, created_at";
 
-const ROTATION_COLUMNS = "id, position, user_id, effective_from";
+// One string literal on ONE line, however long it gets, and never a `+` concatenation.
+// Concatenation widens the type to `string`, which defeats supabase-js's literal-type parsing of
+// the select list and silently turns every mapped row into GenericStringError.
+const ROTATION_COLUMNS = "id, position, user_id, effective_from, cadence, org_id";
+
+const ORG_CONDUCTING_COLUMNS = "id, sunday_id, org_id, user_id";
 
 // Thrown rather than returned because it is a database constraint refusing a write, not a
 // business decision the caller can inspect. The route maps it to 409; nothing else catches it.
+//
+// It carries the organization because one ward now holds up to seven independent rotations, and
+// "A rotation already takes effect on 2026-06-07" is ambiguous across them. The data layer knows
+// the id, not the name, so the ROUTE is what names the organization in the sentence a user reads.
 export class ConductingRotationConflictError extends Error {
-  constructor(public readonly effectiveFrom: DateOnly) {
+  constructor(
+    public readonly effectiveFrom: DateOnly,
+    public readonly orgId: string | null = null,
+  ) {
     super(`A rotation already takes effect on ${effectiveFrom}.`);
     this.name = "ConductingRotationConflictError";
   }
 }
 
-// The CHECK constraints in migration 004 already restrict these columns, so an unrecognised value
+// A CHECK constraint already restricts every column this is used on, so an unrecognised value
 // means the constraint and types/domain.ts have drifted. Throwing is the only safe answer — the
 // same reasoning as toEnumValue() in lib/roster/queries.ts.
+//
+// `column` is fully qualified and `migration` names the file that owns the constraint, because
+// an error that points at the wrong table sends the next reader to the wrong place.
 function toEnumValue<Value extends string>(
   value: string,
   allowed: readonly Value[],
   column: string,
+  migration = "004",
 ): Value {
   if (!(allowed as readonly string[]).includes(value)) {
     throw new Error(
-      `sundays.${column} holds "${value}", which is not a known value. The CHECK constraint ` +
-        "in migration 004 and types/domain.ts have drifted.",
+      `${column} holds "${value}", which is not a known value. The CHECK constraint ` +
+        `in migration ${migration} and types/domain.ts have drifted.`,
     );
   }
   return value as Value;
@@ -207,7 +273,7 @@ function mapSlotConfig(value: Json | null): SlotConfigEntry[] | null {
     return {
       slotNumber,
       lengthMinutes,
-      type: toEnumValue(type, ASSIGNMENT_TYPES, "slot_config.type"),
+      type: toEnumValue(type, ASSIGNMENT_TYPES, "sundays.slot_config.type"),
     };
   });
 }
@@ -228,7 +294,7 @@ export function mapSundayRow(row: SundayRow): Sunday {
   return {
     id: row.id,
     date: row.date,
-    type: toEnumValue(row.type, SUNDAY_TYPES, "type"),
+    type: toEnumValue(row.type, SUNDAY_TYPES, "sundays.type"),
     notes: row.notes,
     conductingUserId: row.conducting_user_id,
     speakingSlots: row.speaking_slots,
@@ -252,6 +318,8 @@ export function mapRotationRow(row: RotationRow): ConductingRotationRow {
     position: row.position as RotationPosition,
     userId: row.user_id,
     effectiveFrom: row.effective_from,
+    cadence: toEnumValue(row.cadence, ROTATION_CADENCES, "conducting_rotation.cadence", "024"),
+    orgId: row.org_id,
   };
 }
 
@@ -325,25 +393,119 @@ export async function getSunday(
   return data ? mapSundayRow(data) : null;
 }
 
+// `options.orgId` is a THREE-way choice, and the difference matters:
+//   omitted      every rotation in the ward, which is what the calendar page renders from
+//   null         the bishopric's sacrament-meeting rotation only
+//   a uuid       that organization's rotation only
+//
+// `.is("org_id", null)` for the null case, never `.eq()`. SQL equality against NULL is NULL, so
+// `.eq("org_id", null)` matches nothing and the bishopric rotation would silently vanish.
 export async function listConductingRotation(
   wardId: string,
+  options: { orgId?: string | null } = {},
   client?: SupabaseClient<Database>,
 ): Promise<ConductingRotationRow[]> {
   const supabase = await resolveClient(client);
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("conducting_rotation")
     .select(ROTATION_COLUMNS)
-    .eq("ward_id", wardId)
-    .order("effective_from")
-    .order("position");
+    .eq("ward_id", wardId);
+
+  if (options.orgId === null) {
+    query = query.is("org_id", null);
+  } else if (options.orgId !== undefined) {
+    query = query.eq("org_id", options.orgId);
+  }
+
+  const { data, error } = await query.order("effective_from").order("position");
 
   if (error) {
-    console.error(`Could not read the conducting rotation — ${error.message}`, { wardId });
+    console.error(`Could not read the conducting rotation — ${error.message}`, {
+      wardId,
+      orgId: options.orgId,
+    });
     throw new Error(`Could not read the conducting rotation: ${error.message}`);
   }
 
   return (data ?? []).map(mapRotationRow);
+}
+
+// Who conducts one organization's meeting on each Sunday. Stored per (Sunday, organization) and
+// read back, never recomputed — the row IS the override (migration 024, Part 4).
+export async function listSundayOrgConducting(
+  wardId: string,
+  sundayId: string,
+  client?: SupabaseClient<Database>,
+): Promise<SundayOrgConducting[]> {
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("sunday_org_conducting")
+    .select(ORG_CONDUCTING_COLUMNS)
+    .eq("ward_id", wardId)
+    .eq("sunday_id", sundayId);
+
+  if (error) {
+    console.error(`Could not read the organization conductors — ${error.message}`, {
+      wardId,
+      sundayId,
+    });
+    throw new Error(`Could not read who conducts for each organization: ${error.message}`);
+  }
+
+  return (data ?? []).map((row) => ({ orgId: row.org_id, userId: row.user_id }));
+}
+
+// Returns null when the write was refused, which the route turns into a 404. A Sunday in another
+// ward, an organization the caller may not manage, and a row RLS hid are indistinguishable here
+// and all mean "not yours" (plans/retros/foundation-c-services.md).
+//
+// An upsert rather than an insert-or-update pair: the row may or may not exist depending on
+// whether the month was generated after the organization got a rotation, and the caller does not
+// care which.
+export async function setSundayOrgConducting(
+  wardId: string,
+  sundayId: string,
+  orgId: string,
+  userId: string | null,
+  client?: SupabaseClient<Database>,
+): Promise<SundayOrgConducting | null> {
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("sunday_org_conducting")
+    .upsert(
+      { ward_id: wardId, sunday_id: sundayId, org_id: orgId, user_id: userId },
+      { onConflict: "ward_id,sunday_id,org_id" },
+    )
+    .select(ORG_CONDUCTING_COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    // 42501 is insufficient_privilege — migration 024's policy refusing a write outside the
+    // caller's own organization. An UPDATE refused by a USING clause comes back as zero rows
+    // instead, so both shapes have to mean the same thing to the caller.
+    if (error.code === "42501") {
+      console.warn("RLS refused an organization conducting write", {
+        wardId,
+        sundayId,
+        orgId,
+      });
+      return null;
+    }
+
+    console.error(`Could not set the organization conductor — ${error.message}`, {
+      wardId,
+      sundayId,
+      orgId,
+    });
+    throw new Error(`Could not set who conducts: ${error.message}`);
+  }
+
+  if (!data) return null;
+
+  return { orgId: data.org_id, userId: data.user_id };
 }
 
 function toRotationEntries(rows: ConductingRotationRow[]): RotationEntry[] {
@@ -351,6 +513,7 @@ function toRotationEntries(rows: ConductingRotationRow[]): RotationEntry[] {
     position: row.position,
     userId: row.userId,
     effectiveFrom: row.effectiveFrom,
+    cadence: row.cadence,
   }));
 }
 
@@ -421,7 +584,9 @@ async function populateConducting(
   wardId: string,
   range: SundayRange,
 ): Promise<void> {
-  const entries = toRotationEntries(await listConductingRotation(wardId, supabase));
+  const entries = toRotationEntries(
+    await listConductingRotation(wardId, { orgId: null }, supabase),
+  );
   if (entries.length === 0) return;
 
   const sundays = await listSundays(wardId, range, supabase);
@@ -461,6 +626,80 @@ async function populateConducting(
   }
 }
 
+// The organization counterpart of populateConducting: one sunday_org_conducting row per
+// (Sunday, organization) for every organization that has a rotation governing that Sunday.
+//
+// `ignoreDuplicates: true` is LOAD-BEARING, for exactly the reason it is in generateSundayRange.
+// It makes this INSERT ... ON CONFLICT DO NOTHING, so a conductor a human typed is never
+// overwritten by a later generation. The row IS the override (migration 024, Part 4); drop this
+// option and every regeneration silently reverts every per-Sunday override in the range.
+//
+// A Sunday the organization's rotation does not yet govern gets NO row at all, rather than a row
+// with a null user. "This organization has no rotation in force yet" and "this organization's
+// rotation reaches this Sunday but the position is unfilled" are different facts, and the second
+// one is what a null user_id means.
+async function populateOrgConducting(
+  supabase: SupabaseClient<Database>,
+  wardId: string,
+  range: SundayRange,
+): Promise<void> {
+  const rows = await listConductingRotation(wardId, {}, supabase);
+
+  const byOrg = new Map<string, ConductingRotationRow[]>();
+  for (const row of rows) {
+    if (row.orgId === null) continue;
+    const existing = byOrg.get(row.orgId);
+    if (existing) {
+      existing.push(row);
+    } else {
+      byOrg.set(row.orgId, [row]);
+    }
+  }
+
+  if (byOrg.size === 0) return;
+
+  const sundays = await listSundays(wardId, range, supabase);
+  if (sundays.length === 0) return;
+
+  const pending: Array<{
+    ward_id: string;
+    sunday_id: string;
+    org_id: string;
+    user_id: string | null;
+  }> = [];
+
+  for (const [orgId, orgRows] of byOrg) {
+    const entries = toRotationEntries(orgRows);
+
+    for (const sunday of sundays) {
+      const active = activeRotation(entries, sunday.date);
+      if (active.length === 0) continue;
+
+      pending.push({
+        ward_id: wardId,
+        sunday_id: sunday.id,
+        org_id: orgId,
+        user_id: resolveConductingUser(sunday.date, entries, active[0].effectiveFrom),
+      });
+    }
+  }
+
+  if (pending.length === 0) return;
+
+  const { error } = await supabase
+    .from("sunday_org_conducting")
+    .upsert(pending, { onConflict: "ward_id,sunday_id,org_id", ignoreDuplicates: true });
+
+  if (error) {
+    console.error(`Could not assign the organization conductors — ${error.message}`, {
+      wardId,
+      organizationCount: byOrg.size,
+      rowCount: pending.length,
+    });
+    throw new Error(`Could not assign who conducts for each organization: ${error.message}`);
+  }
+}
+
 export async function generateSundayRange(
   wardId: string,
   from: DateOnly,
@@ -477,11 +716,28 @@ export async function generateSundayRange(
   const candidates = generateSundays(from, to, defaultSpeakingSlots);
   if (candidates.length === 0) return { created: 0, monthsResolved: 0 };
 
+  // The conductor is resolved BEFORE the insert and written as part of it, rather than in a
+  // second UPDATE afterwards. It can be: resolveConductingUser() needs only the DATE, and dates
+  // are what generateSundays() just produced — row ids are not involved.
+  //
+  // This is what makes a new month arrive COMPLETE in one statement. The three writes that follow
+  // are re-resolution and gap-filling for rows that already existed, so a request abandoned after
+  // this insert — a browser navigating away mid-render, which is routine — leaves a correct month
+  // rather than a blank one. Before this, skipping quickly through months left every skipped
+  // month showing "Not set" until it was visited again.
+  const rotationEntries = toRotationEntries(
+    await listConductingRotation(wardId, { orgId: null }, supabase),
+  );
+
   const rows = candidates.map((candidate) => ({
     ward_id: wardId,
     date: candidate.date,
     type: candidate.type,
     speaking_slots: candidate.speakingSlots,
+    conducting_user_id:
+      rotationEntries.length === 0
+        ? null
+        : conductingUserFor(rotationEntries, candidate.date),
   }));
 
   // `ignoreDuplicates: true` is LOAD-BEARING. It makes this INSERT ... ON CONFLICT DO NOTHING,
@@ -512,7 +768,11 @@ export async function generateSundayRange(
     await resolveMonth(supabase, wardId, `${month}-01`);
   }
 
+  // Still needed, and NOT redundant with the insert above: this range can overlap Sundays that
+  // already existed — hand-created ones, or a month generated before the ward had a rotation —
+  // and those rows are untouched by an insert that ignores duplicates.
   await populateConducting(supabase, wardId, { from, to });
+  await populateOrgConducting(supabase, wardId, { from, to });
 
   return { created, monthsResolved: months.length };
 }
@@ -520,6 +780,8 @@ export async function generateSundayRange(
 // Generates the whole month when it has no rows, so nobody can view a month whose Sundays do not
 // exist. This on-demand path is what makes the scheduled Edge Function 03-calendar.md asks for
 // redundancy rather than a requirement (calendar-a Decision 1).
+//
+// It also REPAIRS a month that was generated but never finished — see the comment below.
 export async function ensureMonthGenerated(
   wardId: string,
   anyDayInMonth: DateOnly,
@@ -532,9 +794,53 @@ export async function ensureMonthGenerated(
   const range = { from: start, to: end };
 
   const existing = await listSundays(wardId, range, supabase);
-  if (existing.length > 0) return existing;
 
-  await generateSundayRange(wardId, start, end, supabase);
+  if (existing.length === 0) {
+    await generateSundayRange(wardId, start, end, supabase);
+    return listSundays(wardId, range, supabase);
+  }
+
+  // A month whose rows exist is NOT necessarily a month that finished generating.
+  // generateSundayRange() inserts the Sunday rows first and assigns conductors afterwards, and
+  // @supabase/supabase-js has no transaction API, so a failure between the two — a dropped
+  // connection, a schema that had drifted, a deploy mid-request — leaves the rows behind with no
+  // conductor. Returning early on `existing.length > 0` then made that permanent: the month
+  // looked generated forever, showed "Not set" on every Sunday, and nothing in the UI could
+  // repair it. That is exactly what happened when migration 024 was still unapplied.
+  //
+  // Repairing is safe to do on a read because both passes only FILL GAPS. populateConducting()
+  // touches rows whose conducting_user_id is still null, and populateOrgConducting() inserts with
+  // ignoreDuplicates — neither can overwrite a conductor a human set, which is the guarantee
+  // 03-calendar.md Step 3 rests on.
+  //
+  // Fast Sunday is repaired under a DELIBERATELY NARROW condition: the month has no Fast Sunday
+  // at all, and at least one of its Sundays could be one. That combination is unreachable by any
+  // legitimate edit — generateSundays() always picks one unless every Sunday is displaced, and
+  // updateSunday() re-resolves on every type change — so it means the month never finished
+  // generating. A month that genuinely has none (a stake conference weekend followed by general
+  // conference) fails the second half of the test and is left alone, which is what keeps this
+  // from re-running an RPC on every page view.
+  //
+  // Anything wider would be wrong. Re-resolving unconditionally MOVES a Sunday, and doing that on
+  // a read would fight a bishopric who had just set a type.
+  const needsFastSunday =
+    !existing.some((sunday) => sunday.type === "fast_sunday") &&
+    existing.some((sunday) => !FAST_SUNDAY_DISPLACING_TYPES.includes(sunday.type));
+
+  const needsConducting = existing.some((sunday) => sunday.conductingUserId === null);
+
+  if (!needsFastSunday && !needsConducting) return existing;
+
+  // Fast Sunday first: it rewrites `type` and `speaking_slots`, and the conducting passes should
+  // run against the month as it will finally stand.
+  if (needsFastSunday) {
+    await resolveMonth(supabase, wardId, start);
+  }
+
+  if (needsConducting) {
+    await populateConducting(supabase, wardId, range);
+    await populateOrgConducting(supabase, wardId, range);
+  }
 
   return listSundays(wardId, range, supabase);
 }
@@ -972,16 +1278,97 @@ export async function listBishopricUsers(
   }));
 }
 
+// Who may be picked to conduct an ORGANIZATION's meeting: the president, their counselors and
+// the secretary of that organization. `orgId` omitted reads every organization in the ward, which
+// is what a page needs to turn a stored id into a name for organizations the viewer cannot manage.
+//
+// Read through the caller's client, like listBishopricUsers: migration 020 makes `users`
+// ward-readable, so no escalation is needed and RLS stays the boundary (CLAUDE.md rule 2).
+export async function listOrgLeadershipUsers(
+  wardId: string,
+  orgId?: string,
+  client?: SupabaseClient<Database>,
+): Promise<OrgLeadershipUser[]> {
+  const supabase = await resolveClient(client);
+
+  let query = supabase
+    .from("users")
+    .select("id, first_name, last_name, role, org_id")
+    .eq("ward_id", wardId)
+    .in("role", ORG_LEADERSHIP_ROLES as unknown as string[])
+    .eq("is_active", true)
+    .not("org_id", "is", null);
+
+  if (orgId !== undefined) {
+    query = query.eq("org_id", orgId);
+  }
+
+  const { data, error } = await query.order("role").order("last_name");
+
+  if (error) {
+    console.error(`Could not read the organization leadership — ${error.message}`, {
+      wardId,
+      orgId,
+    });
+    throw new Error(`Could not read the organization's leadership: ${error.message}`);
+  }
+
+  return (data ?? [])
+    .filter((row) => row.org_id !== null)
+    .map((row) => ({
+      id: row.id,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      role: toEnumValue(row.role, ORG_LEADERSHIP_ROLES, "users.role", "002"),
+      orgId: row.org_id as string,
+    }));
+}
+
+// The organizations that may hold a conducting rotation of their own — the six with a presidency.
+// `bishopric` is excluded because its rotation IS the sacrament-meeting one, keyed by a NULL
+// org_id, and `other` because it has no presidency to rotate (ROTATION_ELIGIBLE_ORG_TYPES).
+export async function listRotationOrganizations(
+  wardId: string,
+  client?: SupabaseClient<Database>,
+): Promise<RotationOrganization[]> {
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("organizations")
+    .select("id, name, type")
+    .eq("ward_id", wardId)
+    .eq("is_active", true)
+    .order("name");
+
+  if (error) {
+    console.error(`Could not read the ward's organizations — ${error.message}`, { wardId });
+    throw new Error(`Could not read the ward's organizations: ${error.message}`);
+  }
+
+  return (data ?? [])
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      type: toEnumValue(row.type, ORGANIZATION_TYPES, "organizations.type", "002"),
+    }))
+    .filter((organization) => ROTATION_ELIGIBLE_ORG_TYPES.includes(organization.type));
+}
+
 // The full name, never an honorific. `users` records no gender, so "Bro." would be a guess this
 // module cannot make — and a wrong one on a bishopric member's name is worse than a plain name.
-export function bishopricDisplayName(user: BishopricUser): string {
+export function conductingDisplayName(user: ConductingCandidate): string {
   return [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || "Unnamed account";
 }
 
+export function bishopricDisplayName(user: BishopricUser): string {
+  return conductingDisplayName(user);
+}
+
 // id → name, which is all any calendar component needs. Passing the map rather than the user list
-// keeps ConductingLabel from having to know what a bishopric user is.
-export function conductingNameMap(users: BishopricUser[]): Record<string, string> {
-  return Object.fromEntries(users.map((user) => [user.id, bishopricDisplayName(user)]));
+// keeps ConductingLabel from having to know what a bishopric or an org leadership user is — and
+// it lets one map cover the sacrament meeting and every organization on the same page.
+export function conductingNameMap(users: ConductingCandidate[]): Record<string, string> {
+  return Object.fromEntries(users.map((user) => [user.id, conductingDisplayName(user)]));
 }
 
 // For the notification body only, so a failure here degrades the message rather than failing an
@@ -1017,6 +1404,12 @@ export async function readConductorName(
 // Inserts a NEW set of three rows at a new effective_from. It never updates the old set — that is
 // what makes "a rotation change applies forward only" true by construction rather than by
 // everyone remembering to (migration 023, Part 2).
+//
+// The cadence is written on all three rows in this ONE insert, which is what guarantees the
+// invariant no CHECK constraint can express: the three rows of a set always agree. There is
+// deliberately no per-row cadence write anywhere in this module — changing the cadence is
+// inserting a new set, so a cadence change is forward-only by the same construction and not by a
+// second mechanism somebody has to keep in step (migration 024, Part 1).
 export async function replaceConductingRotation(
   wardId: string,
   input: ConductingRotationInput,
@@ -1029,22 +1422,26 @@ export async function replaceConductingRotation(
     .insert(
       input.positions.map((entry) => ({
         ward_id: wardId,
+        org_id: input.orgId,
         position: entry.position,
         user_id: entry.userId,
         effective_from: input.effectiveFrom,
+        cadence: input.cadence,
       })),
     )
     .select(ROTATION_COLUMNS);
 
   if (error) {
-    // 23505 is unique_violation. The constraint from migration 023 is doing its job, so this is
-    // the user picking a date that already has a rotation — a 409, never a 500.
+    // 23505 is unique_violation. The constraint from migration 024 is doing its job, so this is
+    // the user picking a date that already has a rotation — a 409, never a 500. The organization
+    // travels with it because one ward now holds up to seven independent rotations.
     if (error.code === "23505") {
-      throw new ConductingRotationConflictError(input.effectiveFrom);
+      throw new ConductingRotationConflictError(input.effectiveFrom, input.orgId);
     }
 
     console.error(`Could not save the conducting rotation — ${error.message}`, {
       wardId,
+      orgId: input.orgId,
       effectiveFrom: input.effectiveFrom,
     });
     throw new Error(`Could not save the conducting rotation: ${error.message}`);

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { OrgConductingEditor } from "@/app/(app)/calendar/sunday/[id]/OrgConductingEditor";
 import { SundayEditor } from "@/app/(app)/calendar/sunday/[id]/SundayEditor";
 import { ConductingLabel } from "@/components/calendar/ConductingLabel";
 import { SundayTypeBadge } from "@/components/calendar/SundayTypeBadge";
@@ -8,10 +9,15 @@ import { NotPermitted } from "@/components/ui/NotPermitted";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { formatSundayLabel, monthOf } from "@/lib/calendar/dates";
+import { manageableOrgIds } from "@/lib/calendar/orgRotationScope";
 import {
   conductingNameMap,
   getSunday,
   listBishopricUsers,
+  listConductingRotation,
+  listOrgLeadershipUsers,
+  listRotationOrganizations,
+  listSundayOrgConducting,
 } from "@/lib/calendar/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { SUNDAY_TYPE_LABELS } from "@/types/domain";
@@ -44,6 +50,39 @@ export default async function SundayDetailPage({ params }: SundayDetailPageProps
 
   const bishopricUsers = await listBishopricUsers(user.wardId, supabase);
   const bishopricNames = conductingNameMap(bishopricUsers);
+
+  const [organizations, orgLeadershipUsers, rotation, orgConducting] = await Promise.all([
+    listRotationOrganizations(user.wardId, supabase),
+    listOrgLeadershipUsers(user.wardId, undefined, supabase),
+    listConductingRotation(user.wardId, {}, supabase),
+    listSundayOrgConducting(user.wardId, sunday.id, supabase),
+  ]);
+
+  const orgLeadershipNames = conductingNameMap(orgLeadershipUsers);
+
+  // Only organizations that HAVE a rotation. An organization that has never been given one has
+  // nothing to show and nothing to override, and a row reading "Not set" for all six would bury
+  // the two that matter.
+  const organizationsWithRotation = new Set(
+    rotation.flatMap((row) => (row.orgId === null ? [] : [row.orgId])),
+  );
+
+  const manageableIds = new Set(manageableOrgIds(user, organizations, roleAccess));
+  const conductorByOrgId = new Map(
+    orgConducting.map((row) => [row.orgId, row.userId]),
+  );
+
+  const orgConductingRows = organizations
+    .filter((organization) => organizationsWithRotation.has(organization.id))
+    .map((organization) => ({
+      orgId: organization.id,
+      organizationName: organization.name,
+      userId: conductorByOrgId.get(organization.id) ?? null,
+      canManage: manageableIds.has(organization.id),
+      candidates: orgLeadershipUsers
+        .filter((leader) => leader.orgId === organization.id)
+        .map((leader) => ({ id: leader.id, name: orgLeadershipNames[leader.id] })),
+    }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -113,6 +152,22 @@ export default async function SundayDetailPage({ params }: SundayDetailPageProps
             sunday={sunday}
             bishopricUsers={bishopricUsers}
             bishopricNames={bishopricNames}
+          />
+        </Card>
+      )}
+
+      {/* Gated on calendar.view along with the rest of the page, and deliberately NOT on
+          talks.view — that gate belongs to the Speakers stub below, and who conducts Relief
+          Society is not talk-pipeline data. */}
+      {orgConductingRows.length > 0 && (
+        <Card>
+          <h2 className="mb-3 text-base font-semibold text-foreground">
+            Organization meetings
+          </h2>
+          <OrgConductingEditor
+            sundayId={sunday.id}
+            rows={orgConductingRows}
+            names={orgLeadershipNames}
           />
         </Card>
       )}
