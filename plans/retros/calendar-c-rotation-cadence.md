@@ -2,7 +2,7 @@
 id: calendar-c-rotation-cadence
 type: feature
 iter: null
-commits: ["a8df29e"]
+commits: ["13fced6"]
 date: 2026-08-19
 files:
   - supabase/migrations/024_rotation_cadence.sql
