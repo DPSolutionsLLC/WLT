@@ -78,7 +78,7 @@ the reasoning is what a later reader needs.
 
 ## Progress
 
-- **2026-08-20 — `talks-a` (schema + pipeline).** Migration 025 adds the two speaker columns, the
+- **2026-08-20 — `talks-a` (schema + pipeline), commit `a260ca6`.** Migration 025 adds the two speaker columns, the
   `assignments_speaker_exactly_one` CHECK, and the contact waiver with its two CHECKs.
   `lib/assignments/speaker.ts` is the single place that answers "who is speaking";
   `lib/assignments/pipeline.ts` holds the four gates a waiver opens and the ones it must not.

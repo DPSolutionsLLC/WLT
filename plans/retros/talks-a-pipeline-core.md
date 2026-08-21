@@ -2,7 +2,7 @@
 id: talks-a-pipeline-core
 type: feature
 iter: ["ITER-004"]
-commits: []
+commits: ["a260ca6"]
 date: 2026-08-20
 files:
   - supabase/migrations/025_talks_pipeline.sql
