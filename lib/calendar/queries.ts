@@ -17,6 +17,7 @@ import {
   type FastSundayCandidate,
 } from "@/lib/calendar/resolveFastSunday";
 import { readDefaultSpeakingSlots } from "@/lib/calendar/wardCalendarSettings";
+import { emitNotification } from "@/lib/notifications/emitNotification";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import type {
@@ -944,6 +945,66 @@ async function countWorkAtRisk(
   return { assignmentCount: assignmentCount ?? 0, prayerCount: prayerCount ?? 0 };
 }
 
+function isUserId(value: string | null): value is string {
+  return value !== null;
+}
+
+// What a planner is told when a calendar change voided their work. Worded from the REASON rather
+// than assembled from the counts, exactly as buildWarningMessage is: the two sentences a user
+// reads about one event have to agree, and rebuilding either from parts is the drift roster-c
+// shipped twice.
+function buildRevertMessage(
+  reason: CalendarChangeReason,
+  date: DateOnly,
+  count: number,
+): string {
+  const speakers = `${count} speaking ${count === 1 ? "assignment" : "assignments"}`;
+  const them = count === 1 ? "It is" : "They are";
+
+  const because =
+    reason === "meeting_cancelled"
+      ? `because ${date} no longer holds a sacrament meeting`
+      : reason === "fast_sunday_set" || reason === "fast_sunday_moved"
+        ? `because ${date} became Fast Sunday`
+        : `because ${date} now has fewer speaking slots`;
+
+  return `${speakers} on ${date} went back to planning ${because}. ${them} not deleted, and ${
+    count === 1 ? "it does" : "they do"
+  } not count as a talk that was given.`;
+}
+
+// calendar-b left this gap open: the revert path voided somebody's planning work and told nobody,
+// because no trigger key existed for it. Migration 025 adds `assignment_reverted`.
+//
+// Addressed to the PLANNERS when the rows record one, falling back to the trigger's own role list
+// — bishop and counselor — when planned_by is null, which is the case for every assignment seeded
+// before this column was being set.
+//
+// emitNotification never throws (it is one of exactly two sanctioned exceptions to CLAUDE.md
+// rule 7), so a notification failure cannot fail a calendar change that has already committed.
+async function notifyAssignmentsReverted(
+  wardId: string,
+  date: DateOnly,
+  count: number,
+  reason: CalendarChangeReason,
+  plannerUserIds: readonly string[],
+  client: SupabaseClient<Database>,
+): Promise<void> {
+  await emitNotification(
+    {
+      wardId,
+      triggerKey: "assignment_reverted",
+      title: "Speaking assignments went back to planning",
+      body: buildRevertMessage(reason, date, count),
+      // Omitted rather than passed as an empty array: emitNotification resolves the trigger's
+      // default roles only when recipientUserIds is undefined, and an empty array would address
+      // the notification to nobody at all.
+      ...(plannerUserIds.length > 0 ? { recipientUserIds: [...plannerUserIds] } : {}),
+    },
+    client,
+  );
+}
+
 // Reverted to 'plan', NEVER deleted. The planning work behind an assignment is somebody's
 // (03-calendar.md §Pitfall 5), and a talk that did not happen must not read as one that did.
 //
@@ -958,14 +1019,42 @@ async function countWorkAtRisk(
 async function revertAssignmentsToPlan(
   service: SupabaseClient<Database>,
   wardId: string,
-  sundayId: string,
+  sunday: Sunday,
   aboveSlot: number | null,
+  reason: CalendarChangeReason,
 ): Promise<number> {
+  // The planners are read BEFORE the update, because the update is what makes these rows
+  // uninteresting: afterwards they are ordinary plan-stage assignments and nothing distinguishes
+  // the ones this operation touched. Notifying the PLANNER is what 03-calendar.md asks for — the
+  // person whose work was voided, not whoever happens to hold a role.
+  let affected = service
+    .from("assignments")
+    .select("id, planned_by")
+    .eq("ward_id", wardId)
+    .eq("sunday_id", sunday.id)
+    .neq("pipeline_stage", "plan");
+
+  if (aboveSlot !== null) {
+    affected = affected.gt("slot_number", aboveSlot);
+  }
+
+  const { data: before, error: beforeError } = await affected;
+
+  if (beforeError) {
+    console.error(`Could not read the Sunday's assignments — ${beforeError.message}`, {
+      wardId,
+      sundayId: sunday.id,
+    });
+    throw new Error(
+      `Could not check those speakers before reverting them: ${beforeError.message}`,
+    );
+  }
+
   let query = service
     .from("assignments")
     .update({ pipeline_stage: "plan" })
     .eq("ward_id", wardId)
-    .eq("sunday_id", sundayId)
+    .eq("sunday_id", sunday.id)
     .neq("pipeline_stage", "plan");
 
   if (aboveSlot !== null) {
@@ -977,12 +1066,25 @@ async function revertAssignmentsToPlan(
   if (error) {
     console.error(`Could not revert the Sunday's assignments — ${error.message}`, {
       wardId,
-      sundayId,
+      sundayId: sunday.id,
     });
     throw new Error(`Could not return those speakers to planning: ${error.message}`);
   }
 
-  return (data ?? []).length;
+  const reverted = (data ?? []).length;
+
+  if (reverted > 0) {
+    await notifyAssignmentsReverted(
+      wardId,
+      sunday.date,
+      reverted,
+      reason,
+      [...new Set((before ?? []).map((row) => row.planned_by).filter(isUserId))],
+      service,
+    );
+  }
+
+  return reverted;
 }
 
 // Prayers are reported for context and NEVER block. A Sunday with no speakers still has an
@@ -1187,8 +1289,9 @@ export async function updateSunday(
     assignmentsReverted += await revertAssignmentsToPlan(
       service,
       wardId,
-      risk.sunday.id,
+      risk.sunday,
       risk.aboveSlot,
+      risk.reason,
     );
   }
 

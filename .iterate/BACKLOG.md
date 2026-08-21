@@ -1,13 +1,19 @@
 # Backlog
 
-_Last updated: 2026-08-19_
+_Last updated: 2026-08-20_
 
 ---
 
 ## In Progress
 Items currently being planned or actively worked.
 
-_None._
+- [ ] ITER-004 — Speakers who are not members of the ward → [scope](.iterate/scopes/ITER-004.md) | plans: [talks-a](plans/talks-a-pipeline-core.md), [talks-b](plans/talks-b-month-planner.md)
+  _Phase 4 half only. **`talks-a` has landed** — the schema and pipeline shape are done: a nullable
+  member link, inline external name and title with a CHECK that a row holds one or the other, and
+  an explicit contact waiver. `talks-b` builds the on-screen half, including the waived contact
+  stages reading "Not applicable". The Phase 6 half — how an external speaker prints on the program
+  and how much of their name a public page shows — is still unplanned and belongs with
+  `06-program-music.md`. **Do not close this scope until both remain halves ship.**_
 
 ---
 
@@ -31,11 +37,6 @@ Each of these is large or complex enough to tackle on its own.
 - [ ] ITER-001 — Per-organization calendars and cross-organization sharing → [scope](.iterate/scopes/ITER-001.md)
   _Reason: architectural. Adds a fourth date-bearing model to the schema, a new sharing/audience
   boundary enforced by RLS, and will realistically split into three or four plans of its own._
-
-- [ ] ITER-004 — Speakers who are not members of the ward → [scope](.iterate/scopes/ITER-004.md)
-  _Reason: belongs to Phase 4 (talk pipeline) and Phase 6 (program builder), neither of which is
-  built. Recorded now so those phases design for it rather than retrofit it. Do not plan this
-  ahead of Phase 4 — plan Phase 4 **with** it._
 
 ---
 

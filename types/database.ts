@@ -655,8 +655,12 @@ export type Database = {
           assignment_type: string | null
           completed_at: string | null
           confirmed_at: string | null
+          contact_waived_at: string | null
+          contact_waived_by: string | null
           counts_toward_rotation: boolean
           created_at: string
+          external_speaker_name: string | null
+          external_speaker_title: string | null
           id: string
           member_id: string | null
           notify_message: string | null
@@ -684,8 +688,12 @@ export type Database = {
           assignment_type?: string | null
           completed_at?: string | null
           confirmed_at?: string | null
+          contact_waived_at?: string | null
+          contact_waived_by?: string | null
           counts_toward_rotation?: boolean
           created_at?: string
+          external_speaker_name?: string | null
+          external_speaker_title?: string | null
           id?: string
           member_id?: string | null
           notify_message?: string | null
@@ -713,8 +721,12 @@ export type Database = {
           assignment_type?: string | null
           completed_at?: string | null
           confirmed_at?: string | null
+          contact_waived_at?: string | null
+          contact_waived_by?: string | null
           counts_toward_rotation?: boolean
           created_at?: string
+          external_speaker_name?: string | null
+          external_speaker_title?: string | null
           id?: string
           member_id?: string | null
           notify_message?: string | null
@@ -738,6 +750,13 @@ export type Database = {
           ward_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "assignments_contact_waived_by_fkey"
+            columns: ["contact_waived_by", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id", "ward_id"]
+          },
           {
             foreignKeyName: "assignments_member_id_ward_id_fkey"
             columns: ["member_id", "ward_id"]

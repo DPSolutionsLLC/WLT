@@ -289,3 +289,61 @@ Overdue and due-soon goals surface as alerts on the planning calendar cells from
 - **The pipeline is nine stages, not nine screens.** Most work happens in a modal on the
   month view. Build the month planner as the primary surface and the per-assignment detail
   page as secondary, or the workflow becomes tedious.
+
+---
+
+## Decisions made in talks-a
+
+Recorded when `talks-a` (pipeline engine and assignment API) landed on 2026-08-20. These are
+deviations from, and additions to, the plan above — read them before building `talks-b`.
+
+1. **ITER-004 is inline fields, not a reusable table.** `external_speaker_name` and
+   `external_speaker_title` on `assignments`, with a CHECK (`assignments_speaker_exactly_one`)
+   that a row holds a member **or** an external name, never both — and legitimately neither, which
+   is what an unfilled slot and a reverted assignment both are. A saved list of stake leaders was
+   considered and rejected as machinery nobody has asked for; a name is retyped each time. Revisit
+   only if a ward complains.
+
+2. **The contact stages are waived explicitly, not skipped.** One column pair,
+   `contact_waived_at` / `contact_waived_by`, settable only when `member_id is null`. It is what
+   lets an external speaker cross REQUEST → CONFIRM → NOTIFY and APPRECIATE → COMPLETE. ITER-004
+   forbids a silent skip: a skipped stage reads as an outstanding task nobody can ever complete,
+   so a waiver is a recorded decision with a name and a timestamp on it. It satisfies exactly
+   those four gates — never a speaker, a topic, an approval, or `sunday_confirmed_at`. The meeting
+   either happened or it did not, regardless of who spoke.
+
+3. **External speakers never enter speaker history.** `assignment_history.member_id` is
+   `not null`, so `writeAssignmentHistory()` returns false rather than writing a row when there is
+   no member. Do not relax that column to make the function simpler — the schema is what makes
+   ITER-004's "speaker history is not distorted" true rather than remembered.
+
+4. **PATCH takes a discriminated union.** `{ action: "update", … }`, `{ action: "transition", … }`
+   or `{ action: "waive_contact", … }`, never two in one request. The phase's first pitfall is
+   implicit stage advancement; making them mutually exclusive *by shape* means the schema rejects
+   it rather than a reviewer catching it. `updateAssignmentFields()` has no parameter that could
+   carry a stage, which is the same defence one layer down.
+
+5. **`/api/assignment-comments` is a new route SPEC.md did not list.** One table serves both
+   comment levels, so one route serves both rather than splitting month-level comments awkwardly
+   under `/api/sundays/[id]`. SPEC.md §API Routes was updated in the same change (CLAUDE.md §1).
+
+6. **The planner keys off `speakingSlots`, not `SundayType`.** A Sunday with no meeting already
+   carries `speaking_slots = 0` from `generateSundays.ts`, so one check covers stake conference,
+   general conference, a holiday, and a Sunday somebody deliberately set to zero. This is
+   deliberately independent of ITER-002 and ITER-003, which remain unbuilt.
+
+**Also landed here, beyond the six:**
+
+- A ninth notification trigger, `assignment_reverted`, closing the gap `calendar-b` handed
+  forward: `revertAssignmentsToPlan()` in `lib/calendar/queries.ts` now tells the **planner**
+  whose work a calendar change voided, once per Sunday with a count, falling back to the
+  bishopric when `planned_by` is null. The Definition of Done above says "all eight pipeline
+  notification triggers"; there are now nine keys in play for this phase.
+- `assignment_approvals_one_per_user`, a UNIQUE (assignment_id, user_id) constraint. The APPROVE
+  gate counts rows and calls them people; without this constraint one counselor can insert three
+  rows and satisfy a 3-of-3 gate alone.
+- The approval gate counts against the ward's **actual** bishopric roll, not a hard-coded three.
+  A ward mid-reorganization with two members needs both.
+- `POST /api/assignments/[id]/approve` with `approved: false` keeps the refusing member's own
+  approval row when it clears the others — that row carries the comment saying what to change,
+  which is the only explanation the planner gets.

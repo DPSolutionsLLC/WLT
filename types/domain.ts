@@ -168,6 +168,40 @@ export const ASSIGNMENT_TYPES = [
 ] as const;
 export type AssignmentType = (typeof ASSIGNMENT_TYPES)[number];
 
+// Whether an assignment TYPE counts toward the ward's member speaking rotation
+// (04-talks-pipeline.md §Step 2). A Record rather than a lookup with a fallback, for the same
+// reason ROLE_LABELS is one: a type added to ASSIGNMENT_TYPES must not silently default to
+// counting.
+//
+// This is NOT a "cancelled" flag. A cancelled or reverted assignment is excluded by its STAGE,
+// never by this record. Reusing it to mean "cancelled" would be a bug nobody could see.
+export const COUNTS_TOWARD_ROTATION: Record<AssignmentType, boolean> = {
+  sacrament_talk: true,
+  organizational: false,
+  returning_missionary: false,
+  new_member: false,
+  youth_speaker: false,
+  high_council: false,
+  other: false,
+};
+
+// The one stage that means the talk actually happened. Every speaker-history and "who has
+// spoken recently" query filters on it (04-talks-pipeline.md §Step 2, rule 1). Filtering on a
+// row's mere existence instead counts a talk that was never given, quietly suppresses that
+// member from the rotation for months, and produces no symptom until somebody asks why a
+// family has not been asked to speak in a year.
+export const COMPLETED_STAGE: PipelineStage = "complete";
+
+// Who is speaking in a slot. `external` is ITER-004 — a visiting stake leader or a missionary
+// reporting home, who is not on the ward roster. `empty` is a real state, not a missing one: an
+// assignment at stage `plan` has no speaker yet, and a decline or a calendar revert returns a
+// filled one to exactly that.
+export const SPEAKER_KINDS = ["member", "external", "empty"] as const;
+export type SpeakerKind = (typeof SPEAKER_KINDS)[number];
+
+export const MAX_EXTERNAL_SPEAKER_NAME = 120;
+export const MAX_EXTERNAL_SPEAKER_TITLE = 60;
+
 export const REQUEST_OUTCOMES = ["accepted", "declined", "pending"] as const;
 export type RequestOutcome = (typeof REQUEST_OUTCOMES)[number];
 

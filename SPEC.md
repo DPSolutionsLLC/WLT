@@ -190,6 +190,8 @@ id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
 ward_id         uuid REFERENCES wards(id)
 sunday_id       uuid REFERENCES sundays(id)
 member_id       uuid REFERENCES members(id)
+external_speaker_name   text  -- ITER-004: a speaker who is not on the ward roster
+external_speaker_title  text  -- an honorific the planner TYPED, e.g. 'President'. Never derived
 assignment_type text  -- 'sacrament_talk' | 'organizational' | 'returning_missionary' | 'new_member' | 'youth_speaker' | 'high_council' | 'other'
 counts_toward_rotation  boolean DEFAULT true
 topic_id        uuid REFERENCES topics(id)
@@ -212,10 +214,21 @@ thank_you_message   text
 thank_you_sent_at   timestamptz
 thank_you_sent_by   uuid REFERENCES users(id)
 completed_at    timestamptz
+contact_waived_at   timestamptz  -- the REQUEST/CONFIRM/NOTIFY/APPRECIATE stages waived for an external speaker
+contact_waived_by   uuid REFERENCES users(id)
 created_at      timestamptz DEFAULT now()
+
+-- CHECK assignments_speaker_exactly_one: a member, OR an external name, OR neither (an
+--   unfilled slot). Never both (migration 025).
+-- CHECK assignments_waiver_external_only: contact_waived_at only when member_id is null.
+--   Waiving the contact stages for somebody on the roster would hide a real outstanding task.
+-- CHECK assignments_waiver_pair: both waiver columns move together or neither does.
 ```
 
 ### `assignment_approvals`
+UNIQUE (assignment_id, user_id) — migration 025. The APPROVE gate counts rows and calls them
+people; this constraint is what makes that true. Without it one counselor can insert three rows
+and satisfy a 3-of-3 gate alone.
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
 ward_id         uuid NOT NULL REFERENCES wards(id)
@@ -731,7 +744,14 @@ POST   /api/assignments          Create assignment
 PATCH  /api/assignments/[id]     Update assignment (stage, outcome, message, etc.)
 POST   /api/assignments/[id]/approve     Submit approval
 POST   /api/assignments/[id]/ai-message  Generate AI confirmation/thank-you message
+GET    /api/assignment-comments  List comments (by assignmentId or sundayId)
+POST   /api/assignment-comments  Post a comment at either level
 ```
+`assignment_comments` is ONE table serving both an assignment-level thread and a month-level one,
+so one route serves both rather than splitting month comments awkwardly under
+`/api/sundays/[id]`. `PATCH /api/assignments/[id]` takes a discriminated union —
+`{ action: 'update' }`, `{ action: 'transition' }` or `{ action: 'waive_contact' }` — never a
+field update and a stage move in one request.
 
 ### Prayers
 ```
@@ -1072,6 +1092,7 @@ message_approved_ready
 sunday_confirmation_request
 issue_flagged_post_sunday
 appreciation_comments_ready
+assignment_reverted            -- a calendar change voided planning work (migration 025)
 
 -- Admin
 admin_setting_changed

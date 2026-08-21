@@ -2,7 +2,7 @@
 --
 -- The keys below must match SPEC.md §Trigger Keys EXACTLY. emitNotification() (plan C) looks
 -- them up by string, so a typo here is a notification that silently never fires — no error,
--- no log, just nothing arriving. Twenty-four keys; count them against the spec if you edit.
+-- no log, just nothing arriving. Twenty-five keys; count them against the spec if you edit.
 --
 -- default_roles is the role list that receives the trigger unless a user opts out in
 -- notification_user_prefs. Bishop and counselor always appear together: bishopric admin
@@ -21,6 +21,10 @@ cross join (values
   ('sunday_confirmation_request',   array['bishop', 'counselor', 'executive_secretary']),
   ('issue_flagged_post_sunday',     array['bishop', 'counselor']),
   ('appreciation_comments_ready',   array['bishop', 'counselor']),
+  -- A calendar change voided planning work. The PLANNER is who 03-calendar.md asks to tell, and
+  -- lib/calendar/queries.ts addresses them explicitly; this role list is the opt-out surface and
+  -- the fallback for an assignment nobody is recorded as having planned.
+  ('assignment_reverted',           array['bishop', 'counselor']),
 
   -- Admin
   ('admin_setting_changed',         array['bishop', 'counselor']),

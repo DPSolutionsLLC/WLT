@@ -1,7 +1,8 @@
 # ITER-004: Speakers Who Are Not Members of the Ward
 
 **Type:** Feature
-**Status:** Backlogged
+**Status:** In Progress — `talks-a` landed 2026-08-20; `talks-b` and the Phase 6 half remain
+**Plan:** plans/talks-a-pipeline-core.md (schema + pipeline), plans/talks-b-month-planner.md (on-screen)
 **Created:** 2026-08-19
 
 ## Summary
@@ -57,8 +58,34 @@ that was never going to arrive.
 
 ## Open Questions
 
-- Do external speakers need to be reusable across Sundays (a saved list of stake leaders), or is
-  typing the name each time acceptable?
-- Should an external speaker appear in speaker-history reporting at all?
-- What does the appreciation / follow-up step do for someone with no phone number — skip
-  silently, or surface as explicitly not applicable?
+All three were answered by `talks-a`. Kept here with their answers rather than deleted, because
+the reasoning is what a later reader needs.
+
+- ~~Do external speakers need to be reusable across Sundays (a saved list of stake leaders), or is
+  typing the name each time acceptable?~~ **Typed each time.** `external_speaker_name` and
+  `external_speaker_title` are inline columns on `assignments`. A saved list was considered and
+  rejected as machinery nobody has asked for. Revisit only if a ward complains.
+- ~~Should an external speaker appear in speaker-history reporting at all?~~ **No, and the schema
+  enforces it.** `assignment_history.member_id` is `not null`, so `writeAssignmentHistory()`
+  returns false rather than writing a row. "Speaker history is not distorted" is true by
+  construction, not by a check somebody has to remember.
+- ~~What does the appreciation / follow-up step do for someone with no phone number — skip
+  silently, or surface as explicitly not applicable?~~ **Explicitly not applicable.** One column
+  pair, `contact_waived_at` / `contact_waived_by`, settable only when `member_id is null`. A
+  waiver is a recorded decision with a person and a timestamp on it, and it satisfies exactly four
+  gates — never a speaker, a topic, an approval, or `sunday_confirmed_at`. Rendering it as "Not
+  applicable" rather than as an outstanding task is `talks-b`'s job.
+
+## Progress
+
+- **2026-08-20 — `talks-a` (schema + pipeline).** Migration 025 adds the two speaker columns, the
+  `assignments_speaker_exactly_one` CHECK, and the contact waiver with its two CHECKs.
+  `lib/assignments/speaker.ts` is the single place that answers "who is speaking";
+  `lib/assignments/pipeline.ts` holds the four gates a waiver opens and the ones it must not.
+  Covered by `tests/lib/externalSpeaker.test.ts` and `tests/db/assignment-approvals.test.ts`.
+- **Remaining — `talks-b`.** The on-screen half: waived contact stages must read "Not applicable"
+  rather than as a task nobody can complete. Scenario 013 (a ward conference with an external
+  speaker) is the walkthrough that proves it.
+- **Remaining — Phase 6.** How an external speaker prints on the program, and how much of their
+  name `/public/[slug]` shows. A visiting stake president is normally named in full, which is a
+  different privacy case from a ward member's first name and last initial. Unplanned.
