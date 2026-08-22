@@ -10,6 +10,7 @@
 // tests/rls/org-conducting.test.ts is what proves those.
 
 import { describe, expect, it } from "vitest";
+import { ROLE_PERMISSIONS } from "@/lib/auth/permissions";
 import { manageableOrgIds } from "@/lib/calendar/orgRotationScope";
 import { ROLES, type OrganizationType, type Role, type SessionUser } from "@/types/domain";
 
@@ -69,10 +70,10 @@ describe("manageableOrgIds", () => {
 
   for (const role of BISHOPRIC_ROLES) {
     it(`gives ${role} every eligible organization`, () => {
-      expect(manageableOrgIds(sessionUser(role, null), ORGANIZATIONS)).toEqual(
+      expect(manageableOrgIds(sessionUser(role, null), ORGANIZATIONS, ROLE_PERMISSIONS)).toEqual(
         ELIGIBLE_IDS,
       );
-      expect(manageableOrgIds(sessionUser(role, BISHOPRIC_ORG), ORGANIZATIONS)).toEqual(
+      expect(manageableOrgIds(sessionUser(role, BISHOPRIC_ORG), ORGANIZATIONS, ROLE_PERMISSIONS)).toEqual(
         ELIGIBLE_IDS,
       );
     });
@@ -80,23 +81,23 @@ describe("manageableOrgIds", () => {
 
   for (const role of ORG_LEADERSHIP_ROLES) {
     it(`gives ${role} their own eligible organization and nobody else's`, () => {
-      expect(manageableOrgIds(sessionUser(role, ELDERS_QUORUM), ORGANIZATIONS)).toEqual([
+      expect(manageableOrgIds(sessionUser(role, ELDERS_QUORUM), ORGANIZATIONS, ROLE_PERMISSIONS)).toEqual([
         ELDERS_QUORUM,
       ]);
-      expect(manageableOrgIds(sessionUser(role, RELIEF_SOCIETY), ORGANIZATIONS)).toEqual([
+      expect(manageableOrgIds(sessionUser(role, RELIEF_SOCIETY), ORGANIZATIONS, ROLE_PERMISSIONS)).toEqual([
         RELIEF_SOCIETY,
       ]);
     });
 
     it(`gives ${role} nothing when their organization is not eligible`, () => {
-      expect(manageableOrgIds(sessionUser(role, BISHOPRIC_ORG), ORGANIZATIONS)).toEqual([]);
-      expect(manageableOrgIds(sessionUser(role, OTHER_ORG), ORGANIZATIONS)).toEqual([]);
+      expect(manageableOrgIds(sessionUser(role, BISHOPRIC_ORG), ORGANIZATIONS, ROLE_PERMISSIONS)).toEqual([]);
+      expect(manageableOrgIds(sessionUser(role, OTHER_ORG), ORGANIZATIONS, ROLE_PERMISSIONS)).toEqual([]);
     });
 
     // A wide LIST is a worse default but not a broken page; a wide WRITE is a hole. This is the
     // one place lib/roster/organizationScope.ts's fallback would be exactly wrong.
     it(`gives ${role} nothing when their org_id was never set`, () => {
-      expect(manageableOrgIds(sessionUser(role, null), ORGANIZATIONS)).toEqual([]);
+      expect(manageableOrgIds(sessionUser(role, null), ORGANIZATIONS, ROLE_PERMISSIONS)).toEqual([]);
     });
 
     it(`gives ${role} nothing for an organization id that is not in the ward`, () => {
@@ -104,6 +105,7 @@ describe("manageableOrgIds", () => {
         manageableOrgIds(
           sessionUser(role, "00000000-0000-4000-8000-0000000000ff"),
           ORGANIZATIONS,
+          ROLE_PERMISSIONS,
         ),
       ).toEqual([]);
     });
@@ -111,8 +113,8 @@ describe("manageableOrgIds", () => {
 
   for (const role of NO_SCOPE_ROLES) {
     it(`gives ${role} nothing, whatever organization they sit in`, () => {
-      expect(manageableOrgIds(sessionUser(role, null), ORGANIZATIONS)).toEqual([]);
-      expect(manageableOrgIds(sessionUser(role, ELDERS_QUORUM), ORGANIZATIONS)).toEqual([]);
+      expect(manageableOrgIds(sessionUser(role, null), ORGANIZATIONS, ROLE_PERMISSIONS)).toEqual([]);
+      expect(manageableOrgIds(sessionUser(role, ELDERS_QUORUM), ORGANIZATIONS, ROLE_PERMISSIONS)).toEqual([]);
     });
   }
 
@@ -139,11 +141,13 @@ describe("manageableOrgIds", () => {
   });
 
   it("returns nothing when the ward has no eligible organizations", () => {
-    expect(manageableOrgIds(sessionUser("bishop", null), [])).toEqual([]);
+    expect(manageableOrgIds(sessionUser("bishop", null), [], ROLE_PERMISSIONS)).toEqual([]);
     expect(
-      manageableOrgIds(sessionUser("org_president", ELDERS_QUORUM), [
-        { id: BISHOPRIC_ORG, type: "bishopric" },
-      ]),
+      manageableOrgIds(
+        sessionUser("org_president", ELDERS_QUORUM),
+        [{ id: BISHOPRIC_ORG, type: "bishopric" }],
+        ROLE_PERMISSIONS,
+      ),
     ).toEqual([]);
   });
 });

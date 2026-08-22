@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
-import type { Database } from "@/types/database";
+import type { Database, Json } from "@/types/database";
 import type { Role } from "@/types/domain";
 
 // Fixtures are created with the SERVICE-ROLE client and asserted with an authenticated one
@@ -62,8 +62,12 @@ export type NotificationTriggerSeed = {
   isGloballyEnabled?: boolean;
 };
 
+export type RoleAccessSeed = Record<string, { add?: string[]; remove?: string[] }>;
+
 export type SeedOptions = {
   crossOrgVisibility?: boolean;
+  // Ward A only. A cross-ward test needs one side left unconfigured, so ward B never takes one.
+  roleAccess?: RoleAccessSeed;
   notificationTriggers?: NotificationTriggerSeed[];
 };
 
@@ -143,6 +147,7 @@ export async function seedFixtures(
         settings: {
           cross_org_visibility: options.crossOrgVisibility ?? false,
           timezone: "America/Denver",
+          ...(options.roleAccess ? { role_access: options.roleAccess } : {}),
         },
       },
       {
@@ -281,23 +286,60 @@ export async function seedFixtures(
   }
 }
 
+// Reads the existing settings and writes back a merged object rather than a fresh one. It used
+// to write { cross_org_visibility, timezone } wholesale, which was harmless only while those were
+// the sole keys. Now that role_access lives in settings too, a suite that seeded an override and
+// then called this would silently lose it and pass for the wrong reason.
+async function updateWardASettings(
+  fixtures: Fixtures,
+  changes: Record<string, unknown>,
+  description: string,
+): Promise<void> {
+  const { data, error: readError } = await fixtures.service
+    .from("wards")
+    .select("settings")
+    .eq("id", fixtures.wardAId)
+    .maybeSingle();
+
+  if (readError) {
+    throw new Error(`Could not read ward settings to ${description}: ${readError.message}`);
+  }
+
+  const existing =
+    data?.settings && typeof data.settings === "object" && !Array.isArray(data.settings)
+      ? (data.settings as Record<string, unknown>)
+      : {};
+
+  const { error } = await fixtures.service
+    .from("wards")
+    .update({ settings: { ...existing, ...changes } as Json })
+    .eq("id", fixtures.wardAId);
+
+  if (error) {
+    throw new Error(`Could not ${description}: ${error.message}`);
+  }
+}
+
 export async function setCrossOrgVisibility(
   fixtures: Fixtures,
   isEnabled: boolean,
 ): Promise<void> {
-  const { error } = await fixtures.service
-    .from("wards")
-    .update({
-      settings: {
-        cross_org_visibility: isEnabled,
-        timezone: "America/Denver",
-      },
-    })
-    .eq("id", fixtures.wardAId);
+  await updateWardASettings(
+    fixtures,
+    { cross_org_visibility: isEnabled },
+    `set cross_org_visibility=${isEnabled}`,
+  );
+}
 
-  if (error) {
-    throw new Error(
-      `Could not set cross_org_visibility=${isEnabled}: ${error.message}`,
-    );
-  }
+// Changes ward A's role_access mid-suite. Nothing in the app writes this yet — the Phase 11
+// screen that will own it does not exist — so seeding is the only way to reach the state.
+export async function setRoleAccess(
+  fixtures: Fixtures,
+  override: RoleAccessSeed,
+): Promise<void> {
+  await updateWardASettings(
+    fixtures,
+    { role_access: override },
+    `set role_access to ${JSON.stringify(override)}`,
+  );
 }

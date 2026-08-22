@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
 import { displayName } from "@/lib/auth/adminUsers";
-import { assertCan } from "@/lib/auth/permissions";
+import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createYouthAccount } from "@/lib/auth/youthAccounts";
@@ -21,7 +21,10 @@ export async function POST(request: Request) {
   const user = await requireSessionUser();
 
   try {
-    assertCan(user, "admin.manage_users");
+    const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "admin.manage_users", roleAccess);
 
     const input = createYouthAccountSchema.parse(await readJsonBody(request));
 
@@ -35,7 +38,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
 
-    const supabase = await createServerSupabaseClient();
 
     await writeAuditLog(
       {

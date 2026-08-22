@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
-import { assertCan } from "@/lib/auth/permissions";
+import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { emitNotification } from "@/lib/notifications/emitNotification";
@@ -21,11 +21,13 @@ export async function GET(request: Request) {
   const user = await requireSessionUser();
 
   try {
-    assertCan(user, "roster.view");
+    const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "roster.view", roleAccess);
 
     const search = new URL(request.url).searchParams.get("search") ?? undefined;
 
-    const supabase = await createServerSupabaseClient();
     const households = await listHouseholds(
       user.wardId,
       { search, statuses: ROSTER_BROWSE_STATUSES },
@@ -49,11 +51,13 @@ export async function POST(request: Request) {
   const user = await requireSessionUser();
 
   try {
-    assertCan(user, "roster.manage");
+    const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "roster.manage", roleAccess);
 
     const input = createHouseholdSchema.parse(await readJsonBody(request));
 
-    const supabase = await createServerSupabaseClient();
     const household = await createHousehold(user.wardId, input, supabase);
 
     await writeAuditLog(

@@ -23,4 +23,5 @@ Quick-reference for the retrolearn command. One line per entry.
 
 ## Bug Fixes
 
+- [role-access-overrides](role-access-overrides.md) — 25 of 62 permission checks ignored `wards.settings.role_access` because `can()`'s third parameter defaulted to the code matrix; default dropped so the compiler enumerated them, `admin.*`/`sacrament.*` locked in both directions, stored shape changed to add/remove deltas, bishopric equivalence enforced in `mergeRoleAccess` (pending commit) → fixes: foundation-c-services
 - [seed-household-id-collision](seed-household-id-collision.md) — scenario 008 had never seeded: `createHousehold` keyed its id on the family name alone, so two "Smith" households collided on `households_pkey` and the seed died after 3 households and 0 members (2af66b8)

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
 import { displayName, updateWardUser } from "@/lib/auth/adminUsers";
-import { assertCan } from "@/lib/auth/permissions";
+import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { notifyOtherBishopric } from "@/lib/notifications/notifyOtherBishopric";
@@ -18,13 +18,15 @@ export async function PATCH(
   const user = await requireSessionUser();
 
   try {
-    assertCan(user, "admin.manage_users");
+    const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "admin.manage_users", roleAccess);
 
     const { id } = await params;
     const targetUserId = targetUserIdSchema.parse(id);
     const changes = updateUserSchema.parse(await readJsonBody(request));
 
-    const supabase = await createServerSupabaseClient();
     const result = await updateWardUser(
       { wardId: user.wardId, targetUserId, changes },
       supabase,

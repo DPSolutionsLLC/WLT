@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { listWardOrganizations, listWardUsers } from "@/lib/auth/adminUsers";
-import { assertCan } from "@/lib/auth/permissions";
+import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -10,9 +10,11 @@ export async function GET() {
   const user = await requireSessionUser();
 
   try {
-    assertCan(user, "admin.manage_users");
-
     const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "admin.manage_users", roleAccess);
+
     const [users, organizations] = await Promise.all([
       listWardUsers(user.wardId, supabase),
       listWardOrganizations(user.wardId, supabase),

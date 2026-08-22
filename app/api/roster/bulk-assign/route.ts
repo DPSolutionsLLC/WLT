@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
-import { assertCan } from "@/lib/auth/permissions";
+import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { bulkAssignToOrganization } from "@/lib/roster/organizations";
@@ -16,11 +16,13 @@ export async function POST(request: Request) {
   const user = await requireSessionUser();
 
   try {
-    assertCan(user, "roster.manage");
+    const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "roster.manage", roleAccess);
 
     const input = bulkAssignSchema.parse(await readJsonBody(request));
 
-    const supabase = await createServerSupabaseClient();
     const result = await bulkAssignToOrganization(
       user.wardId,
       input.memberIds,

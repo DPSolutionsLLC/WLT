@@ -42,7 +42,7 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
 
 export function visibleNavigationItems(
   user: SessionUser,
-  roleAccess?: RoleAccess,
+  roleAccess: RoleAccess,
 ): NavigationItem[] {
   return NAVIGATION_ITEMS.filter((item) => can(user, item.permission, roleAccess));
 }

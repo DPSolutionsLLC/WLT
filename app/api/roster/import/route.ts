@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { assertCan } from "@/lib/auth/permissions";
+import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { applyRosterImport } from "@/lib/roster/csv/applyImport";
@@ -23,7 +23,10 @@ export async function POST(request: Request) {
   const user = await requireSessionUser();
 
   try {
-    assertCan(user, "roster.import");
+    const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "roster.import", roleAccess);
 
     const { file, mapping, fileHash } = await readImportFormData(request);
     assertAcceptableFile(file);
@@ -55,7 +58,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = await createServerSupabaseClient();
     const result = await applyRosterImport(
       user.wardId,
       user.id,

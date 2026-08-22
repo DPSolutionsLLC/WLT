@@ -80,6 +80,25 @@ export const ADMIN_PERMISSIONS = PERMISSIONS.filter(
   (permission) => permission.startsWith("admin.") || permission === "audit.view",
 ) as readonly KnownPermission[];
 
+// Permissions a ward may not reconfigure, in EITHER direction.
+//
+// admin.*  — these run through the service-role client (lib/auth/adminUsers.ts,
+//            lib/auth/youthAccounts.ts), where assertCan() is the only boundary and RLS is not
+//            behind it. Widening one is self-escalation: a role granted admin.manage_users can
+//            make itself bishop. Locking removal too means the bishopric cannot lock itself out
+//            of the admin screen, which is the guard 11-notifications-admin.md asks for.
+//
+// sacrament.* — the whole reach of a youth PIN account. FEATURES.md §Module 17: exactly one
+//            module. Widening that is a product decision, not a checkbox.
+//
+// audit.view is deliberately NOT locked. It is in ADMIN_PERMISSIONS for the bishopric-equivalence
+// loop, but it grants reading rather than writing, and a ward may legitimately want its secretary
+// to see the audit log.
+export const NON_OVERRIDABLE_PERMISSIONS: readonly KnownPermission[] = PERMISSIONS.filter(
+  (permission) =>
+    permission.startsWith("admin.") || permission.startsWith("sacrament."),
+);
+
 export const BISHOPRIC_ROLES = ["bishop", "counselor"] as const;
 
 export type RoleAccess = Record<Role, readonly KnownPermission[]>;
@@ -184,48 +203,132 @@ export const ROLE_PERMISSIONS: RoleAccess = {
   sacrament_manager: SACRAMENT_MANAGER_PERMISSIONS,
 };
 
+// No default on roleAccess. A defaulted third parameter is how 25 call sites came to silently
+// ignore the ward's configuration (ITER-005): nothing failed when a new route forgot to pass it.
+// A missing argument must be a type error. Do not restore the default as a convenience.
 export function can(
   user: SessionUser,
   permission: KnownPermission,
-  roleAccess: RoleAccess = ROLE_PERMISSIONS,
+  roleAccess: RoleAccess,
 ): boolean {
   const granted = roleAccess[user.role];
   if (!granted) return false;
   return granted.includes(permission);
 }
 
+// No default — see can() above.
 export function assertCan(
   user: SessionUser,
   permission: KnownPermission,
-  roleAccess: RoleAccess = ROLE_PERMISSIONS,
+  roleAccess: RoleAccess,
 ): void {
   if (!can(user, permission, roleAccess)) {
     throw new ForbiddenError(permission);
   }
 }
 
-// Keys are validated against ROLES below rather than by the schema, so one unrecognised role
-// in the stored override does not discard the whole object.
-const roleAccessOverrideSchema = z.record(z.string(), z.array(z.string()));
+// A ward stores what it CHANGED, not the list it wants. Deltas resolve against whatever the code
+// currently grants, so a permission added in a later phase reaches a ward that already has an
+// override. Under replace-semantics it never would, and nothing would surface the drift.
+export type RoleAccessDelta = {
+  add?: readonly KnownPermission[];
+  remove?: readonly KnownPermission[];
+};
+
+// Parsed per role rather than as one z.record over the whole object, so a single malformed value
+// leaves that role on the defaults instead of discarding every sibling's valid configuration.
+// This is what lets a legacy array value degrade gracefully.
+const roleAccessDeltaSchema = z.object({
+  add: z.array(z.string()).optional(),
+  remove: z.array(z.string()).optional(),
+});
 
 const KNOWN_ROLES = new Set<string>(ROLES);
 const KNOWN_PERMISSIONS = new Set<string>(PERMISSIONS);
+const LOCKED_PERMISSIONS = new Set<string>(NON_OVERRIDABLE_PERMISSIONS);
+
+type ParsedDelta = { add: string[]; remove: string[] };
+
+function unionDeltas(first: ParsedDelta, second: ParsedDelta): ParsedDelta {
+  return {
+    add: [...new Set([...first.add, ...second.add])],
+    remove: [...new Set([...first.remove, ...second.remove])],
+  };
+}
+
+function sameDelta(first: ParsedDelta, second: ParsedDelta): boolean {
+  const signature = (delta: ParsedDelta) =>
+    `${[...delta.add].sort().join(",")}|${[...delta.remove].sort().join(",")}`;
+  return signature(first) === signature(second);
+}
+
+function applyDelta(role: Role, delta: ParsedDelta): readonly KnownPermission[] {
+  // Unknown names are dropped from both lists, with one warning per role naming every offender.
+  const unrecognised = [...delta.add, ...delta.remove].filter(
+    (permission) => !KNOWN_PERMISSIONS.has(permission),
+  );
+  if (unrecognised.length > 0) {
+    // The names go in the message string on purpose. Next.js's dev logger renders an object
+    // argument to console.warn as {} (plans/retros/auth-b-invites-admin.md).
+    console.warn(
+      `wards.settings.role_access names unknown permissions for "${role}": ` +
+        `${[...new Set(unrecognised)].join(", ")}; ignoring them`,
+    );
+  }
+
+  const add = delta.add.filter((permission) =>
+    KNOWN_PERMISSIONS.has(permission),
+  ) as KnownPermission[];
+  const remove = delta.remove.filter((permission) =>
+    KNOWN_PERMISSIONS.has(permission),
+  ) as KnownPermission[];
+
+  // 1. Start from the code defaults.
+  // 2. Subtract `remove`.
+  // 3. Add `add`. A permission named in BOTH lists ends up GRANTED — `add` wins. That choice is
+  //    arbitrary, but it must be deterministic and it must be written down, so it is both.
+  const removed = new Set<string>(remove);
+  const resolved = new Set<KnownPermission>(
+    ROLE_PERMISSIONS[role].filter((permission) => !removed.has(permission)),
+  );
+  for (const permission of add) resolved.add(permission);
+
+  // 4. Restore the default membership of every locked permission, in both directions. One rule
+  //    covers add and remove alike: for a locked permission, the answer is whatever
+  //    ROLE_PERMISSIONS says, regardless of what the delta asked for. Only the locked entries are
+  //    restored, so the rest of the delta still applies.
+  const lockedNamed = [...add, ...remove].filter((permission) =>
+    LOCKED_PERMISSIONS.has(permission),
+  );
+  if (lockedNamed.length > 0) {
+    console.warn(
+      `wards.settings.role_access tries to change non-overridable permissions for "${role}": ` +
+        `${[...new Set(lockedNamed)].join(", ")}; keeping the code defaults for them`,
+    );
+    const defaults = new Set<string>(ROLE_PERMISSIONS[role]);
+    for (const permission of NON_OVERRIDABLE_PERMISSIONS) {
+      if (defaults.has(permission)) resolved.add(permission);
+      else resolved.delete(permission);
+    }
+  }
+
+  // 5. De-duplicate — the Set has already done it.
+  return [...resolved];
+}
 
 export function mergeRoleAccess(override: unknown): RoleAccess {
   if (override === null || override === undefined) return ROLE_PERMISSIONS;
 
-  const parsed = roleAccessOverrideSchema.safeParse(override);
-  if (!parsed.success) {
+  if (typeof override !== "object" || Array.isArray(override)) {
     console.warn(
-      "wards.settings.role_access is malformed; falling back to the code defaults",
-      { issues: parsed.error.issues },
+      "wards.settings.role_access is not an object of per-role deltas; falling back to the code defaults",
     );
     return ROLE_PERMISSIONS;
   }
 
-  const merged: RoleAccess = { ...ROLE_PERMISSIONS };
+  const deltas = new Map<Role, ParsedDelta>();
 
-  for (const [role, permissions] of Object.entries(parsed.data)) {
+  for (const [role, value] of Object.entries(override as Record<string, unknown>)) {
     if (!KNOWN_ROLES.has(role)) {
       console.warn(
         `wards.settings.role_access names an unknown role "${role}"; ignoring it`,
@@ -233,29 +336,56 @@ export function mergeRoleAccess(override: unknown): RoleAccess {
       continue;
     }
 
-    const recognised = permissions.filter((permission) =>
-      KNOWN_PERMISSIONS.has(permission),
-    ) as KnownPermission[];
-
-    const unrecognised = permissions.filter(
-      (permission) => !KNOWN_PERMISSIONS.has(permission),
-    );
-    if (unrecognised.length > 0) {
+    const parsed = roleAccessDeltaSchema.safeParse(value);
+    if (!parsed.success) {
       console.warn(
-        `wards.settings.role_access grants unknown permissions to "${role}"; ignoring them`,
-        { unrecognised },
+        `wards.settings.role_access has a malformed delta for "${role}" ` +
+          `(expected { add?: string[], remove?: string[] }); keeping the code defaults for that role`,
       );
+      continue;
     }
 
-    merged[role as Role] = recognised;
+    deltas.set(role as Role, {
+      add: [...(parsed.data.add ?? [])],
+      remove: [...(parsed.data.remove ?? [])],
+    });
+  }
+
+  // Bishopric equivalence, applied BEFORE resolution (CLAUDE.md §7). A delta naming either role is
+  // applied to both, so the two resolved lists are identical by construction rather than by the
+  // Phase 11 UI remembering to render one row. Same move as BISHOPRIC_PERMISSIONS being one
+  // constant instead of two identical literals.
+  const [bishopRole, counselorRole] = BISHOPRIC_ROLES;
+  const bishopDelta = deltas.get(bishopRole);
+  const counselorDelta = deltas.get(counselorRole);
+
+  if (bishopDelta ?? counselorDelta) {
+    const empty: ParsedDelta = { add: [], remove: [] };
+    if (bishopDelta && counselorDelta && !sameDelta(bishopDelta, counselorDelta)) {
+      console.warn(
+        `wards.settings.role_access gives "${bishopRole}" and "${counselorRole}" different deltas; ` +
+          `bishopric authority is shared, so the union of both is applied to both. ` +
+          `${bishopRole}: add=[${bishopDelta.add.join(", ")}] remove=[${bishopDelta.remove.join(", ")}]; ` +
+          `${counselorRole}: add=[${counselorDelta.add.join(", ")}] remove=[${counselorDelta.remove.join(", ")}]`,
+      );
+    }
+    const shared = unionDeltas(bishopDelta ?? empty, counselorDelta ?? empty);
+    deltas.set(bishopRole, shared);
+    deltas.set(counselorRole, shared);
+  }
+
+  const merged: RoleAccess = { ...ROLE_PERMISSIONS };
+  for (const [role, delta] of deltas) {
+    merged[role] = applyDelta(role, delta);
   }
 
   return merged;
 }
 
-// Throws rather than falling back on a read failure. An override can only ever *narrow*
-// access relative to what an admin configured, so silently substituting the code defaults
-// would fail open — it could grant a role something the ward had deliberately removed.
+// Throws rather than falling back on a read failure. An override can widen access as well as
+// narrow it, so substituting the code defaults can be wrong in EITHER direction — silently
+// restoring a permission the ward removed, or silently withholding one it granted. Neither is
+// safe to guess at, so a failed read is an error rather than a default.
 export async function resolveRoleAccess(
   supabase: SupabaseClient<Database>,
   wardId: string,

@@ -1,9 +1,4 @@
-import {
-  BISHOPRIC_ROLES,
-  ROLE_PERMISSIONS,
-  can,
-  type RoleAccess,
-} from "@/lib/auth/permissions";
+import { BISHOPRIC_ROLES, can, type RoleAccess } from "@/lib/auth/permissions";
 import {
   ROTATION_ELIGIBLE_ORG_TYPES,
   type OrganizationType,
@@ -34,7 +29,7 @@ const BISHOPRIC: readonly Role[] = BISHOPRIC_ROLES;
 export function manageableOrgIds(
   user: SessionUser,
   organizations: { id: string; type: OrganizationType }[],
-  roleAccess: RoleAccess = ROLE_PERMISSIONS,
+  roleAccess: RoleAccess,
 ): string[] {
   if (!can(user, "calendar.manage_org_conducting", roleAccess)) return [];
 

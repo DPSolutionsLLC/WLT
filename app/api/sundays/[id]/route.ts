@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
-import { assertCan } from "@/lib/auth/permissions";
+import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { getSunday, readConductorName, updateSunday } from "@/lib/calendar/queries";
@@ -26,7 +26,10 @@ export async function PATCH(
     // Before the body is parsed. Migration 019 grants UPDATE on `sundays` to every authenticated
     // member of the ward — including an org_secretary — so RLS stops a cross-WARD write and
     // nothing else. This check is the real boundary.
-    assertCan(user, "calendar.manage");
+    const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "calendar.manage", roleAccess);
 
     const { id } = await params;
     const sundayId = sundayIdSchema.parse(id);
@@ -37,7 +40,6 @@ export async function PATCH(
     const confirm =
       new URL(request.url).searchParams.get("confirm") === "true";
 
-    const supabase = await createServerSupabaseClient();
 
     const before = await getSunday(user.wardId, sundayId, supabase);
     if (!before) {

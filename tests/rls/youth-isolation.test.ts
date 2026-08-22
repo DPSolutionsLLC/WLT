@@ -2,7 +2,11 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { can, type KnownPermission } from "@/lib/auth/permissions";
+import {
+  ROLE_PERMISSIONS,
+  can,
+  type KnownPermission,
+} from "@/lib/auth/permissions";
 import { asRole } from "@/tests/helpers/asRole";
 import { seedFixtures, type Fixtures } from "@/tests/helpers/seed";
 import type { Database } from "@/types/database";
@@ -167,16 +171,16 @@ describe("youth account isolation", () => {
 
   describe("the permission matrix, not RLS, is what closes the rest of the app", () => {
     it.each(PERMISSIONS_RLS_DOES_NOT_ENFORCE)("refuses %s", (permission) => {
-      expect(can(YOUTH_SESSION_USER, permission)).toBe(false);
+      expect(can(YOUTH_SESSION_USER, permission, ROLE_PERMISSIONS)).toBe(false);
     });
 
     it("grants exactly the three sacrament permissions and nothing else", () => {
-      expect(can(YOUTH_SESSION_USER, "sacrament.view_assignments")).toBe(true);
-      expect(can(YOUTH_SESSION_USER, "sacrament.update_assignments")).toBe(true);
-      expect(can(YOUTH_SESSION_USER, "sacrament.mark_sent")).toBe(true);
-      expect(can(YOUTH_SESSION_USER, "sacrament.manage_pools")).toBe(false);
-      expect(can(YOUTH_SESSION_USER, "sacrament.manage_manager")).toBe(false);
-      expect(can(YOUTH_SESSION_USER, "admin.manage_users")).toBe(false);
+      expect(can(YOUTH_SESSION_USER, "sacrament.view_assignments", ROLE_PERMISSIONS)).toBe(true);
+      expect(can(YOUTH_SESSION_USER, "sacrament.update_assignments", ROLE_PERMISSIONS)).toBe(true);
+      expect(can(YOUTH_SESSION_USER, "sacrament.mark_sent", ROLE_PERMISSIONS)).toBe(true);
+      expect(can(YOUTH_SESSION_USER, "sacrament.manage_pools", ROLE_PERMISSIONS)).toBe(false);
+      expect(can(YOUTH_SESSION_USER, "sacrament.manage_manager", ROLE_PERMISSIONS)).toBe(false);
+      expect(can(YOUTH_SESSION_USER, "admin.manage_users", ROLE_PERMISSIONS)).toBe(false);
     });
 
     // The uncomfortable half of the finding, asserted so nobody later mistakes the separate

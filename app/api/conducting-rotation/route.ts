@@ -38,7 +38,10 @@ export async function GET(request: Request) {
   const user = await requireSessionUser();
 
   try {
-    assertCan(user, "calendar.view");
+    const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "calendar.view", roleAccess);
 
     // Absent means every rotation in the ward; "null" means the bishopric's. The three-way
     // distinction matters — see listConductingRotation.
@@ -50,7 +53,6 @@ export async function GET(request: Request) {
           ? null
           : orgIdQuerySchema.parse(requestedOrgId);
 
-    const supabase = await createServerSupabaseClient();
     const rotation = await listConductingRotation(user.wardId, { orgId }, supabase);
 
     // Today in UTC, matching how every date in this module is read. `sundays.date` is a date with
@@ -108,15 +110,18 @@ export async function PATCH(request: Request) {
     // decision ever being made, which leaks nothing: the schema shape is not a secret.
     const input = conductingRotationSchema.parse(await readJsonBody(request));
     const supabase = await createServerSupabaseClient();
+    // Resolved above the branch so BOTH gates see the ward's configuration. It used to be
+    // resolved only inside the else, which made this route disagree with itself (ITER-005).
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
 
     let organizationName: string | null = null;
 
     if (input.orgId === null) {
-      // The ward's role_access override is deliberately not resolved on this branch: it is the
-      // gate calendar-a shipped, and this slice changes nothing about it.
-      assertCan(user, "admin.manage_ward");
+      // admin.manage_ward is in NON_OVERRIDABLE_PERMISSIONS, so passing roleAccess here cannot
+      // change the answer. It is passed for uniformity: "every check resolves" is a rule with no
+      // exceptions to remember, which is the whole point of ITER-005.
+      assertCan(user, "admin.manage_ward", roleAccess);
     } else {
-      const roleAccess = await resolveRoleAccess(supabase, user.wardId);
       assertCan(user, "calendar.manage_org_conducting", roleAccess);
 
       const organizations = await listRotationOrganizations(user.wardId, supabase);

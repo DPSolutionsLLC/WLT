@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { NAVIGATION_ITEMS, visibleNavigationItems } from "@/lib/auth/navigation";
-import { PERMISSIONS, can, mergeRoleAccess } from "@/lib/auth/permissions";
+import {
+  PERMISSIONS,
+  ROLE_PERMISSIONS,
+  can,
+  mergeRoleAccess,
+} from "@/lib/auth/permissions";
 import { ROLES, type Role, type SessionUser } from "@/types/domain";
 
 function sessionUser(role: Role): SessionUser {
@@ -19,7 +24,9 @@ function sessionUser(role: Role): SessionUser {
 }
 
 function hrefsFor(role: Role): string[] {
-  return visibleNavigationItems(sessionUser(role)).map((item) => item.href);
+  return visibleNavigationItems(sessionUser(role), ROLE_PERMISSIONS).map(
+    (item) => item.href,
+  );
 }
 
 describe("navigation items", () => {
@@ -38,7 +45,9 @@ describe("navigation items", () => {
 
   it("produces a list for every role", () => {
     for (const role of ROLES) {
-      expect(Array.isArray(visibleNavigationItems(sessionUser(role)))).toBe(true);
+      expect(
+        Array.isArray(visibleNavigationItems(sessionUser(role), ROLE_PERMISSIONS)),
+      ).toBe(true);
     }
   });
 });
@@ -101,7 +110,7 @@ describe("role-filtered navigation", () => {
   it("shows the planner to every role that holds talks.view and to no other", () => {
     for (const role of ROLES) {
       const canSeePlanner = hrefsFor(role).includes("/assignments");
-      const expected = can(sessionUser(role), "talks.view");
+      const expected = can(sessionUser(role), "talks.view", ROLE_PERMISSIONS);
 
       expect(canSeePlanner, `role "${role}" disagrees on /assignments`).toBe(expected);
     }
@@ -116,13 +125,33 @@ describe("role-filtered navigation", () => {
     }
   });
 
+  // The override is a per-role add/remove DELTA, not a replacement list (ITER-005). Under the
+  // old replace shape this read { music_coordinator: ["music.view"] }; a delta names only what
+  // the ward changed, so the defaults it does not mention still stand.
   it("honours a ward override that narrows a role", () => {
-    const roleAccess = mergeRoleAccess({ music_coordinator: ["music.view"] });
+    const roleAccess = mergeRoleAccess({
+      music_coordinator: { remove: ["calendar.view", "talks.view"] },
+    });
 
     const hrefs = visibleNavigationItems(sessionUser("music_coordinator"), roleAccess).map(
       (item) => item.href,
     );
 
     expect(hrefs).toEqual(["/music"]);
+  });
+
+  it("honours a ward override that widens a role", () => {
+    const roleAccess = mergeRoleAccess({
+      music_coordinator: { add: ["visits.view"] },
+    });
+
+    const hrefs = visibleNavigationItems(sessionUser("music_coordinator"), roleAccess).map(
+      (item) => item.href,
+    );
+
+    expect(hrefs).toContain("/visits");
+    // The defaults it never mentioned are still there — the point of deltas.
+    expect(hrefs).toContain("/music");
+    expect(hrefs).toContain("/calendar");
   });
 });

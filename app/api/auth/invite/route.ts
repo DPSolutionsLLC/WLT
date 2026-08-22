@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
 import { createInvite } from "@/lib/auth/invites";
-import { assertCan } from "@/lib/auth/permissions";
+import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { displayName } from "@/lib/auth/adminUsers";
@@ -29,10 +29,12 @@ export async function POST(request: Request) {
   const user = await requireSessionUser();
 
   try {
-    assertCan(user, "admin.manage_users");
+    const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "admin.manage_users", roleAccess);
 
     const input = createInviteSchema.parse(await readJsonBody(request));
-    const supabase = await createServerSupabaseClient();
 
     const result = await createInvite(
       {

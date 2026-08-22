@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { assertCan } from "@/lib/auth/permissions";
+import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { buildImportPreview } from "@/lib/roster/csv/buildImportPreview";
@@ -25,14 +25,16 @@ export async function POST(request: Request) {
     // The real boundary. Migration 019's ward-scoped policy loop would happily let an org
     // secretary insert members (roster-a Decision 3), so RLS alone does not make this bishopric
     // only — this line does.
-    assertCan(user, "roster.import");
+    const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "roster.import", roleAccess);
 
     const { file, mapping } = await readImportFormData(request);
     assertAcceptableFile(file);
 
     const read = await readImportFile(file, mapping);
 
-    const supabase = await createServerSupabaseClient();
     const preview = await buildImportPreview(
       user.wardId,
       read.normalized,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
-import { assertCan } from "@/lib/auth/permissions";
+import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { getMember, updateMember } from "@/lib/roster/queries";
@@ -17,13 +17,15 @@ export async function PATCH(
   const user = await requireSessionUser();
 
   try {
-    assertCan(user, "roster.manage");
+    const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "roster.manage", roleAccess);
 
     const { id } = await params;
     const memberId = memberIdSchema.parse(id);
     const changes = updateMemberSchema.parse(await readJsonBody(request));
 
-    const supabase = await createServerSupabaseClient();
 
     // Read first so the audit row can name the status transition. Marking someone moved_out is
     // the closest thing to a delete this app has (02-roster.md §Pitfalls: there is no delete),

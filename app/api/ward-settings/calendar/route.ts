@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
-import { assertCan } from "@/lib/auth/permissions";
+import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import {
@@ -23,9 +23,11 @@ export async function GET() {
   try {
     // calendar.view, not admin: everyone who reads the calendar needs to know what a new Sunday
     // will be generated with.
-    assertCan(user, "calendar.view");
-
     const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "calendar.view", roleAccess);
+
     const defaultSpeakingSlots = await readDefaultSpeakingSlots(user.wardId, supabase);
 
     return NextResponse.json({
@@ -51,10 +53,12 @@ export async function PATCH(request: Request) {
   const user = await requireSessionUser();
 
   try {
-    assertCan(user, "admin.manage_ward");
+    const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "admin.manage_ward", roleAccess);
 
     const input = wardCalendarSettingsSchema.parse(await readJsonBody(request));
-    const supabase = await createServerSupabaseClient();
 
     const before = await readDefaultSpeakingSlots(user.wardId, supabase);
     const defaultSpeakingSlots = await writeDefaultSpeakingSlots(

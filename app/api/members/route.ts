@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
-import { assertCan } from "@/lib/auth/permissions";
+import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createMember, listMembers } from "@/lib/roster/queries";
@@ -11,7 +11,10 @@ export async function GET(request: Request) {
   const user = await requireSessionUser();
 
   try {
-    assertCan(user, "roster.view");
+    const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "roster.view", roleAccess);
 
     const searchParams = new URL(request.url).searchParams;
     const statuses = searchParams.getAll("status");
@@ -25,7 +28,6 @@ export async function GET(request: Request) {
       organizationId: searchParams.get("organizationId") ?? undefined,
     });
 
-    const supabase = await createServerSupabaseClient();
     const members = await listMembers(user.wardId, filters, supabase);
 
     return NextResponse.json({ members });
@@ -44,11 +46,13 @@ export async function POST(request: Request) {
   const user = await requireSessionUser();
 
   try {
-    assertCan(user, "roster.manage");
+    const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "roster.manage", roleAccess);
 
     const input = createMemberSchema.parse(await readJsonBody(request));
 
-    const supabase = await createServerSupabaseClient();
     const member = await createMember(user.wardId, input, supabase);
 
     await writeAuditLog(

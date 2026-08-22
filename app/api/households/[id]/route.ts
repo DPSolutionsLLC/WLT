@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
-import { assertCan } from "@/lib/auth/permissions";
+import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { updateHousehold } from "@/lib/roster/queries";
@@ -20,13 +20,15 @@ export async function PATCH(
   const user = await requireSessionUser();
 
   try {
-    assertCan(user, "roster.manage");
+    const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "roster.manage", roleAccess);
 
     const { id } = await params;
     const householdId = householdIdSchema.parse(id);
     const changes = updateHouseholdSchema.parse(await readJsonBody(request));
 
-    const supabase = await createServerSupabaseClient();
     const household = await updateHousehold(user.wardId, householdId, changes, supabase);
 
     // A zero-row update means the household is not in this ward, or RLS refused it. Both are

@@ -117,11 +117,27 @@ version the schema, or a typo silently breaks the program builder or a cron job.
 `PATCH` the whole object from the client — accept a partial and merge server-side.
 
 **Role access matrix.** The permission matrix from Phase 0 lives in code as the default and
-in `wards.settings.role_access` as the ward's override. This page edits the override. Two
-guards:
+in `wards.settings.role_access` as the ward's override. This page edits the override. The
+contract it edits against was settled by ITER-005 (`plans/retros/role-access-overrides.md`) —
+build to it rather than rediscovering it:
 
-- Never allow a change that removes the last bishopric member's admin access
-- Warn clearly that changes take effect on the user's next sign-in (JWT claims)
+- **The stored shape is add/remove deltas keyed by role**, not a replacement list:
+  `{ "ward_secretary": { "add": ["talks.plan"], "remove": ["agendas.publish"] } }`. Deltas
+  resolve against whatever the code currently grants, so a permission this phase adds reaches a
+  ward that already stored an override. Render the ward's *changes*, and let "reset to default"
+  mean deleting the role's key.
+- **`admin.*` and `sacrament.*` are not overridable in either direction.** `mergeRoleAccess()`
+  restores the code default for them whatever the stored JSON says. Render those rows read-only
+  rather than letting the screen offer a toggle the app will ignore. This is also what delivers
+  the lockout guard structurally — see below.
+- **Bishop and counselor resolve to one identical list.** A delta naming either is applied to
+  both (CLAUDE.md §7), so the matrix renders them as a **single row**, not two.
+- ~~Never allow a change that removes the last bishopric member's admin access~~ — no longer a
+  guard this UI implements by hand. Because `admin.*` cannot be removed, the lockout is
+  unreachable.
+- Warn clearly that changes take effect on the user's next sign-in (JWT claims). **Still true
+  and still unaddressed** — role access is resolved per request from `wards`, not from the JWT,
+  but the session's *role* comes from the session. Keep this warning.
 
 **Leadership contacts** — when a contact changes, prompt: "Leadership contacts in the
 sacrament program may be affected. Update the program template now?" Confirm or dismiss;

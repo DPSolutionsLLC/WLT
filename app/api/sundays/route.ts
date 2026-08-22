@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
-import { assertCan } from "@/lib/auth/permissions";
+import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createSunday, generateSundayRange, listSundays } from "@/lib/calendar/queries";
@@ -15,7 +15,10 @@ export async function GET(request: Request) {
   const user = await requireSessionUser();
 
   try {
-    assertCan(user, "calendar.view");
+    const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "calendar.view", roleAccess);
 
     const searchParams = new URL(request.url).searchParams;
     const range = sundayRangeSchema.parse({
@@ -23,7 +26,6 @@ export async function GET(request: Request) {
       to: searchParams.get("to") ?? undefined,
     });
 
-    const supabase = await createServerSupabaseClient();
     const sundays = await listSundays(user.wardId, range, supabase);
 
     return NextResponse.json({ sundays });
@@ -47,10 +49,12 @@ export async function POST(request: Request) {
   const user = await requireSessionUser();
 
   try {
-    assertCan(user, "calendar.manage");
+    const supabase = await createServerSupabaseClient();
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+    assertCan(user, "calendar.manage", roleAccess);
 
     const input = sundayPostSchema.parse(await readJsonBody(request));
-    const supabase = await createServerSupabaseClient();
 
     if (input.mode === "generate") {
       const { created, monthsResolved } = await generateSundayRange(

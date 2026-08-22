@@ -26,8 +26,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const supabase = await createServerSupabaseClient();
 
   // resolveRoleAccess throws on a read failure, deliberately. Do not add a fallback to
-  // ROLE_PERMISSIONS: an override can only ever narrow access, so falling back could grant a
-  // role something the ward had removed (plans/retros/foundation-c-services.md).
+  // ROLE_PERMISSIONS: an override can WIDEN access as well as narrow it (ITER-005), so falling
+  // back could grant a role something the ward removed or withhold something it granted.
   const roleAccess = await resolveRoleAccess(supabase, user.wardId);
   const navigationItems = visibleNavigationItems(user, roleAccess);
 

@@ -134,10 +134,17 @@ async function insertRow(
 // Ward and organizations
 // ============================================================================
 
+// role_access is a per-role add/remove DELTA, not a replacement list (ITER-005):
+//   { ward_secretary: { add: ["roster.manage"] }, bishop: { remove: ["calendar.manage"] } }
+// admin.* and sacrament.* are locked in both directions and a delta naming them is ignored, and
+// a delta naming bishop or counselor applies to both (CLAUDE.md §7).
+export type RoleAccessSeed = Record<string, { add?: string[]; remove?: string[] }>;
+
 export type WardOptions = {
   name?: string;
   crossOrgVisibility?: boolean;
   timezone?: string;
+  roleAccess?: RoleAccessSeed;
   settings?: Record<string, unknown>;
 };
 
@@ -151,6 +158,7 @@ export async function ensureTestWard(options: WardOptions = {}): Promise<string>
       settings: {
         cross_org_visibility: options.crossOrgVisibility ?? false,
         timezone: options.timezone ?? "America/Denver",
+        ...(options.roleAccess ? { role_access: options.roleAccess } : {}),
         ...options.settings,
       },
     },

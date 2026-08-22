@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui/Card";
-import { assertCan } from "@/lib/auth/permissions";
+import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 // Deliberately thin, not unfinished. The real assignment grid, the rotation view, and the
 // send-message flow are Phase 10 (plans/10-sacrament-admin.md). This exists so a youth
@@ -15,7 +16,22 @@ import { requireSessionUser } from "@/lib/auth/session";
 export default async function YouthSacramentPage() {
   const user = await requireSessionUser();
 
-  assertCan(user, "sacrament.view_assignments");
+  // assertCan, not can() + NotPermitted. Every page under app/(app)/ uses can() because a
+  // ForbiddenError escaping a Server Component becomes a 500 — but app/(youth)/layout.tsx already
+  // redirects any non-sacrament_manager to /dashboard, so this is unreachable defence in depth.
+  //
+  // sacrament.view_assignments is in NON_OVERRIDABLE_PERMISSIONS, so resolving here cannot change
+  // the answer. It is here so the rule "every permission check resolves the ward's role access"
+  // has no exceptions: passing ROLE_PERMISSIONS literally would be a line someone copies into a
+  // route where it WOULD matter, which is the trap ITER-005 exists to close.
+  //
+  // A sacrament_manager can read its own wards row — wards_select grants SELECT to any
+  // authenticated user whose current_ward_id() matches, with no role predicate, which is what the
+  // youth layout already relies on for the ward name.
+  const supabase = await createServerSupabaseClient();
+  const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+
+  assertCan(user, "sacrament.view_assignments", roleAccess);
 
   return (
     <div className="flex flex-col gap-4">

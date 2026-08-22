@@ -101,7 +101,13 @@ These override convenience. Violating one is a bug, not a style preference.
 9. **When a server route writes a new field, update the TypeScript type in the same
    change.** Types live in `types/database.ts` (generated) and `types/domain.ts` (hand-written).
    A new column that the frontend model doesn't know about is silently dropped.
-10. **Tithing data never touches the members table.** No names, no member IDs, no
+10. **Every permission check resolves the ward's role access.** `can()` and `assertCan()`
+    take it as a required third argument; a missing one is a type error, on purpose. Resolve
+    once per request into a local and pass it down — `cache()` does not dedupe it in a route
+    handler. The ward's override is stored as add/remove deltas per role in
+    `wards.settings.role_access`; `admin.*` and `sacrament.*` are not overridable in either
+    direction, and bishop/counselor always resolve to one identical list.
+11. **Tithing data never touches the members table.** No names, no member IDs, no
     linkage. It is a counting worksheet, not a record. Auto-deleted at midnight.
 
 ---

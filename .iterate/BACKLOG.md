@@ -7,6 +7,14 @@ _Last updated: 2026-08-22_
 ## In Progress
 Items currently being planned or actively worked.
 
+- [ ] ITER-005 — Ward role-access overrides are ignored by 25 of 62 permission checks → [scope](.iterate/scopes/ITER-005.md) | [plan](plans/role-access-overrides.md)
+  _Planned 2026-08-22. All three open questions answered: `admin.*` and `sacrament.*` become
+  non-overridable in both directions, the stored shape becomes add/remove deltas rather than a
+  replacement list, and bishop/counselor equivalence is enforced inside `mergeRoleAccess`. The
+  fix drops the `= ROLE_PERMISSIONS` default so the compiler produces the 25-site worklist.
+  Still latent — nothing writes `role_access` yet — but it must land **before** Phase 11's admin
+  matrix ships._
+
 - [ ] ITER-004 — Speakers who are not members of the ward → [scope](.iterate/scopes/ITER-004.md) | plans: [talks-a](plans/talks-a-pipeline-core.md), [talks-b](plans/talks-b-month-planner.md)
   _**The Phase 4 half is complete.** `talks-a` landed the schema and pipeline shape — a nullable
   member link, inline external name and title with a CHECK that a row holds one or the other, and
@@ -40,13 +48,6 @@ Each of these is large or complex enough to tackle on its own.
 - [ ] ITER-001 — Per-organization calendars and cross-organization sharing → [scope](.iterate/scopes/ITER-001.md)
   _Reason: architectural. Adds a fourth date-bearing model to the schema, a new sharing/audience
   boundary enforced by RLS, and will realistically split into three or four plans of its own._
-
-- [ ] ITER-005 — Ward role-access overrides are ignored by 25 of 62 permission checks → [scope](.iterate/scopes/ITER-005.md)
-  _Latent, not live: nothing writes `wards.settings.role_access` yet, so no ward is currently
-  affected. It goes live the moment Phase 11 ships the admin UI that owns the role-access matrix,
-  and it should land **before** that screen rather than with it — settings that 25 checks ignore
-  are worse than no settings. Includes every `admin.manage_users` check in the app, and both
-  routes where RLS is deliberately not the boundary (`member_organizations`)._
 
 ---
 

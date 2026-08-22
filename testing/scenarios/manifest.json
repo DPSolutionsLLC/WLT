@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 13,
+  "scenarioCount": 14,
   "scenarios": [
     {
       "id": "auth:scenario-001-role-shell",
@@ -169,6 +169,31 @@
         "Reloading Admin → Users after the reset does **not** show the PIN again"
       ],
       "seedCommand": "npm run seed -- auth/scenario-006-pin-lockout"
+    },
+    {
+      "id": "auth:scenario-014-ward-role-access-override",
+      "path": "auth/scenario-014-ward-role-access-override",
+      "name": "A ward role-access override changes what a role may do",
+      "scope": "ITER-005",
+      "part": 1,
+      "tags": [
+        "auth",
+        "permissions",
+        "full"
+      ],
+      "prerequisites": "none",
+      "purpose": "Nothing in the app writes `wards.settings.role_access` — the Phase 11 screen that will own the\nmatrix does not exist yet. So this state is unreachable by hand without editing `jsonb` in the\nSupabase dashboard, which is exactly the kind of setup seeding is for.\n\nWalking it once proves the add/remove delta shape is writable and readable end to end **before**\na screen depends on it, and proves the page guards and the route guards now agree. Today they can\ndisagree: 25 of the app's 62 permission checks read the hardcoded defaults, so a page could hide\na button while the route behind it happily allowed the write. That is the bug ITER-005 closes.\n\nEvery 403 this scenario could assert is already covered by\n`tests/routes/role-access-overrides.test.ts`. This walkthrough is kept to what needs eyes — that\nthe page and the route agree, and that controls are **absent** rather than present-and-broken.",
+      "checklist": [
+        "The ward secretary sees organization controls on David Nguyen's member page",
+        "Saving the organization change succeeds and the page shows him in the Elders Quorum",
+        "`member_organizations` holds the new row (check in Supabase; there is no audit viewer yet)",
+        "An `audit_log` row was written for the change, with action `member_organizations_updated`",
+        "The bishop cannot edit a Sunday — the controls are **absent**, not disabled",
+        "The counselor cannot edit a Sunday either, though the override never named that role",
+        "The bishop can still reach `/admin/users` — `admin.*` is locked and the override did not",
+        "No console errors on any of the five page loads"
+      ],
+      "seedCommand": "npm run seed -- auth/scenario-014-ward-role-access-override"
     },
     {
       "id": "calendar:scenario-010-fast-sunday-shift",

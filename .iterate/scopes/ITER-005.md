@@ -1,7 +1,8 @@
 # ITER-005: Ward Role-Access Overrides Are Ignored by 25 of 62 Permission Checks
 
 **Type:** Modification
-**Status:** Backlogged
+**Status:** In Progress
+**Plan:** plans/role-access-overrides.md
 **Created:** 2026-08-22
 
 ## Summary
@@ -120,3 +121,18 @@ forgets to resolve role access **fails to compile**.
 - Does the bishop/counselor equivalence (CLAUDE.md §7) survive overrides? Nothing currently stops
   an override granting the bishop something a counselor lacks, which the project forbids
   everywhere else.
+
+**All three answered on 2026-08-22 during planning.** See
+[plans/role-access-overrides.md](../../plans/role-access-overrides.md) §Decisions taken before planning.
+
+1. **Only some.** `admin.*` and `sacrament.*` are locked in both directions via a derived
+   `NON_OVERRIDABLE_PERMISSIONS` list. It belongs in `lib/auth/permissions.ts`, not `types/domain.ts`
+   — `ADMIN_PERMISSIONS` lives there, not in domain.ts. Sharper than this scope recorded:
+   `lib/auth/adminUsers.ts` and `lib/auth/youthAccounts.ts` write with the **service-role client**,
+   so `assertCan` is the only boundary and widening `admin.manage_users` is self-escalation to bishop.
+   Locking removal too makes Phase 11's "never remove the last bishopric member's admin access"
+   guard structural.
+2. **Neither — add/remove deltas.** Replace-semantics means a ward with an override never receives
+   the ~30 permissions Phases 5–12 will add. Deltas resolve against current defaults. Migration cost
+   is zero because nothing writes `role_access` yet.
+3. **Yes, enforced in `mergeRoleAccess`.** A delta naming `bishop` or `counselor` applies to both.
