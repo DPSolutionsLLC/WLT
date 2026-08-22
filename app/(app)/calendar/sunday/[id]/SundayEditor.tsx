@@ -35,6 +35,7 @@ const WARNING_TITLES: Record<CalendarChangeReason, string> = {
   meeting_cancelled: "This cancels a sacrament meeting",
   fast_sunday_set: "This Sunday becomes Fast Sunday",
   slots_reduced: "Fewer speaking slots than speakers",
+  conducting_reshuffled: "Who conducts is about to change",
 };
 
 type PatchResponse = {

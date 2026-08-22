@@ -24,7 +24,11 @@ import {
 } from "@/lib/calendar/queries";
 import { listMembers } from "@/lib/roster/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { MEMBER_STATUSES, SUNDAY_TYPE_LABELS } from "@/types/domain";
+import {
+  holdsSacramentMeeting,
+  MEMBER_STATUSES,
+  SUNDAY_TYPE_LABELS,
+} from "@/types/domain";
 
 // params is a Promise in Next 16, typed explicitly rather than with the generated PageProps
 // helper — that only exists after a build (plans/retros/foundation-a-scaffold.md).
@@ -51,6 +55,10 @@ export default async function SundayDetailPage({ params }: SundayDetailPageProps
 
   const canManage = can(user, "calendar.manage", roleAccess);
   const canSeeSpeakers = can(user, "talks.view", roleAccess);
+
+  // Read once and passed down. Every row that would otherwise show a conductor has to answer the
+  // same question, and answering it per row is how two of them come to disagree.
+  const holdsMeeting = holdsSacramentMeeting(sunday.type);
 
   const bishopricUsers = await listBishopricUsers(user.wardId, supabase);
   const bishopricNames = conductingNameMap(bishopricUsers);
@@ -135,6 +143,7 @@ export default async function SundayDetailPage({ params }: SundayDetailPageProps
               <ConductingLabel
                 conductingUserId={sunday.conductingUserId}
                 names={bishopricNames}
+                holdsMeeting={holdsMeeting}
               />
             </dd>
           </div>
@@ -189,6 +198,7 @@ export default async function SundayDetailPage({ params }: SundayDetailPageProps
             sundayId={sunday.id}
             rows={orgConductingRows}
             names={orgLeadershipNames}
+            holdsMeeting={holdsMeeting}
           />
         </Card>
       )}

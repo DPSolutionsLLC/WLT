@@ -13,6 +13,10 @@ const CLASSES: Record<SundayType, string> = {
   stake_conference: "border-warning bg-surface text-warning",
   general_conference: "border-warning bg-surface text-warning",
   holiday: "border-border bg-surface text-muted",
+  // Distinct from the two `warning` types, which now form the no-meeting group, and from
+  // fast_sunday, which is the same colour but adds font-semibold. A ward conference holds a
+  // completely ordinary meeting, so it must not read as a cancellation.
+  ward_conference: "border-primary bg-surface text-primary",
   special: "border-success bg-surface text-success",
 };
 

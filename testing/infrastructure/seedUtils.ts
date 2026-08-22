@@ -1040,6 +1040,11 @@ export const NOTIFICATION_TRIGGERS: Array<{ key: string; defaultRoles: Role[] }>
   { key: "sunday_confirmation_request", defaultRoles: ["bishop", "counselor", "executive_secretary"] },
   { key: "issue_flagged_post_sunday", defaultRoles: ["bishop", "counselor"] },
   { key: "appreciation_comments_ready", defaultRoles: ["bishop", "counselor"] },
+  // A calendar change voided planning work. Migration 025 added this key and
+  // supabase/seed/notification_triggers.sql has carried it since; this list had not, so every
+  // harness ward silently dropped the notification and logged "Unknown notification trigger".
+  // Surfaced by scenario 015, the first walkthrough to confirm a cancellation.
+  { key: "assignment_reverted", defaultRoles: ["bishop", "counselor"] },
   { key: "admin_setting_changed", defaultRoles: ["bishop", "counselor"] },
   {
     key: "org_conducting_rotation_changed",

@@ -16,10 +16,13 @@ import {
 import { notifyOrgLeadership } from "@/lib/notifications/notifyOrgLeadership";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { sundayOrgConductingSchema } from "@/lib/validation/calendar";
+import { holdsSacramentMeeting } from "@/types/domain";
 
 const sundayIdSchema = z.uuid("That Sunday id is not valid.");
 
 const NOT_IN_WARD = "That Sunday is not on your ward's calendar.";
+
+const NO_MEETING = "That Sunday holds no meeting, so no organization conducts.";
 
 // One organization's conductor for one Sunday. Deliberately ONE organization per request: a bulk
 // save over six organizations makes a partial failure impossible to report honestly, so the UI
@@ -58,6 +61,17 @@ export async function PATCH(
     const sunday = await getSunday(user.wardId, sundayId, supabase);
     if (!sunday) {
       return NextResponse.json({ error: NOT_IN_WARD }, { status: 404 });
+    }
+
+    // 409, not 403. The caller's permissions are fine — the Sunday's STATE is what refuses, and a
+    // 403 would send them to an administrator who cannot help.
+    //
+    // This check is the enforcement, not a convenience. sundays has a CHECK constraint for the
+    // equivalent rule; sunday_org_conducting deliberately has none, because a constraint there
+    // cannot see the Sunday's type and this repo has no triggers (migration 027, Part 3). That
+    // makes this route and lib/calendar/queries.ts the only things keeping the rule.
+    if (!holdsSacramentMeeting(sunday.type)) {
+      return NextResponse.json({ error: NO_MEETING }, { status: 409 });
     }
 
     // Read before writing so the notification fires on a REAL change only, matching how

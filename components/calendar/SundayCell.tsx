@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ConductingLabel } from "@/components/calendar/ConductingLabel";
 import { SundayTypeBadge } from "@/components/calendar/SundayTypeBadge";
 import type { Sunday } from "@/lib/calendar/queries";
+import { holdsSacramentMeeting } from "@/types/domain";
 
 // The three regions Phase 4 fills, as REAL optional props rather than a comment promising a
 // refactor. They are `ReactNode` so Phase 4 owns what goes in them, and they render nothing when
@@ -67,6 +68,7 @@ export function SundayCell({
         <ConductingLabel
           conductingUserId={sunday.conductingUserId}
           names={conductingNames}
+          holdsMeeting={holdsSacramentMeeting(sunday.type)}
         />
       </p>
 

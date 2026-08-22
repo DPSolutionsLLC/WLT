@@ -7,6 +7,7 @@ import {
 import { SundayTypeBadge } from "@/components/calendar/SundayTypeBadge";
 import { formatSundayLabel } from "@/lib/calendar/dates";
 import type { Sunday } from "@/lib/calendar/queries";
+import { holdsSacramentMeeting } from "@/types/domain";
 
 export type SundayCardProps = SundayReservedRegions & {
   sunday: Sunday;
@@ -42,6 +43,7 @@ export function SundayCard({
         <ConductingLabel
           conductingUserId={sunday.conductingUserId}
           names={conductingNames}
+          holdsMeeting={holdsSacramentMeeting(sunday.type)}
         />
       </p>
 

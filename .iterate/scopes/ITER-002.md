@@ -1,7 +1,10 @@
 # ITER-002: No Conductor on Sundays With No Meeting, and Skip Them in the Rotation
 
 **Type:** Modification
-**Status:** Backlogged
+**Status:** Completed
+**Plan:** plans/sunday-types-meeting-split.md
+**Completed:** 2026-08-22
+**Commit:** 39f1f61
 **Created:** 2026-08-19
 
 ## Summary

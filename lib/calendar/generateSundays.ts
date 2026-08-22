@@ -6,7 +6,7 @@ import {
 } from "@/lib/calendar/dates";
 import { resolveFastSunday } from "@/lib/calendar/resolveFastSunday";
 import { FALLBACK_SPEAKING_SLOTS } from "@/lib/calendar/wardCalendarSettings";
-import type { SundayType } from "@/types/domain";
+import { holdsSacramentMeeting, type SundayType } from "@/types/domain";
 
 // Pure: a date range in, the rows that should exist out. No ids — ids do not exist until the rows
 // are inserted — no Date.now(), and no I/O. lib/calendar/queries.ts is what turns this into an
@@ -24,7 +24,10 @@ export type GeneratedSunday = {
 // before and will again. It is pre-marked anyway for one reason: general conference DISPLACES
 // FAST SUNDAY, and a calendar that generates a month with Fast Sunday in the wrong place makes
 // every downstream speaker assignment wrong before anybody looks at it.
-function isGeneralConference(date: DateOnly): boolean {
+//
+// Exported because lib/calendar/meetingSeries.ts needs the same prediction for months that have
+// no rows yet, and two copies of a rule this load-bearing would drift.
+export function isGeneralConference(date: DateOnly): boolean {
   const parsed = parseDateOnly(date);
   const month = parsed.getUTCMonth();
   const isAprilOrOctober = month === 3 || month === 9;
@@ -40,11 +43,17 @@ export function generateSundays(
   to: DateOnly,
   defaultSpeakingSlots: number = FALLBACK_SPEAKING_SLOTS,
 ): GeneratedSunday[] {
-  const generated: GeneratedSunday[] = sundaysInRange(from, to).map((date) =>
-    isGeneralConference(date)
-      ? { date, type: "general_conference", speakingSlots: 0 }
-      : { date, type: "standard", speakingSlots: defaultSpeakingSlots },
-  );
+  const generated: GeneratedSunday[] = sundaysInRange(from, to).map((date) => {
+    const type: SundayType = isGeneralConference(date) ? "general_conference" : "standard";
+
+    // Keyed on the predicate rather than on the name of one type, so a future no-meeting type
+    // gets zero speaking slots without anyone remembering to come back to this line.
+    return {
+      date,
+      type,
+      speakingSlots: holdsSacramentMeeting(type) ? defaultSpeakingSlots : 0,
+    };
+  });
 
   const byMonth = new Map<string, GeneratedSunday[]>();
   for (const sunday of generated) {

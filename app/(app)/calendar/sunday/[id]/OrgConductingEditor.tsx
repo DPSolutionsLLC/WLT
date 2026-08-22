@@ -34,6 +34,16 @@ export type OrgConductingEditorProps = {
   sundayId: string;
   rows: OrgConductingRow[];
   names: Record<string, string>;
+  // False on a Sunday that holds no sacrament meeting. Every row then renders read-only, with no
+  // select and no Save button at all — there is no block that day, and a disabled control that
+  // reads as an outstanding task is the pattern the talk pipeline already rejected for waived
+  // contact stages.
+  //
+  // Resolved by the PAGE and passed in. This is a client component, so it must not import from
+  // lib/calendar/queries.ts — a server-only import here passes both typecheck and lint and only
+  // fails at `npm run build` (plans/retros/roster-b-picker-and-orgs.md). holdsSacramentMeeting()
+  // lives in types/domain.ts and would be safe to call, but the page has already decided.
+  holdsMeeting: boolean;
 };
 
 const SELECT_CLASSES =
@@ -41,18 +51,27 @@ const SELECT_CLASSES =
   "text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 " +
   "focus-visible:outline-primary";
 
-export function OrgConductingEditor({ sundayId, rows, names }: OrgConductingEditorProps) {
+export function OrgConductingEditor({
+  sundayId,
+  rows,
+  names,
+  holdsMeeting,
+}: OrgConductingEditorProps) {
   return (
     <ul className="flex flex-col gap-4">
       {rows.map((row) => (
         <li key={row.orgId} className="flex flex-col gap-1.5">
-          {row.canManage ? (
+          {row.canManage && holdsMeeting ? (
             <EditableRow sundayId={sundayId} row={row} />
           ) : (
             <div className="flex flex-col gap-0.5 md:flex-row md:gap-3">
               <span className="text-sm text-muted md:w-40">{row.organizationName}</span>
               <span className="text-sm">
-                <ConductingLabel conductingUserId={row.userId} names={names} />
+                <ConductingLabel
+                  conductingUserId={row.userId}
+                  names={names}
+                  holdsMeeting={holdsMeeting}
+                />
               </span>
             </div>
           )}

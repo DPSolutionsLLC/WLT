@@ -103,6 +103,47 @@ describe("resolveFastSunday", () => {
     ).toBeNull();
   });
 
+  // ward_conference is the type that proved FAST_SUNDAY_DISPLACING_TYPES and
+  // NO_MEETING_SUNDAY_TYPES had to be two lists. resolveFastSunday() reads the FIRST one, whose
+  // meaning did not change — it simply gained a member — so this file needed no change beyond
+  // proving the new member behaves like the others.
+  it("shifts past a ward conference on the first Sunday", () => {
+    expect(resolveFastSunday(month({ "2026-03-01": "ward_conference" }))).toBe(
+      "sunday-2026-03-08",
+    );
+  });
+
+  it("shifts past a ward conference and a stake conference together", () => {
+    expect(
+      resolveFastSunday(
+        month({
+          "2026-03-01": "ward_conference",
+          "2026-03-08": "stake_conference",
+        }),
+      ),
+    ).toBe("sunday-2026-03-15");
+  });
+
+  // The other half of the split, re-proved: `holiday` still displaces Fast Sunday even though it
+  // now holds a sacrament meeting. Displacing and cancelling are different questions.
+  it("still shifts past a holiday on the first Sunday", () => {
+    expect(resolveFastSunday(month({ "2026-03-01": "holiday" }))).toBe("sunday-2026-03-08");
+  });
+
+  it("returns null for a month of nothing but displacing types", () => {
+    expect(
+      resolveFastSunday(
+        month({
+          "2026-03-01": "ward_conference",
+          "2026-03-08": "holiday",
+          "2026-03-15": "stake_conference",
+          "2026-03-22": "general_conference",
+          "2026-03-29": "ward_conference",
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("returns null for an empty month", () => {
     expect(resolveFastSunday([])).toBeNull();
   });

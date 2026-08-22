@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { isSunday, monthOf } from "@/lib/calendar/dates";
-import { generateSundays, type GeneratedSunday } from "@/lib/calendar/generateSundays";
+import {
+  generateSundays,
+  isGeneralConference,
+  type GeneratedSunday,
+} from "@/lib/calendar/generateSundays";
+import { holdsSacramentMeeting } from "@/types/domain";
 
 const YEAR_2026 = generateSundays("2026-01-01", "2026-12-31");
 
@@ -10,6 +15,26 @@ function fastSundayOf(month: string, rows: GeneratedSunday[] = YEAR_2026): strin
     null
   );
 }
+
+// Exported so lib/calendar/meetingSeries.ts can make the same prediction for months that have no
+// rows yet. Two copies of a rule this load-bearing would drift.
+describe("isGeneralConference", () => {
+  it("is true for the first Sunday of April and October only", () => {
+    expect(isGeneralConference("2026-04-05")).toBe(true);
+    expect(isGeneralConference("2026-10-04")).toBe(true);
+
+    expect(isGeneralConference("2026-04-12")).toBe(false);
+    expect(isGeneralConference("2026-10-11")).toBe(false);
+    expect(isGeneralConference("2026-01-04")).toBe(false);
+  });
+
+  // Day <= 7 rather than "the first Sunday", so it holds for any year's calendar.
+  it("accepts any date in the first seven days of those months", () => {
+    expect(isGeneralConference("2027-04-04")).toBe(true);
+    expect(isGeneralConference("2027-10-03")).toBe(true);
+    expect(isGeneralConference("2027-10-10")).toBe(false);
+  });
+});
 
 describe("generateSundays", () => {
   it("produces every Sunday of 2026 and nothing else", () => {
@@ -74,6 +99,24 @@ describe("generateSundays", () => {
       "2026-03-29",
     ]);
     expect(fastSundayOf("2026-03", partial)).toBe("2026-03-15");
+  });
+
+  // The slot count is keyed on holdsSacramentMeeting(), not on the NAME of one type, so a future
+  // no-meeting type gets zero slots without anyone remembering to come back to that line.
+  it("gives a generated general conference no speaking slots, through the predicate", () => {
+    const conferences = YEAR_2026.filter((row) => row.type === "general_conference");
+
+    expect(conferences).toHaveLength(2);
+    for (const row of conferences) {
+      expect(holdsSacramentMeeting(row.type), row.date).toBe(false);
+      expect(row.speakingSlots, row.date).toBe(0);
+    }
+  });
+
+  // Unlike general conference, ward conference has no fixed date — the stake schedules it — so it
+  // is never predicted. It only ever exists because somebody set it (ITER-003 §Scope Notes).
+  it("never predicts a ward conference", () => {
+    expect(YEAR_2026.some((row) => row.type === "ward_conference")).toBe(false);
   });
 
   it("returns nothing for a range containing no Sunday", () => {

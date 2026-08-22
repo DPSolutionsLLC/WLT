@@ -1,11 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { BISHOPRIC_ROLES } from "@/lib/auth/permissions";
 import {
+  formatDateOnly,
   lastDayOfMonth,
   monthOf,
   monthStart,
   type DateOnly,
 } from "@/lib/calendar/dates";
+import {
+  buildMeetingSeries,
+  type MeetingSundayEntry,
+} from "@/lib/calendar/meetingSeries";
 import { generateSundays } from "@/lib/calendar/generateSundays";
 import {
   activeRotation,
@@ -29,6 +34,7 @@ import type { Database, Json } from "@/types/database";
 import {
   ASSIGNMENT_TYPES,
   FAST_SUNDAY_DISPLACING_TYPES,
+  holdsSacramentMeeting,
   ORGANIZATION_TYPES,
   ROTATION_CADENCES,
   ROTATION_ELIGIBLE_ORG_TYPES,
@@ -137,7 +143,10 @@ export type CalendarChangeReason =
   // The edited Sunday becomes Fast Sunday, so its speaking slots go to zero.
   | "fast_sunday_set"
   // speakingSlots is cut below the number of speakers already in those slots.
-  | "slots_reduced";
+  | "slots_reduced"
+  // The only consequence is that later Sundays change conductor. Nobody's speaking assignment is
+  // at risk, but who conducts is about to move for people who have already been told.
+  | "conducting_reshuffled";
 
 export type CalendarChangeWarning = {
   reason: CalendarChangeReason;
@@ -150,11 +159,22 @@ export type CalendarChangeWarning = {
   fromDate: DateOnly | null;
   assignmentCount: number;
   prayerCount: number;
+  // How many LATER Sundays change conductor if this is confirmed. Carried on whichever warning is
+  // shown rather than queued as a second one: confirming applies the whole patch, so a
+  // consequence the user was not told about would break that promise.
+  conductingReshiftCount: number;
+  orgConductingReshiftCount: number;
   message: string;
 };
 
 export type UpdateSundayResult =
-  | { status: "applied"; sunday: Sunday; assignmentsReverted: number }
+  | {
+      status: "applied";
+      sunday: Sunday;
+      assignmentsReverted: number;
+      conductingReshiftCount: number;
+      orgConductingReshiftCount: number;
+    }
   | { status: "needs_confirmation"; warning: CalendarChangeWarning };
 
 export type GenerateRangeResult = {
@@ -199,6 +219,11 @@ const SUNDAY_COLUMNS =
 const ROTATION_COLUMNS = "id, position, user_id, effective_from, cadence, org_id";
 
 const ORG_CONDUCTING_COLUMNS = "id, sunday_id, org_id, user_id";
+
+// The upper bound of the re-shift horizon. listSundays() takes a range, and "every Sunday after
+// this one" needs an end date to express. Far enough out that no ward will ever have generated
+// past it, and bounded so the query stays on the (ward_id, date) index.
+const RESHIFT_HORIZON_END = "2999-12-31";
 
 // Thrown rather than returned because it is a database constraint refusing a write, not a
 // business decision the caller can inspect. The route maps it to 409; nothing else catches it.
@@ -509,6 +534,77 @@ export async function setSundayOrgConducting(
   return { orgId: data.org_id, userId: data.user_id };
 }
 
+// Two columns, on ONE string literal. Never a `+` concatenation across lines: that widens the
+// type to `string`, defeats supabase-js's literal-type parsing of the select list, and silently
+// turns every mapped row into GenericStringError (plans/retros/calendar-a-rules-and-api.md).
+const SUNDAY_TYPE_COLUMNS = "date, type";
+
+// Deliberately NOT listSundays(). The range a conducting resolution needs can reach back years,
+// to whenever a rotation took effect, and counting turns needs the date and the type of every
+// Sunday since — not the notes, slot configs and presiding overrides of all of them.
+async function readSundayTypes(
+  supabase: SupabaseClient<Database>,
+  wardId: string,
+  range: SundayRange,
+): Promise<Map<DateOnly, SundayType>> {
+  const { data, error } = await supabase
+    .from("sundays")
+    .select(SUNDAY_TYPE_COLUMNS)
+    .eq("ward_id", wardId)
+    .gte("date", range.from)
+    .lte("date", range.to);
+
+  if (error) {
+    console.error(`Could not read the Sunday types — ${error.message}`, { wardId, range });
+    throw new Error(`Could not read the calendar's Sunday types: ${error.message}`);
+  }
+
+  const types = new Map<DateOnly, SundayType>();
+  for (const row of data ?? []) {
+    types.set(
+      row.date,
+      toEnumValue(row.type, SUNDAY_TYPES, "sundays.type", "004_calendar.sql"),
+    );
+  }
+
+  return types;
+}
+
+// The meeting history a conducting resolution needs, widened to WHOLE MONTHS at both ends
+// because the monthly cadence decides whether a month is wholly dead and cannot do that from a
+// ragged range.
+//
+// `overrides` is how a type that is not stored yet reaches the walk: the candidates
+// generateSundayRange() is about to insert, and the projected type of a Sunday updateSunday() is
+// about to patch. Both must count in the same walk as the rows that already exist.
+async function seriesFor(
+  supabase: SupabaseClient<Database>,
+  wardId: string,
+  earliestAnchor: DateOnly,
+  latestTarget: DateOnly,
+  overrides?: ReadonlyMap<DateOnly, SundayType>,
+): Promise<MeetingSundayEntry[]> {
+  const from = monthStart(earliestAnchor);
+  const to = lastDayOfMonth(latestTarget);
+
+  const storedTypes = await readSundayTypes(supabase, wardId, { from, to });
+
+  if (overrides) {
+    for (const [date, type] of overrides) storedTypes.set(date, type);
+  }
+
+  return buildMeetingSeries(from, to, storedTypes);
+}
+
+// The earliest effectiveFrom among the rotation sets that could govern anything in this range.
+// The series has to start at least there, or the walk counts from the wrong place.
+function earliestAnchorFor(entries: RotationEntry[], fallback: DateOnly): DateOnly {
+  return entries.reduce(
+    (earliest, entry) => (entry.effectiveFrom < earliest ? entry.effectiveFrom : earliest),
+    fallback,
+  );
+}
+
 function toRotationEntries(rows: ConductingRotationRow[]): RotationEntry[] {
   return rows.map((row) => ({
     position: row.position,
@@ -523,11 +619,12 @@ function toRotationEntries(rows: ConductingRotationRow[]): RotationEntry[] {
 function conductingUserFor(
   entries: RotationEntry[],
   sundayDate: DateOnly,
+  series: MeetingSundayEntry[],
 ): string | null {
   const active = activeRotation(entries, sundayDate);
   if (active.length === 0) return null;
 
-  return resolveConductingUser(sundayDate, entries, active[0].effectiveFrom);
+  return resolveConductingUser(sundayDate, entries, active[0].effectiveFrom, series);
 }
 
 // One call to apply_fast_sunday() per month. The RULE runs here in TypeScript; the WRITE is the
@@ -592,11 +689,23 @@ async function populateConducting(
 
   const sundays = await listSundays(wardId, range, supabase);
 
+  const series = await seriesFor(
+    supabase,
+    wardId,
+    earliestAnchorFor(entries, range.from),
+    range.to,
+  );
+
   const byUser = new Map<string, string[]>();
   for (const sunday of sundays) {
     if (sunday.conductingUserId !== null) continue;
 
-    const userId = conductingUserFor(entries, sunday.date);
+    // A Sunday with no meeting never gets a conductor. resolveConductingUser() returns null for
+    // one anyway; skipping here says so at the call site too, and migration 027's CHECK would
+    // refuse the write loudly if either were wrong.
+    if (!holdsSacramentMeeting(sunday.type)) continue;
+
+    const userId = conductingUserFor(entries, sunday.date, series);
     if (userId === null) continue;
 
     const existing = byUser.get(userId);
@@ -624,6 +733,30 @@ async function populateConducting(
       });
       throw new Error(`Could not assign who conducts: ${error.message}`);
     }
+  }
+}
+
+// Removing an organization's conducting rows for Sundays that hold no meeting. Called from both
+// generation and the edit path, so the rule lives in one place.
+async function deleteOrgConductingFor(
+  supabase: SupabaseClient<Database>,
+  wardId: string,
+  sundayIds: string[],
+): Promise<void> {
+  if (sundayIds.length === 0) return;
+
+  const { error } = await supabase
+    .from("sunday_org_conducting")
+    .delete()
+    .eq("ward_id", wardId)
+    .in("sunday_id", sundayIds);
+
+  if (error) {
+    console.error(`Could not clear the organization conductors — ${error.message}`, {
+      wardId,
+      sundayCount: sundayIds.length,
+    });
+    throw new Error(`Could not clear who conducts for each organization: ${error.message}`);
   }
 }
 
@@ -662,6 +795,25 @@ async function populateOrgConducting(
   const sundays = await listSundays(wardId, range, supabase);
   if (sundays.length === 0) return;
 
+  // A Sunday with no meeting holds no organization meeting either, and the row's ABSENCE is how
+  // that is written down — a null user_id already means something else (this organization's
+  // rotation reaches this Sunday but the position is unfilled).
+  //
+  // Deleted as well as skipped: the Sunday may have become a stake conference after its month was
+  // generated, in which case the rows are already there. sundays has a CHECK for the equivalent
+  // rule; this table deliberately has none (migration 027, Part 3), so this is the enforcement.
+  const cancelled = sundays.filter((sunday) => !holdsSacramentMeeting(sunday.type));
+  if (cancelled.length > 0) {
+    await deleteOrgConductingFor(
+      supabase,
+      wardId,
+      cancelled.map((sunday) => sunday.id),
+    );
+  }
+
+  const meetingSundays = sundays.filter((sunday) => holdsSacramentMeeting(sunday.type));
+  if (meetingSundays.length === 0) return;
+
   const pending: Array<{
     ward_id: string;
     sunday_id: string;
@@ -672,7 +824,16 @@ async function populateOrgConducting(
   for (const [orgId, orgRows] of byOrg) {
     const entries = toRotationEntries(orgRows);
 
-    for (const sunday of sundays) {
+    // One series per organization: each rotation has its own anchor, so each counts turns from
+    // its own starting point over the same meeting history.
+    const series = await seriesFor(
+      supabase,
+      wardId,
+      earliestAnchorFor(entries, range.from),
+      range.to,
+    );
+
+    for (const sunday of meetingSundays) {
       const active = activeRotation(entries, sunday.date);
       if (active.length === 0) continue;
 
@@ -680,7 +841,7 @@ async function populateOrgConducting(
         ward_id: wardId,
         sunday_id: sunday.id,
         org_id: orgId,
-        user_id: resolveConductingUser(sunday.date, entries, active[0].effectiveFrom),
+        user_id: resolveConductingUser(sunday.date, entries, active[0].effectiveFrom, series),
       });
     }
   }
@@ -730,6 +891,21 @@ export async function generateSundayRange(
     await listConductingRotation(wardId, { orgId: null }, supabase),
   );
 
+  // The candidates are passed as overrides so the Sundays being inserted RIGHT NOW count in the
+  // same walk as the ones already stored. Without that, a range containing general conference
+  // would resolve its own conductors against a history that did not yet know it was cancelled.
+  const candidateTypes = new Map<DateOnly, SundayType>(
+    candidates.map((candidate) => [candidate.date, candidate.type]),
+  );
+
+  const series = await seriesFor(
+    supabase,
+    wardId,
+    earliestAnchorFor(rotationEntries, from),
+    to,
+    candidateTypes,
+  );
+
   const rows = candidates.map((candidate) => ({
     ward_id: wardId,
     date: candidate.date,
@@ -738,7 +914,7 @@ export async function generateSundayRange(
     conducting_user_id:
       rotationEntries.length === 0
         ? null
-        : conductingUserFor(rotationEntries, candidate.date),
+        : conductingUserFor(rotationEntries, candidate.date, series),
   }));
 
   // `ignoreDuplicates: true` is LOAD-BEARING. It makes this INSERT ... ON CONFLICT DO NOTHING,
@@ -828,7 +1004,14 @@ export async function ensureMonthGenerated(
     !existing.some((sunday) => sunday.type === "fast_sunday") &&
     existing.some((sunday) => !FAST_SUNDAY_DISPLACING_TYPES.includes(sunday.type));
 
-  const needsConducting = existing.some((sunday) => sunday.conductingUserId === null);
+  // Narrowed to Sundays that HOLD A MEETING, and that narrowing is load-bearing. A cancelled
+  // Sunday's conducting_user_id is now legitimately null forever — migration 027's CHECK refuses
+  // any other value. The un-narrowed test would therefore see every month containing general
+  // conference as half-generated and re-run two WRITE passes on every single page view of it,
+  // twice a year, permanently. That is exactly the class of bug calendar-c's retro is about.
+  const needsConducting = existing.some(
+    (sunday) => holdsSacramentMeeting(sunday.type) && sunday.conductingUserId === null,
+  );
 
   if (!needsFastSunday && !needsConducting) return existing;
 
@@ -846,6 +1029,19 @@ export async function ensureMonthGenerated(
   return listSundays(wardId, range, supabase);
 }
 
+// Fast Sunday has no speakers by definition, and a Sunday with no meeting has none because there
+// is no meeting. One expression rather than two special cases, so a future no-meeting type gets
+// the right answer without anyone remembering this line exists.
+async function speakingSlotsForType(
+  wardId: string,
+  type: SundayType,
+  supabase: SupabaseClient<Database>,
+): Promise<number> {
+  if (type === "fast_sunday" || !holdsSacramentMeeting(type)) return 0;
+
+  return readDefaultSpeakingSlots(wardId, supabase);
+}
+
 export async function createSunday(
   wardId: string,
   input: CreateSundayInput,
@@ -860,10 +1056,11 @@ export async function createSunday(
       date: input.date,
       type: input.type ?? "standard",
       notes: input.notes ?? null,
-      speaking_slots:
-        input.type === "fast_sunday"
-          ? 0
-          : await readDefaultSpeakingSlots(wardId, supabase),
+      speaking_slots: await speakingSlotsForType(
+        wardId,
+        input.type ?? "standard",
+        supabase,
+      ),
     })
     .select("id")
     .single();
@@ -1096,6 +1293,7 @@ function buildWarningMessage(
   date: DateOnly,
   assignmentCount: number,
   prayerCount: number,
+  reshift: { sacrament: number; organizations: number },
 ): string {
   const speakers = `${assignmentCount} speaking ${
     assignmentCount === 1 ? "assignment" : "assignments"
@@ -1118,15 +1316,275 @@ function buildWarningMessage(
     `${assignmentCount === 1 ? "it does" : "they do"} not count as a talk that was ` +
     `given.${prayers}`;
 
+  // APPENDED to whichever warning is shown, never queued as a second one. Confirming applies the
+  // whole patch, so a consequence the user was not told about would break that promise — and the
+  // existing code shows one warning at a time for exactly that reason.
+  const reshuffle = buildReshiftSentence(reshift);
+
   switch (reason) {
     case "fast_sunday_moved":
-      return `Fast Sunday would move to ${date}, which already has ${speakers}. ${ending}`;
+      return `Fast Sunday would move to ${date}, which already has ${speakers}. ${ending}${reshuffle}`;
     case "meeting_cancelled":
-      return `${date} would no longer hold a sacrament meeting, and it already has ${speakers}. ${ending}`;
+      return `${date} would no longer hold a sacrament meeting, and it already has ${speakers}. ${ending}${reshuffle}`;
     case "fast_sunday_set":
-      return `${date} would become Fast Sunday, which has no speakers, and it already has ${speakers}. ${ending}`;
+      return `${date} would become Fast Sunday, which has no speakers, and it already has ${speakers}. ${ending}${reshuffle}`;
     case "slots_reduced":
-      return `${date} would have fewer speaking slots than the ${speakers} already in them. ${ending}`;
+      return `${date} would have fewer speaking slots than the ${speakers} already in them. ${ending}${reshuffle}`;
+    // The re-shift is the ONLY consequence: nobody's speaking assignment is at risk, so there is
+    // no `ending` to append to and the sentence stands on its own.
+    case "conducting_reshuffled":
+      return `Changing ${date} re-shuffles the conducting rotation.${reshuffle}`;
+  }
+}
+
+// The sentence a re-shift adds. Leading space because it is appended to a finished sentence, and
+// empty when nothing moves so no caller has to remember to check first.
+function buildReshiftSentence(reshift: {
+  sacrament: number;
+  organizations: number;
+}): string {
+  if (reshift.sacrament === 0 && reshift.organizations === 0) return "";
+
+  const sundays = `${reshift.sacrament} later ${
+    reshift.sacrament === 1 ? "Sunday" : "Sundays"
+  }`;
+
+  const organizations =
+    reshift.organizations === 0
+      ? ""
+      : ` ${reshift.organizations} organization conducting ${
+          reshift.organizations === 1 ? "assignment" : "assignments"
+        } will move too.`;
+
+  if (reshift.sacrament === 0) {
+    return `${organizations} Sundays already past are left alone.`;
+  }
+
+  return ` Who conducts will also change on ${sundays}.${organizations} Sundays already past are left alone.`;
+}
+
+export type ConductingReshift = {
+  sundayId: string;
+  date: DateOnly;
+  userId: string | null;
+};
+
+export type OrgConductingReshift = ConductingReshift & { orgId: string };
+
+// Who conducts on LATER Sundays, recomputed as if this patch had already landed.
+//
+// Marking a Sunday cancelled after its month was generated has to re-resolve the Sundays after
+// it, or the skip would only ever work for general conference — which generateSundays() predicts
+// ahead of time — and never for stake conference, which is always hand-set after the fact and is
+// the case this exists for.
+//
+// THE COST, STATED PLAINLY: this can overwrite a per-Sunday conducting override. Migration 024
+// records that storage IS the override — there is no is_override flag — so nothing in the data
+// model distinguishes a conductor a human typed from one the rotation assigned. The mitigations
+// are that the user is warned first with an exact count and nothing is written until they
+// confirm, that only rows whose recomputed conductor DIFFERS are returned, and that the past is
+// never rewritten. A conducting_source column would let this protect hand-set conductors; that is
+// a known gap and deliberately not in this change.
+//
+// `today` is a PARAMETER, defaulted at the call boundary, never a new Date() in here — the
+// convention lib/calendar/dates.ts sets for every month helper, and what makes this testable
+// without freezing a clock.
+async function planConductingReshift(
+  supabase: SupabaseClient<Database>,
+  wardId: string,
+  editedDate: DateOnly,
+  projectedTypes: ReadonlyMap<DateOnly, SundayType>,
+  today: DateOnly,
+): Promise<{ sacrament: ConductingReshift[]; organizations: OrgConductingReshift[] }> {
+  // Strictly after the edited Sunday AND on or after today. The second half is what keeps the
+  // past intact: who conducted last March stays what it says, which is the doctrine
+  // conducting_user_id is a stored column for at all (03-calendar.md Step 3).
+  const horizonFrom = editedDate > today ? editedDate : today;
+
+  const laterSundays = (
+    await listSundays(wardId, { from: horizonFrom, to: RESHIFT_HORIZON_END }, supabase)
+  ).filter((sunday) => sunday.date > editedDate && sunday.date >= today);
+
+  const meetingSundays = laterSundays.filter((sunday) =>
+    holdsSacramentMeeting(sunday.type),
+  );
+
+  if (meetingSundays.length === 0) return { sacrament: [], organizations: [] };
+
+  const latestTarget = meetingSundays[meetingSundays.length - 1].date;
+  const allRotationRows = await listConductingRotation(wardId, {}, supabase);
+
+  const sacrament: ConductingReshift[] = [];
+  const bishopricEntries = toRotationEntries(
+    allRotationRows.filter((row) => row.orgId === null),
+  );
+
+  if (bishopricEntries.length > 0) {
+    const series = await seriesFor(
+      supabase,
+      wardId,
+      earliestAnchorFor(bishopricEntries, editedDate),
+      latestTarget,
+      projectedTypes,
+    );
+
+    for (const sunday of meetingSundays) {
+      const userId = conductingUserFor(bishopricEntries, sunday.date, series);
+      if (userId === sunday.conductingUserId) continue;
+
+      sacrament.push({ sundayId: sunday.id, date: sunday.date, userId });
+    }
+  }
+
+  const organizations = await planOrgConductingReshift(
+    supabase,
+    wardId,
+    allRotationRows,
+    meetingSundays,
+    editedDate,
+    latestTarget,
+    projectedTypes,
+  );
+
+  return { sacrament, organizations };
+}
+
+async function planOrgConductingReshift(
+  supabase: SupabaseClient<Database>,
+  wardId: string,
+  allRotationRows: ConductingRotationRow[],
+  meetingSundays: Sunday[],
+  editedDate: DateOnly,
+  latestTarget: DateOnly,
+  projectedTypes: ReadonlyMap<DateOnly, SundayType>,
+): Promise<OrgConductingReshift[]> {
+  const byOrg = new Map<string, ConductingRotationRow[]>();
+  for (const row of allRotationRows) {
+    if (row.orgId === null) continue;
+    const existing = byOrg.get(row.orgId);
+    if (existing) {
+      existing.push(row);
+    } else {
+      byOrg.set(row.orgId, [row]);
+    }
+  }
+
+  if (byOrg.size === 0) return [];
+
+  const sundayIds = meetingSundays.map((sunday) => sunday.id);
+
+  const { data, error } = await supabase
+    .from("sunday_org_conducting")
+    .select(ORG_CONDUCTING_COLUMNS)
+    .eq("ward_id", wardId)
+    .in("sunday_id", sundayIds);
+
+  if (error) {
+    console.error(`Could not read the organization conductors — ${error.message}`, {
+      wardId,
+      sundayCount: sundayIds.length,
+    });
+    throw new Error(`Could not read who conducts for each organization: ${error.message}`);
+  }
+
+  // Only rows that EXIST are re-shifted. A (Sunday, organization) pair with no row means that
+  // organization's rotation does not reach that Sunday, which this change must not invent.
+  const stored = new Map<string, string | null>();
+  for (const row of data ?? []) stored.set(orgRowKey(row.sunday_id, row.org_id), row.user_id);
+
+  const reshift: OrgConductingReshift[] = [];
+
+  for (const [orgId, orgRows] of byOrg) {
+    const entries = toRotationEntries(orgRows);
+
+    const series = await seriesFor(
+      supabase,
+      wardId,
+      earliestAnchorFor(entries, editedDate),
+      latestTarget,
+      projectedTypes,
+    );
+
+    for (const sunday of meetingSundays) {
+      const key = orgRowKey(sunday.id, orgId);
+      if (!stored.has(key)) continue;
+
+      const active = activeRotation(entries, sunday.date);
+      if (active.length === 0) continue;
+
+      const userId = resolveConductingUser(
+        sunday.date,
+        entries,
+        active[0].effectiveFrom,
+        series,
+      );
+      if (userId === stored.get(key)) continue;
+
+      reshift.push({ sundayId: sunday.id, date: sunday.date, orgId, userId });
+    }
+  }
+
+  return reshift;
+}
+
+function orgRowKey(sundayId: string, orgId: string): string {
+  return `${sundayId}:${orgId}`;
+}
+
+// Applying the plan the user was warned about, and EXACTLY that plan — the rows written are the
+// ones counted, from one computation (the discipline Pitfall 4 records).
+async function applyConductingReshift(
+  supabase: SupabaseClient<Database>,
+  wardId: string,
+  plan: { sacrament: ConductingReshift[]; organizations: OrgConductingReshift[] },
+): Promise<void> {
+  // Batched by user id, the way populateConducting() already does: a year of Sundays is three
+  // round trips rather than fifty-two.
+  const byUser = new Map<string | null, string[]>();
+  for (const row of plan.sacrament) {
+    const existing = byUser.get(row.userId);
+    if (existing) {
+      existing.push(row.sundayId);
+    } else {
+      byUser.set(row.userId, [row.sundayId]);
+    }
+  }
+
+  for (const [userId, sundayIds] of byUser) {
+    const { error } = await supabase
+      .from("sundays")
+      .update({ conducting_user_id: userId })
+      .eq("ward_id", wardId)
+      .in("id", sundayIds);
+
+    if (error) {
+      console.error(`Could not re-shift who conducts — ${error.message}`, {
+        wardId,
+        userId,
+        sundayCount: sundayIds.length,
+      });
+      throw new Error(`Could not update who conducts on the later Sundays: ${error.message}`);
+    }
+  }
+
+  if (plan.organizations.length === 0) return;
+
+  const { error } = await supabase.from("sunday_org_conducting").upsert(
+    plan.organizations.map((row) => ({
+      ward_id: wardId,
+      sunday_id: row.sundayId,
+      org_id: row.orgId,
+      user_id: row.userId,
+    })),
+    { onConflict: "ward_id,sunday_id,org_id" },
+  );
+
+  if (error) {
+    console.error(`Could not re-shift the organization conductors — ${error.message}`, {
+      wardId,
+      rowCount: plan.organizations.length,
+    });
+    throw new Error(`Could not update who conducts for each organization: ${error.message}`);
   }
 }
 
@@ -1136,11 +1594,17 @@ function assessEditedSunday(
   input: UpdateSundayInput,
 ): { reason: CalendarChangeReason; aboveSlot: number | null } | null {
   const nextType = input.type ?? before.type;
-  const wasDisplaced = FAST_SUNDAY_DISPLACING_TYPES.includes(before.type);
-  const willBeDisplaced = FAST_SUNDAY_DISPLACING_TYPES.includes(nextType);
+
+  // holdsSacramentMeeting(), NOT FAST_SUNDAY_DISPLACING_TYPES. These two questions used to share
+  // one list, and reading the wrong one here is what made marking a Sunday `holiday` warn that
+  // its speakers were being orphaned when the ward still meets — and what would have made
+  // `ward_conference` cancel a meeting it holds perfectly normally. The locals are named for the
+  // question being asked so the next reader cannot mistake which list they wanted.
+  const heldMeeting = holdsSacramentMeeting(before.type);
+  const willHoldMeeting = holdsSacramentMeeting(nextType);
 
   // The meeting itself goes away. Everything on it is at risk, prayers included.
-  if (willBeDisplaced && !wasDisplaced) {
+  if (heldMeeting && !willHoldMeeting) {
     return { reason: "meeting_cancelled", aboveSlot: null };
   }
 
@@ -1169,7 +1633,7 @@ export async function updateSunday(
   wardId: string,
   sundayId: string,
   input: UpdateSundayInput,
-  opts?: { confirm?: boolean },
+  opts?: { confirm?: boolean; today?: DateOnly },
   client?: SupabaseClient<Database>,
 ): Promise<UpdateSundayResult | null> {
   const supabase = await resolveClient(client);
@@ -1177,8 +1641,16 @@ export async function updateSunday(
   const before = await getSunday(wardId, sundayId, supabase);
   if (!before) return null;
 
+  // Defaulted HERE, at the call boundary, so planConductingReshift() stays a pure function of its
+  // arguments and a test can hand it a date rather than freezing a clock.
+  const today = opts?.today ?? formatDateOnly(new Date());
+
   const changesResolution =
     input.type !== undefined || input.fastSundayPinned !== undefined;
+
+  const nextType = input.type ?? before.type;
+  const heldMeeting = holdsSacramentMeeting(before.type);
+  const willHoldMeeting = holdsSacramentMeeting(nextType);
 
   const start = monthStart(before.date);
   const monthRange = { from: start, to: lastDayOfMonth(start) };
@@ -1242,6 +1714,29 @@ export async function updateSunday(
     }
   }
 
+  // The re-shift is planned BEFORE any write, alongside the at-risk assessment, and the plan that
+  // is stored here is the plan that gets applied. The count that warns and the rows that change
+  // therefore come from one computation rather than two that can disagree (Pitfall 4).
+  //
+  // Only a type change can move who conducts: it is the only patch field that can change whether
+  // a Sunday holds a meeting, which is what the rotation now counts.
+  const reshiftPlan =
+    input.type !== undefined && input.type !== before.type
+      ? await planConductingReshift(
+          supabase,
+          wardId,
+          before.date,
+          new Map([[before.date, nextType]]),
+          today,
+        )
+      : { sacrament: [], organizations: [] };
+
+  const reshiftCounts = {
+    sacrament: reshiftPlan.sacrament.length,
+    organizations: reshiftPlan.organizations.length,
+  };
+  const reshiftTotal = reshiftCounts.sacrament + reshiftCounts.organizations;
+
   // Counted through the service client so a ward_secretary sees the same warning a bishop does.
   const counted = [];
   for (const risk of atRisk) {
@@ -1256,27 +1751,40 @@ export async function updateSunday(
 
   // Only assignments block. Prayers are reported alongside for context and never stop a change
   // (calendar-a Decision 4).
-  if (counted.length > 0 && opts?.confirm !== true) {
+  if ((counted.length > 0 || reshiftTotal > 0) && opts?.confirm !== true) {
     // One warning at a time, the edited Sunday first because it is the change the user actually
     // made. Confirming applies the whole patch, so a second warning is not shown for the same
-    // submission — the message names what is being returned to planning.
+    // submission — the message names what is being returned to planning, and the re-shift rides
+    // inside that same sentence.
+    //
+    // When nothing is at risk the re-shift stands alone: the user is still told that who conducts
+    // is about to move for people who have already been asked.
     const first = counted[0];
+
+    const warned = first
+      ? { reason: first.reason, sunday: first.sunday, fromDate: first.fromDate,
+          assignmentCount: first.assignmentCount, prayerCount: first.prayerCount }
+      : { reason: "conducting_reshuffled" as const, sunday: before, fromDate: null,
+          assignmentCount: 0, prayerCount: 0 };
 
     return {
       status: "needs_confirmation",
       warning: {
-        reason: first.reason,
-        sundayId: first.sunday.id,
-        date: first.sunday.date,
+        reason: warned.reason,
+        sundayId: warned.sunday.id,
+        date: warned.sunday.date,
         monthStart: start,
-        fromDate: first.fromDate,
-        assignmentCount: first.assignmentCount,
-        prayerCount: first.prayerCount,
+        fromDate: warned.fromDate,
+        assignmentCount: warned.assignmentCount,
+        prayerCount: warned.prayerCount,
+        conductingReshiftCount: reshiftCounts.sacrament,
+        orgConductingReshiftCount: reshiftCounts.organizations,
         message: buildWarningMessage(
-          first.reason,
-          first.sunday.date,
-          first.assignmentCount,
-          first.prayerCount,
+          warned.reason,
+          warned.sunday.date,
+          warned.assignmentCount,
+          warned.prayerCount,
+          reshiftCounts,
         ),
       },
     };
@@ -1295,17 +1803,68 @@ export async function updateSunday(
     );
   }
 
+  // What the speaking slots become. An explicit count always wins; otherwise this is the ONE
+  // place that decides, so the fast-Sunday case and the no-meeting case cannot drift apart.
+  //
+  // The restore branch covers two ways a Sunday can arrive at "it holds an ordinary meeting now
+  // and it did not before":
+  //
+  //   general_conference -> ward_conference   it had no meeting at all
+  //   fast_sunday        -> ward_conference   it met, but Fast Sunday has no speakers
+  //
+  // The second one CANNOT be left to apply_fast_sunday(). That function restores the ward default
+  // only on rows still typed 'fast_sunday' (migration 023, Step 1), and the UPDATE below changes
+  // the type in the same statement — so by the time it runs there is nothing for it to match, and
+  // the Sunday would keep 0 slots forever. Before ward_conference existed the same gap was
+  // reachable through `special` and simply never came up.
+  //
+  // The known limitation is inherited deliberately: a HAND-SET slot count does not survive the
+  // round trip, exactly as migration 023 documents for the path it owns
+  // (plans/retros/calendar-a-rules-and-api.md).
+  const willBeFastSunday = nextType === "fast_sunday";
+  const stoppedBeingFastSunday = before.type === "fast_sunday" && !willBeFastSunday;
+
+  let speakingSlotsPatch: number | undefined;
+
+  if (input.speakingSlots !== undefined) {
+    speakingSlotsPatch = input.speakingSlots;
+  } else if (heldMeeting && !willHoldMeeting) {
+    speakingSlotsPatch = 0;
+  } else if (willHoldMeeting && !willBeFastSunday && (!heldMeeting || stoppedBeingFastSunday)) {
+    speakingSlotsPatch = await readDefaultSpeakingSlots(wardId, supabase);
+  }
+
+  // Who conducts, decided ONCE — and the no-meeting rule OUTRANKS the submitted value.
+  //
+  // This has to be one decision rather than two spreads into the same object. SundayEditor sends
+  // the whole form on every save, so a patch that changes the type to a conference arrives WITH
+  // the conductor still selected in the dropdown; a later spread of input.conductingUserId then
+  // silently overwrote the clear and the write hit migration 027's CHECK. A user cannot fix that
+  // by choosing "Nobody" first, because the type and the conductor travel together.
+  //
+  // The precedence is not a convenience: a Sunday that holds no sacrament meeting HAS no
+  // conductor, whatever the form happened to be showing when it was submitted.
+  //
+  // It is cleared IN THE SAME STATEMENT as the type change, or the CHECK raises — which is the
+  // intended behaviour, a loud failure rather than a silent wrong answer, and why this cannot be
+  // a tidy second UPDATE afterwards.
+  const clearsConductor = heldMeeting && !willHoldMeeting;
+
+  const conductingUserIdPatch = clearsConductor
+    ? null
+    : input.conductingUserId !== undefined
+      ? (input.conductingUserId ?? null)
+      : undefined;
+
   const { data, error } = await supabase
     .from("sundays")
     .update({
       ...(input.type !== undefined ? { type: input.type } : {}),
+      ...(conductingUserIdPatch !== undefined
+        ? { conducting_user_id: conductingUserIdPatch }
+        : {}),
+      ...(speakingSlotsPatch !== undefined ? { speaking_slots: speakingSlotsPatch } : {}),
       ...(input.notes !== undefined ? { notes: input.notes ?? null } : {}),
-      ...(input.conductingUserId !== undefined
-        ? { conducting_user_id: input.conductingUserId ?? null }
-        : {}),
-      ...(input.speakingSlots !== undefined
-        ? { speaking_slots: input.speakingSlots }
-        : {}),
       ...(input.slotConfig !== undefined
         ? { slot_config: toSlotConfigJson(input.slotConfig ?? null) }
         : {}),
@@ -1334,13 +1893,35 @@ export async function updateSunday(
     await resolveMonth(supabase, wardId, before.date);
   }
 
+  // The organization side of the no-meeting rule, in both directions. sundays has a CHECK for its
+  // half; sunday_org_conducting deliberately has none (migration 027, Part 3), so this is where
+  // the rule is kept.
+  if (heldMeeting && !willHoldMeeting) {
+    await deleteOrgConductingFor(supabase, wardId, [sundayId]);
+  } else if (!heldMeeting && willHoldMeeting) {
+    // Now that it holds a meeting again it needs a conductor and its organization rows. Both
+    // passes only fill gaps, so neither can overwrite anything a human set.
+    await populateConducting(supabase, wardId, monthRange);
+    await populateOrgConducting(supabase, wardId, monthRange);
+  }
+
+  // Exactly the plan the user was warned about, applied after the patch and after the Fast Sunday
+  // resolution so it writes over the month as it finally stands.
+  await applyConductingReshift(supabase, wardId, reshiftPlan);
+
   // Read back AFTER the resolution: apply_fast_sunday may have changed this row's own type and
   // speaking_slots, and returning the pre-resolution row would show the user a state that lasted
   // for one statement.
   const sunday = await getSunday(wardId, sundayId, supabase);
   if (!sunday) return null;
 
-  return { status: "applied", sunday, assignmentsReverted };
+  return {
+    status: "applied",
+    sunday,
+    assignmentsReverted,
+    conductingReshiftCount: reshiftCounts.sacrament,
+    orgConductingReshiftCount: reshiftCounts.organizations,
+  };
 }
 
 // Who may be picked to conduct, and the source of every name the calendar renders. Bishop and

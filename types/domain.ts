@@ -95,6 +95,7 @@ export const SUNDAY_TYPES = [
   "stake_conference",
   "general_conference",
   "holiday",
+  "ward_conference",
   "special",
 ] as const;
 export type SundayType = (typeof SUNDAY_TYPES)[number];
@@ -107,17 +108,50 @@ export const SUNDAY_TYPE_LABELS: Record<SundayType, string> = {
   stake_conference: "Stake Conference",
   general_conference: "General Conference",
   holiday: "Holiday",
+  ward_conference: "Ward Conference",
   special: "Special",
 };
 
-// A Sunday of one of these types cannot BE Fast Sunday, so Fast Sunday moves past it.
+// A Sunday of one of these types cannot BE Fast Sunday, so Fast Sunday moves past it. That is
+// the ONLY question this list answers. It used to answer a second one — "does this Sunday hold a
+// sacrament meeting" — because the two sets happened to coincide; NO_MEETING_SUNDAY_TYPES below
+// now owns that question, and neither list may be read for the other's meaning.
+//
+// `ward_conference` is the type that proved the split was needed: it is the first type that
+// cannot be Fast Sunday while still holding an ordinary sacrament meeting, with a conductor,
+// speakers and organization meetings. Adding it to a list that meant both things would have
+// cancelled its meeting.
+//
 // `special` is deliberately absent: a special meeting still holds a fast and testimony meeting
 // unless somebody says otherwise. 03-calendar.md §Step 2 defines the set.
 export const FAST_SUNDAY_DISPLACING_TYPES: readonly SundayType[] = [
   "stake_conference",
   "general_conference",
   "holiday",
+  "ward_conference",
 ];
+
+// A Sunday of one of these types holds NO sacrament meeting at all: no conductor, no speakers,
+// no organization meetings, and it costs nobody a turn in the rotation.
+//
+// `holiday` is absent on purpose. A ward that marks Christmas Sunday as a holiday still meets,
+// often with a shortened or music-focused service — it simply cannot be Fast Sunday. Treating
+// `holiday` as a cancelled meeting warned bishoprics that their speakers were being orphaned
+// when nothing of the sort was happening.
+//
+// `ward_conference` is absent for the same kind of reason: it holds a completely normal meeting
+// and is only barred from being Fast Sunday.
+export const NO_MEETING_SUNDAY_TYPES: readonly SundayType[] = [
+  "stake_conference",
+  "general_conference",
+];
+
+// The predicate call sites read. Prefer it over the array everywhere except a filter that
+// genuinely needs the list itself — a named question is harder to point at the wrong list than
+// an `includes` call is.
+export function holdsSacramentMeeting(type: SundayType): boolean {
+  return !NO_MEETING_SUNDAY_TYPES.includes(type);
+}
 
 export const ROTATION_POSITIONS = [1, 2, 3] as const;
 export type RotationPosition = (typeof ROTATION_POSITIONS)[number];

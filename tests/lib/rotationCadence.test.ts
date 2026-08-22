@@ -5,6 +5,19 @@ import {
   type RotationEntry,
 } from "@/lib/calendar/resolveConductingUser";
 
+import { allMeetingSeries } from "@/tests/helpers/meetingSeries";
+
+// Every assertion in this file predates the no-meeting skip rule and asks the same question:
+// what does the cycle do when NOTHING interrupts it. resolveConductingUser() now requires the
+// meeting history, so that question is written down explicitly rather than assumed — an
+// all-meeting series over a range wide enough to cover every date below.
+//
+// The assertions themselves are unchanged. A test whose expected value had to be retuned around
+// a cancellation it never meant to exercise would no longer be pinning the rule it was written
+// for.
+const SERIES = allMeetingSeries("2025-01-01", "2027-12-31");
+
+
 // The monthly cadence: one person takes every Sunday in a month, and the rotation hands over at
 // the month boundary rather than the week boundary. Scenario 010's walkthrough found that this,
 // not the weekly cycle 03-calendar.md Step 3 describes, is how this ward actually runs — and no
@@ -72,7 +85,7 @@ describe("resolveConductingUser — monthly cadence", () => {
     const june = monthlySet("2026-06-01");
 
     for (const sunday of ["2026-06-07", "2026-06-14", "2026-06-21", "2026-06-28"]) {
-      expect(resolveConductingUser(sunday, june, "2026-06-01"), sunday).toBe(BISHOP);
+      expect(resolveConductingUser(sunday, june, "2026-06-01", SERIES), sunday).toBe(BISHOP);
     }
   });
 
@@ -80,10 +93,10 @@ describe("resolveConductingUser — monthly cadence", () => {
     const june = monthlySet("2026-06-01");
 
     // 2026-06-28 and 2026-07-05 are consecutive Sundays either side of a month boundary.
-    expect(resolveConductingUser("2026-06-28", june, "2026-06-01")).toBe(BISHOP);
-    expect(resolveConductingUser("2026-07-05", june, "2026-06-01")).toBe(FIRST_COUNSELOR);
-    expect(resolveConductingUser("2026-08-02", june, "2026-06-01")).toBe(SECOND_COUNSELOR);
-    expect(resolveConductingUser("2026-09-06", june, "2026-06-01")).toBe(BISHOP);
+    expect(resolveConductingUser("2026-06-28", june, "2026-06-01", SERIES)).toBe(BISHOP);
+    expect(resolveConductingUser("2026-07-05", june, "2026-06-01", SERIES)).toBe(FIRST_COUNSELOR);
+    expect(resolveConductingUser("2026-08-02", june, "2026-06-01", SERIES)).toBe(SECOND_COUNSELOR);
+    expect(resolveConductingUser("2026-09-06", june, "2026-06-01", SERIES)).toBe(BISHOP);
   });
 
   // May 2026 has FIVE Sundays and opens on a Friday, so the monthly cadence has to hold across
@@ -98,10 +111,10 @@ describe("resolveConductingUser — monthly cadence", () => {
       "2026-05-24",
       "2026-05-31",
     ]) {
-      expect(resolveConductingUser(sunday, may, "2026-05-01"), sunday).toBe(BISHOP);
+      expect(resolveConductingUser(sunday, may, "2026-05-01", SERIES), sunday).toBe(BISHOP);
     }
 
-    expect(resolveConductingUser("2026-06-07", may, "2026-05-01")).toBe(FIRST_COUNSELOR);
+    expect(resolveConductingUser("2026-06-07", may, "2026-05-01", SERIES)).toBe(FIRST_COUNSELOR);
   });
 
   // Decision 7: monthly anchors on the month CONTAINING effective_from. Starting at the next
@@ -109,10 +122,10 @@ describe("resolveConductingUser — monthly cadence", () => {
   it("governs the rest of the month it takes effect in, at position 1", () => {
     const midMonth = monthlySet("2026-03-15");
 
-    expect(resolveConductingUser("2026-03-15", midMonth, "2026-03-15")).toBe(BISHOP);
-    expect(resolveConductingUser("2026-03-22", midMonth, "2026-03-15")).toBe(BISHOP);
-    expect(resolveConductingUser("2026-03-29", midMonth, "2026-03-15")).toBe(BISHOP);
-    expect(resolveConductingUser("2026-04-05", midMonth, "2026-03-15")).toBe(
+    expect(resolveConductingUser("2026-03-15", midMonth, "2026-03-15", SERIES)).toBe(BISHOP);
+    expect(resolveConductingUser("2026-03-22", midMonth, "2026-03-15", SERIES)).toBe(BISHOP);
+    expect(resolveConductingUser("2026-03-29", midMonth, "2026-03-15", SERIES)).toBe(BISHOP);
+    expect(resolveConductingUser("2026-04-05", midMonth, "2026-03-15", SERIES)).toBe(
       FIRST_COUNSELOR,
     );
   });
@@ -120,14 +133,14 @@ describe("resolveConductingUser — monthly cadence", () => {
   it("carries the cycle across a year boundary", () => {
     const november = monthlySet("2026-11-01");
 
-    expect(resolveConductingUser("2026-11-01", november, "2026-11-01")).toBe(BISHOP);
-    expect(resolveConductingUser("2026-12-06", november, "2026-11-01")).toBe(
+    expect(resolveConductingUser("2026-11-01", november, "2026-11-01", SERIES)).toBe(BISHOP);
+    expect(resolveConductingUser("2026-12-06", november, "2026-11-01", SERIES)).toBe(
       FIRST_COUNSELOR,
     );
-    expect(resolveConductingUser("2027-01-03", november, "2026-11-01")).toBe(
+    expect(resolveConductingUser("2027-01-03", november, "2026-11-01", SERIES)).toBe(
       SECOND_COUNSELOR,
     );
-    expect(resolveConductingUser("2027-02-07", november, "2026-11-01")).toBe(BISHOP);
+    expect(resolveConductingUser("2027-02-07", november, "2026-11-01", SERIES)).toBe(BISHOP);
   });
 
   // A cadence change INSERTS a new set at a new effective_from rather than updating the old one
@@ -137,13 +150,13 @@ describe("resolveConductingUser — monthly cadence", () => {
     const both = [...weeklySet("2026-05-01"), ...monthlySet("2026-06-01")];
 
     // May still resolves weekly: 05-03 is the anchor Sunday, 05-10 the next.
-    expect(resolveConductingUser("2026-05-03", both, "2026-05-01")).toBe(BISHOP);
-    expect(resolveConductingUser("2026-05-10", both, "2026-05-01")).toBe(FIRST_COUNSELOR);
-    expect(resolveConductingUser("2026-05-17", both, "2026-05-01")).toBe(SECOND_COUNSELOR);
+    expect(resolveConductingUser("2026-05-03", both, "2026-05-01", SERIES)).toBe(BISHOP);
+    expect(resolveConductingUser("2026-05-10", both, "2026-05-01", SERIES)).toBe(FIRST_COUNSELOR);
+    expect(resolveConductingUser("2026-05-17", both, "2026-05-01", SERIES)).toBe(SECOND_COUNSELOR);
 
     // June resolves monthly against the new set, whose anchor is its own effective date.
-    expect(resolveConductingUser("2026-06-07", both, "2026-06-01")).toBe(BISHOP);
-    expect(resolveConductingUser("2026-06-28", both, "2026-06-01")).toBe(BISHOP);
+    expect(resolveConductingUser("2026-06-07", both, "2026-06-01", SERIES)).toBe(BISHOP);
+    expect(resolveConductingUser("2026-06-28", both, "2026-06-01", SERIES)).toBe(BISHOP);
   });
 
   // A negative modulo in JavaScript is negative, and indexing backwards from the end would hand
@@ -154,11 +167,11 @@ describe("resolveConductingUser — monthly cadence", () => {
       effectiveFrom: "2025-01-01" as const,
     }));
 
-    expect(resolveConductingUser("2026-06-07", july, "2026-07-01")).toBeNull();
+    expect(resolveConductingUser("2026-06-07", july, "2026-07-01", SERIES)).toBeNull();
   });
 
   it("returns null for a date before every effective date", () => {
-    expect(resolveConductingUser("2026-05-03", monthlySet("2026-06-01"), "2026-06-01")).toBeNull();
+    expect(resolveConductingUser("2026-05-03", monthlySet("2026-06-01"), "2026-06-01", SERIES)).toBeNull();
   });
 
   // Skipping an unfilled position would quietly give one counselor twice the turns — and under a
@@ -175,15 +188,15 @@ describe("resolveConductingUser — monthly cadence", () => {
       },
     ];
 
-    expect(resolveConductingUser("2026-07-05", withGap, "2026-06-01")).toBeNull();
-    expect(resolveConductingUser("2026-07-26", withGap, "2026-06-01")).toBeNull();
-    expect(resolveConductingUser("2026-08-02", withGap, "2026-06-01")).toBe(
+    expect(resolveConductingUser("2026-07-05", withGap, "2026-06-01", SERIES)).toBeNull();
+    expect(resolveConductingUser("2026-07-26", withGap, "2026-06-01", SERIES)).toBeNull();
+    expect(resolveConductingUser("2026-08-02", withGap, "2026-06-01", SERIES)).toBe(
       SECOND_COUNSELOR,
     );
   });
 
   it("returns null when the ward has no rotation configured", () => {
-    expect(resolveConductingUser("2026-06-07", [], "2026-06-01")).toBeNull();
+    expect(resolveConductingUser("2026-06-07", [], "2026-06-01", SERIES)).toBeNull();
   });
 
   // The monthly branch never constructs a Date and never counts weeks, so a month containing a
@@ -192,7 +205,7 @@ describe("resolveConductingUser — monthly cadence", () => {
     const march = monthlySet("2026-03-01");
 
     for (const sunday of ["2026-03-01", "2026-03-08", "2026-03-15", "2026-03-29"]) {
-      expect(resolveConductingUser(sunday, march, "2026-03-01"), sunday).toBe(BISHOP);
+      expect(resolveConductingUser(sunday, march, "2026-03-01", SERIES), sunday).toBe(BISHOP);
     }
   });
 });

@@ -68,6 +68,7 @@ export async function PATCH(
     }
 
     const { sunday, assignmentsReverted } = result;
+    const { conductingReshiftCount, orgConductingReshiftCount } = result;
     const changedFields = Object.keys(changes);
 
     await writeAuditLog(
@@ -85,6 +86,11 @@ export async function PATCH(
           // changed is the part an auditor can act on.
           notesChanged: changes.notes !== undefined,
           assignmentsReverted,
+          // How many LATER Sundays this edit moved. A re-shift can overwrite a conducting
+          // override a human typed (there is no is_override flag — migration 024), so the audit
+          // row is the only durable record of how far one edit reached.
+          conductingReshiftCount,
+          orgConductingReshiftCount,
         },
       },
       supabase,
@@ -110,7 +116,12 @@ export async function PATCH(
       });
     }
 
-    return NextResponse.json({ sunday, assignmentsReverted });
+    return NextResponse.json({
+      sunday,
+      assignmentsReverted,
+      conductingReshiftCount,
+      orgConductingReshiftCount,
+    });
   } catch (error) {
     return respondToRouteError(error, {
       route: "PATCH /api/sundays/[id]",

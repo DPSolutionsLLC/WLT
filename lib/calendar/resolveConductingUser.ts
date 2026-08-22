@@ -1,10 +1,12 @@
 import {
-  countMonthsBetween,
-  countSundaysBetween,
+  addDaysUtc,
   firstSundayOnOrAfter,
+  lastDayOfMonth,
+  monthOf,
   monthStart,
   type DateOnly,
 } from "@/lib/calendar/dates";
+import type { MeetingSundayEntry } from "@/lib/calendar/meetingSeries";
 import {
   ROTATION_POSITIONS,
   type RotationCadence,
@@ -66,28 +68,131 @@ export function activeRotation(
 // Monthly anchors on the MONTH CONTAINING effectiveFrom, not on the next whole month: a rotation
 // effective 2026-03-15 makes March position 1's month, governing 03-15, 03-22 and 03-29, and
 // April position 2. Starting at the next whole month would leave a fortnight with no rule.
+//
+// `series` is the meeting history between the anchor and the target — REQUIRED, not optional and
+// not defaulted. A caller that forgets it must be a type error, exactly as `roleAccess` is on
+// can() (plans/retros/role-access-overrides.md): a defaulted parameter is precisely how 25 call
+// sites came to silently ignore a ward's configuration, and this one decides who conducts.
+//
+// A Sunday that holds no sacrament meeting COSTS NOBODY A TURN. The person the old cycle would
+// have spent on a general conference weekend conducts the next real meeting instead.
 export function resolveConductingUser(
   sundayDate: DateOnly,
   rotation: RotationEntry[],
   anchorDate: DateOnly,
+  series: MeetingSundayEntry[],
 ): string | null {
   const active = activeRotation(rotation, sundayDate);
   if (active.length === 0) return null;
 
+  assertSeriesCovers(series, anchorDate, sundayDate);
+
+  // The target itself holds no meeting, so nobody conducts it — and it is not merely that the
+  // answer is unknown: there is no meeting to conduct. Checked before any counting so the two
+  // cadences cannot disagree about it.
+  const target = series.find((entry) => entry.date === sundayDate);
+  if (target && !target.holdsMeeting) return null;
+
   // The three rows of one set always agree on cadence — lib/calendar/queries.ts writes them
   // together and nothing exposes a per-row cadence write (migration 024, Part 1).
-  const offset =
-    active[0].cadence === "monthly"
-      ? countMonthsBetween(monthStart(anchorDate), monthStart(sundayDate))
-      : countSundaysBetween(firstSundayOnOrAfter(anchorDate), sundayDate);
+  const isMonthly = active[0].cadence === "monthly";
 
-  // Before the anchor. A negative modulo in JavaScript is negative, and indexing backwards from
-  // the end would hand back position 3 — a wrong answer wearing the shape of a right one.
-  if (offset < 0) return null;
+  // Before the anchor. Tested directly rather than by a negative offset: the offsets below are
+  // counts, which are never negative, so the old `offset < 0` guard became unreachable. The
+  // reason it existed is unchanged — a negative modulo in JavaScript is negative, and indexing
+  // backwards from the end would hand back position 3, a wrong answer wearing the shape of a
+  // right one.
+  const startsBeforeAnchor = isMonthly
+    ? monthStart(sundayDate) < monthStart(anchorDate)
+    : sundayDate < firstSundayOnOrAfter(anchorDate);
+  if (startsBeforeAnchor) return null;
+
+  const offset = isMonthly
+    ? countMeetingMonths(series, anchorDate, sundayDate)
+    : countMeetingSundays(series, anchorDate, sundayDate);
 
   const position = ROTATION_POSITIONS[offset % ROTATION_POSITIONS.length];
 
   // An unfilled position returns null rather than falling through to the next one. Skipping would
   // quietly give one counselor twice the turns and nobody would see why.
   return active.find((entry) => entry.position === position)?.userId ?? null;
+}
+
+// Weekly: how many meeting-holding Sundays fall between the anchor and the target. A cancelled
+// Sunday is simply not counted, so it does not advance the cycle.
+function countMeetingSundays(
+  series: MeetingSundayEntry[],
+  anchorDate: DateOnly,
+  sundayDate: DateOnly,
+): number {
+  const first = firstSundayOnOrAfter(anchorDate);
+
+  return series.filter(
+    (entry) => entry.holdsMeeting && entry.date >= first && entry.date < sundayDate,
+  ).length;
+}
+
+// Monthly: how many whole months between the anchor and the target contain AT LEAST ONE
+// meeting-holding Sunday.
+//
+// A month spends a turn unless EVERY Sunday in it is cancelled. One cancelled Sunday inside a
+// month changes nothing, because under a monthly cadence one person already holds the whole
+// month — there is no turn to skip. The wholly-dead month is near-impossible in practice; it is
+// defined anyway, because leaving it undefined by omission is how one list came to answer two
+// questions in the first place.
+function countMeetingMonths(
+  series: MeetingSundayEntry[],
+  anchorDate: DateOnly,
+  sundayDate: DateOnly,
+): number {
+  const fromMonth = monthOf(anchorDate);
+  const toMonth = monthOf(sundayDate);
+
+  const live = new Set<string>();
+  for (const entry of series) {
+    if (!entry.holdsMeeting) continue;
+
+    const month = monthOf(entry.date);
+    if (month >= fromMonth && month < toMonth) live.add(month);
+  }
+
+  return live.size;
+}
+
+// The series must cover the anchor's month through the end of the target's month. Monthly
+// cadence needs WHOLE months to decide whether a month is wholly dead, and a series that stops
+// short would produce a plausible wrong number rather than a failure — the same reasoning that
+// makes countSundaysBetween refuse two dates that are not Sundays.
+function assertSeriesCovers(
+  series: MeetingSundayEntry[],
+  anchorDate: DateOnly,
+  sundayDate: DateOnly,
+): void {
+  const requiredFrom = monthStart(anchorDate);
+  const requiredTo = lastDayOfMonth(sundayDate);
+
+  if (series.length === 0) {
+    throw new Error(
+      `resolveConductingUser needs a meeting series covering ${requiredFrom} to ${requiredTo}; got an empty one.`,
+    );
+  }
+
+  const covers =
+    series[0].date <= firstSundayOnOrAfter(requiredFrom) &&
+    series[series.length - 1].date >= lastMeetingSundayOnOrBefore(requiredTo);
+
+  if (!covers) {
+    throw new Error(
+      `resolveConductingUser needs a meeting series covering ${requiredFrom} to ${requiredTo}; ` +
+        `got ${series[0].date} to ${series[series.length - 1].date}.`,
+    );
+  }
+}
+
+// The last Sunday on or before a date, without constructing a range. `to` is a month end, so the
+// Sunday the series must reach is at most six days earlier.
+function lastMeetingSundayOnOrBefore(to: DateOnly): DateOnly {
+  const firstAfter = firstSundayOnOrAfter(to);
+
+  return firstAfter === to ? to : addDaysUtc(firstAfter, -7);
 }

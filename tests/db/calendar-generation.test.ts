@@ -309,7 +309,11 @@ describe("calendar generation", () => {
       for (const sunday of month) {
         const { error } = await fixtures.service
           .from("sundays")
-          .update({ type: "stake_conference" })
+          // conducting_user_id is cleared in the SAME statement, because migration 027's CHECK
+          // refuses a conductor on a Sunday that holds no meeting. Simulating the wreckage still
+          // has to produce a state the database allows — and this is exactly the discipline
+          // updateSunday() now follows.
+          .update({ type: "stake_conference", conducting_user_id: null })
           .eq("ward_id", wardId)
           .eq("id", sunday.id);
         expect(error).toBeNull();
@@ -347,9 +351,14 @@ describe("calendar generation", () => {
       expect(repaired.find((sunday) => sunday.id === first.id)?.conductingUserId).toBe(
         overridden,
       );
-      expect(repaired.find((sunday) => sunday.id === second.id)?.conductingUserId).toBe(
-        second.conductingUserId,
-      );
+
+      // Filled, but NOT asserted to equal the value captured in beforeAll. The rotation now skips
+      // Sundays that hold no meeting, and the ALL_DISPLACED test above cancelled every Sunday of
+      // 2027-05 — so re-resolving this month afterwards legitimately names a different person.
+      // What this test is about is the fill-nulls-only guarantee: the override survives, the gap
+      // gets filled. Pinning the identity would be pinning the meeting history of a neighbouring
+      // month, which is not this test's subject.
+      expect(repaired.find((sunday) => sunday.id === second.id)?.conductingUserId).not.toBeNull();
     });
   });
 
@@ -432,6 +441,72 @@ describe("calendar generation", () => {
       expect(
         october.find((sunday) => sunday.date === "2026-10-18")?.speakingSlots,
       ).toBe(3);
+    });
+  });
+
+  // A general conference Sunday is the one cancellation generateSundays() PREDICTS, so it is the
+  // one case where the skip has to be right at generation time rather than after an edit.
+  //
+  // The rotation seeded above is effective 2026-01-01, weekly, so by April it has been running
+  // for months — which is what makes "the conference costs nobody a turn" observable as a shift
+  // rather than as a no-op.
+  describe("a month containing general conference", () => {
+    let april: Sunday[];
+
+    beforeAll(async () => {
+      await generateSundayRange(wardId, "2026-04-01", "2026-04-30", bishop);
+      april = await readMonth("2026-04");
+    });
+
+    it("leaves the conference Sunday with no conductor and no speaking slots", async () => {
+      const conference = april.find((sunday) => sunday.date === "2026-04-05");
+
+      expect(conference?.type).toBe("general_conference");
+      expect(conference?.conductingUserId).toBeNull();
+      expect(conference?.speakingSlots).toBe(0);
+    });
+
+    it("creates no organization conducting row for it", async () => {
+      const conference = april.find((sunday) => sunday.date === "2026-04-05")!;
+
+      const { data, error } = await bishop
+        .from("sunday_org_conducting")
+        .select("id")
+        .eq("ward_id", wardId)
+        .eq("sunday_id", conference.id);
+
+      expect(error).toBeNull();
+      expect(data).toHaveLength(0);
+    });
+
+    it("gives every other Sunday of the month a conductor", async () => {
+      for (const sunday of april) {
+        if (sunday.date === "2026-04-05") continue;
+        expect(sunday.conductingUserId, sunday.date).not.toBeNull();
+      }
+    });
+
+    // The assertion the whole of ITER-002 is about: the person the cycle would have SPENT on the
+    // conference conducts the next real meeting instead.
+    it("does not spend a turn on the conference", async () => {
+      const conductorOn = (date: string) =>
+        april.find((sunday) => sunday.date === date)?.conductingUserId;
+
+      // 13 meeting-holding Sundays run from 2026-01-04 to 2026-03-29, so the 12th of April is the
+      // 14th turn: 13 % 3 = 1, which is position 2.
+      expect(conductorOn("2026-04-12")).toBe(fixtures.user("counselor1").id);
+      expect(conductorOn("2026-04-19")).toBe(fixtures.user("counselor2").id);
+      expect(conductorOn("2026-04-26")).toBe(fixtures.user("bishop").id);
+    });
+
+    // A cancelled Sunday's conductor is now legitimately null FOREVER, so the repair-on-read test
+    // in ensureMonthGenerated() had to be narrowed to meeting-holding Sundays. Left un-narrowed,
+    // every page view of this month would re-run two write passes.
+    it("is not treated as half-generated on a later read", async () => {
+      const again = await ensureMonthGenerated(wardId, "2026-04-01", bishop);
+
+      expect(again.find((sunday) => sunday.date === "2026-04-05")?.conductingUserId).toBeNull();
+      expect(again).toEqual(april);
     });
   });
 

@@ -42,8 +42,13 @@ Fast Sunday is **the first Sunday of the month that is not displaced by a confer
 
 ```
 Fast Sunday = the earliest Sunday in the month whose type is NOT
-              stake_conference, general_conference, or holiday
+              stake_conference, general_conference, holiday, or ward_conference
 ```
+
+> **Updated by ITER-002 / ITER-003 (migration 027).** This rule used to be stated with one
+> list, and that list was also read as "which Sundays hold no sacrament meeting". Those are
+> two different questions and they are now two named lists in `types/domain.ts`. See
+> **§Sunday types — the two questions** below before touching either.
 
 Normally that is the first Sunday. When a stake conference or general conference falls on
 the first Sunday, Fast Sunday moves to the **following** Sunday. General Conference in
@@ -414,3 +419,110 @@ fires into nothing.
 - **Deleting a Sunday.** Assignments, prayers, hymns, and programs all reference it.
   Prefer `type = 'holiday'` over deletion; if a delete is genuinely needed, block it when
   dependent rows exist.
+- **Reading one Sunday-type list for the other question.** `FAST_SUNDAY_DISPLACING_TYPES`
+  answers "can this Sunday BE Fast Sunday". `holdsSacramentMeeting()` answers "is there a
+  meeting at all". They used to be the same list, and the day they stopped being the same
+  list is the day `holiday` started warning bishoprics that their speakers were being
+  orphaned on a Sunday the ward still meets on. `tests/lib/sundayTypeLists.test.ts` forces
+  every new type to answer both.
+
+---
+
+## Sunday types — the two questions
+
+*Added by ITER-002 and ITER-003, migration 027. Both items are GROUP-01 and landed together.*
+
+`FAST_SUNDAY_DISPLACING_TYPES` originally answered two questions at once, because the two
+answers happened to coincide for every type that existed:
+
+1. **Can this Sunday BE Fast Sunday?**
+2. **Does this Sunday hold a sacrament meeting at all?**
+
+`ward_conference` forced them apart from one side — it cannot be Fast Sunday, yet it holds a
+completely ordinary meeting with a conductor, speakers and organization meetings. `holiday`
+forced them apart from the other — a ward marking Christmas Sunday as a holiday still meets,
+often with a shortened or music-focused service.
+
+There are now two named lists in `types/domain.ts`, and **neither may be read for the other's
+meaning**:
+
+| List | Question | Members |
+|---|---|---|
+| `FAST_SUNDAY_DISPLACING_TYPES` | cannot BE Fast Sunday | `stake_conference`, `general_conference`, `holiday`, `ward_conference` |
+| `NO_MEETING_SUNDAY_TYPES` | holds no sacrament meeting | `stake_conference`, `general_conference` |
+
+Call sites read the predicate `holdsSacramentMeeting(type)`, not the array. The second list is
+a strict subset of the first, and `tests/lib/sundayTypeLists.test.ts` is table-driven over
+`SUNDAY_TYPES` so that adding a future type is a **decision** rather than a default.
+
+### A Sunday with no meeting has no conductor
+
+Enforced structurally. `sundays` carries a CHECK constraint
+(`sundays_no_conductor_without_meeting`), so `updateSunday()` must clear `conducting_user_id`
+in the **same UPDATE** that changes the type — a second statement raises, loudly and on
+purpose.
+
+`sunday_org_conducting` gets **no** equivalent constraint, and that was decided rather than
+forgotten: a constraint there cannot see the Sunday's type, so it would have to be a trigger,
+and this repo has no triggers at all. That rule lives in `lib/calendar/queries.ts` and in
+`PATCH /api/sundays/[id]/org-conducting`, which refuses with a **409** — not a 403, because
+the caller's permissions are fine and it is the Sunday's state that refuses.
+
+An organization's row is **deleted**, never nulled, on a cancelled Sunday. A null `user_id`
+already means "this organization's rotation reaches this Sunday but the position is unfilled"
+(migration 024, Part 4), which is a different fact.
+
+### The rotation skips a Sunday that holds no meeting
+
+One rule with two projections, so the cadences cannot drift apart:
+
+- **weekly** — count meeting-holding **Sundays** between the anchor and the target. A
+  cancelled Sunday does not advance the cycle, so whoever it would have been spent on
+  conducts the next real meeting.
+- **monthly** — count **months containing at least one** meeting-holding Sunday. A month
+  spends a turn unless *every* Sunday in it is cancelled, because under a monthly cadence one
+  person already holds the whole month and there is no turn to skip.
+
+`resolveConductingUser()` therefore takes the meeting history as a **required** fourth
+argument. It is not defaulted, deliberately: a defaulted parameter is exactly how 25 call
+sites came to silently ignore the ward's role access (`plans/retros/role-access-overrides.md`).
+
+`lib/calendar/meetingSeries.ts` builds that history, and its **prediction fallback is the whole
+point of the module**. Months are generated on demand, so skipping from August to December
+leaves gaps; a walk over only the stored rows would count a gap as zero cancellations and then
+store the wrong answer. The fallback is exactly right because an un-generated month cannot hold
+a hand-set stake conference — the only cancellation possible there is general conference, which
+is predictable from the date. A stored row always wins.
+
+### Re-shifting applies forward, behind the existing confirm dialog
+
+Marking a Sunday cancelled after its month was generated re-resolves who conducts on later
+Sundays. Without it the skip would only ever work for general conference, which the app
+predicts — never for stake conference, which is always hand-set after the fact and is the case
+that started ITER-002.
+
+- The horizon is Sundays **after the edited date AND on or after today**. **The past is never
+  rewritten** — who conducted last March stays what it says, which is the doctrine
+  `conducting_user_id` is a stored column for at all (Step 3).
+- `today` is a parameter defaulted at the call boundary, never a `new Date()` inside the
+  planner, so it is testable without freezing a clock.
+- Only rows whose recomputed conductor **differs** are counted and written, from one
+  computation — the count that warns and the rows that change cannot disagree.
+- The warning sentence is **appended to whichever warning is shown** rather than queued as a
+  second one, because confirming applies the whole patch.
+
+> **Known gap, accepted.** A re-shift can overwrite a per-Sunday conducting override. Storage
+> *is* the override — there is no `is_override` flag (migration 024) — so nothing in the data
+> model distinguishes a conductor a human typed from one the rotation assigned. The mitigation
+> is that the user is warned first with an exact count and nothing is written until they
+> confirm. The fix is a `conducting_source` column; it is **not** in this change's scope and
+> should not be added opportunistically.
+
+### Still open
+
+The whole-month generation transaction remains the structural fix `calendar-c` recorded:
+`generateSundayRange()` still inserts, resolves and populates in separate statements because
+`@supabase/supabase-js` has no transaction API, and `ensureMonthGenerated()` repairs the
+result on a read. That repair test is now narrowed to meeting-holding Sundays — a cancelled
+Sunday's conductor is legitimately null forever, and the un-narrowed test would re-run two
+write passes on every page view of every month containing general conference.

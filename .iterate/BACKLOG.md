@@ -23,19 +23,24 @@ Items currently being planned or actively worked.
 ## Grouped Work
 Items in each group belong together and should be planned and worked in a single session.
 
-### [GROUP-01] Sunday types and the meeting/Fast-Sunday split
-Both items pull on the same thread: `FAST_SUNDAY_DISPLACING_TYPES` currently answers two
-different questions with one list, and each of these forces it apart from a different side.
-ITER-003 cannot land correctly without ITER-002's split, so plan them together and do ITER-002
-first.
-
-- [ ] ITER-002 — No conductor on Sundays with no meeting, and skip them in the rotation → [scope](.iterate/scopes/ITER-002.md)
-- [ ] ITER-003 — Ward conference Sunday type → [scope](.iterate/scopes/ITER-003.md)
+_None. GROUP-01 (ITER-002 + ITER-003) shipped together on 2026-08-22 as one unified plan, which
+is what the grouping asked for._
 
 ---
 
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
+
+- [ ] ITER-006 — A rotation change does not apply to already-generated future months → [scope](.iterate/scopes/ITER-006.md)
+  _Found during the scenario 015 walkthrough on 2026-08-22. Saving a rotation "effective from
+  2027-11-01" leaves an already-generated November 2027 untouched — the form says saved and nothing
+  moves. Not the forward-only rule working: that rule protects the PAST, and this is a failure to
+  apply to the FUTURE. Pre-existing since calendar-c, but GROUP-01 sharpened it — a Sunday **type**
+  change now re-resolves later Sundays behind a confirm dialog, while a **rotation** change still
+  does not, and that inconsistency is not defensible to a user. Most of the machinery already
+  exists (`seriesFor`, `applyConductingReshift`, the confirm gate); the real work is the larger
+  blast radius, since a rotation change can rewrite many months at once and storage IS the
+  override. Consider `conducting_source` as part of this rather than deferring it a third time._
 
 - [ ] ITER-001 — Per-organization calendars and cross-organization sharing → [scope](.iterate/scopes/ITER-001.md)
   _Reason: architectural. Adds a fourth date-bearing model to the schema, a new sharing/audience
@@ -52,6 +57,8 @@ _None._
 
 ## Completed
 
+- [x] ITER-002 — No conductor on Sundays with no meeting, and skip them in the rotation _(completed 2026-08-22)_
+- [x] ITER-003 — Ward conference Sunday type _(completed 2026-08-22)_
 - [x] ITER-005 — Ward role-access overrides ignored by 25 of 62 permission checks _(completed 2026-08-22)_
 
 ---

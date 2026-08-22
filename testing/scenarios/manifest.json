@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 14,
+  "scenarioCount": 15,
   "scenarios": [
     {
       "id": "auth:scenario-001-role-shell",
@@ -317,6 +317,53 @@
         "The month grid is **unchanged** by this slice — no organization conducting appears in a"
       ],
       "seedCommand": "npm run seed -- calendar/scenario-011-rotation-cadence"
+    },
+    {
+      "id": "calendar:scenario-015-no-meeting-sundays",
+      "path": "calendar/scenario-015-no-meeting-sundays",
+      "name": "Sundays with no meeting, and ward conference",
+      "scope": "ITER-002 ITER-003",
+      "part": 1,
+      "tags": [
+        "calendar",
+        "full",
+        "rotation",
+        "sunday-types",
+        "destructive"
+      ],
+      "prerequisites": "none",
+      "purpose": "Prove on screen that a Sunday holding **no sacrament meeting** reads \"No meeting\" and costs\nnobody a turn in the rotation, while a **ward conference** on the same page keeps its conductor\nand its speakers and pushes Fast Sunday a week.\n\nOne scenario rather than two. `FAST_SUNDAY_DISPLACING_TYPES` used to answer two different\nquestions — \"this Sunday cannot BE Fast Sunday\" and \"this Sunday holds no meeting\" — and the two\nsets happened to coincide, so nothing forced them apart. `ward_conference` forces them apart from\none side (it cannot be Fast Sunday, yet it meets normally) and `holiday` from the other (a ward\nmarking Christmas Sunday as a holiday still meets). A month holding **both** a cancelled Sunday\nand a ward conference is the only thing that shows the two lists really did come apart.\n\nThe seeding matters. The interesting month needs a rotation anchor two months back, a hand-set\nstake conference, organization rows on some Sundays and deliberately none on others, and speakers\nalready partway down the pipeline — none of which a tester can build by hand in under ten minutes,\nand the speakers are what make the 409 dialog appear at all.\n\n**Not checked here:** that Sundays *before today* keep their conductors. A static seed cannot\nexpress \"before today\" — the clock moves and the fixture does not. That guarantee is pinned\nprecisely, with an injected `today`, by `tests/db/conducting-reshift.test.ts`.",
+      "checklist": [
+        "`2027-11-21` reads **\"No meeting\"** — not \"Not set\", and not a blank",
+        "`2027-11-07` shows a **Ward Conference** badge and the name **Daniel Okafor**",
+        "`2027-11-14` shows the **Fast Sunday** badge — Fast Sunday is on the **2nd** Sunday, not the 1st",
+        "`2027-11-28` reads **Peter Nakamura** — nobody's turn was spent on the 21st",
+        "`/calendar?month=2027-10`: `2027-10-03` also reads **\"No meeting\"** with no conductor",
+        "`2027-11-07` shows **3 speaking slots** and its speaker, President Alma Reyes",
+        "`2027-11-07`'s Organization meetings card shows a normal editable row for Elders Quorum",
+        "`2027-11-21`'s **Conducting** row reads **\"No meeting\"**",
+        "`2027-11-21`'s Organization meetings card shows **\"No meeting\"** for every organization,",
+        "Saving produces **no** \"would no longer hold a sacrament meeting\" warning, and no dialog at all",
+        "`2027-11-28` keeps its conductor (**Peter Nakamura**) and its **3 speaking slots**",
+        "Both of its speakers are still at stage **request** — nothing was returned to planning",
+        "A **409 dialog** appears naming the **2 speaking assignments** at risk",
+        "The same dialog also says who conducts will change on **4 later Sundays**",
+        "After confirming, both speakers are at stage **plan** — reverted, **not deleted**",
+        "`2027-11-28` now reads **\"No meeting\"** with no conductor and 0 slots",
+        "Exactly **4** December Sundays changed conductor, the number the dialog promised",
+        "`2027-12-05` now reads **Peter Nakamura** (it read Daniel Okafor before)",
+        "November 2027 is **unchanged** by the switch. This is the forward-only rule, **not a fault**:",
+        "January 2028 generates with **one name across all five Sundays** — Mark Andersen on",
+        "After cancelling `2028-01-16`, it reads **\"No meeting\"**",
+        "**The other four January Sundays still read Mark Andersen.** Under a monthly cadence one",
+        "As `eqpres`, `2027-11-21` shows **\"No meeting\"** for Elders Quorum",
+        "`2027-11-07` shows **\"Not set\"** for Elders Quorum — the third position is empty, which is a",
+        "The Elders Quorum names skip the cancelled Sunday the same way the bishopric's do",
+        "As `secretary`, `2027-11-21` still reads \"No meeting\" and offers no organization select",
+        "At 375px the **Ward Conference** badge is legible and clearly distinguishable from the",
+        "Both light and dark: \"No meeting\" is readable and does not look like a disabled control"
+      ],
+      "seedCommand": "npm run seed -- calendar/scenario-015-no-meeting-sundays"
     },
     {
       "id": "roster:scenario-007-roster-browse-and-notes",

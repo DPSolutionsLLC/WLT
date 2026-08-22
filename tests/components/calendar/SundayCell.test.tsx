@@ -45,6 +45,7 @@ describe("SundayCell type badge", () => {
       ["stake_conference", "Stake Conference"],
       ["general_conference", "General Conference"],
       ["holiday", "Holiday"],
+      ["ward_conference", "Ward Conference"],
       ["special", "Special"],
     ];
 
@@ -92,6 +93,40 @@ describe("SundayCell conducting", () => {
     expect(screen.getByText("Not set")).toBeInTheDocument();
     expect(screen.queryByText(strangerId)).not.toBeInTheDocument();
   });
+});
+
+// "Not set" and "No meeting" are DIFFERENT FACTS, and rendering the first for the second is the
+// ambiguity ITER-002 exists to remove: a blank conductor is indistinguishable from an unfilled
+// rotation position, and that cost a debugging session.
+describe("SundayCell on a Sunday that holds no meeting", () => {
+  it.each(["stake_conference", "general_conference"] as const)(
+    "reads 'No meeting' rather than 'Not set' for %s",
+    (type) => {
+      render(
+        <SundayCell
+          sunday={sunday({ type, conductingUserId: null })}
+          conductingNames={CONDUCTING_NAMES}
+        />,
+      );
+
+      expect(screen.getByText("No meeting")).toBeInTheDocument();
+      expect(screen.queryByText("Not set")).not.toBeInTheDocument();
+    },
+  );
+
+  // The types that cannot be Fast Sunday but DO hold a meeting. If either of these ever reads
+  // "No meeting", the two lists have merged back into one.
+  it.each(["holiday", "ward_conference"] as const)(
+    "still names the conductor on %s",
+    (type) => {
+      render(
+        <SundayCell sunday={sunday({ type })} conductingNames={CONDUCTING_NAMES} />,
+      );
+
+      expect(screen.getByText("Mark Andersen")).toBeInTheDocument();
+      expect(screen.queryByText("No meeting")).not.toBeInTheDocument();
+    },
+  );
 });
 
 describe("SundayCell reserved regions", () => {

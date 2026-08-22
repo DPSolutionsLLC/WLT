@@ -220,3 +220,25 @@ and revalidate on approval so edits appear promptly.
   Go through the view, not the tables.
 - **`@react-pdf/renderer` cold starts.** Generate on approval, not on every keystroke;
   preview in HTML.
+
+---
+
+## Open questions handed over from Phase 3 (ITER-003)
+
+`ward_conference` became a real Sunday type in migration 027. Phase 3 deliberately stopped at
+the calendar's own behaviour — it displaces Fast Sunday, keeps a conductor, keeps speaking
+slots, and leaves organization conducting alone. Two questions about it are **program**
+decisions and belong here:
+
+1. **How does a ward conference render on the program?** A stake presidency usually attends
+   and the meeting is often structured differently from an ordinary Sunday. Does the program
+   template change, or is it an ordinary program with a different heading?
+
+2. **Should `presiding_override` default for it?** The stake president usually presides at a
+   ward conference, so a default is tempting. Phase 3 deliberately did **not** prefill it: the
+   bishopric can type it, and guessing a default in a Phase 3 file would have put a Phase 6
+   product decision in the calendar's data layer. Decide it here, with the program in front of
+   you — and note that whoever presides is not always whoever conducts, which is exactly what
+   `presiding_override` exists to express.
+
+Neither is blocking. A ward conference renders today as an ordinary Sunday with a badge.
