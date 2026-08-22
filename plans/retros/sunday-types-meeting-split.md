@@ -2,7 +2,7 @@
 id: sunday-types-meeting-split
 type: feature
 iter: [ITER-002, ITER-003]
-commits: ["39f1f61"]
+commits: ["0e4960a"]
 date: 2026-08-22
 files:
   - types/domain.ts
