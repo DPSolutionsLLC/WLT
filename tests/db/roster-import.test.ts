@@ -390,11 +390,18 @@ describe("apply_roster_import", () => {
   // One row per import, not one per member. 2000 audit rows for a single user action is an
   // audit log nobody can read (02-roster.md).
   it("writes exactly one audit row per confirmed import", async () => {
+    // ORDERED, and it has to be. Postgres returns rows in no particular order without an ORDER
+    // BY, and this assertion used to `find` the row with totalRows === 10 — which matches BOTH
+    // the first import and the idempotent repeat, because the repeat replays the identical
+    // payload. It passed for months on whichever row the heap happened to return first, then
+    // started failing when an unrelated slice added enough rows to audit_log to change that
+    // order. Nothing about the import had changed.
     const { data, error } = await fixtures.service
       .from("audit_log")
       .select("action, module, detail")
       .eq("ward_id", fixtures.wardAId)
-      .eq("action", "roster_imported");
+      .eq("action", "roster_imported")
+      .order("created_at");
 
     if (error) throw new Error(error.message);
 
@@ -402,10 +409,17 @@ describe("apply_roster_import", () => {
     expect(data).toHaveLength(3);
     expect(data?.every((row) => row.module === "roster")).toBe(true);
 
-    const first = data?.find(
-      (row) => (row.detail as Record<string, unknown> | null)?.totalRows === 10,
+    const [firstImport, repeatImport] = (data ?? []).map(
+      (row) => row.detail as Record<string, unknown>,
     );
-    expect((first?.detail as Record<string, unknown>).membersCreated).toBe(9);
+
+    expect(firstImport.totalRows).toBe(10);
+    expect(firstImport.membersCreated).toBe(9);
+
+    // The pair that made the unordered version ambiguous, now pinned: same row count, no new
+    // members. An import that created members twice from one payload would fail here.
+    expect(repeatImport.totalRows).toBe(10);
+    expect(repeatImport.membersCreated).toBe(0);
   });
 
   // One notification summarising every new household, not one per household. An import of a new

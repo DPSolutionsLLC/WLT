@@ -193,6 +193,43 @@ Tests accompany new code by default. Priority order when time is short:
 AI generation is not unit-tested for output quality. Test that the route assembles the
 right prompt, calls with the right params, and handles an API error.
 
+### Route handler tests — how
+
+**A route test does not need a server.** Six retros in a row recorded the opposite; it was never
+true. A route handler is an exported async function taking a `Request` and returning a `Response`,
+so calling it is an ordinary function call. The only obstacle is `createServerSupabaseClient()`
+reading `next/headers`, and `tests/helpers/routeClient.ts` mocks exactly that module and nothing
+else. Read its header comment before writing your first one — it documents the `vi.mock` hoisting
+trap, which is the single most likely hour to lose.
+
+```ts
+// @vitest-environment node
+import { actAs, jsonRequest, readResponse } from "@/tests/helpers/routeClient";
+
+vi.mock("@/lib/supabase/server", async () => {
+  const { serverClientMock } = await import("@/tests/helpers/routeClient");
+  return serverClientMock();
+});
+
+await actAs(fixtures, "bishop");
+const { GET } = await import("@/app/api/assignments/route");
+const { status, body } = await readResponse(await GET(jsonRequest(url)));
+```
+
+- **Only the client factory is mocked.** Every query still runs against the hosted project as a
+  genuinely authenticated user, so a passing route test proves the RLS policy allowed it. Mock the
+  client itself and you get a suite that passes while the app leaks.
+- **Seed exactly like an RLS suite** — `seedFixtures(handles)`, `fixtures.cleanup()` in `afterAll`.
+  The obligations in §9 apply unchanged.
+- **`params` is a Promise in Next 16:** `PATCH(request, { params: Promise.resolve({ id }) })`.
+- **Assert a refused write by RE-READING the row** with the service client. An RLS-denied UPDATE or
+  DELETE is a zero-row success, not an error — only INSERT raises.
+- **Check the fixture's real permissions before asserting a 403.** `music_coordinator` holds
+  `talks.view`; `org_president` does not. The permission matrix in `lib/auth/permissions.ts` is the
+  source of truth, and it is not always the intuitive answer.
+- **Covered so far:** the four assignment routes. The remaining 23 are a documented follow-up, not
+  an oversight — the helper is what makes backfilling them cheap.
+
 ---
 
 ## 9. Known Risks & Open Decisions

@@ -68,8 +68,10 @@ Sunday — which carries `speaking_slots = 0` and must offer no add control at a
 15. Sign out. Sign in as `counselor1` and open the notification centre.
 16. Sign out. Sign in as `secretary`. Open `/assignments?month=2026-03` and then 03-08's page.
 17. Sign out. Sign in as `eqpres` and open `/assignments`.
-18. In the Supabase dashboard, read `assignment_approvals`, `audit_log` and `notifications` for
-    this ward.
+18. In the Supabase dashboard, read `notifications` for this ward.
+19. Sign back in as `bishop`. Open 03-08's page in **two** browser windows side by side — a
+    second profile or a private window, so both have their own session. Post a comment in one
+    and watch the other.
 
 ## Verification Checklist
 
@@ -105,7 +107,6 @@ Invalidation
       approved yet
 - [ ] `counselor1` and `counselor2` receive a `plan_change_requested` notification saying the
       approvals no longer stand
-- [ ] `assignment_approvals` has **no rows** for that assignment afterwards
 
 The month and the calendar
 
@@ -122,8 +123,13 @@ Permissions
 - [ ] `secretary` sees the whole month and 03-08's detail page, and **no** Plan, Edit, Approve,
       Request changes or comment control anywhere
 - [ ] `eqpres` gets a **"Not permitted"** page, not an empty planner
-- [ ] Audit rows exist for the approval, the stage change, the edit, and the invalidation
-- [ ] No audit row exists for anything `secretary` or `eqpres` did
+
+Realtime
+
+- [ ] A comment posted in one browser appears in the other **without a reload**
+- [ ] It appears at the **bottom** of the thread, and the thread does not jump or re-order
+- [ ] The second browser shows it **once**, not twice — the poster's own window must not render
+      its optimistic copy and the realtime copy as two comments
 
 Mobile and theme
 
@@ -134,17 +140,25 @@ Mobile and theme
 
 ## Failure Behavior
 
-Run these from the browser console while signed in as `secretary`, substituting a real
-assignment id from the Supabase dashboard.
+**Automated — nothing to do by hand.** This section used to ask the tester to paste `fetch` calls
+into the browser console. Every one of those checks is now a route test that runs on `npm test`:
 
-- [ ] Approving through the route — **403**:
-      `await (await fetch('/api/assignments/<id>/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ approved: true }) })).json()`
-- [ ] Editing through the route — **403**:
-      `await (await fetch('/api/assignments/<id>', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update', fields: { slotLengthMinutes: 5 } }) })).json()`
-- [ ] Approving an assignment that is **not** at `review` — **409** with a sentence saying to
-      reload, not a 500
-- [ ] Moving a stage backwards with no reason — **409** naming the reason as what is missing
-- [ ] Every refused request leaves `audit_log` untouched
+| Retired check | Replaced by |
+|---|---|
+| Approving as `secretary` → 403 | `tests/routes/assignment-approve.test.ts` — "refuses the ward secretary and the music coordinator" |
+| Editing as `secretary` | `tests/routes/assignment-detail.test.ts` — "answers 404, not 409, to a non-bishopric caller" |
+| Approving something not at `review` → 409 | `tests/routes/assignment-approve.test.ts` — "refuses an assignment that is not at review" |
+| A backward move with no reason → 409 | `tests/routes/assignment-detail.test.ts` — "refuses a backward move with no reason" |
+| Every refusal leaves `audit_log` untouched | all three route suites — "leaves audit_log untouched on every refusal" |
+| Audit rows exist for the approval, stage change and edit | the same three suites, on each happy path |
+| `assignment_approvals` empty after an invalidation | `tests/routes/assignment-detail.test.ts` — "clears every existing approval, proven by re-read" |
+
+**One correction worth keeping.** This section asserted that editing as `secretary` returns
+**403**. It returns **404**. `PATCH /api/assignments/[id]` reads the assignment before it checks
+the permission, and migration 019 makes `assignments` bishopric-only — so RLS hides the row and
+the route answers "not in your ward" before `assertCan` is ever reached. The route is right and
+the checklist was wrong; a console command run by hand is easy to tick without reading the status
+code closely, which is most of why this section moved into tests.
 
 ## Notes
 
@@ -162,7 +176,12 @@ shared, and the bishop must not be able to do anything a counselor cannot. Seedi
 counselors as the ones who have already approved means the sentence has to name the bishop by
 name — if any code path treats the bishop as special, this is where it shows.
 
-**The comment thread is realtime.** `assignment_comments` must be in the `supabase_realtime`
-publication for a second browser to see a comment appear without a reload. If it is not, the
-thread still works — posting and reading are plain HTTP — it simply does not update on its own.
-Open 03-08 in two browsers side by side and say which behaviour you saw.
+**The comment thread is realtime, and now actually is.** When this scenario was first written
+`assignment_comments` was not in the `supabase_realtime` publication — no table in this project
+was — so the thread worked over plain HTTP and simply never updated on its own. This step could
+only ask the tester which behaviour they saw. Migration 026 adds the table, and
+`tests/rls/realtime-isolation.test.ts` proves a ward B subscriber receives nothing from ward A,
+so step 19 is now a real pass/fail check.
+
+If nothing arrives in the second window, the first thing to check is whether the migration has
+been applied to the linked project (`npm run db:push`), not the component.

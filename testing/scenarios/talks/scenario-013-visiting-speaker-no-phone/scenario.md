@@ -59,8 +59,8 @@ quietly suppress a real member instead.
 12. Read the name and title fields, then cancel without saving.
 13. Open `/assignments?month=2026-04` and read the 04-12 card, then `/calendar?month=2026-04`.
 14. Open 04-19 and read slot 1 — a ward member with no phone number.
-15. In the Supabase dashboard, read `assignment_history`, `assignments` and `audit_log` for this
-    ward.
+15. In the Supabase dashboard, read `assignments` for this ward — the waiver columns on slot 2.
+    `assignment_history` and `audit_log` no longer need checking by hand; see Failure Behavior.
 
 ## Verification Checklist
 
@@ -90,8 +90,12 @@ Still explicit
 
 - [ ] The waiver **moved nothing** — slot 2 is still at Approved immediately afterwards
 - [ ] Every step to Complete requires its own **Move to …** press; nothing chains
-- [ ] Reaching Complete writes **no** `assignment_history` row for the external speaker
-- [ ] Slot 1's history row (when it completes) is unaffected
+
+The `assignment_history` half of this is automated:
+`tests/routes/assignment-detail.test.ts` proves that reaching Complete writes a `completed` row
+for a member and **no** row for an external speaker, and that a decline writes `declined` for a
+member and nothing for an external one. What is left for a human here is whether the *screen*
+makes the chaining explicit.
 
 The member in slot 1
 
@@ -124,18 +128,20 @@ Mobile and theme
 
 ## Failure Behavior
 
-Run these from the browser console while signed in as `bishop`, substituting real ids.
+**Automated — nothing to do by hand.** Every check that used to live here is a route test in
+`tests/routes/assignment-detail.test.ts`, run by `npm test`:
 
-- [ ] Waiving a **ward member's** assignment through the route — **409** saying to contact them
-      rather than waiving it, not a 500 carrying a constraint name:
-      `await (await fetch('/api/assignments/<slot 1 id>', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'waive_contact' }) })).json()`
-- [ ] Saving an assignment with **both** a member and an external name — **400** naming the
-      conflict:
-      `await (await fetch('/api/assignments/<id>', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'update', fields: { memberId: '<a member id>', externalSpeaker: { name: 'Someone', title: null } } }) })).json()`
-- [ ] Skipping a stage — Approved straight to Confirmed — **409** naming the next stage
-- [ ] Confirming a meeting that has not happened, by moving Speaking → Appreciation with
-      `sunday_confirmed_at` still null — **409**. The waiver must **not** satisfy this one
-- [ ] Every refused request leaves `audit_log` untouched
+| Retired check | Replaced by |
+|---|---|
+| Waiving a ward member → 409 | "refuses a waiver on a ward member, and says what to do instead" |
+| A member and an external name together → 400 | "refuses an edit setting a member and an external speaker together" |
+| Skipping a stage → 409 naming the next one | "refuses a skipped stage, naming the legal next one" |
+| Speaking → Appreciation with no confirmation → 409, waiver notwithstanding | "refuses speak -> appreciate with no confirmation, waiver or not" |
+| Every refusal leaves `audit_log` untouched | "leaves audit_log untouched on every refusal" |
+
+The two ITER-004 facts these prove — that the waiver refuses a roster member, and that it
+deliberately does **not** satisfy the APPRECIATE gate — are now asserted on every run rather than
+whenever somebody remembers to paste a `fetch` into a console.
 
 ## Notes
 

@@ -41,7 +41,7 @@ Phase 6's program builder.
 
 | File | Action | What and why |
 |---|---|---|
-| `supabase/migrations/026_topic_candidates.sql` | create | The accept/reject queue table + RLS; prayer rotation index |
+| `supabase/migrations/027_topic_candidates.sql` | create | The accept/reject queue table + RLS; prayer rotation index |
 | `types/database.ts` | modify | Regenerate (`npm run db:types`) |
 | `types/domain.ts` | modify | `TOPIC_CANDIDATE_STATUSES`, `TOPIC_CATEGORY_LABELS` |
 | `lib/prayers/queries.ts` | create | Prayer reads and writes. **Server-only** |
@@ -108,10 +108,15 @@ Phase 6's program builder.
 
 ### Task 1: Migration — the topic candidate queue
 
-**File:** `supabase/migrations/026_topic_candidates.sql` (create)
+**File:** `supabase/migrations/027_topic_candidates.sql` (create)
+
+> **Renumbered 026 → 027 on 2026-08-21.** `plans/route-tests-and-realtime.md` shipped first and
+> took `026` for the `supabase_realtime` publication. Two migrations with the same number is a
+> conflict the CLI resolves by filename order, silently — so the number moved here rather than
+> being discovered during a push.
 
 ```sql
--- Talks C, migration 026: the AI-topic accept/reject queue.
+-- Talks C, migration 027: the AI-topic accept/reject queue.
 
 -- Phase 5 writes candidates here; a bishopric member accepts each one before it becomes a row in
 -- `topics`. This table exists so there is NOWHERE for a generated topic to land except a queue

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/FormError";
 import type { AssignmentComment } from "@/lib/assignments/queries";
@@ -65,11 +65,33 @@ export function CommentThread({
     targetRef.current = target;
   }, [target]);
 
+  // ONE CHANNEL PER COMPONENT INSTANCE. This is the invariant; everything below serves it.
+  //
+  // This was `assignment-comments:${wardId}` — the same topic for every thread on the page. A
+  // Sunday renders one of these per slot plus one for the month, and createBrowserClient()
+  // memoises, so all four asked the shared realtime client for the SAME topic and got the same
+  // channel back. The first subscribed it; the second then called .on() on an already-subscribed
+  // channel and realtime-js threw "cannot add postgres_changes callbacks ... after subscribe()",
+  // taking the whole page down with a runtime error.
+  //
+  // The instance id is what makes this safe BY CONSTRUCTION rather than by every page happening
+  // to render each target only once. Keying on the target alone would work today and break the
+  // day something renders one thread in two places.
+  //
+  // Both parts are primitive strings, so they can sit in the dependency list below without
+  // rebuilding the channel on every keystroke — which the target OBJECT would do, since it is an
+  // object literal built fresh on every render.
+  const instanceId = useId();
+  const targetKey =
+    target.level === "assignment"
+      ? `assignment:${target.assignmentId}`
+      : `month:${target.sundayId}`;
+
   useEffect(() => {
     const supabase = createBrowserSupabaseClient();
 
     const channel = supabase
-      .channel(`assignment-comments:${wardId}`)
+      .channel(`assignment-comments:${wardId}:${targetKey}:${instanceId}`)
       .on(
         "postgres_changes",
         {
@@ -128,7 +150,7 @@ export function CommentThread({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [wardId]);
+  }, [wardId, targetKey, instanceId]);
 
   async function handleSend(): Promise<void> {
     const body = draft.trim();
