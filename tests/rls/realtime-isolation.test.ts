@@ -46,6 +46,19 @@ const SUNDAY_DATE = "2027-07-04";
 const CONTROL_TIMEOUT_MS = 25_000;
 const SUBSCRIBE_TIMEOUT_MS = 20_000;
 
+// `SUBSCRIBED` IS NOT READINESS. It acknowledges the channel JOIN; the server still has to
+// register the subscription and WALRUS still has to pick it up, and that lag is not reported to
+// the client at all. Run alone, the first event arrives in about a second. Run inside the full
+// suite against a busy project, the same first event has taken over 25 seconds — long enough to
+// fail a test whose own control row was the thing being waited on.
+//
+// So every channel that is entitled to receive something is warmed by PROBING until a row
+// actually arrives, before any assertion depends on it. Probes are re-inserted rather than
+// waited on, because a change committed before the subscription went live is gone — waiting
+// longer on one insert cannot recover it.
+const PROBE_WINDOW_MS = 3_000;
+const LIVENESS_TIMEOUT_MS = 90_000;
+
 type ReceivedRow = { id: string; wardId: string };
 
 type Subscription = {
@@ -152,6 +165,42 @@ describe("realtime isolation for assignment_comments", () => {
     return received.some((row) => row.id === commentId);
   }
 
+  // Proves the channel is genuinely delivering before anything depends on it, by inserting a row
+  // this subscriber may see and re-inserting until one arrives. Clears `received` afterwards so
+  // the probes cannot be mistaken for a control row or pollute an "expect nothing" assertion.
+  async function waitUntilLive(
+    subscription: Subscription,
+    wardId: string,
+    assignmentId: string,
+  ): Promise<void> {
+    const deadline = Date.now() + LIVENESS_TIMEOUT_MS;
+    let attempt = 0;
+
+    while (Date.now() < deadline) {
+      attempt += 1;
+      const probeId = await insertComment(
+        wardId,
+        assignmentId,
+        `liveness probe ${attempt}`,
+      );
+
+      const window = Date.now() + PROBE_WINDOW_MS;
+      while (Date.now() < window) {
+        if (hasReceived(subscription.received, probeId)) {
+          subscription.received.length = 0;
+          return;
+        }
+        await wait(200);
+      }
+    }
+
+    throw new Error(
+      `Channel for "${subscription.handle}" reported SUBSCRIBED but never delivered a probe ` +
+        `row in ${LIVENESS_TIMEOUT_MS / 1000}s across ${attempt} attempts. Either migration 026 ` +
+        "has not been applied (npm run db:push) or realtime is not delivering for this project.",
+    );
+  }
+
   // Fails the test rather than returning false. A control that never lands means the subscriber
   // was not live, and every conclusion drawn from its silence would be worthless.
   async function awaitControl(
@@ -240,6 +289,7 @@ describe("realtime isolation for assignment_comments", () => {
   // working at all, and nothing else in this file means anything.
   it("delivers a ward's own comment to that ward's bishop", async () => {
     const bishop = await subscribeAs("bishop", "ward-a-own");
+    await waitUntilLive(bishop, fixtures.wardAId, wardAAssignmentId);
 
     const commentId = await insertComment(
       fixtures.wardAId,
@@ -258,6 +308,7 @@ describe("realtime isolation for assignment_comments", () => {
       "ward-b-filtered",
       `ward_id=eq.${fixtures.wardBId}`,
     );
+    await waitUntilLive(wardB, fixtures.wardBId, wardBAssignmentId);
 
     // Forbidden first, control second. WAL is streamed in commit order, so a subscriber that has
     // been offered the control has already been offered — and refused — the one before it.
@@ -286,6 +337,7 @@ describe("realtime isolation for assignment_comments", () => {
   // filter the CommentThread component sends; it cannot drop this.
   it("never delivers ward B's comment to an UNFILTERED ward A subscriber", async () => {
     const wardA = await subscribeAs("bishop", "ward-a-unfiltered");
+    await waitUntilLive(wardA, fixtures.wardAId, wardAAssignmentId);
 
     const forbiddenId = await insertComment(
       fixtures.wardBId,
@@ -320,8 +372,17 @@ describe("realtime isolation for assignment_comments", () => {
   // to somebody, which is what makes the music coordinator's silence a refusal rather than a
   // pipeline that was asleep.
   it("delivers nothing to a non-bishopric role inside the same ward", async () => {
+    // Subscribed FIRST, and deliberately not warmed — there is no row in this table a music
+    // coordinator may legitimately receive, so no probe can prove their channel is live. That
+    // limit is real and worth stating rather than papering over.
+    //
+    // What makes the silence meaningful anyway: the bishop's warm-up below inserts probe rows
+    // into ward A and blocks until they arrive. Those probes are themselves rows this subscriber
+    // must not see, they span the whole warm-up window, and the final assertion checks this
+    // channel received NOTHING across all of it — not just the one control row.
     const music = await subscribeAs("musicCoordinator", "ward-a-music");
     const bishop = await subscribeAs("bishop", "ward-a-music-control");
+    await waitUntilLive(bishop, fixtures.wardAId, wardAAssignmentId);
 
     const commentId = await insertComment(
       fixtures.wardAId,

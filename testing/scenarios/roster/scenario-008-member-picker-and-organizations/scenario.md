@@ -117,18 +117,25 @@ appears as a modal:
 
 ## Failure Behavior
 
-- [ ] A `PUT` to `/api/members/<id>/organizations` from an `eqpres` session returns 403 with a
-      readable message, not 500. Run it from the browser console while signed in as `eqpres`:
-      `await (await fetch('/api/members/<id>/organizations', { method: 'PUT', headers: {
-      'Content-Type': 'application/json' }, body: JSON.stringify({ organizationIds: [] })
-      })).json()`
-- [ ] A `POST` to `/api/roster/bulk-assign` from an `eqpres` session returns 403 the same way
-- [ ] Assigning to an organization id from another ward returns **"That organization is not in
-      your ward."**, not a foreign-key error string. Use any UUID that is not one of this ward's
-      organizations
-- [ ] Assigning with an unknown member id returns a message naming the problem, not a constraint
-- [ ] Opening the picker against a filter that matches nobody shows a stated message, not a
-      blank modal
+**Automated — nothing to do by hand.** This section used to ask the tester to paste `fetch` calls
+into the browser console. Every check is now a test that runs on `npm test`:
+
+| Retired check | Replaced by |
+|---|---|
+| `PUT /api/members/<id>/organizations` as `eqpres` → 403 | `tests/routes/roster-organizations.test.ts` — "refuses a role without roster.manage, and writes nothing" (PUT) |
+| `POST /api/roster/bulk-assign` as `eqpres` → 403 | the same test under POST |
+| An organization id from another ward → "That organization is not in your ward." | "refuses an organization from another ward by name, not by constraint" — asserted on both routes |
+| An unknown member id → a message, not a constraint | "refuses an unknown member by name, not by constraint", plus "refuses members from another ward…" for the ward-scoped case |
+| The picker against a filter matching nobody → a stated message | `tests/components/roster/MemberPicker.test.tsx` — "distinguishes an empty roster from an empty filter result" and "says nobody matches when the filter empties a non-empty roster" |
+
+The last one was already covered when this scenario was written; the other four were not.
+
+**Why those two 403s carry more weight than a usual permission check.** Migration 019's
+ward-scoped policy loop grants INSERT, UPDATE and DELETE on `member_organizations` to *every*
+authenticated member of the ward (see the note below). RLS will not stop an org president writing
+these rows — `assertCan(user, "roster.manage")` is the only thing that does. So both tests
+**re-read the table afterwards** rather than trusting the status code: a 403 with the row quietly
+changed would be the worst possible pass.
 
 ## Notes
 
