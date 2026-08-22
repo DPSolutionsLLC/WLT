@@ -7,14 +7,6 @@ _Last updated: 2026-08-22_
 ## In Progress
 Items currently being planned or actively worked.
 
-- [ ] ITER-005 — Ward role-access overrides are ignored by 25 of 62 permission checks → [scope](.iterate/scopes/ITER-005.md) | [plan](plans/role-access-overrides.md)
-  _Planned 2026-08-22. All three open questions answered: `admin.*` and `sacrament.*` become
-  non-overridable in both directions, the stored shape becomes add/remove deltas rather than a
-  replacement list, and bishop/counselor equivalence is enforced inside `mergeRoleAccess`. The
-  fix drops the `= ROLE_PERMISSIONS` default so the compiler produces the 25-site worklist.
-  Still latent — nothing writes `role_access` yet — but it must land **before** Phase 11's admin
-  matrix ships._
-
 - [ ] ITER-004 — Speakers who are not members of the ward → [scope](.iterate/scopes/ITER-004.md) | plans: [talks-a](plans/talks-a-pipeline-core.md), [talks-b](plans/talks-b-month-planner.md)
   _**The Phase 4 half is complete.** `talks-a` landed the schema and pipeline shape — a nullable
   member link, inline external name and title with a CHECK that a row holds one or the other, and
@@ -60,7 +52,7 @@ _None._
 
 ## Completed
 
-_None._
+- [x] ITER-005 — Ward role-access overrides ignored by 25 of 62 permission checks _(completed 2026-08-22)_
 
 ---
 

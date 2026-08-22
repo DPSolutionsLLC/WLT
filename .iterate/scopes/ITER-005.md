@@ -1,9 +1,11 @@
 # ITER-005: Ward Role-Access Overrides Are Ignored by 25 of 62 Permission Checks
 
 **Type:** Modification
-**Status:** In Progress
+**Status:** Completed
 **Plan:** plans/role-access-overrides.md
 **Created:** 2026-08-22
+**Completed:** 2026-08-22
+**Commit:** 310a708
 
 ## Summary
 
