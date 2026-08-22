@@ -892,11 +892,21 @@ PATCH  /api/admin/ward-settings  Update ward settings (with bishopric notificati
   /layout.tsx                  Root layout with theme provider, auth guard
   /dashboard/page.tsx          Role-based dashboard router
   /calendar/page.tsx           Sunday calendar
-  /assignments/
-    /page.tsx                  Monthly assignment planner
+  /assignments/                BUILT in talks-b. The primary talk-pipeline surface
+    /page.tsx                  Monthly assignment planner (Server Component)
+    /MonthPlannerBoard.tsx     "use client" — modal state + the month's TanStack Query cache
+    /AssignmentModal.tsx       Plan or edit one assignment; where most of the work happens
+    /SpeakerField.tsx          The ward-member / outside-speaker switch (ITER-004)
+    /ApprovalPanel.tsx         n-of-n approvals, approve, request changes
+    /AssignmentEditButton.tsx  "use client" — opens the modal from the Server-rendered detail page
+    /ContactStagePanel.tsx     REQUEST → CONFIRM → NOTIFY → APPRECIATE, or the waiver
+    /CommentThread.tsx         "use client" — realtime, both comment levels
     /[sunday_id]/page.tsx      Single Sunday assignment detail
   /talks/
-    /pipeline/page.tsx         Pipeline view (kanban by stage)
+    /pipeline/page.tsx         NOT BUILT. A kanban by stage was dropped in talks-b: the pipeline
+                               is nine stages, not nine screens, and /assignments is the surface
+                               a bishopric actually works in. The sidebar's Talks link points at
+                               /assignments
     /topics/page.tsx           Topic library
     /history/page.tsx          Speaker history
   /prayers/page.tsx            Prayer assignment tracker
@@ -943,11 +953,17 @@ PATCH  /api/admin/ward-settings  Update ward settings (with bishopric notificati
     MemberPicker.tsx
     MemberStatusBadge.tsx
     ReliabilityFlag.tsx
-  /assignments/
-    PipelineCard.tsx
-    AssignmentModal.tsx
-    ApprovalThread.tsx
-    AIMessageComposer.tsx
+  /assignments/                As BUILT in talks-b. The module-scoped screens live under
+    StageBadge.tsx             /app/(app)/assignments; these are the shared pieces
+    SpeakerLine.tsx            One speaker, member or external — Phase 6 reuses this rather than
+                               re-deriving a display name, or an external speaker's title goes
+                               missing on the printed program
+    SpeakerList.tsx            The `speakers` reserved region on SundayCell and SundayCard
+    PipelineStatusSummary.tsx  The `pipelineStatus` reserved region
+    SmsHandoff.tsx             The sms: link AND the copy fallback, always both
+                               (PipelineCard, ApprovalThread and AIMessageComposer were the
+                               guess; the first two are folded into the pages above and
+                               AIMessageComposer belongs to Phase 5)
   /program/
     ProgramPreview.tsx
     ProgramEditorChat.tsx      AI conversational editor

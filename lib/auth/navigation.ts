@@ -21,7 +21,10 @@ export type NavigationItem = {
 export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
   { label: "Roster", href: "/roster", permission: "roster.view" },
   { label: "Calendar", href: "/calendar", permission: "calendar.view" },
-  { label: "Talks", href: "/talks/pipeline", permission: "talks.view" },
+  // Points at the month PLANNER, not at SPEC.md's /talks/pipeline kanban. talks-b built the
+  // planner as the primary surface deliberately — the pipeline is nine stages, not nine screens
+  // (04-talks-pipeline.md) — so the one Talks link goes where the work happens.
+  { label: "Talks", href: "/assignments", permission: "talks.view" },
   { label: "Topics", href: "/talks/topics", permission: "topics.view" },
   { label: "Program", href: "/program", permission: "program.view" },
   { label: "Music", href: "/music", permission: "music.view" },

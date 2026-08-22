@@ -2,10 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { OrgConductingEditor } from "@/app/(app)/calendar/sunday/[id]/OrgConductingEditor";
 import { SundayEditor } from "@/app/(app)/calendar/sunday/[id]/SundayEditor";
+import { PipelineStatusSummary } from "@/components/assignments/PipelineStatusSummary";
+import { SpeakerList } from "@/components/assignments/SpeakerList";
 import { ConductingLabel } from "@/components/calendar/ConductingLabel";
 import { SundayTypeBadge } from "@/components/calendar/SundayTypeBadge";
 import { Card } from "@/components/ui/Card";
 import { NotPermitted } from "@/components/ui/NotPermitted";
+import { listAssignments, type Assignment } from "@/lib/assignments/queries";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { formatSundayLabel, monthOf } from "@/lib/calendar/dates";
@@ -19,8 +22,9 @@ import {
   listRotationOrganizations,
   listSundayOrgConducting,
 } from "@/lib/calendar/queries";
+import { listMembers } from "@/lib/roster/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { SUNDAY_TYPE_LABELS } from "@/types/domain";
+import { MEMBER_STATUSES, SUNDAY_TYPE_LABELS } from "@/types/domain";
 
 // params is a Promise in Next 16, typed explicitly rather than with the generated PageProps
 // helper — that only exists after a build (plans/retros/foundation-a-scaffold.md).
@@ -59,6 +63,23 @@ export default async function SundayDetailPage({ params }: SundayDetailPageProps
   ]);
 
   const orgLeadershipNames = conductingNameMap(orgLeadershipUsers);
+
+  // Skipped entirely for a viewer without talks.view rather than fetched and hidden. Every
+  // status, not only the active ones — an assignment can name somebody who has since moved out,
+  // and dropping their name would render the slot as open.
+  const [assignments, speakerNames] = canSeeSpeakers
+    ? await Promise.all([
+        listAssignments(user.wardId, { sundayId: sunday.id }, supabase),
+        listMembers(user.wardId, { statuses: MEMBER_STATUSES }, supabase).then((members) =>
+          Object.fromEntries(
+            members.map((member) => [
+              member.id,
+              `${member.firstName} ${member.lastName}`.trim(),
+            ]),
+          ),
+        ),
+      ])
+    : [[] as Assignment[], {} as Record<string, string>];
 
   // Only organizations that HAVE a rotation. An organization that has never been given one has
   // nothing to show and nothing to override, and a row reading "Not set" for all six would bury
@@ -173,14 +194,38 @@ export default async function SundayDetailPage({ params }: SundayDetailPageProps
       )}
 
       {/* Gated on talks.view from the start, so the section is bishopric-only now rather than
-          being narrowed later — exactly what roster-a did with the assignment-history tab. An
-          explicit "not built yet" also beats an empty box that reads as "nobody is speaking". */}
+          being narrowed later — exactly what roster-a did with the assignment-history tab.
+
+          A SUMMARY with a link, not a second planner. The planning surface is /assignments and
+          the per-Sunday detail is /assignments/[sunday_id]; duplicating either here would give
+          the ward two places to edit the same slot and two places to keep in step. */}
       {canSeeSpeakers && (
         <Card>
           <h2 className="text-base font-semibold text-foreground">Speakers</h2>
-          <p className="mt-2 text-sm text-muted">
-            The talk pipeline arrives in Phase 4.
-          </p>
+
+          <div className="mt-2 flex flex-col gap-2">
+            <SpeakerList
+              speakingSlots={sunday.speakingSlots}
+              assignments={assignments}
+              memberNames={speakerNames}
+            />
+            <PipelineStatusSummary
+              stages={assignments.map((assignment) => assignment.stage)}
+            />
+
+            {sunday.speakingSlots === 0 && (
+              <p className="text-sm text-muted">
+                This Sunday has no speaking slots.
+              </p>
+            )}
+
+            <Link
+              href={`/assignments/${sunday.id}`}
+              className="text-sm text-primary underline underline-offset-4"
+            >
+              Plan the speakers for this Sunday
+            </Link>
+          </div>
         </Card>
       )}
     </div>

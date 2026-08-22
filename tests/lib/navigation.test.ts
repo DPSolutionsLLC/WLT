@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NAVIGATION_ITEMS, visibleNavigationItems } from "@/lib/auth/navigation";
-import { PERMISSIONS, mergeRoleAccess } from "@/lib/auth/permissions";
+import { PERMISSIONS, can, mergeRoleAccess } from "@/lib/auth/permissions";
 import { ROLES, type Role, type SessionUser } from "@/types/domain";
 
 function sessionUser(role: Role): SessionUser {
@@ -84,6 +84,26 @@ describe("role-filtered navigation", () => {
       const expected = role !== "music_coordinator" && role !== "sacrament_manager";
 
       expect(canSeeRoster, `role "${role}" disagrees on /roster`).toBe(expected);
+    }
+  });
+
+  // talks-b pointed the Talks entry at /assignments rather than SPEC.md's /talks/pipeline
+  // kanban, which was never built. A sidebar link to an unbuilt route 404s, and the one link
+  // every planner uses is the wrong one to leave pointing at a guess.
+  it("points Talks at the month planner, gated on talks.view", () => {
+    const talks = NAVIGATION_ITEMS.find((item) => item.label === "Talks");
+
+    expect(talks).toBeDefined();
+    expect(talks?.href).toBe("/assignments");
+    expect(talks?.permission).toBe("talks.view");
+  });
+
+  it("shows the planner to every role that holds talks.view and to no other", () => {
+    for (const role of ROLES) {
+      const canSeePlanner = hrefsFor(role).includes("/assignments");
+      const expected = can(sessionUser(role), "talks.view");
+
+      expect(canSeePlanner, `role "${role}" disagrees on /assignments`).toBe(expected);
     }
   });
 

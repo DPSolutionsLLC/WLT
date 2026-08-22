@@ -16,21 +16,28 @@
   --danger: #b91c1c;
 
   /* Talk-pipeline stage colours. The NAMES are the contract between Phase 3 and Phase 4 and match
-     PIPELINE_STAGES in types/domain.ts exactly; the hex values are not, and Phase 4 owns the
-     semantics and may retune them. Nothing in Phase 3 renders one — they are defined here so the
-     Sunday cell's layout is designed around a palette that already exists.
+     PIPELINE_STAGES in types/domain.ts exactly; the hex values are Phase 4's to retune.
 
      A progression, not nine unrelated hues: cool and muted at plan, warming through the middle,
-     resolved green at complete, so how far along a Sunday is reads without a legend. Every value
-     clears 4.5:1 against --surface. */
-  --stage-plan: #64748b;
+     resolved green at complete, so how far along a Sunday is reads without a legend.
+
+     MEASURED against both backgrounds a StageBadge can sit on — --surface (#f8fafc) and
+     --surface-raised (#ffffff) — rather than checked by eye, which is what calendar-b did. The
+     worst of the two ratios for each, WCAG AA needing 4.5:1 for text this size:
+
+       plan 7.24 · review 4.94 · approve 6.01 · request 5.45 · confirm 6.04
+       notify 6.01 · speak 4.95 · appreciate 6.55 · complete 4.79
+
+     Two were retuned here and the other seven left alone: plan measured 4.55 and appreciate 4.71,
+     both close enough to the threshold that a small-text badge has no headroom at all. */
+  --stage-plan: #475569;
   --stage-review: #2563eb;
   --stage-approve: #4f46e5;
   --stage-request: #7c3aed;
   --stage-confirm: #a21caf;
   --stage-notify: #be123c;
   --stage-speak: #c2410c;
-  --stage-appreciate: #a16207;
+  --stage-appreciate: #854d0e;
   --stage-complete: #15803d;
 }
 
@@ -49,7 +56,14 @@
 
   /* Every stage token is redefined here, not just the ones that "needed" it. A token defined only
      in :root renders as its light value against #141414, which is the exact failure this
-     project's dark-mode rule exists to prevent. */
+     project's dark-mode rule exists to prevent.
+
+     Measured against --surface (#141414) and --surface-raised (#1c1c1c); worst of the two:
+
+       plan 6.65 · review 6.70 · approve 5.71 · request 6.26 · confirm 6.93
+       notify 6.33 · speak 7.53 · appreciate 10.21 · complete 9.78
+
+     All nine clear AA with room, so none was changed. */
   --stage-plan: #94a3b8;
   --stage-review: #60a5fa;
   --stage-approve: #818cf8;

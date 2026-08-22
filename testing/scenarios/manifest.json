@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 11,
+  "scenarioCount": 13,
   "scenarios": [
     {
       "id": "auth:scenario-001-role-shell",
@@ -428,6 +428,102 @@
         "Correct in both light and dark mode"
       ],
       "seedCommand": "npm run seed -- roster/scenario-009-import-lcr-export-twice"
+    },
+    {
+      "id": "talks:scenario-012-three-approval-gate",
+      "path": "talks/scenario-012-three-approval-gate",
+      "name": "The three-approval gate",
+      "scope": "talks-b-month-planner",
+      "part": 1,
+      "tags": [
+        "talks",
+        "full",
+        "approvals",
+        "permissions"
+      ],
+      "prerequisites": "none",
+      "purpose": "Building a 2-of-3 and then a 3-of-3 approval state by hand across three accounts is tedious and\neasy to get subtly wrong, which is exactly what seeding is for.\n\nThe gate itself is already pinned by `tests/lib/approvalGate.test.ts` and by the\n`assignment_approvals_one_per_user` constraint. What a walkthrough proves that neither can:\n\n- that the indicator reads as a **sentence a bishopric understands** — \"waiting on Mark Andersen\",\n  not \"2/3\"\n- that the invalidation warning arrives **before** the edit rather than as a report afterwards\n- that approval never happens as a **side effect** of saving, which is the phase's first pitfall\n  and the one no unit test can see, because the pure layer is not what would do it\n\nMarch 2026 opens on a Sunday, so the month grid has no leading blanks and 03-01 is the fast\nSunday — which carries `speaking_slots = 0` and must offer no add control at all.",
+      "checklist": [
+        "Slot 1 on 03-08 reads **\"Approved by Peter Nakamura and Daniel Okafor — waiting on Mark",
+        "The month card for that slot says **\"Waiting on 1 more approval\"**, singular",
+        "Nothing anywhere on either screen hard-codes the number **3**",
+        "The stage badge reads **In Review**, and its colour is legible in both themes",
+        "**Request changes** with an empty comment is refused **before** submit — the message",
+        "**Approve** and **Request changes** are two separate controls, never one toggle",
+        "After the bishop approves, the sentence becomes \"Approved by …\" with all three names",
+        "The **Approve plan** action appears **only after the third approval**, and the assignment",
+        "Pressing **Approve plan** moves it to **Approved**",
+        "`counselor1` receives a `plan_approved` notification",
+        "Editing the approved plan warns **before** saving, not after",
+        "The warning **names who loses their approval** — Peter, Daniel and Mark — not just a count",
+        "The confirm button's own label says what it does (\"Save and clear the approvals\")",
+        "A screen reader announces the warning when the confirm button is focused (the button is",
+        "Cancelling at the warning leaves the approvals untouched",
+        "After confirming, the approval count is back to **zero** and the sentence says nobody has",
+        "`counselor1` and `counselor2` receive a `plan_change_requested` notification saying the",
+        "`assignment_approvals` has **no rows** for that assignment afterwards",
+        "03-01 shows **\"No speaking slots\"** and offers **no Plan button at all** — not a disabled",
+        "03-22 shows three slots, all reading **\"Slot N — open\"**, never blank",
+        "03-15 shows slot 1 with a name and slots 2 and 3 open",
+        "The `/calendar` month cell for 03-08 shows the same speakers and a one-line stage summary",
+        "That summary names the **furthest-behind** stage first",
+        "The calendar cell has not changed height or wrapped — it was designed for this content",
+        "`secretary` sees the whole month and 03-08's detail page, and **no** Plan, Edit, Approve,",
+        "`eqpres` gets a **\"Not permitted\"** page, not an empty planner",
+        "Audit rows exist for the approval, the stage change, the edit, and the invalidation",
+        "No audit row exists for anything `secretary` or `eqpres` did",
+        "Every screen works at **375px** in both themes",
+        "The approval panel does not scroll horizontally at 375px",
+        "Every tap target clears 44×44",
+        "No raw uuid appears anywhere"
+      ],
+      "seedCommand": "npm run seed -- talks/scenario-012-three-approval-gate"
+    },
+    {
+      "id": "talks:scenario-013-visiting-speaker-no-phone",
+      "path": "talks/scenario-013-visiting-speaker-no-phone",
+      "name": "A visiting speaker with no phone number",
+      "scope": "talks-b-month-planner",
+      "part": 2,
+      "tags": [
+        "talks",
+        "full",
+        "external-speaker",
+        "iter-004"
+      ],
+      "prerequisites": "none",
+      "purpose": "The precise failure ITER-004 exists to prevent: a pipeline sitting in a stuck state waiting for a\nconfirmation that was never going to arrive, because the speaker was invited from outside the\nward and nobody was ever going to text them.\n\n`tests/lib/externalSpeaker.test.ts` proves the waiver satisfies exactly four gates and no others,\nand `tests/components/assignments/ContactStagePanel.test.tsx` proves a waived panel renders no\ndisabled action. Neither can judge the thing that actually matters: whether a waived stage\n**reads** as \"not applicable\" to somebody scanning a Sunday, or still reads as an unfinished\ntask. That is a human judgement and it is the whole point of this scenario.\n\nThe second half is speaker history. An external speaker must never enter `assignment_history` —\ntheir talk says nothing about whose turn it is in this ward's rotation, and a row there would\nquietly suppress a real member instead.",
+      "checklist": [
+        "Slot 2 shows the name and title **as they would print** — \"President Mark Andersen\", in",
+        "**No phone number, no household link, and no contact affordance** is offered for them",
+        "The month card does not show them as a member of the roster in any way",
+        "**Mark not applicable** appears with a **one-line explanation of what it does**, before it",
+        "The explanation says it does **not** move the assignment on",
+        "Once waived, REQUEST, CONFIRM, NOTIFY and APPRECIATE all read **\"Not applicable — invited",
+        "The waiver names **who** recorded it and **on what date**",
+        "**Nothing on the Sunday looks outstanding**: no progress bar, no \"pending\", no \"waiting\",",
+        "The waiver control disappears once it is set — it is not offered twice",
+        "SPEAK is **not** waived: confirming the meeting happened is still a real step, because",
+        "The waiver **moved nothing** — slot 2 is still at Approved immediately afterwards",
+        "Every step to Complete requires its own **Move to …** press; nothing chains",
+        "Reaching Complete writes **no** `assignment_history` row for the external speaker",
+        "Slot 1's history row (when it completes) is unaffected",
+        "Slot 1 shows its **real** contact stages throughout — never \"Not applicable\"",
+        "Slot 1 is completely unaffected by everything done to slot 2",
+        "Slot 1 offers **no** Mark not applicable control — the waiver is external-only",
+        "At NOTIFY, slot 1 shows an **Open in Messages** link on a phone **and** a **Copy message**",
+        "On a desktop browser the link is **absent** and Copy carries a line explaining why",
+        "**Mark as sent** says plainly that nothing can tell whether the message arrived",
+        "04-19 slot 1 offers **Copy message** and **no link at all** — never a dead or disabled",
+        "It says there is no number on file, rather than looking broken",
+        "Switching slot 2 from outside-the-ward to a ward member **clears the name and the title**",
+        "Switching back clears the chosen member",
+        "The title field's hint says to type it exactly as it should print, and nothing derives a",
+        "Every screen works at **375px** in both themes",
+        "The waived stages are legible in dark mode and do not read as disabled",
+        "No raw uuid appears anywhere"
+      ],
+      "seedCommand": "npm run seed -- talks/scenario-013-visiting-speaker-no-phone"
     }
   ]
 }

@@ -1,4 +1,7 @@
-import { SundayCell } from "@/components/calendar/SundayCell";
+import {
+  SundayCell,
+  type SundayReservedRegions,
+} from "@/components/calendar/SundayCell";
 import { daysInMonth, leadingBlankDays, type DateOnly } from "@/lib/calendar/dates";
 import type { Sunday } from "@/lib/calendar/queries";
 
@@ -6,6 +9,10 @@ export type MonthGridProps = {
   monthStart: DateOnly;
   sundays: Sunday[];
   conductingNames: Record<string, string>;
+  // Phase 4's reserved-region content, keyed by Sunday id. Built ONCE by the page from one
+  // month-wide read and threaded through here, rather than each cell fetching its own — a grid
+  // that fetches per cell is six round trips to draw one month.
+  regionsBySundayId?: Record<string, SundayReservedRegions>;
 };
 
 const WEEKDAY_HEADERS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
@@ -15,7 +22,12 @@ const WEEKDAY_HEADERS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as con
 // grid rather than a list of six dates.
 //
 // No virtualization and no new dependency: a month is at most six rows.
-export function MonthGrid({ monthStart, sundays, conductingNames }: MonthGridProps) {
+export function MonthGrid({
+  monthStart,
+  sundays,
+  conductingNames,
+  regionsBySundayId,
+}: MonthGridProps) {
   const blanks = leadingBlankDays(monthStart);
   const days = daysInMonth(monthStart);
 
@@ -54,11 +66,16 @@ export function MonthGrid({ monthStart, sundays, conductingNames }: MonthGridPro
             );
           }
 
+          const regions = regionsBySundayId?.[sunday.id];
+
           return (
             <SundayCell
               key={date}
               sunday={sunday}
               conductingNames={conductingNames}
+              speakers={regions?.speakers}
+              pipelineStatus={regions?.pipelineStatus}
+              goalAlerts={regions?.goalAlerts}
             />
           );
         })}

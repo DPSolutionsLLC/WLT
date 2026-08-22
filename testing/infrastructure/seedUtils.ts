@@ -6,6 +6,7 @@ import type {
   ActivityType,
   AgendaStatus,
   AssignmentType,
+  CommentLevel,
   HymnType,
   MeetingType,
   MemberCategory,
@@ -16,6 +17,7 @@ import type {
   PrayerType,
   ProgramStatus,
   PublicPageType,
+  RequestOutcome,
   Role,
   RotationCadence,
   SacramentAssignmentType,
@@ -536,28 +538,90 @@ export async function createTopic(options: {
   });
 }
 
+// A speaker is a ward member OR somebody invited from outside, never both — the
+// assignments_speaker_exactly_one CHECK (migration 025) refuses a row with two, and a seed that
+// sets both fails loudly rather than producing a state the app can never reach (ITER-004).
 export async function createAssignment(options: {
   id?: string;
   sundayId: string;
   memberId?: string;
+  externalSpeakerName?: string;
+  externalSpeakerTitle?: string;
   topicId?: string;
   assignmentType?: AssignmentType;
   pipelineStage?: PipelineStage;
   slotNumber?: number;
   slotLengthMinutes?: number;
   plannedBy?: string;
+  requestOutcome?: RequestOutcome;
+  requestNotes?: string;
+  notifyMessage?: string;
+  notifySentAt?: string;
+  sundayConfirmedAt?: string;
+  thankYouMessage?: string;
+  thankYouSentAt?: string;
+  // Both waiver columns move together or neither does — assignments_waiver_pair, migration 025.
+  contactWaivedAt?: string;
+  contactWaivedBy?: string;
 }): Promise<string> {
   return insertRow("assignments", {
     id: options.id ?? testUuid(`assignment:${options.sundayId}:${options.slotNumber ?? 1}`),
     ward_id: TEST_WARD_ID,
     sunday_id: options.sundayId,
     member_id: options.memberId ?? null,
+    external_speaker_name: options.externalSpeakerName ?? null,
+    external_speaker_title: options.externalSpeakerTitle ?? null,
     topic_id: options.topicId ?? null,
     assignment_type: options.assignmentType ?? "sacrament_talk",
     pipeline_stage: options.pipelineStage ?? "plan",
     slot_number: options.slotNumber ?? 1,
     slot_length_minutes: options.slotLengthMinutes ?? 10,
     planned_by: options.plannedBy ?? null,
+    request_outcome: options.requestOutcome ?? null,
+    request_notes: options.requestNotes ?? null,
+    notify_message: options.notifyMessage ?? null,
+    notify_sent_at: options.notifySentAt ?? null,
+    sunday_confirmed_at: options.sundayConfirmedAt ?? null,
+    thank_you_message: options.thankYouMessage ?? null,
+    thank_you_sent_at: options.thankYouSentAt ?? null,
+    contact_waived_at: options.contactWaivedAt ?? null,
+    contact_waived_by: options.contactWaivedBy ?? null,
+  });
+}
+
+// One bishopric member's decision on one assignment. assignment_approvals_one_per_user (UNIQUE
+// on assignment_id, user_id) is what stops one seeded counselor filling a three-person gate
+// alone, so building a 2-of-3 state means three DIFFERENT user ids — which is exactly the state
+// that is tedious and error-prone to build by hand, and therefore worth seeding.
+export async function createAssignmentApproval(options: {
+  assignmentId: string;
+  userId: string;
+  approved: boolean;
+  comment?: string;
+}): Promise<string> {
+  return insertRow("assignment_approvals", {
+    ward_id: TEST_WARD_ID,
+    assignment_id: options.assignmentId,
+    user_id: options.userId,
+    approved: options.approved,
+    comment: options.comment ?? null,
+  });
+}
+
+export async function createAssignmentComment(options: {
+  assignmentId?: string;
+  sundayId?: string;
+  userId: string;
+  comment: string;
+  level: CommentLevel;
+}): Promise<string> {
+  return insertRow("assignment_comments", {
+    ward_id: TEST_WARD_ID,
+    assignment_id: options.assignmentId ?? null,
+    sunday_id: options.sundayId ?? null,
+    user_id: options.userId,
+    comment: options.comment,
+    level: options.level,
   });
 }
 

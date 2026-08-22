@@ -2,10 +2,14 @@ import { CalendarSettingsPanel } from "@/app/(app)/calendar/CalendarSettingsPane
 import { ConductingRotationPanel } from "@/app/(app)/calendar/ConductingRotationPanel";
 import { MonthNavigation } from "@/app/(app)/calendar/MonthNavigation";
 import { OrgRotationPanel } from "@/app/(app)/calendar/OrgRotationPanel";
+import { PipelineStatusSummary } from "@/components/assignments/PipelineStatusSummary";
+import { SpeakerList } from "@/components/assignments/SpeakerList";
 import { MonthGrid } from "@/components/calendar/MonthGrid";
 import { SundayCard } from "@/components/calendar/SundayCard";
+import type { SundayReservedRegions } from "@/components/calendar/SundayCell";
 import { Card } from "@/components/ui/Card";
 import { NotPermitted } from "@/components/ui/NotPermitted";
+import { listAssignments, type Assignment } from "@/lib/assignments/queries";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import {
@@ -33,8 +37,10 @@ import {
   type RotationEntry,
 } from "@/lib/calendar/resolveConductingUser";
 import { readDefaultSpeakingSlots } from "@/lib/calendar/wardCalendarSettings";
+import { listMembers } from "@/lib/roster/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { MAX_SPEAKING_SLOTS } from "@/lib/validation/calendar";
+import { MEMBER_STATUSES } from "@/types/domain";
 
 // searchParams is a Promise in Next 16, typed explicitly rather than with the generated PageProps
 // helper — that only exists after a build (plans/retros/foundation-a-scaffold.md).
@@ -57,6 +63,10 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   // only the bishopric decides who conducts and what a new Sunday starts with.
   const canManage = can(user, "calendar.manage", roleAccess);
   const canManageRotation = can(user, "admin.manage_ward", roleAccess);
+
+  // A third gate. Who conducts is calendar data; who is SPEAKING is talk-pipeline data, and the
+  // Sunday detail page has gated its Speakers section on talks.view since calendar-b.
+  const canSeeSpeakers = can(user, "talks.view", roleAccess);
 
   // Today in UTC, matching how every date in this module is read, and resolved HERE so the month
   // helpers stay pure and the client components never construct a date of their own.
@@ -85,6 +95,19 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
 
   const conductingNames = conductingNameMap(bishopricUsers);
   const orgLeadershipNames = conductingNameMap(orgLeadershipUsers);
+
+  // The month's assignments in ONE read, plus one roster read to turn member ids into names.
+  // Both are skipped entirely for a viewer without talks.view rather than fetched and hidden.
+  const [monthAssignments, speakerNames] = canSeeSpeakers
+    ? await Promise.all([
+        listAssignments(user.wardId, range, supabase),
+        readSpeakerNames(user.wardId, supabase),
+      ])
+    : [[] as Assignment[], {} as Record<string, string>];
+
+  const reservedRegions = canSeeSpeakers
+    ? buildReservedRegions(sundays, monthAssignments, speakerNames)
+    : undefined;
 
   // The rotation panels are rendered for organizations this viewer may MANAGE, and for nobody
   // else — absent, not disabled. manageableOrgIds() is the second of two boundaries; migration
@@ -125,6 +148,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
               monthStart={month}
               sundays={sundays}
               conductingNames={conductingNames}
+              regionsBySundayId={reservedRegions}
             />
           </div>
 
@@ -134,6 +158,8 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
                 key={sunday.id}
                 sunday={sunday}
                 conductingNames={conductingNames}
+                speakers={reservedRegions?.[sunday.id]?.speakers}
+                pipelineStatus={reservedRegions?.[sunday.id]?.pipelineStatus}
               />
             ))}
           </div>
@@ -203,6 +229,62 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
         </Card>
       </div>
     </div>
+  );
+}
+
+// Every member the ward has ever had, not only the active ones. An assignment can name somebody
+// who has since moved out, and dropping their name would render the slot as "open" — which
+// reads as a planning gap rather than as a speaker who is gone.
+async function readSpeakerNames(
+  wardId: string,
+  client: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+): Promise<Record<string, string>> {
+  const members = await listMembers(wardId, { statuses: MEMBER_STATUSES }, client);
+
+  return Object.fromEntries(
+    members.map((member) => [member.id, `${member.firstName} ${member.lastName}`.trim()]),
+  );
+}
+
+// Both reserved regions for every Sunday in the month, built once from one read. `goalAlerts`
+// is deliberately left unset — it belongs to talks-d.
+function buildReservedRegions(
+  sundays: { id: string; speakingSlots: number }[],
+  assignments: Assignment[],
+  memberNames: Record<string, string>,
+): Record<string, SundayReservedRegions> {
+  const bySunday = new Map<string, Assignment[]>();
+
+  for (const assignment of assignments) {
+    if (assignment.sundayId === null) continue;
+    bySunday.set(assignment.sundayId, [
+      ...(bySunday.get(assignment.sundayId) ?? []),
+      assignment,
+    ]);
+  }
+
+  return Object.fromEntries(
+    sundays.map((sunday) => {
+      const forSunday = bySunday.get(sunday.id) ?? [];
+
+      return [
+        sunday.id,
+        {
+          speakers: (
+            <SpeakerList
+              speakingSlots={sunday.speakingSlots}
+              assignments={forSunday}
+              memberNames={memberNames}
+            />
+          ),
+          pipelineStatus: (
+            <PipelineStatusSummary
+              stages={forSunday.map((assignment) => assignment.stage)}
+            />
+          ),
+        },
+      ];
+    }),
   );
 }
 
