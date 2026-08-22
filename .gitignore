@@ -52,3 +52,6 @@ Thumbs.db
 
 # Claude Code local overrides
 .claude/settings.local.json
+
+# Playwright MCP session artifacts — snapshots and console logs from browser-driven checks.
+.playwright-mcp/

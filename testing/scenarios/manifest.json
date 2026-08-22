@@ -356,9 +356,9 @@
         "January 2028 generates with **one name across all five Sundays** — Mark Andersen on",
         "After cancelling `2028-01-16`, it reads **\"No meeting\"**",
         "**The other four January Sundays still read Mark Andersen.** Under a monthly cadence one",
-        "As `eqpres`, `2027-11-21` shows **\"No meeting\"** for Elders Quorum",
-        "`2027-11-07` shows **\"Not set\"** for Elders Quorum — the third position is empty, which is a",
-        "The Elders Quorum names skip the cancelled Sunday the same way the bishopric's do",
+        "`2027-11-21`'s Elders Quorum row reads **\"No meeting\"**, with no select and no Save",
+        "`2027-11-07`'s Elders Quorum row reads **\"Not set\"** — the third position is deliberately",
+        "`2027-11-14` reads **Tomas Ruiz** and `2027-11-28` reads **Andre Whitfield** — the Elders",
         "As `secretary`, `2027-11-21` still reads \"No meeting\" and offers no organization select",
         "At 375px the **Ward Conference** badge is legible and clearly distinguishable from the",
         "Both light and dark: \"No meeting\" is readable and does not look like a disabled control"

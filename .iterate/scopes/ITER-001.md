@@ -63,6 +63,50 @@ talk, publishes visit progress to Relief Society, and never asks the bishopric f
 while a Relief Society president sees the shared item appear without doing anything, and sees
 nothing the Elders Quorum did not publish.
 
+## Refinements from the 2026-08-22 conversation
+
+Captured while walking scenario 015, when ITER-007 surfaced that an organization president cannot
+open the calendar at all. The vision below was stated by the user and **confirms the layered
+design above**; these are the parts it did not already say.
+
+- **Every role gets a calendar view.** What differs is what is *on* it, not whether they have one.
+  The current all-or-nothing `calendar.view` gate is the thing that has to go.
+- **The bishopric can filter organization layers off.** They see everything by default but must be
+  able to turn a layer off when planning their own work. This is the concrete answer to the noise
+  risk recorded under Open Questions — a bishopric-side view control, not an inbound sharing
+  switch.
+- **The bishopric owns items too, and some are bishopric-only.** Youth lesson planning is the
+  named example: visible to the bishopric, not to any quorum. The ownership model already handles
+  this (owned by the bishopric, shared with nobody), but it makes the open question "does the
+  `bishopric` org type get a calendar" a **yes**, and it means the bishopric is an owning
+  organization rather than only an admin over other people's.
+- **Quorum Sunday meeting planning** is a named future consumer of the Sunday-shaped item, beyond
+  the lesson talk — for example planning what an Elders Quorum does in its own Sunday block.
+  Controlled by the presidency directly.
+- **Visit accountability is opt-in by the group.** When a set of people agree to hold each other
+  accountable, they opt in to show *progress* to everyone involved.
+
+  > **This must never reach `visit_private_notes`.** CLAUDE.md rule 5 makes those readable only by
+  > `user_id = auth.uid()` — not by the bishopric, not by an admin, not by a support query.
+  > "Sharing progress" means completion and status only. If a design ever needs the note text to
+  > make accountability meaningful, that is a rule change to raise explicitly, not to slide in.
+
+### The question this refinement opens
+
+**"Only the bishopric sees the sacrament meeting plans" — does that mean view, or manage?**
+
+Today `calendar.view` is held by `ward_secretary`, `executive_secretary` and `music_coordinator`
+as well as the bishopric, and `calendar-c` states plainly that "who conducts is not sensitive, and
+the music coordinator plans against it." Phase 6's program builder depends on the music
+coordinator reading the calendar. So the likely reading is that **managing** the sacrament meeting
+is bishopric-only while **viewing** stays wider — but this needs an explicit answer before the
+layering is designed, because it decides whether the sacrament layer is one audience or two.
+
+A related sub-question: `sundays.notes` is bishopric-written free text that currently renders on
+the month grid and the Sunday detail page. RLS already makes `sundays` ward-readable (migration
+019), so notes are not protected data today — the only thing hiding them is the application-level
+`calendar.view` check. If org leaders gain a calendar view, notes need a deliberate decision.
+
 ## Scope Notes
 
 - **This is three or four plans, not one.** Provisional seam: the event model and per-organization

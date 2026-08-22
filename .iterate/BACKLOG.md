@@ -31,6 +31,16 @@ is what the grouping asked for._
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
 
+- [ ] ITER-007 — `calendar.manage_org_conducting` is unreachable by every role that holds it → [scope](.iterate/scopes/ITER-007.md)
+  _Found walking scenario 015 step 13 on 2026-08-22. `org_president` and `org_counselor` hold the
+  permission that lets a presidency set who conducts their own meeting, but not `calendar.view` —
+  and the only UI exposing it sits behind `calendar.view`. Signing in as `eqpres` shows no Calendar
+  nav link and "Not permitted" by direct URL, so the permission is dead in the app. Pre-existing
+  since calendar-c; missed because scenario 011 was never walked and the route test calls the
+  handler directly, bypassing the page gate. **The real question is narrower than "grant
+  calendar.view": is `sundays.notes` bishopric-private?** If yes, the fix is an org-scoped view
+  rather than a blanket grant. Three options weighed in the scope._
+
 - [ ] ITER-006 — A rotation change does not apply to already-generated future months → [scope](.iterate/scopes/ITER-006.md)
   _Found during the scenario 015 walkthrough on 2026-08-22. Saving a rotation "effective from
   2027-11-01" leaves an already-generated November 2027 untouched — the form says saved and nothing
@@ -43,6 +53,12 @@ Each of these is large or complex enough to tackle on its own.
   override. Consider `conducting_source` as part of this rather than deferring it a third time._
 
 - [ ] ITER-001 — Per-organization calendars and cross-organization sharing → [scope](.iterate/scopes/ITER-001.md)
+  _**Refined 2026-08-22.** Every role gets a calendar view; role decides what is on it. Adds: the
+  bishopric can filter organization layers off; the bishopric owns items too and some are
+  bishopric-only (youth lesson planning); quorum Sunday meeting planning is a named consumer of the
+  Sunday-shaped item; visit accountability is opt-in by the group and must never reach
+  `visit_private_notes`. **Open:** does "only the bishopric sees sacrament meeting plans" mean view
+  or manage? The music coordinator plans against the calendar and Phase 6 depends on it._
   _Reason: architectural. Adds a fourth date-bearing model to the schema, a new sharing/audience
   boundary enforced by RLS, and will realistically split into three or four plans of its own._
 

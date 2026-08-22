@@ -97,7 +97,10 @@ cancelled Sunday would have had.
 10. Open **http://localhost:3000/calendar?month=2028-01**. Read the five Sundays.
 11. Open `2028-01-16`, change its type to **Stake Conference**, and save.
 12. Return to `/calendar?month=2028-01` and read the other four Sundays.
-13. Sign out, sign in as `eqpres`, and open `/calendar?month=2027-11`.
+13. Back on `/calendar?month=2027-11` **as the bishop**, open `2027-11-07` and then
+    `2027-11-21`, and compare the **Elders Quorum** row on each.
+    *Not as `eqpres`.* An organization president cannot open the calendar at all — see
+    **Known limitations**. The organization rows are read here from the account that can see them.
 14. Sign out, sign in as `secretary`, and open `2027-11-21`.
 15. Re-check November at **375px** in both light and dark themes.
 
@@ -150,10 +153,14 @@ cancelled Sunday would have had.
 
 ### The organization rotation skips independently — step 13
 
-- [ ] As `eqpres`, `2027-11-21` shows **"No meeting"** for Elders Quorum
-- [ ] `2027-11-07` shows **"Not set"** for Elders Quorum — the third position is empty, which is a
-      *different fact* from "No meeting", and the two must not read alike
-- [ ] The Elders Quorum names skip the cancelled Sunday the same way the bishopric's do
+Read as the **bishop**. The organization-president view is blocked by ITER-007.
+
+- [ ] `2027-11-21`'s Elders Quorum row reads **"No meeting"**, with no select and no Save
+- [ ] `2027-11-07`'s Elders Quorum row reads **"Not set"** — the third position is deliberately
+      empty, which is a *different fact* from "No meeting", and the two must not read alike.
+      **This pair is the whole point of ITER-002**; if they render the same, the change failed
+- [ ] `2027-11-14` reads **Tomas Ruiz** and `2027-11-28` reads **Andre Whitfield** — the Elders
+      Quorum rotation skipped the cancelled Sunday exactly as the bishopric's did
 
 ### Permissions — step 14
 
@@ -166,6 +173,15 @@ cancelled Sunday would have had.
 - [ ] Both light and dark: "No meeting" is readable and does not look like a disabled control
 
 ## Known limitations
+
+**An organization president cannot open the calendar at all.** `org_president` and `org_counselor`
+hold `calendar.manage_org_conducting` but not `calendar.view`, and both `/calendar` and the Sunday
+detail page gate on `calendar.view` — so the permission is unreachable by every role that holds it.
+Signing in as `eqpres` shows no Calendar link at all and, by direct URL, "Not permitted — The ward
+calendar is limited to ward leadership." Pre-existing since `calendar-c`, found while walking this
+scenario on 2026-08-22, scoped as **ITER-007**. Step 13 reads the organization rows as the bishop
+instead; the organization-leader half cannot be walked until that is fixed. Scenario 011 carries
+the same broken assumption in its own checklist and was never walked.
 
 **A rotation change never rewrites a conductor that is already stored.** `conducting_user_id` is
 a stored column precisely so that last March's program does not silently start naming whoever
