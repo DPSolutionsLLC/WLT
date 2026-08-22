@@ -188,6 +188,8 @@
         "Saving the organization change succeeds and the page shows him in the Elders Quorum",
         "`member_organizations` holds the new row (check in Supabase; there is no audit viewer yet)",
         "An `audit_log` row was written for the change, with action `member_organizations_updated`",
+        "`/calendar` with no month shows \"0 Sundays\" for the bishop and does **not** generate the",
+        "`/calendar?month=2027-06` shows all four seeded Sundays for the bishop — reading is",
         "The bishop cannot edit a Sunday — the controls are **absent**, not disabled",
         "The counselor cannot edit a Sunday either, though the override never named that role",
         "The bishop can still reach `/admin/users` — `admin.*` is locked and the override did not",

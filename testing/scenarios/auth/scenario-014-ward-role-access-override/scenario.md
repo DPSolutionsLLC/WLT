@@ -48,11 +48,14 @@ Note what the override does **not** say. It never names the counselor, and it ne
    The organization controls are visible — by default a ward secretary has `roster.view` and
    **not** `roster.manage`, so without the override these would be absent.
 4. Add David to the **Elders Quorum** and save.
-5. Sign out. Sign in as **Mark Andersen (bishop)**. Open the calendar, open a Sunday in
-   June 2027. The edit controls are gone.
+5. Sign out. Sign in as **Mark Andersen (bishop)**. Open `/calendar` with no month first —
+   it lands on the current month, which reads **"0 Sundays"** and shows the not-yet-added card.
+   That is expected; see the Notes. Then open **`/calendar?month=2027-06`**, which is the month
+   the seed creates, and open the Sunday on the 6th. The edit controls are gone.
 6. In the same session, open `/admin/users`. It still loads.
-7. Sign out. Sign in as **Paul Whitfield (counselor 1)**. Open the same Sunday. The edit
-   controls are gone here too — even though the override never named this role.
+7. Sign out. Sign in as **Paul Whitfield (counselor 1)**. Open **`/calendar?month=2027-06`** and
+   the same Sunday. The edit controls are gone here too — even though the override never named
+   this role.
 
 ## Verification Checklist
 
@@ -60,6 +63,10 @@ Note what the override does **not** say. It never names the counselor, and it ne
 - [ ] Saving the organization change succeeds and the page shows him in the Elders Quorum
 - [ ] `member_organizations` holds the new row (check in Supabase; there is no audit viewer yet)
 - [ ] An `audit_log` row was written for the change, with action `member_organizations_updated`
+- [ ] `/calendar` with no month shows "0 Sundays" for the bishop and does **not** generate the
+      month — losing `calendar.manage` takes generation away too, not only the edit controls
+- [ ] `/calendar?month=2027-06` shows all four seeded Sundays for the bishop — reading is
+      unaffected, only writing was removed
 - [ ] The bishop cannot edit a Sunday — the controls are **absent**, not disabled
 - [ ] The counselor cannot edit a Sunday either, though the override never named that role
 - [ ] The bishop can still reach `/admin/users` — `admin.*` is locked and the override did not
@@ -72,6 +79,8 @@ Note what the override does **not** say. It never names the counselor, and it ne
       defaults — the page and the route disagree, which is the exact bug this closes
 - [ ] If the bishop still sees Sunday edit controls, `resolveRoleAccess` is not reaching the
       calendar page guard
+- [ ] If `/calendar` with no month generates Sundays for the bishop, the generation gate is still
+      reading the hardcoded defaults — generation is a WRITE and must follow `calendar.manage`
 - [ ] If the counselor **can** edit a Sunday while the bishop cannot, bishopric equivalence has
       broken (CLAUDE.md §7) — `mergeRoleAccess` should apply either role's delta to both
 - [ ] If `/admin/users` returns 403 for the bishop, the `NON_OVERRIDABLE_PERMISSIONS` deny-list
@@ -81,6 +90,17 @@ Note what the override does **not** say. It never names the counselor, and it ne
 
 ## Notes
 
+- **The default month will look empty for the bishop, and that is the override working.**
+  `/calendar` opens on today's month, which this seed does not create. The page generates a
+  missing month only for someone holding `calendar.manage` (`app/(app)/calendar/page.tsx`) —
+  generation is a write, and a read-only viewer silently writing would be a surprise. The bishop
+  no longer holds it, so the month stays empty. Use `/calendar?month=2027-06`, the same explicit
+  URL convention scenario 011 uses.
+- **The empty-month card's wording is now slightly wrong under an override.** It reads "A member
+  of the bishopric or the ward secretary can create it by opening this month" — but the bishop
+  reading it just failed to do exactly that. The copy predates overrides being honoured and
+  assumes the default matrix. Cosmetic, out of scope here, and worth a look when Phase 11 builds
+  the matrix screen.
 - The override is a **delta**, not a replacement list. `ward_secretary` keeps every default it
   already had and gains `roster.manage`; it does not end up holding only that one permission.
 - A ward secretary may already edit an individual Sunday by default (`calendar.manage`). The
