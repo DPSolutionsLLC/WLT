@@ -22,3 +22,5 @@ Quick-reference for the retrolearn command. One line per entry.
 - [route-tests-and-realtime](route-tests-and-realtime.md) — route handlers made testable with a one-module mock (65 tests over the four assignment routes), the first `supabase_realtime` publication entry with a cross-ward leak test gating it, scenarios 012/013 trimmed to what needs a human; corrects six retros' "there is no local server", a timeout-based privacy test that passed while realtime was dead, and a shared-channel-topic bug in `CommentThread` that the missing publication had been masking (0db037f)
 
 ## Bug Fixes
+
+- [seed-household-id-collision](seed-household-id-collision.md) — scenario 008 had never seeded: `createHousehold` keyed its id on the family name alone, so two "Smith" households collided on `households_pkey` and the seed died after 3 households and 0 members (pending commit)
