@@ -1,6 +1,6 @@
 # Backlog
 
-_Last updated: 2026-08-21_
+_Last updated: 2026-08-22_
 
 ---
 
@@ -40,6 +40,13 @@ Each of these is large or complex enough to tackle on its own.
 - [ ] ITER-001 — Per-organization calendars and cross-organization sharing → [scope](.iterate/scopes/ITER-001.md)
   _Reason: architectural. Adds a fourth date-bearing model to the schema, a new sharing/audience
   boundary enforced by RLS, and will realistically split into three or four plans of its own._
+
+- [ ] ITER-005 — Ward role-access overrides are ignored by 25 of 62 permission checks → [scope](.iterate/scopes/ITER-005.md)
+  _Latent, not live: nothing writes `wards.settings.role_access` yet, so no ward is currently
+  affected. It goes live the moment Phase 11 ships the admin UI that owns the role-access matrix,
+  and it should land **before** that screen rather than with it — settings that 25 checks ignore
+  are worse than no settings. Includes every `admin.manage_users` check in the app, and both
+  routes where RLS is deliberately not the boundary (`member_organizations`)._
 
 ---
 
