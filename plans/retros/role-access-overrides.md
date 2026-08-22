@@ -2,7 +2,7 @@
 id: role-access-overrides
 type: bugfix
 iter: [ITER-005]
-commits: []
+commits: ["310a708"]
 date: 2026-08-22
 files:
   - lib/auth/permissions.ts
