@@ -1,7 +1,7 @@
 # ITER-004: Speakers Who Are Not Members of the Ward
 
 **Type:** Feature
-**Status:** In Progress — `talks-a` landed 2026-08-20; `talks-b` and the Phase 6 half remain
+**Status:** In Progress — `talks-a` landed 2026-08-20, `talks-b` 2026-08-21; the Phase 6 half remains
 **Plan:** plans/talks-a-pipeline-core.md (schema + pipeline), plans/talks-b-month-planner.md (on-screen)
 **Created:** 2026-08-19
 
@@ -83,9 +83,14 @@ the reasoning is what a later reader needs.
   `lib/assignments/speaker.ts` is the single place that answers "who is speaking";
   `lib/assignments/pipeline.ts` holds the four gates a waiver opens and the ones it must not.
   Covered by `tests/lib/externalSpeaker.test.ts` and `tests/db/assignment-approvals.test.ts`.
-- **Remaining — `talks-b`.** The on-screen half: waived contact stages must read "Not applicable"
-  rather than as a task nobody can complete. Scenario 013 (a ward conference with an external
-  speaker) is the walkthrough that proves it.
+- **2026-08-21 — `talks-b` (the on-screen half), commit `036698c`.** A waived assignment renders
+  "Not applicable - invited outside the ward" with the name and date of whoever decided it, across
+  all four waivable stages. No progress bar, no disabled controls, none of the shape of an
+  outstanding task — a disabled button reads as "this is coming", and the point is that it is not.
+  `SpeakerField` is the member / outside-the-ward switch, and switching sides clears the other so
+  the state the CHECK forbids cannot be typed. Covered by
+  `tests/components/assignments/ContactStagePanel.test.tsx`, which asserts the ABSENCE of
+  outstanding-task wording as well as the presence of the right words, and walked as scenario 013.
 - **Remaining — Phase 6.** How an external speaker prints on the program, and how much of their
   name `/public/[slug]` shows. A visiting stake president is normally named in full, which is a
   different privacy case from a ward member's first name and last initial. Unplanned.

@@ -2,7 +2,7 @@
 id: talks-b-month-planner
 type: feature
 iter: ["ITER-004"]
-commits: []
+commits: ["036698c"]
 date: 2026-08-21
 files:
   - app/(app)/assignments/page.tsx

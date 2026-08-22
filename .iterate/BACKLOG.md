@@ -1,6 +1,6 @@
 # Backlog
 
-_Last updated: 2026-08-20_
+_Last updated: 2026-08-21_
 
 ---
 
@@ -8,12 +8,15 @@ _Last updated: 2026-08-20_
 Items currently being planned or actively worked.
 
 - [ ] ITER-004 — Speakers who are not members of the ward → [scope](.iterate/scopes/ITER-004.md) | plans: [talks-a](plans/talks-a-pipeline-core.md), [talks-b](plans/talks-b-month-planner.md)
-  _Phase 4 half only. **`talks-a` has landed** — the schema and pipeline shape are done: a nullable
+  _**The Phase 4 half is complete.** `talks-a` landed the schema and pipeline shape — a nullable
   member link, inline external name and title with a CHECK that a row holds one or the other, and
-  an explicit contact waiver. `talks-b` builds the on-screen half, including the waived contact
-  stages reading "Not applicable". The Phase 6 half — how an external speaker prints on the program
-  and how much of their name a public page shows — is still unplanned and belongs with
-  `06-program-music.md`. **Do not close this scope until both remain halves ship.**_
+  an explicit contact waiver. `talks-b` landed the on-screen half: the waived contact stages read
+  "Not applicable - invited outside the ward" with the name and date of whoever decided it, and
+  nothing about them reads as an outstanding task. Scenario 013 walked.
+  **What remains is the Phase 6 half** — how an external speaker prints on the program, and how
+  much of their name `/public/[slug]` shows. A visiting stake president is normally named in full,
+  which is a different privacy case from a ward member's first name and last initial. Still
+  unplanned; belongs with `06-program-music.md`. **Do not close this scope until it ships.**_
 
 ---
 
