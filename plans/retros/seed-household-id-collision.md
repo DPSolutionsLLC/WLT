@@ -2,7 +2,7 @@
 id: seed-household-id-collision
 type: bugfix
 iter: null
-commits: []
+commits: ["2af66b8"]
 date: 2026-08-22
 files:
   - testing/infrastructure/seedUtils.ts

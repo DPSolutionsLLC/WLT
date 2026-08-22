@@ -23,4 +23,4 @@ Quick-reference for the retrolearn command. One line per entry.
 
 ## Bug Fixes
 
-- [seed-household-id-collision](seed-household-id-collision.md) — scenario 008 had never seeded: `createHousehold` keyed its id on the family name alone, so two "Smith" households collided on `households_pkey` and the seed died after 3 households and 0 members (pending commit)
+- [seed-household-id-collision](seed-household-id-collision.md) — scenario 008 had never seeded: `createHousehold` keyed its id on the family name alone, so two "Smith" households collided on `households_pkey` and the seed died after 3 households and 0 members (2af66b8)
