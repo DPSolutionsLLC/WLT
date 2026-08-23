@@ -2,7 +2,7 @@
 id: talks-c-prayers-topics
 type: feature
 iter: null
-commits: []
+commits: ["429f5f3"]
 date: 2026-08-22
 files:
   - supabase/migrations/028_topic_candidates.sql
