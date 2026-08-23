@@ -2,7 +2,7 @@
 id: talks-d-reliability-goals
 type: feature
 iter: null
-commits: ["584601e"]
+commits: ["0fe6564"]
 date: 2026-08-22
 files:
   - lib/assignments/reliabilityFlags.ts
