@@ -14,6 +14,7 @@ import type {
   MemberStatus,
   OrganizationType,
   PipelineStage,
+  PrayerStage,
   PrayerType,
   ProgramStatus,
   PublicPageType,
@@ -22,7 +23,10 @@ import type {
   RotationCadence,
   SacramentAssignmentType,
   SundayType,
+  TopicCandidateStatus,
   TopicCategory,
+  TopicSource,
+  TopicStatus,
   VisitCadence,
   VisitTargetType,
 } from "./types.ts";
@@ -539,11 +543,20 @@ export async function createSundayOrgConducting(options: {
 // Talk pipeline
 // ============================================================================
 
+// `lastAssignedAt` and `status` are what talks-c gave meaning to: the library sorts unused
+// topics first and hides archived ones, so a scenario proving either needs to seed both. It is a
+// DATE-time string the caller supplies rather than a relative offset, so a re-seed produces the
+// same library rather than one that drifts a day each run.
 export async function createTopic(options: {
   id?: string;
   title: string;
   category?: TopicCategory;
   description?: string;
+  source?: TopicSource;
+  status?: TopicStatus;
+  lastAssignedAt?: string;
+  suggestedScriptures?: string[];
+  suggestedTalks?: string[];
 }): Promise<string> {
   return insertRow("topics", {
     id: options.id ?? testUuid(`topic:${options.title}`),
@@ -551,8 +564,52 @@ export async function createTopic(options: {
     title: options.title,
     category: options.category ?? "doctrinal",
     description: options.description ?? null,
-    source: "manual",
-    status: "active",
+    suggested_scriptures: options.suggestedScriptures ?? null,
+    suggested_talks: options.suggestedTalks ?? null,
+    source: options.source ?? "manual",
+    status: options.status ?? "active",
+    last_assigned_at: options.lastAssignedAt ?? null,
+  });
+}
+
+// The AI accept/reject queue (migration 028). Phase 5 is what will really write these; a
+// scenario seeds them directly to stand in for it, which is the whole reason the queue could be
+// proven before Phase 5 exists.
+//
+// The topic_candidates_review_pair CHECK refuses a reviewed row with no reviewer, so `reviewedBy`
+// and `reviewedAt` move together — a seed that sets one fails loudly rather than producing a
+// state the app can never reach.
+export async function createTopicCandidate(options: {
+  id?: string;
+  title: string;
+  category?: TopicCategory;
+  description?: string;
+  suggestedScriptures?: string[];
+  suggestedTalks?: string[];
+  status?: TopicCandidateStatus;
+  reviewedBy?: string;
+}): Promise<string> {
+  const status = options.status ?? "pending";
+  const isReviewed = status !== "pending";
+
+  if (isReviewed && options.reviewedBy === undefined) {
+    throw new Error(
+      `createTopicCandidate("${options.title}") set status "${status}" with no reviewedBy. ` +
+        "The topic_candidates_review_pair CHECK refuses a reviewed candidate with no reviewer.",
+    );
+  }
+
+  return insertRow("topic_candidates", {
+    id: options.id ?? testUuid(`topic_candidate:${options.title}`),
+    ward_id: TEST_WARD_ID,
+    title: options.title,
+    category: options.category ?? "doctrinal",
+    description: options.description ?? null,
+    suggested_scriptures: options.suggestedScriptures ?? null,
+    suggested_talks: options.suggestedTalks ?? null,
+    status,
+    reviewed_by: isReviewed ? (options.reviewedBy ?? null) : null,
+    reviewed_at: isReviewed ? "2026-05-01T12:00:00.000Z" : null,
   });
 }
 
@@ -643,18 +700,36 @@ export async function createAssignmentComment(options: {
   });
 }
 
+// The stage's TIMESTAMPS are filled in from the stage, so a seeded `done` prayer is a prayer
+// that was genuinely asked and confirmed rather than a row with a stage column set. Without
+// them, canTransitionPrayer refuses to move a seeded prayer at all and the scenario dead-ends on
+// its first press.
+//
+// One invocation and one benediction per Sunday — migration 028's unique index refuses a second,
+// so a seed that assigns the same slot twice fails loudly.
 export async function createPrayerAssignment(options: {
+  id?: string;
   sundayId: string;
   memberId?: string;
   prayerType: PrayerType;
-  stage?: "assign" | "ask" | "confirm" | "done";
+  stage?: PrayerStage;
+  askedBy?: string;
 }): Promise<string> {
+  const stage = options.stage ?? "assign";
+
+  const hasBeenAsked = stage === "ask" || stage === "confirm" || stage === "done";
+  const hasBeenConfirmed = stage === "confirm" || stage === "done";
+
   return insertRow("prayer_assignments", {
+    id: options.id ?? testUuid(`prayer:${options.sundayId}:${options.prayerType}`),
     ward_id: TEST_WARD_ID,
     sunday_id: options.sundayId,
     member_id: options.memberId ?? null,
     prayer_type: options.prayerType,
-    stage: options.stage ?? "assign",
+    stage,
+    asked_by: hasBeenAsked ? (options.askedBy ?? null) : null,
+    asked_at: hasBeenAsked ? "2026-05-01T12:00:00.000Z" : null,
+    confirmed_at: hasBeenConfirmed ? "2026-05-02T12:00:00.000Z" : null,
   });
 }
 

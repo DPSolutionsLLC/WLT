@@ -13,7 +13,8 @@ import { Card } from "@/components/ui/Card";
 // lib/assignments/queries.ts here would pull in next/headers and fail `npm run build` while
 // passing both lint and typecheck (plans/retros/roster-b-picker-and-orgs.md). Same shape as
 // MemberPicker's import of lib/roster/queries.
-import type { Assignment, TopicOption } from "@/lib/assignments/queries";
+import type { Assignment } from "@/lib/assignments/queries";
+import type { TopicOption } from "@/lib/topics/queries";
 import { formatSundayLabel, lastDayOfMonth, type DateOnly } from "@/lib/calendar/dates";
 import type { Sunday } from "@/lib/calendar/queries";
 import type { SessionUser } from "@/types/domain";

@@ -13,9 +13,9 @@ import {
   listApprovals,
   listAssignments,
   listComments,
-  listTopicOptions,
   type Assignment,
 } from "@/lib/assignments/queries";
+import { listTopicOptions } from "@/lib/topics/queries";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { formatSundayLabel, monthOf } from "@/lib/calendar/dates";
@@ -96,6 +96,14 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
     members.map((member) => [member.id, `${member.firstName} ${member.lastName}`.trim()]),
   );
   const topicTitles = new Map(topics.map((topic) => [topic.id, topic.title]));
+
+  // The topic's suggested scriptures, which talks-b recorded as missing: ContactStagePanel was
+  // passing an empty list because the stopgap topic read carried only id and title, so every
+  // confirmation message silently dropped its scripture sentence. listTopicOptions now returns
+  // them (lib/topics/queries.ts).
+  const topicScriptures = new Map(
+    topics.map((topic) => [topic.id, topic.suggestedScriptures ?? []]),
+  );
 
   // Bishopric names serve three purposes on this page: the approval sentence, the waiver's
   // "recorded by", and the request's "asked by". One map covers all three.
@@ -228,6 +236,11 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
                         assignment.topicId === null
                           ? null
                           : (topicTitles.get(assignment.topicId) ?? null)
+                      }
+                      suggestedScriptures={
+                        assignment.topicId === null
+                          ? []
+                          : (topicScriptures.get(assignment.topicId) ?? [])
                       }
                       waivedByName={
                         assignment.contactWaivedBy === null

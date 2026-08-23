@@ -913,39 +913,3 @@ export async function countAssignmentsOnSunday(
 
   return count ?? 0;
 }
-
-// The active topics a planner may attach to an assignment, as id and title and nothing else.
-//
-// The TOPIC LIBRARY belongs to talks-c: `lib/topics/queries.ts`, `/api/topics`, categories,
-// `last_assigned_at`, the AI candidate queue. None of that exists yet, and `plan` -> `review`
-// refuses without a topic_id — so without this read the planner talks-b builds could not move a
-// single assignment off the first stage.
-//
-// Deliberately the smallest read that unblocks it, and deliberately HERE rather than in a new
-// lib/topics/queries.ts that talks-c would then have to reconcile with. When talks-c lands its
-// module, this should be deleted and its callers pointed at that one.
-export type TopicOption = {
-  id: string;
-  title: string;
-};
-
-export async function listTopicOptions(
-  wardId: string,
-  client?: SupabaseClient<Database>,
-): Promise<TopicOption[]> {
-  const supabase = await resolveClient(client);
-
-  const { data, error } = await supabase
-    .from("topics")
-    .select("id, title")
-    .eq("ward_id", wardId)
-    .eq("status", "active")
-    .order("title");
-
-  if (error) {
-    console.error(`Could not read the ward's topics — ${error.message}`, { wardId });
-    throw new Error(`Could not read the topic library: ${error.message}`);
-  }
-
-  return (data ?? []).map((row) => ({ id: row.id, title: row.title }));
-}

@@ -25,6 +25,7 @@ import { requireSessionUser } from "@/lib/auth/session";
 import { getSunday, listBishopricUsers } from "@/lib/calendar/queries";
 import { emitNotification } from "@/lib/notifications/emitNotification";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { stampTopicAssigned } from "@/lib/topics/queries";
 import { updateAssignmentSchema } from "@/lib/validation/assignment";
 import type { Database } from "@/types/database";
 import {
@@ -301,6 +302,25 @@ export async function PATCH(
       );
     }
 
+    // The topic is stamped as used at APPROVE, and at no other stage.
+    //
+    // Not at `plan`: a plan that never gets approved should not burn the topic. Not at
+    // `complete`: the whole point is to stop the bishopric PLANNING a repeat, which happens
+    // weeks before the talk is given, so a signal that arrives afterwards arrives too late to
+    // be worth anything (04-talks-pipeline.md).
+    //
+    // A BACKWARD move deliberately does not un-stamp it. The topic genuinely was chosen for a
+    // Sunday, and rolling the stamp back would re-offer a topic the bishopric had just
+    // discussed. The stamp records consideration, not completion.
+    //
+    // A stamp failure logs and continues — it must not fail the transition. Same contract as
+    // writeAuditLog (lib/topics/queries.ts).
+    let topicStamped = false;
+
+    if (to === "approve" && assignment.topicId !== null) {
+      topicStamped = await stampTopicAssigned(user.wardId, assignment.topicId, supabase);
+    }
+
     await writeAuditLog(
       {
         wardId: user.wardId,
@@ -316,6 +336,7 @@ export async function PATCH(
           reason: input.reason ?? null,
           declined: isDecline,
           historyWritten,
+          topicStamped,
         },
       },
       supabase,

@@ -65,6 +65,9 @@ export type ContactStagePanelProps = {
   speakerFirstName: string | null;
   speakerPhone: string | null;
   topicTitle: string | null;
+  // From the topic library (talks-c). An empty list omits the scripture sentence rather than
+  // emitting a placeholder — buildConfirmationMessage's signature is unchanged.
+  suggestedScriptures: readonly string[];
   waivedByName: string | null;
   requestedByName: string | null;
   canPlan: boolean;
@@ -114,6 +117,7 @@ export function ContactStagePanel({
   speakerFirstName,
   speakerPhone,
   topicTitle,
+  suggestedScriptures,
   waivedByName,
   requestedByName,
   canPlan,
@@ -133,9 +137,7 @@ export function ContactStagePanel({
         date: sundayDate,
         topicTitle,
         slotLengthMinutes: assignment.slotLengthMinutes,
-        // The topic's suggested scriptures arrive with the topic library in talks-c. An empty
-        // list omits the sentence rather than emitting a placeholder (messageTemplate.ts).
-        suggestedScriptures: [],
+        suggestedScriptures: [...suggestedScriptures],
       }),
   );
   const [thankYouDraft, setThankYouDraft] = useState(

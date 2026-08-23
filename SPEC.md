@@ -176,13 +176,59 @@ ward_id         uuid REFERENCES wards(id)
 title           text NOT NULL
 category        text  -- 'doctrinal' | 'scriptural' | 'conference_talk' | 'seasonal' | 'custom'
 description     text
-suggested_scriptures    jsonb  -- array of {reference, text, relevance_note}
-suggested_talks         jsonb  -- array of {speaker, title, conference, url}
+suggested_scriptures    jsonb  -- array of strings, e.g. ["Alma 32:21"]. See the note below
+suggested_talks         jsonb  -- array of strings, e.g. ["Ministering — April 2018"]
 source          text  -- 'ai_generated' | 'manual' | 'library'
 status          text DEFAULT 'active'  -- 'active' | 'archived'
 last_assigned_at    timestamptz
 created_at      timestamptz DEFAULT now()
 ```
+
+**The two jsonb columns are arrays of plain strings**, not the objects sketched above. talks-c
+settled it that way because nothing in the app produces a `relevance_note` or a `url`, and giving
+either column a richer shape now would be guessing at what Phase 5 emits. `lib/validation/topic.ts`
+validates the shape on write for the reason `calendar-a` gives about `slot_config`: nothing
+validates a jsonb blob on read, and Phase 6 reads these directly to build the printed program, so
+a malformed entry stored today breaks a PDF months from now, far from the boundary that accepted
+it. If Phase 5 needs a richer shape, it changes the Zod schema and migrates the existing rows —
+it does not start writing a second shape into the same column.
+
+**There is no delete route for a topic.** Archiving is how a topic leaves the library, because a
+topic referenced by an assignment must not vanish from that assignment's history.
+
+**`last_assigned_at` is stamped at `approve`, and at no other stage.** Not at `plan` — a plan that
+never gets approved should not burn the topic. Not at `complete` — the bishopric needs the signal
+while they are still choosing, which is weeks before the talk is given. A backward move does NOT
+un-stamp it: the topic genuinely was chosen for a Sunday, and rolling the stamp back would
+re-offer something they had just discussed. `tests/db/topic-last-assigned.test.ts` pins all three.
+
+### `topic_candidates`
+```sql
+id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid REFERENCES wards(id)
+title           text NOT NULL
+category        text  -- same five as topics.category
+description     text
+suggested_scriptures    jsonb  -- array of strings
+suggested_talks         jsonb  -- array of strings
+status          text DEFAULT 'pending'  -- 'pending' | 'accepted' | 'rejected'
+accepted_topic_id   uuid REFERENCES topics(id)
+reviewed_by     uuid REFERENCES users(id)
+reviewed_at     timestamptz
+created_at      timestamptz DEFAULT now()
+```
+
+Added by migration 028 (talks-c). **This table exists so there is nowhere for an AI-generated
+topic to land except a queue a person reviews** (CLAUDE.md rule 3). Phase 5 writes `pending` rows
+here and never inserts into `topics`; if a Phase 5 plan proposes otherwise, that is the rule-3
+violation this table exists to make impossible.
+
+BISHOPRIC-ONLY under its own four policies — it is not in migration 019's ward-wide loop.
+`topic_candidates_review_pair` refuses a reviewed row with no reviewer, so an accept is always
+attributable to a person and a moment.
+
+Accept and reject are **per candidate**. There is no array in the schema and no "accept all": a
+bulk accept is an auto-add wearing a button.
 
 ### `assignments`
 ```sql
@@ -755,18 +801,34 @@ field update and a stage move in one request.
 
 ### Prayers
 ```
-GET    /api/prayers              List prayer assignments
-POST   /api/prayers              Create prayer assignment
-PATCH  /api/prayers/[id]         Update stage
+GET    /api/prayers              List prayer assignments by Sunday or by date range
+POST   /api/prayers              Assign a prayer BY SLOT — a second write replaces the member
+PATCH  /api/prayers/[id]         Change who is praying, or move one stage
 ```
+
+Prayers run their own four-stage pipeline — `assign → ask → confirm → done` — with no approval
+gate. They ride on `talks.view` and `talks.plan`; there is deliberately **no `prayers.*`
+permission**, because a prayer is part of planning the meeting.
+
+**Prayers survive `speaking_slots = 0`.** A fast Sunday still has an invocation and a benediction,
+so nothing on this path is gated on the slot count — that guard belongs to speakers only.
+Migration 028's unique index on `(ward_id, sunday_id, prayer_type)` is what makes "one invocation
+and one benediction per Sunday" true rather than merely intended.
 
 ### Topics
 ```
-GET    /api/topics               List topics
-POST   /api/topics               Create topic
-PATCH  /api/topics/[id]          Update topic
-POST   /api/topics/ai-suggest    Generate AI topic suggestions
+GET    /api/topics               List topics, filtered by category and status
+POST   /api/topics               Create topic (source is set to 'manual' server-side)
+PATCH  /api/topics/[id]          Update topic, or archive it. NO DELETE
+GET    /api/topic-candidates     The pending AI accept/reject queue
+PATCH  /api/topic-candidates     Accept or reject ONE candidate
+POST   /api/topics/ai-suggest    NOT BUILT — Phase 5. It writes to topic_candidates, never topics
 ```
+
+`POST /api/topics` sets `source: 'manual'` itself and does not read it from the request: a caller
+that could name its own source could launder an AI suggestion into the library as if a person had
+typed it. `PATCH /api/topic-candidates` is the only path that writes a topic with
+`source: 'ai_generated'`.
 
 ### Hymns
 ```
@@ -907,9 +969,14 @@ PATCH  /api/admin/ward-settings  Update ward settings (with bishopric notificati
                                is nine stages, not nine screens, and /assignments is the surface
                                a bishopric actually works in. The sidebar's Talks link points at
                                /assignments
-    /topics/page.tsx           Topic library
+    /topics/page.tsx           BUILT in talks-c. Topic library (Server Component)
+    /topics/TopicList.tsx      "use client" — filters, add, edit, archive
+    /topics/TopicForm.tsx      The manual add path; Phase 5 reuses it for an accepted candidate
+    /topics/CandidateQueue.tsx "use client" — accept/reject, one candidate at a time
     /history/page.tsx          Speaker history
-  /prayers/page.tsx            Prayer assignment tracker
+  /prayers/
+    /page.tsx                  BUILT in talks-c. Prayer tracker (Server Component)
+    /PrayerBoard.tsx           "use client" — invocation and benediction per Sunday, four stages
   /program/
     /[sunday_id]/page.tsx      Program builder
   /music/page.tsx              Music coordinator view

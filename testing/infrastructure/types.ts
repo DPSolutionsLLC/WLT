@@ -15,6 +15,7 @@ export type {
   MemberStatus,
   OrganizationType,
   PipelineStage,
+  PrayerStage,
   PrayerType,
   ProgramStatus,
   PublicPageType,
@@ -23,7 +24,10 @@ export type {
   RotationCadence,
   SacramentAssignmentType,
   SundayType,
+  TopicCandidateStatus,
   TopicCategory,
+  TopicSource,
+  TopicStatus,
   VisitCadence,
   VisitTargetType,
 } from "../../types/domain.ts";

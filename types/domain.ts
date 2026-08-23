@@ -191,6 +191,22 @@ export type TopicSource = (typeof TOPIC_SOURCES)[number];
 export const TOPIC_STATUSES = ["active", "archived"] as const;
 export type TopicStatus = (typeof TOPIC_STATUSES)[number];
 
+// A Record rather than a lookup with a fallback, for the same reason ROLE_LABELS is one: a
+// category added to TOPIC_CATEGORIES must not silently render as its snake_case column value.
+export const TOPIC_CATEGORY_LABELS: Record<TopicCategory, string> = {
+  doctrinal: "Doctrinal",
+  scriptural: "Scriptural",
+  conference_talk: "Conference talk",
+  seasonal: "Seasonal",
+  custom: "Custom",
+};
+
+// The AI accept/reject queue (migration 028). A candidate is a PROPOSAL: it is not a topic, it
+// is not in the topic library, and nothing moves it there but an explicit accept by a person
+// (CLAUDE.md rule 3). Phase 5 writes `pending` rows here and never touches `topics` at all.
+export const TOPIC_CANDIDATE_STATUSES = ["pending", "accepted", "rejected"] as const;
+export type TopicCandidateStatus = (typeof TOPIC_CANDIDATE_STATUSES)[number];
+
 export const ASSIGNMENT_TYPES = [
   "sacrament_talk",
   "organizational",
@@ -254,8 +270,26 @@ export type CommentLevel = (typeof COMMENT_LEVELS)[number];
 export const PRAYER_TYPES = ["invocation", "benediction"] as const;
 export type PrayerType = (typeof PRAYER_TYPES)[number];
 
+export const PRAYER_TYPE_LABELS: Record<PrayerType, string> = {
+  invocation: "Invocation",
+  benediction: "Benediction",
+};
+
 export const PRAYER_STAGES = ["assign", "ask", "confirm", "done"] as const;
 export type PrayerStage = (typeof PRAYER_STAGES)[number];
+
+export const PRAYER_STAGE_LABELS: Record<PrayerStage, string> = {
+  assign: "Assigned",
+  ask: "Asked",
+  confirm: "Confirmed",
+  done: "Done",
+};
+
+// The one prayer stage that means the prayer was actually given. Every "last prayed" lookup
+// filters on it, for the same reason COMPLETED_STAGE exists for talks: counting a prayer that
+// was only ever ASKED suppresses that member from the rotation with no symptom at all
+// (04-talks-pipeline.md §Step 2, rule 1).
+export const PRAYER_COMPLETED_STAGE: PrayerStage = "done";
 
 export const HYMN_TYPES = ["opening", "sacrament", "closing"] as const;
 export type HymnType = (typeof HYMN_TYPES)[number];

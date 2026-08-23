@@ -2357,6 +2357,73 @@ export type Database = {
           },
         ]
       }
+      topic_candidates: {
+        Row: {
+          accepted_topic_id: string | null
+          category: string | null
+          created_at: string
+          description: string | null
+          id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          suggested_scriptures: Json | null
+          suggested_talks: Json | null
+          title: string
+          ward_id: string
+        }
+        Insert: {
+          accepted_topic_id?: string | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          suggested_scriptures?: Json | null
+          suggested_talks?: Json | null
+          title: string
+          ward_id: string
+        }
+        Update: {
+          accepted_topic_id?: string | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          suggested_scriptures?: Json | null
+          suggested_talks?: Json | null
+          title?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "topic_candidates_accepted_topic_id_ward_id_fkey"
+            columns: ["accepted_topic_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "topics"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "topic_candidates_reviewed_by_ward_id_fkey"
+            columns: ["reviewed_by", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "topic_candidates_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       topics: {
         Row: {
           category: string | null

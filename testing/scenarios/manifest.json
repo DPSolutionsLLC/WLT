@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 15,
+  "scenarioCount": 17,
   "scenarios": [
     {
       "id": "auth:scenario-001-role-shell",
@@ -596,6 +596,103 @@
         "No raw uuid appears anywhere"
       ],
       "seedCommand": "npm run seed -- talks/scenario-013-visiting-speaker-no-phone"
+    },
+    {
+      "id": "talks:scenario-016-prayer-rotation",
+      "path": "talks/scenario-016-prayer-rotation",
+      "name": "Prayer rotation across a month",
+      "scope": "talks-c-prayers-topics",
+      "part": 3,
+      "tags": [
+        "talks",
+        "full",
+        "prayers"
+      ],
+      "prerequisites": "none",
+      "purpose": "\"Last prayed\" is a nudge, and whether a nudge works is a judgement about wording and placement\nthat no unit test reaches. `tests/lib/lastPrayed.test.ts` proves the function returns `null` for\nsomebody with no history; it cannot prove that a bishopric scanning a list of twelve names\nactually reads the six blanks as \"consider these\" rather than as a rendering fault.\n\nSeeding matters because a useful last-prayed spread needs eighteen months of prayer history\nbehind several members — tedious and error-prone to build by hand, and impossible to build at all\nthrough the UI without walking forty prayers to `done`.\n\nJune 2026 opens on a Monday, so 06-07 is the first Sunday and therefore the fast Sunday. It\ncarries `speaking_slots = 0`, which is the case this scenario exists to catch: **a fast Sunday\nstill has an invocation and a benediction**, and gating prayers on the speaker slot count would\nmake the one Sunday a month with the most prayers the only one that could not have any.",
+      "checklist": [
+        "In the picker, the four members with history read **\"Last prayed <Month Year>\"** beside",
+        "The six with no history show **nothing at all** beside their name — not \"Never\", not a",
+        "The two stuck at `ask` **also show nothing**. Being asked is not the same as having prayed,",
+        "Scanning the list, it is obvious within a second or two who to consider. If the blanks read",
+        "The label sits beside the name without pushing it off the row at 375px",
+        "**06-07 shows an Invocation and a Benediction**, both assignable, despite `speaking_slots = 0`",
+        "Nothing on the 06-07 card says \"no slots\" or refuses the assignment",
+        "Both prayers save and survive a reload",
+        "Each prayer starts at **Assigned** with nobody chosen",
+        "The control names the stage it moves TO — \"Move to Asked\", then \"Move to Confirmed\", then",
+        "Each press moves exactly **one** stage. Nothing skips",
+        "A slot nobody has touched offers **only \"Choose someone\"** — no stage control at all.",
+        "Step 9: once a prayer exists but its member has been removed, \"Move to Asked\" **is** shown",
+        "Assigning somebody does **not** move the stage on its own",
+        "Step 6 leaves 06-14 with **one** invocation, showing the second member",
+        "The stage does **not** reset when the member changes — changing who is praying is not a",
+        "Reloading confirms it: one row, not two",
+        "`secretary` sees the whole month and **no** picker, no \"Move to …\" control, and no way to",
+        "`secretary` can still read who is praying and what stage each prayer is at",
+        "A `prayer_assigned` row exists for each assignment, naming the Sunday and the prayer type",
+        "A `prayer_stage_changed` row exists for each stage change, carrying `from` and `to`",
+        "No audit row contains a member's name — ids and short descriptions only",
+        "Every screen works at **375px** in both themes",
+        "Every tap target clears 44×44",
+        "No raw uuid appears anywhere"
+      ],
+      "seedCommand": "npm run seed -- talks/scenario-016-prayer-rotation"
+    },
+    {
+      "id": "talks:scenario-017-topic-library-and-queue",
+      "path": "talks/scenario-017-topic-library-and-queue",
+      "name": "Topic library and the AI candidate queue",
+      "scope": "talks-c-prayers-topics",
+      "part": 3,
+      "tags": [
+        "talks",
+        "full",
+        "topics",
+        "ai-boundary"
+      ],
+      "prerequisites": "none",
+      "purpose": "Proves the accept/reject boundary is real **before Phase 5 can put anything through it** — the\ncheapest moment to find out that a candidate can reach `topics` without an explicit accept.\nOnce Phase 5 exists, the same discovery costs a re-plan.\n\nAlso checks that `last_assigned_at` moves at the right moment, which is the one thing about this\nfeature a bishopric will notice being wrong. `tests/db/topic-last-assigned.test.ts` already\nproves the stamp fires at `approve` and nowhere else against the real database; what it cannot\nprove is that the resulting **order of the library on screen** is the order a bishopric wants —\nthat a topic they just approved has visibly moved down the list.",
+      "checklist": [
+        "The **three never-assigned topics sort first**, before every topic that has been used",
+        "Below them, the least recently used comes before the most recently used",
+        "The **two archived topics are hidden** until \"Showing\" is set to Archived",
+        "Each topic shows its staleness **in words** — \"Not used yet\", \"Used a while ago\", \"Used",
+        "Filtering by category narrows the list and leaves the order intact",
+        "A category with nothing in it says so rather than rendering an empty panel",
+        "A newly added topic appears **at the top** with \"Not used yet\"",
+        "Suggested scriptures entered **one per line** come back as separate entries, not one string",
+        "Saving with an empty title is refused **before** the request, and the message says what to do",
+        "Adding a topic with a title the ward already has (any casing) is refused with a sentence",
+        "Editing a topic saves and the list reflects it without a manual reload",
+        "**Archive is offered; Delete is not.** There is no delete control anywhere on the page",
+        "An archived topic can be restored, and comes back with its stamp intact",
+        "The three candidates each show a title, category, description and suggestions",
+        "Accept and reject are **two separate controls**, never one toggle",
+        "There is **no \"accept all\"**, no checkbox column, and no way to review more than one",
+        "Accepting one candidate adds **exactly one** topic to the library",
+        "That topic shows **\"Accepted from a suggestion\"**, and `topics.source` reads",
+        "`topic_candidates.accepted_topic_id` links back to the new topic",
+        "A **rejected** candidate leaves `topics` completely untouched — the count in the dashboard",
+        "Step 12: a second press on an already-accepted candidate does **not** create a second topic.",
+        "Every reviewed candidate carries `reviewed_by` and `reviewed_at` in the dashboard — an",
+        "**No topic exists in the library that nobody pressed a button for.** Compare the `topics`",
+        "With the queue emptied, the panel **explains where suggestions come from** rather than",
+        "It says explicitly that nothing is added to the library on its own",
+        "It does not read as an error or as something being broken",
+        "Before step 14, \"Bearing One Another's Burdens\" reads **\"Not used yet\"** and sorts first",
+        "Step 14 succeeds — the assignment moves to Approved",
+        "Step 15: that topic now reads **\"Used recently\"** and has **moved down** the list. This is",
+        "Step 16: the assignment goes back to Planning and the **speaker is cleared**, but the",
+        "Step 17: the topic is **still stamped** and still reads \"Used recently\". Reverting the",
+        "`secretary` gets a **\"Not permitted\"** page, not an empty library. `topics.view` is",
+        "`counselor1` sees **exactly** what the bishop sees, with every control the bishop has.",
+        "Every screen works at **375px** in both themes",
+        "The add and edit forms do not scroll horizontally at 375px",
+        "Every tap target clears 44×44",
+        "No raw uuid appears anywhere"
+      ],
+      "seedCommand": "npm run seed -- talks/scenario-017-topic-library-and-queue"
     }
   ]
 }

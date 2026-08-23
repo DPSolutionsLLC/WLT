@@ -25,6 +25,9 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
   // planner as the primary surface deliberately — the pipeline is nine stages, not nine screens
   // (04-talks-pipeline.md) — so the one Talks link goes where the work happens.
   { label: "Talks", href: "/assignments", permission: "talks.view" },
+  // Prayers ride on `talks.view`, not a permission of their own: a prayer is part of planning
+  // the meeting, and there is deliberately no `prayers.*` in PERMISSIONS (talks-c).
+  { label: "Prayers", href: "/prayers", permission: "talks.view" },
   { label: "Topics", href: "/talks/topics", permission: "topics.view" },
   { label: "Program", href: "/program", permission: "program.view" },
   { label: "Music", href: "/music", permission: "music.view" },

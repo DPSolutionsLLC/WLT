@@ -40,7 +40,22 @@ import type {
 //   excludeIds         []                  Phase 10 — the water blesser differs from the bread
 //   allowDoNotContact  false               Offers the confirmation control (Decision 2)
 //   showFlags          false               Phase 4 planning view, bishopric only
+//   annotations        none                A short read-only note per member id, rendered beside
+//                                          the name. Phase 4's prayer board shows "Last prayed
+//                                          March 2025" here. Added during talks-c — see below
 //   mode               "modal"             Inline for a form field, modal for everything else
+//
+// `annotations` is the second addition, made in talks-c and RAISED rather than added quietly,
+// which is what the rule above asks for. The prayer board's whole reason to exist is spreading
+// prayers around the ward, and that judgement is made WHILE choosing a name — a "last prayed"
+// column somewhere else on the page is a different, worse product. It is deliberately a plain
+// `Record<string, string>` of already-formatted text rather than anything prayer-shaped: the
+// picker renders a note it is handed and knows nothing about where it came from, so Phase 7's
+// "last visited" and Phase 10's "last blessed" need no further change here.
+//
+// An ABSENT key renders nothing at all — not an empty span, not a dash. That is load-bearing for
+// its first caller: "Never" beside a name reads as a judgement about the person rather than as
+// an absence of data (lib/prayers/lastPrayed.ts).
 //
 // `user` is the one addition to roster-b's table. The plan has both the page and the picker
 // call defaultOrganizationFilter(), which a client component cannot do without the session —
@@ -67,6 +82,7 @@ export type MemberPickerProps = {
   excludeIds?: readonly string[];
   allowDoNotContact?: boolean;
   showFlags?: boolean;
+  annotations?: Readonly<Record<string, string>>;
   mode?: "modal" | "inline";
   label?: string;
   triggerLabel?: string;
@@ -280,6 +296,7 @@ export function MemberPicker(props: MemberPickerProps) {
     excludeIds,
     allowDoNotContact = false,
     showFlags = false,
+    annotations,
     mode = "modal",
     label = "Choose a member",
     triggerLabel,
@@ -469,6 +486,11 @@ export function MemberPicker(props: MemberPickerProps) {
                           {member.firstName} {member.lastName}
                           {member.status === "do_not_contact" && (
                             <span className="ml-2 text-xs">Do Not Contact</span>
+                          )}
+                          {annotations?.[member.id] && (
+                            <span className="ml-2 text-xs opacity-80">
+                              {annotations[member.id]}
+                            </span>
                           )}
                         </span>
 

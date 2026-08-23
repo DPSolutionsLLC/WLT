@@ -31,6 +31,20 @@ is what the grouping asked for._
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
 
+- [ ] ITER-008 — Sort the roster by what you are assigning → [scope](.iterate/scopes/ITER-008.md)
+  _Raised 2026-08-22 reviewing the `talks-c` walkthrough. Picking somebody for a prayer should let
+  you sort the roster by when they last prayed; picking a speaker, by when they last spoke — date
+  first, then name, search intact. `talks-c` put the date **on screen** via the picker's new
+  `annotations` prop, but the order is still household-then-name, so finding who is overdue means
+  reading every row and comparing months in your head. Not prayer-specific: the same control
+  belongs on speakers now and on Phase 7 visits and Phase 10 ordinances later, which is why it is
+  its own item rather than a `talks-c` addendum. Three things make it real work — the annotation
+  carries formatted words rather than a sortable date, `MemberPicker`'s interface is deliberately
+  frozen and a sort control is a second raised addition, and "last spoke" is a new query over
+  `assignment_history` with no existing equivalent to `listLastPrayed()`. The comparator itself is
+  already solved: `compareTopicsByStaleness` does exactly this for topics. **Open:** does sorting
+  collapse the household grouping while active?_
+
 - [ ] ITER-007 — `calendar.manage_org_conducting` is unreachable by every role that holds it → [scope](.iterate/scopes/ITER-007.md)
   _Found walking scenario 015 step 13 on 2026-08-22. `org_president` and `org_counselor` hold the
   permission that lets a presidency set who conducts their own meeting, but not `calendar.view` —

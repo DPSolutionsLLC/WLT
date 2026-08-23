@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AssignmentModal } from "@/app/(app)/assignments/AssignmentModal";
 import { Button } from "@/components/ui/Button";
-import type { Assignment, TopicOption } from "@/lib/assignments/queries";
+import type { Assignment } from "@/lib/assignments/queries";
+import type { TopicOption } from "@/lib/topics/queries";
 import type { SessionUser } from "@/types/domain";
 
 // The detail page is a Server Component and cannot hand AssignmentModal its open state, so the

@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/FormError";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
-import type { Assignment, TopicOption } from "@/lib/assignments/queries";
+import type { Assignment } from "@/lib/assignments/queries";
+import type { TopicOption } from "@/lib/topics/queries";
 import {
   ASSIGNMENT_TYPES,
   type AssignmentType,

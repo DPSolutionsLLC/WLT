@@ -73,6 +73,7 @@ function renderPanel(row: Assignment) {
       speakerFirstName="Mark"
       speakerPhone={null}
       topicTitle="Faith in Jesus Christ"
+      suggestedScriptures={["Alma 32:21"]}
       waivedByName="Peter Nakamura"
       requestedByName={null}
       canPlan
