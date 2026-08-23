@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SpeakerHistoryEntry } from "@/lib/assignments/reliabilityFlags";
 import { countsTowardRotation } from "@/lib/assignments/rotation";
 import { listSundays } from "@/lib/calendar/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -912,4 +913,209 @@ export async function countAssignmentsOnSunday(
   }
 
   return count ?? 0;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Speaker history — talks-d
+// ---------------------------------------------------------------------------------------------
+//
+// THE ONE DESIGN RULE OF THIS SECTION: history and flags are read by their OWN call and are never
+// a field on the shared member type in lib/roster/queries.ts. A field that exists on a shared type
+// will eventually be serialized into a response somebody did not review — CLAUDE.md rule 9 running
+// in reverse, and the phase's stated pitfall. `assignment_history` is bishopric-only in migration
+// 019, so a non-bishopric caller reads zero rows here; the separate call is what makes sure the
+// question is never asked on their behalf in the first place.
+
+export type SpeakerHistoryRow = SpeakerHistoryEntry & {
+  id: string;
+  memberId: string;
+  assignmentId: string | null;
+  assignmentType: AssignmentType | null;
+  notes: string | null;
+  createdAt: string;
+};
+
+const HISTORY_COLUMNS =
+  "id, member_id, assignment_id, outcome, cancellation_days_notice, notes, created_at";
+
+type AssignmentHistoryRow = {
+  id: string;
+  member_id: string;
+  assignment_id: string | null;
+  outcome: string | null;
+  cancellation_days_notice: number | null;
+  notes: string | null;
+  created_at: string;
+};
+
+// The Sunday a history row belongs to lives two tables away — history → assignment → Sunday — and
+// it is resolved in two follow-up reads rather than an embedded PostgREST join, so the ward scope
+// on each table is applied by the module that owns it. Same reasoning listPrayers() records for
+// its own range read, and the reason there is no two-level `assignments(sundays(date))` select
+// anywhere in this codebase.
+//
+// A history row whose assignment has been deleted keeps its outcome and loses its date
+// (`assignment_id` is `on delete set null`). That is a real state, so `sundayDate` is null rather
+// than the row being dropped: the outcome still happened.
+async function attachAssignmentContext(
+  wardId: string,
+  rows: AssignmentHistoryRow[],
+  supabase: SupabaseClient<Database>,
+): Promise<SpeakerHistoryRow[]> {
+  const assignmentIds = [
+    ...new Set(rows.flatMap((row) => (row.assignment_id === null ? [] : [row.assignment_id]))),
+  ];
+
+  const context = new Map<string, { sundayId: string | null; type: AssignmentType | null }>();
+
+  if (assignmentIds.length > 0) {
+    const { data, error } = await supabase
+      .from("assignments")
+      .select("id, sunday_id, assignment_type")
+      .eq("ward_id", wardId)
+      .in("id", assignmentIds);
+
+    if (error) {
+      console.error(`Could not read the assignments behind a history read — ${error.message}`, {
+        wardId,
+      });
+      throw new Error(`Could not read that speaking history: ${error.message}`);
+    }
+
+    for (const assignment of data ?? []) {
+      context.set(assignment.id, {
+        sundayId: assignment.sunday_id,
+        type: toOptionalEnum(
+          assignment.assignment_type,
+          ASSIGNMENT_TYPES,
+          "assignments.assignment_type",
+        ),
+      });
+    }
+  }
+
+  const sundayIds = [
+    ...new Set(
+      [...context.values()].flatMap((entry) =>
+        entry.sundayId === null ? [] : [entry.sundayId],
+      ),
+    ),
+  ];
+
+  const sundayDates = new Map<string, string>();
+
+  if (sundayIds.length > 0) {
+    const { data, error } = await supabase
+      .from("sundays")
+      .select("id, date")
+      .eq("ward_id", wardId)
+      .in("id", sundayIds);
+
+    if (error) {
+      console.error(`Could not read the Sundays behind a history read — ${error.message}`, {
+        wardId,
+      });
+      throw new Error(`Could not read that speaking history: ${error.message}`);
+    }
+
+    for (const sunday of data ?? []) {
+      sundayDates.set(sunday.id, sunday.date);
+    }
+  }
+
+  return rows.map((row) => {
+    const assignment = row.assignment_id === null ? undefined : context.get(row.assignment_id);
+    const sundayId = assignment?.sundayId ?? null;
+
+    return {
+      id: row.id,
+      memberId: row.member_id,
+      assignmentId: row.assignment_id,
+      assignmentType: assignment?.type ?? null,
+      outcome: toOptionalEnum(
+        row.outcome,
+        ASSIGNMENT_HISTORY_OUTCOMES,
+        "assignment_history.outcome",
+      ),
+      cancellationDaysNotice: row.cancellation_days_notice,
+      notes: row.notes,
+      sundayDate: sundayId === null ? null : (sundayDates.get(sundayId) ?? null),
+      createdAt: row.created_at,
+    };
+  });
+}
+
+// Newest Sunday first, with dateless rows last — a profile is read from the most recent thing
+// that happened. Rows with no date sort to the end rather than to the top, where a missing date
+// would otherwise read as the newest entry.
+function byMostRecent(left: SpeakerHistoryRow, right: SpeakerHistoryRow): number {
+  if (left.sundayDate === null && right.sundayDate === null) {
+    return right.createdAt.localeCompare(left.createdAt);
+  }
+  if (left.sundayDate === null) return 1;
+  if (right.sundayDate === null) return -1;
+
+  return right.sundayDate.localeCompare(left.sundayDate);
+}
+
+export async function listSpeakerHistory(
+  wardId: string,
+  memberId: string,
+  client?: SupabaseClient<Database>,
+): Promise<SpeakerHistoryRow[]> {
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("assignment_history")
+    .select(HISTORY_COLUMNS)
+    .eq("ward_id", wardId)
+    .eq("member_id", memberId);
+
+  if (error) {
+    console.error(`Could not read a member's speaking history — ${error.message}`, {
+      wardId,
+      memberId,
+    });
+    throw new Error(`Could not read that speaking history: ${error.message}`);
+  }
+
+  const rows = await attachAssignmentContext(wardId, data ?? [], supabase);
+
+  return rows.sort(byMostRecent);
+}
+
+// The whole ward's history in ONE read, grouped by member, so the planning picker can show flags
+// for a list of two hundred people without two hundred round trips.
+//
+// It returns HISTORY, not flags: reliabilityFlags() is pure and client-importable precisely so the
+// rule can be applied where the list is rendered, and computing here would mean this server-only
+// module deciding what a flag means.
+export async function listSpeakerHistoryByMember(
+  wardId: string,
+  client?: SupabaseClient<Database>,
+): Promise<Map<string, SpeakerHistoryRow[]>> {
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("assignment_history")
+    .select(HISTORY_COLUMNS)
+    .eq("ward_id", wardId);
+
+  if (error) {
+    console.error(`Could not read the ward's speaking history — ${error.message}`, { wardId });
+    throw new Error(`Could not read the ward's speaking history: ${error.message}`);
+  }
+
+  const enriched = await attachAssignmentContext(wardId, data ?? [], supabase);
+  const byMember = new Map<string, SpeakerHistoryRow[]>();
+
+  for (const entry of enriched) {
+    byMember.set(entry.memberId, [...(byMember.get(entry.memberId) ?? []), entry]);
+  }
+
+  for (const entries of byMember.values()) {
+    entries.sort(byMostRecent);
+  }
+
+  return byMember;
 }

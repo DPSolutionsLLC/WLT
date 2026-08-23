@@ -204,12 +204,30 @@ const SUNDAY_LABEL_FORMAT = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
 });
 
+// The same label WITH the year, for anywhere the surrounding page does not already supply it.
+//
+// formatSundayLabel() drops the year on purpose: on a calendar you are looking at one month, and
+// repeating "2026" in every cell is noise. That reasoning does not survive contact with a list
+// that spans years — a speaking history is read to answer "how long ago", and "Sunday, June 7"
+// above "Sunday, June 2" hides that those are two years apart. Found by walking scenario 018.
+const SUNDAY_LABEL_WITH_YEAR_FORMAT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  weekday: "long",
+  month: "long",
+  day: "numeric",
+  year: "numeric",
+});
+
 export function monthLabel(value: DateOnly): string {
   return MONTH_LABEL_FORMAT.format(parseDateOnly(value));
 }
 
 export function formatSundayLabel(value: DateOnly): string {
   return SUNDAY_LABEL_FORMAT.format(parseDateOnly(value));
+}
+
+export function formatSundayLabelWithYear(value: DateOnly): string {
+  return SUNDAY_LABEL_WITH_YEAR_FORMAT.format(parseDateOnly(value));
 }
 
 // How many empty cells sit before the 1st in a Sunday-first month grid: 0 when the month opens on

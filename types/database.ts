@@ -1055,6 +1055,7 @@ export type Database = {
           id: string
           last_fulfilled_at: string | null
           notes: string | null
+          org_id: string | null
           status: string | null
           target_id: string | null
           target_type: string | null
@@ -1067,6 +1068,7 @@ export type Database = {
           id?: string
           last_fulfilled_at?: string | null
           notes?: string | null
+          org_id?: string | null
           status?: string | null
           target_id?: string | null
           target_type?: string | null
@@ -1079,6 +1081,7 @@ export type Database = {
           id?: string
           last_fulfilled_at?: string | null
           notes?: string | null
+          org_id?: string | null
           status?: string | null
           target_id?: string | null
           target_type?: string | null
@@ -1086,6 +1089,13 @@ export type Database = {
           ward_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "goals_org_fk"
+            columns: ["org_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id", "ward_id"]
+          },
           {
             foreignKeyName: "goals_ward_id_fkey"
             columns: ["ward_id"]
@@ -2882,6 +2892,7 @@ export type Database = {
       current_ward_id: { Args: never; Returns: string }
       is_active_sacrament_manager: { Args: never; Returns: boolean }
       is_bishopric: { Args: never; Returns: boolean }
+      refresh_goal_status: { Args: never; Returns: number }
       tables_without_rls: {
         Args: never
         Returns: {

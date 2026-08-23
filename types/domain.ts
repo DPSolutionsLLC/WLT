@@ -218,6 +218,21 @@ export const ASSIGNMENT_TYPES = [
 ] as const;
 export type AssignmentType = (typeof ASSIGNMENT_TYPES)[number];
 
+// A Record rather than a lookup with a fallback, for the same reason PIPELINE_STAGE_LABELS is
+// one: a type added to ASSIGNMENT_TYPES must not render as its own snake_case key.
+//
+// Moved here from AssignmentModal when talks-d's speaker history became a second reader
+// (conventions.md §Components: a thing used by two modules moves, it is not copied).
+export const ASSIGNMENT_TYPE_LABELS: Record<AssignmentType, string> = {
+  sacrament_talk: "Sacrament talk",
+  organizational: "Organizational",
+  returning_missionary: "Returning missionary",
+  new_member: "New member",
+  youth_speaker: "Youth speaker",
+  high_council: "High council",
+  other: "Other",
+};
+
 // Whether an assignment TYPE counts toward the ward's member speaking rotation
 // (04-talks-pipeline.md §Step 2). A Record rather than a lookup with a fallback, for the same
 // reason ROLE_LABELS is one: a type added to ASSIGNMENT_TYPES must not silently default to

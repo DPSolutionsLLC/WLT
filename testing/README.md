@@ -80,6 +80,66 @@ ward other than the test ward.
 - Cover the failure path, not just the happy one. Most of this app's rules are about what
   should *not* appear.
 - If a check can be made without a browser, it belongs in Vitest instead.
+- **Write every check against the RUNNING APP, not against the plan or the code.** Two checks in
+  scenarios 016 and 017 described states the app cannot reach — a disabled button on a slot that
+  has no button, and a backward-move control that was never built. Both were written from what
+  the code implied rather than from what the screen does, and only a walkthrough found them.
+- **Group the checklist by what kind of answer each check has** — see the protocol below. A flat
+  37-item list gets ticked, not read.
+
+---
+
+## The walkthrough protocol
+
+Run a scenario with **`/walk <scope>/<scenario-folder>`**. It drives the real app through
+Playwright, does everything checkable itself, and hands back only the judgements that need a
+person. The full method lives in the global command; what follows is the WLT-specific half.
+
+### Split every checklist in two
+
+**Machine-checkable** — a stored value, a row count, a refused permission, an audit row, an
+element present or absent, no horizontal overflow at 375px, tap targets ≥ 44×44, no raw uuid on
+screen. `/walk` does these and reports them settled.
+
+**Needs a human eye** — whether the wording lands, whether an empty state reads as deliberate,
+whether an absence reads as meaningful. These come back as a question plus a screenshot.
+
+If a passing Vitest test would fully satisfy you, the check is machine-checkable — and if it is
+*purely* logic, it should have been a Vitest test rather than a checklist line at all.
+
+### Verify writes against the database, never the UI
+
+The harness talks to the **hosted** project, so a service-role client can read any row back:
+
+```ts
+import { createClient } from "@supabase/supabase-js";
+const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+const WARD = "11111111-1111-4111-8111-111111111111";
+```
+
+A screen can render a value the server never stored, and an optimistic TanStack Query update is
+indistinguishable from a successful save until something reloads. **Read the row back.** Record
+the actual value — a timestamp, a count, the exact string — not the word "passed".
+
+Two things worth reading back on almost every walk:
+
+- **`audit_log`** filtered to this ward and module. Every mutation writes one (CLAUDE.md rule 6),
+  and it must carry ids and short descriptions — **never a member's name** (rule 8).
+- **The row you just wrote**, to prove a replace replaced rather than inserted, or that a refused
+  write genuinely wrote nothing. An RLS-denied UPDATE is a zero-row success, not an error.
+
+### Where screenshots go
+
+`review-shots/`, excluded via `.git/info/exclude`. **Do not delete them after the review** —
+they are the evidence behind the confirmation record, and a regression months from now may want
+them. Exclude, do not remove.
+
+### Record the walk
+
+Append a **Walkthrough record** to the scenario file naming the date, **who drove it**, the
+observed values, and any checklist corrections made. Whether a human used the app or an agent
+drove it and a human reviewed screenshots is a real difference in evidence, and `/confirm`
+carries it forward into the baseline.
 
 ---
 

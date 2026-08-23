@@ -1,10 +1,13 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { ApprovalPanel } from "@/app/(app)/assignments/ApprovalPanel";
 import { AssignmentEditButton } from "@/app/(app)/assignments/AssignmentEditButton";
 import { CommentThread } from "@/app/(app)/assignments/CommentThread";
 import { ContactStagePanel } from "@/app/(app)/assignments/ContactStagePanel";
 import { SpeakerLine, speakerDisplayName } from "@/components/assignments/SpeakerLine";
+import { GoalAlertBanner } from "@/components/goals/GoalAlertBanner";
+import type { GoalAlert } from "@/components/goals/GoalAlerts";
 import { StageBadge } from "@/components/assignments/StageBadge";
 import { SundayTypeBadge } from "@/components/calendar/SundayTypeBadge";
 import { Card } from "@/components/ui/Card";
@@ -15,10 +18,15 @@ import {
   listComments,
   type Assignment,
 } from "@/lib/assignments/queries";
+import {
+  GOAL_ALERT_DISMISSAL_COOKIE,
+  isMonthDismissed,
+} from "@/lib/goals/alertDismissal";
+import { listGoalsWithStatus } from "@/lib/goals/queries";
 import { listTopicOptions } from "@/lib/topics/queries";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
-import { formatSundayLabel, monthOf } from "@/lib/calendar/dates";
+import { formatSundayLabel, monthOf, parseDateOnly } from "@/lib/calendar/dates";
 import { conductingNameMap, getSunday, listBishopricUsers } from "@/lib/calendar/queries";
 import { listMembers } from "@/lib/roster/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -116,6 +124,37 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
   const currentUserName =
     [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || "You";
 
+  // THE DISMISSAL IS READ HERE, on the server, before anything renders. It used to live in
+  // localStorage, which the server cannot see — so the banner was rendered for everybody and
+  // hidden after hydration, flashing a dismissed banner for 268 ms to 3.8 s depending on the
+  // device. A cookie travels with the request, so the HTML is right the first time
+  // (lib/goals/alertDismissal.ts).
+  const monthKey = monthOf(sunday.date);
+  const alertsDismissed = isMonthDismissed(
+    (await cookies()).get(GOAL_ALERT_DISMISSAL_COOKIE)?.value,
+    monthKey,
+  );
+
+  // The goal alerts, computed AS OF THIS SUNDAY rather than as of today. That is the question a
+  // planner is actually asking here: by the time this meeting happens, what is outstanding?
+  //
+  // Gated on `goals.view` separately from talks.view — they are different modules and a viewer can
+  // hold one without the other. Skipped entirely rather than fetched and hidden, and skipped again
+  // when the month is already dismissed — there is nothing to show, so there is nothing to read.
+  //
+  // Overdue and due-soon only; an on-track goal is not a warning. Overdue sorts first.
+  const goalAlerts: GoalAlert[] = can(user, "goals.view", roleAccess) && !alertsDismissed
+    ? (await listGoalsWithStatus(user.wardId, {}, parseDateOnly(sunday.date), supabase))
+        .flatMap((goal) =>
+          goal.status === "overdue" || goal.status === "due_soon"
+            ? [{ id: goal.id, title: goal.title, status: goal.status }]
+            : [],
+        )
+        .sort((left, right) =>
+          left.status === right.status ? 0 : left.status === "overdue" ? -1 : 1,
+        )
+    : [];
+
   function approvedNamesFor(assignment: Assignment): string[] {
     const approved = new Set(
       (approvalsByAssignment.get(assignment.id) ?? [])
@@ -147,6 +186,11 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
             : `${sunday.speakingSlots} speaking ${sunday.speakingSlots === 1 ? "slot" : "slots"}`}
         </p>
       </div>
+
+      {/* Above the assignments, because it is context for the choices below it rather than a
+          footnote to them. Dismissible for the month — see components/goals/GoalAlertBanner.tsx
+          for why these are here and not on the calendar. */}
+      <GoalAlertBanner alerts={goalAlerts} monthKey={monthKey} />
 
       {assignments.length === 0 ? (
         <Card>

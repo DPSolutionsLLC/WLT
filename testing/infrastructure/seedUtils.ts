@@ -408,6 +408,25 @@ export async function createHousehold(options: {
   });
 }
 
+// The one DELETE this module offers, and it exists for exactly one state: a goal whose
+// polymorphic `target_id` outlives the row it pointed at. `goals.target_id` carries no foreign
+// key (migration 010), so nothing in the database prevents that — and it cannot be seeded any
+// other way than by writing the goal and then removing the household.
+//
+// Scoped to the test ward by the same id constant every other factory uses. It deletes ONE row by
+// id and nothing else.
+export async function deleteHousehold(id: string): Promise<void> {
+  const { error } = await getAdminClient()
+    .from("households")
+    .delete()
+    .eq("id", id)
+    .eq("ward_id", TEST_WARD_ID);
+
+  if (error) {
+    throw new Error(`Could not delete the seeded household: ${error.message}`);
+  }
+}
+
 export async function createMember(options: {
   id?: string;
   firstName: string;
@@ -940,22 +959,68 @@ export async function createActivityPrivateNote(options: {
 // Goals, agendas, tithing
 // ============================================================================
 
+// `lastFulfilledAt` and `createdAt` are both settable, and both are load-bearing: goal status is
+// computed from them (lib/goals/goalStatus.ts), so placing a goal either side of the 80% boundary
+// or making one "never fulfilled and past its interval" is impossible without writing them
+// directly. Added in talks-d.
+//
+// `status` writes the CACHED column, which is deliberately NOT what the app reads — the UI
+// computes status on every read (04-talks-pipeline.md §Step 9). It defaults to a value that is
+// often WRONG on purpose, so a scenario that finds the board agreeing with this column has found
+// the compute-on-read rule being broken.
 export async function createGoal(options: {
+  id?: string;
+  // The OWNING organization (migration 030). Omitted means a ward-level goal, which is
+  // bishopric-only — not "visible to everyone". Distinct from targetType/targetId, which say what
+  // the goal is ABOUT.
+  orgId?: string;
   title: string;
   targetType?: "member" | "household" | "org" | "group";
   targetId?: string;
   desiredFrequencyMonths?: number;
+  lastFulfilledAt?: string;
+  createdAt?: string;
+  notes?: string;
   status?: "on_track" | "due_soon" | "overdue";
 }): Promise<string> {
   const hasTarget = options.targetType !== undefined && options.targetId !== undefined;
 
   return insertRow("goals", {
+    id: options.id ?? testUuid(`goal:${options.title}`),
     ward_id: TEST_WARD_ID,
+    org_id: options.orgId ?? null,
     title: options.title,
     target_type: hasTarget ? options.targetType : null,
     target_id: hasTarget ? options.targetId : null,
     desired_frequency_months: options.desiredFrequencyMonths ?? null,
+    last_fulfilled_at: options.lastFulfilledAt ?? null,
+    created_at: options.createdAt ?? undefined,
+    notes: options.notes ?? null,
     status: options.status ?? "on_track",
+  });
+}
+
+// One row of a member's speaking history. talks-d reads this table for the reliability profile,
+// and the four pattern flags are computed from exactly these three fields plus the Sunday date
+// the assignment carries (lib/assignments/reliabilityFlags.ts).
+//
+// `memberId` is REQUIRED because `assignment_history.member_id` is `not null` — an external
+// speaker cannot have a history row, which is what keeps ITER-004's "speaker history is not
+// distorted" true in the schema rather than in everybody's memory (talks-a Decision 3).
+export async function createAssignmentHistory(options: {
+  memberId: string;
+  assignmentId?: string;
+  outcome?: "accepted" | "declined" | "cancelled" | "completed";
+  cancellationDaysNotice?: number;
+  notes?: string;
+}): Promise<string> {
+  return insertRow("assignment_history", {
+    ward_id: TEST_WARD_ID,
+    member_id: options.memberId,
+    assignment_id: options.assignmentId ?? null,
+    outcome: options.outcome ?? "completed",
+    cancellation_days_notice: options.cancellationDaysNotice ?? null,
+    notes: options.notes ?? null,
   });
 }
 

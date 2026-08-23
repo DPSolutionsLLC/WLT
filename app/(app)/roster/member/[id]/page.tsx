@@ -3,11 +3,13 @@ import { notFound } from "next/navigation";
 import { MemberEditor } from "@/app/(app)/roster/member/[id]/MemberEditor";
 import { MemberNotes } from "@/app/(app)/roster/member/[id]/MemberNotes";
 import { MemberOrganizations } from "@/app/(app)/roster/member/[id]/MemberOrganizations";
+import { SpeakerHistoryTab } from "@/app/(app)/roster/member/[id]/SpeakerHistoryTab";
 import { MemberStatusBadge } from "@/components/roster/MemberStatusBadge";
 import { Card } from "@/components/ui/Card";
 import { NotPermitted } from "@/components/ui/NotPermitted";
+import { listSpeakerHistory } from "@/lib/assignments/queries";
 import { listWardOrganizations } from "@/lib/auth/adminUsers";
-import { can, resolveRoleAccess } from "@/lib/auth/permissions";
+import { BISHOPRIC_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { listMemberNotes } from "@/lib/roster/memberNotes";
 import { listMemberOrganizations } from "@/lib/roster/organizations";
@@ -44,13 +46,27 @@ export default async function MemberDetailPage({ params }: MemberDetailPageProps
   if (!member) notFound();
 
   const canManage = can(user, "roster.manage", roleAccess);
-  const canSeeAssignmentHistory = can(user, "talks.view", roleAccess);
+
+  // TWO conditions, not one. talks.view is the module gate and a ward_secretary holds it; the
+  // bishopric check is the leak defence, and it matches the RLS policy behind `assignment_history`
+  // exactly (migration 019). A viewer who fails either sees NO SECTION AT ALL — not a disabled
+  // one, which advertises that the data exists and who to ask for it.
+  const canSeeAssignmentHistory =
+    can(user, "talks.view", roleAccess) &&
+    (BISHOPRIC_ROLES as readonly string[]).includes(user.role);
 
   // Fetched inside the branch, never fetched and then hidden. A response that carries notes the
   // page chose not to render is one refactor away from rendering them.
   const notes = canManage ? await listMemberNotes(user.wardId, id, supabase) : [];
   const households = canManage
     ? await listHouseholds(user.wardId, undefined, supabase)
+    : [];
+
+  // Fetched inside the branch for the same reason the notes are. Speaker history is read by its
+  // OWN call and is never a field on the member type — a field on a shared type is one refactor
+  // away from a response a non-bishopric caller receives (04-talks-pipeline.md §Pitfalls).
+  const speakerHistory = canSeeAssignmentHistory
+    ? await listSpeakerHistory(user.wardId, id, supabase)
     : [];
 
   // Memberships are read for everyone who can view the roster — which organizations someone
@@ -147,15 +163,12 @@ export default async function MemberDetailPage({ params }: MemberDetailPageProps
         </Card>
       )}
 
-      {/* Bishopric-only from the start, so the tab does not have to be taken away later. An
-          explicit "not built yet" beats an empty box that reads as "this member has never
-          spoken". Phase 4 fills it (plans/04-talks-pipeline.md). */}
+      {/* Bishopric-only from the start, so the section never had to be taken away later. The
+          "available once the talk pipeline is built" placeholder roster-a left here is what
+          talks-d replaces (plans/04-talks-pipeline.md §Step 8). */}
       {canSeeAssignmentHistory && (
         <Card>
-          <h2 className="text-base font-semibold text-foreground">Assignment history</h2>
-          <p className="mt-2 text-sm text-muted">
-            Available once the talk pipeline is built.
-          </p>
+          <SpeakerHistoryTab history={speakerHistory} asOf={new Date()} />
         </Card>
       )}
     </div>

@@ -246,8 +246,18 @@ async function readSpeakerNames(
   );
 }
 
-// Both reserved regions for every Sunday in the month, built once from one read. `goalAlerts`
-// is deliberately left unset — it belongs to talks-d.
+// TWO of the three reserved regions, built once from one read. `goalAlerts` is deliberately left
+// unset.
+//
+// It WAS filled here, and was taken back out after scenario 019 was walked: three overdue goals
+// wrap to nine lines in a ~130px grid column, and stacked under the speakers and the pipeline
+// summary they read as clutter rather than as information. The alerts now live on the Sunday
+// planning page, where somebody has already decided to work on that Sunday and the warning has a
+// job to do — components/goals/GoalAlertBanner.tsx.
+//
+// So the third region stays OPEN. calendar-b sized `min-h-40` for three regions and it was never
+// the constraint that failed; what failed was the density of this particular content at this
+// particular width. A later slice with something terser to say may still fill it.
 function buildReservedRegions(
   sundays: { id: string; speakingSlots: number }[],
   assignments: Assignment[],

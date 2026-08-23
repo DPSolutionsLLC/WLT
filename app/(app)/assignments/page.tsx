@@ -2,9 +2,14 @@ import { MonthPlannerBoard } from "@/app/(app)/assignments/MonthPlannerBoard";
 import { MonthNavigation } from "@/app/(app)/calendar/MonthNavigation";
 import { Card } from "@/components/ui/Card";
 import { NotPermitted } from "@/components/ui/NotPermitted";
-import { countApprovalsFor, listAssignments } from "@/lib/assignments/queries";
+import {
+  countApprovalsFor,
+  listAssignments,
+  listSpeakerHistoryByMember,
+} from "@/lib/assignments/queries";
+import { reliabilityFlags, type ReliabilityFlagKind } from "@/lib/assignments/reliabilityFlags";
 import { listTopicOptions } from "@/lib/topics/queries";
-import { can, resolveRoleAccess } from "@/lib/auth/permissions";
+import { BISHOPRIC_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import {
   formatDateOnly,
@@ -74,6 +79,15 @@ export default async function AssignmentsPage({ searchParams }: AssignmentsPageP
     members.map((member) => [member.id, `${member.firstName} ${member.lastName}`.trim()]),
   );
 
+  // The reliability flags the picker renders, built ONCE for the whole ward from one read rather
+  // than one read per member in a list of two hundred. Skipped entirely for a non-bishopric
+  // planner — not fetched and hidden. `assignment_history` is bishopric-only in migration 019, so
+  // the query would return nothing anyway; the branch is what stops the question being asked on
+  // their behalf at all (04-talks-pipeline.md §Pitfalls).
+  const speakerFlags = (BISHOPRIC_ROLES as readonly string[]).includes(user.role)
+    ? await readSpeakerFlags(user.wardId, supabase)
+    : {};
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -108,6 +122,7 @@ export default async function AssignmentsPage({ searchParams }: AssignmentsPageP
           initialAssignments={assignments}
           approvalCounts={Object.fromEntries(approvalCounts)}
           memberNames={memberNames}
+          speakerFlags={speakerFlags}
           topics={topics}
           bishopricCount={bishopricUsers.length}
           canPlan={canPlan}
@@ -115,4 +130,26 @@ export default async function AssignmentsPage({ searchParams }: AssignmentsPageP
       )}
     </div>
   );
+}
+
+// Flags are computed HERE, in the page, from history the data layer returned — lib/assignments/
+// queries.ts returns rows and never a flag, so the rule that decides what a flag means lives in
+// one pure, tested, client-importable module (lib/assignments/reliabilityFlags.ts).
+//
+// Members with no flags are omitted from the record rather than mapped to an empty array. An
+// absent key renders nothing in MemberPicker, which is the same contract `annotations` has.
+async function readSpeakerFlags(
+  wardId: string,
+  client: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+): Promise<Record<string, readonly ReliabilityFlagKind[]>> {
+  const historyByMember = await listSpeakerHistoryByMember(wardId, client);
+  const asOf = new Date();
+  const flags: Record<string, readonly ReliabilityFlagKind[]> = {};
+
+  for (const [memberId, history] of historyByMember) {
+    const computed = reliabilityFlags(history, asOf);
+    if (computed.length > 0) flags[memberId] = computed;
+  }
+
+  return flags;
 }

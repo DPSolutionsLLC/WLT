@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { SpeakerField, type SpeakerValue } from "@/app/(app)/assignments/SpeakerField";
+import type { ReliabilityFlagKind } from "@/components/roster/ReliabilityFlag";
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/FormError";
 import { Input } from "@/components/ui/Input";
@@ -9,6 +10,7 @@ import { Modal } from "@/components/ui/Modal";
 import type { Assignment } from "@/lib/assignments/queries";
 import type { TopicOption } from "@/lib/topics/queries";
 import {
+  ASSIGNMENT_TYPE_LABELS,
   ASSIGNMENT_TYPES,
   type AssignmentType,
   type MemberCategory,
@@ -22,16 +24,6 @@ import {
 // `counts_toward_rotation` is deliberately absent. The server sets it from the assignment type,
 // so nobody answers the same question twice, and it is STORED rather than derived so a later
 // change to COUNTS_TOWARD_ROTATION cannot silently rewrite what a ward decided (talks-a Task 9).
-
-const ASSIGNMENT_TYPE_LABELS: Record<AssignmentType, string> = {
-  sacrament_talk: "Sacrament talk",
-  organizational: "Organizational",
-  returning_missionary: "Returning missionary",
-  new_member: "New member",
-  youth_speaker: "Youth speaker",
-  high_council: "High council",
-  other: "Other",
-};
 
 const SELECT_CLASSES =
   "min-h-11 w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-base " +
@@ -53,6 +45,9 @@ export type AssignmentModalProps = {
   // planner passes nothing and the warning counts; the Sunday detail page has the approval rows
   // and names them. Both warn — only the wording differs.
   approvedNames?: readonly string[];
+  // Reliability flags per member id, for the picker. Empty for a non-bishopric planner — the page
+  // that builds this reads bishopric-only history (talks-d).
+  speakerFlags?: Readonly<Record<string, readonly ReliabilityFlagKind[]>>;
 };
 
 function initialSpeaker(assignment: Assignment | null): SpeakerValue {
@@ -110,6 +105,7 @@ export function AssignmentModal({
   topics,
   approvedCount,
   approvedNames,
+  speakerFlags,
 }: AssignmentModalProps) {
   const [speaker, setSpeaker] = useState<SpeakerValue>(() => initialSpeaker(assignment));
   const [assignmentType, setAssignmentType] = useState<AssignmentType>(
@@ -261,6 +257,7 @@ export function AssignmentModal({
           value={speaker}
           onChange={setSpeaker}
           category={category}
+          flags={speakerFlags}
           disabled={isSaving}
         />
 

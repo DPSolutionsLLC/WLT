@@ -5,10 +5,21 @@ import { SundayTypeBadge } from "@/components/calendar/SundayTypeBadge";
 import type { Sunday } from "@/lib/calendar/queries";
 import { holdsSacramentMeeting } from "@/types/domain";
 
-// The three regions Phase 4 fills, as REAL optional props rather than a comment promising a
-// refactor. They are `ReactNode` so Phase 4 owns what goes in them, and they render nothing when
-// absent — so passing them in changes no layout in this slice. SundayCard takes the same three,
-// which is what lets one Phase 4 change fill both the grid and the mobile list.
+// The three regions Phase 4 was to fill, as REAL optional props rather than a comment promising a
+// refactor. They are `ReactNode` so the filling slice owns what goes in them, and they render
+// nothing when absent. SundayCard takes the same three, which is what lets one change fill both
+// the grid and the mobile list.
+//
+// TWO OF THE THREE ARE FILLED. talks-b filled `speakers` and `pipelineStatus`. talks-d filled
+// `goalAlerts` and then TOOK IT BACK OUT after walking scenario 019: three overdue goals wrap to
+// nine lines in a ~130px column, on every Sunday of every month, and read as clutter rather than
+// as information. Those alerts now live on the Sunday planning page instead
+// (components/goals/GoalAlertBanner.tsx).
+//
+// `goalAlerts` stays on this type deliberately. The prop was never the problem — the cell fitted
+// three regions without being resized, which is what `min-h-40` was for — so the region is still
+// available to a later slice with something terser to say. Do not remove it to tidy up; removing
+// it would lose the finding.
 export type SundayReservedRegions = {
   speakers?: ReactNode;
   pipelineStatus?: ReactNode;

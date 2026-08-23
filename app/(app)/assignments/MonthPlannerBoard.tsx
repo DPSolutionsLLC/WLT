@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AssignmentModal } from "@/app/(app)/assignments/AssignmentModal";
 import { SpeakerLine } from "@/components/assignments/SpeakerLine";
+import type { ReliabilityFlagKind } from "@/components/roster/ReliabilityFlag";
 import { StageBadge } from "@/components/assignments/StageBadge";
 import { SundayTypeBadge } from "@/components/calendar/SundayTypeBadge";
 import { Button } from "@/components/ui/Button";
@@ -36,6 +37,9 @@ export type MonthPlannerBoardProps = {
   topics: TopicOption[];
   bishopricCount: number;
   canPlan: boolean;
+  // Reliability flags per member id, built once by the page from ONE bishopric-only read and
+  // handed down — never fetched per row, and empty for a planner who is not bishopric (talks-d).
+  speakerFlags: Readonly<Record<string, readonly ReliabilityFlagKind[]>>;
 };
 
 // Which slot the modal is editing. A slot with no assignment yet is a real target — the modal
@@ -110,6 +114,7 @@ export function MonthPlannerBoard({
   topics,
   bishopricCount,
   canPlan,
+  speakerFlags,
 }: MonthPlannerBoardProps) {
   const queryClient = useQueryClient();
   const [openSlot, setOpenSlot] = useState<OpenSlot | null>(null);
@@ -254,6 +259,7 @@ export function MonthPlannerBoard({
           assignment={openSlot.assignment}
           topics={topics}
           approvedCount={openSlot.assignment ? (counts[openSlot.assignment.id] ?? 0) : 0}
+          speakerFlags={speakerFlags}
         />
       )}
     </div>

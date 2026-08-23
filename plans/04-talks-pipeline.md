@@ -246,31 +246,74 @@ Overdue and due-soon goals surface as alerts on the planning calendar cells from
 
 ## Tests
 
+**Updated 2026-08-22, when `talks-d` closed the phase.** The eight-row table this section used to
+carry described tests nobody wrote — four slices produced a different and larger set, and a spec
+describing imaginary tests is worse than one describing the real ones. What follows is what exists.
+
 | Test | Asserts |
 |---|---|
-| `pipeline-transitions.test.ts` | Every legal transition succeeds; every illegal one is rejected. **Highest priority in this phase** |
-| `approval-gate.test.ts` | 2-of-3 approvals cannot reach APPROVE; 3-of-3 can |
-| `approval-invalidation.test.ts` | Editing an approved assignment clears approvals and notifies |
-| `decline-flow.test.ts` | A decline returns to `plan`, clears the speaker, and emits the notification |
-| `rotation-eligibility.test.ts` | `counts_toward_rotation` set correctly per type; an assignment reverted to `plan` by a calendar change is absent from speaker history (Step 2) |
-| `reliability-flags.test.ts` | Each of the four flags fires on its boundary condition and not before |
-| `goal-status.test.ts` | on_track / due_soon / overdue boundaries, including never-fulfilled |
-| `bishopric-only.test.ts` | Every route in this phase 403s for a secretary, org president, and youth account |
+| `tests/lib/pipelineTransitions.test.ts` | Every legal transition succeeds; every illegal one is rejected. **Highest priority in this phase** |
+| `tests/lib/approvalGate.test.ts` | 2-of-3 approvals cannot reach APPROVE; 3-of-3 can, counted against the ward's real bishopric roll |
+| `tests/lib/declineFlow.test.ts` | A decline returns to `plan`, clears the speaker, and emits the notification |
+| `tests/lib/rotationEligibility.test.ts` | `counts_toward_rotation` is set per type and is stored, not re-derived |
+| `tests/lib/externalSpeaker.test.ts` | ITER-004: a row holds a member or an external name, never both; the waiver satisfies exactly four gates |
+| `tests/lib/messageTemplate.test.ts`, `smsLink.test.ts` | Confirmation and thank-you drafting, and the `sms:` handoff with its copy fallback |
+| `tests/lib/prayerPipeline.test.ts`, `lastPrayed.test.ts` | The four prayer stages, and the last-prayed nudge that renders NOTHING rather than "Never" |
+| `tests/lib/topicRotation.test.ts` | Staleness bucketing and the library's ordering |
+| `tests/lib/reliabilityFlags.test.ts` | Each of the four flags fires **on** its boundary day and not the day before; no history means no flags |
+| `tests/lib/goalStatus.test.ts` | on_track / due_soon / overdue at every boundary, both never-fulfilled cases, a zero interval, and month-end clamping |
+| `tests/db/assignment-approvals.test.ts` | The approval constraints against the real database, including `assignment_approvals_one_per_user` |
+| `tests/db/topic-last-assigned.test.ts` | `last_assigned_at` is stamped at `approve` only, and survives a revert |
+| `tests/rls/assignment-access.test.ts` | The four talk tables are bishopric-only and ward-scoped, on all four verbs |
+| `tests/rls/topic-candidates.test.ts` | The AI queue is bishopric-only, ward-scoped, and its review pair is constrained |
+| `tests/rls/speaker-history.test.ts` | Five non-bishopric roles read **nothing** while the bishop and a counselor read the seeded row in the same fixture; cross-ward isolation; an external speaker wrote no history row |
+| `tests/rls/realtime-isolation.test.ts` | The comment publication does not leak across wards |
+| `tests/routes/*.test.ts` | The four assignment routes and the candidate queue, driven as real handlers against the hosted project |
+| `tests/components/assignments/*.test.tsx` | Stage badges, the contact-stage panel, and the realtime comment thread |
+| `tests/components/roster/ReliabilityFlag.test.tsx` | All four kinds render their label; an empty array renders nothing at all |
+
+**The plan's `bishopric-only.test.ts` was never written as one file.** Its intent is met, spread
+across `tests/rls/assignment-access.test.ts`, `tests/rls/speaker-history.test.ts` and the route
+suites, each of which proves the refusal for the roles that matter to the surface it covers. A
+single file asserting "every route in this phase" would have to be rewritten every time a route was
+added; the per-surface suites do not.
 
 ---
 
 ## Definition of Done
 
-- [ ] All nine stages implemented; illegal transitions rejected with a clear message
-- [ ] Approvals require all three bishopric members; edits invalidate them
-- [ ] Comment threads work at month and assignment level, realtime
-- [ ] SMS handoff works on iOS and Android, with a copy-to-clipboard fallback
-- [ ] Prayer pipeline complete; rotation visible in the picker
-- [ ] Topic library CRUD with `last_assigned_at` tracking and an accept/reject queue
-- [ ] Reliability flags compute correctly and appear only to bishopric
-- [ ] Goals compute status and surface on the calendar
-- [ ] All eight pipeline notification triggers fire
-- [ ] All eight tests pass
+**Walked 2026-08-22 when `talks-d` landed.** Ticked where it is true, and stated plainly where it is
+not — an unticked box with a reason is worth more than a ticked one that is aspirational.
+
+- [x] All nine stages implemented; illegal transitions rejected with a clear message — `talks-a`,
+      pinned by `tests/lib/pipelineTransitions.test.ts`
+- [x] Approvals require all three bishopric members; edits invalidate them — counted against the
+      ward's **actual** bishopric roll rather than a hard-coded three, with
+      `assignment_approvals_one_per_user` behind it
+- [x] Comment threads work at month and assignment level, realtime — the `supabase_realtime`
+      publication entry landed in `route-tests-and-realtime`, gated by a cross-ward leak test
+- [ ] SMS handoff works on iOS and Android, with a copy-to-clipboard fallback — **built, not
+      verified on a device.** The copy fallback and the desktop detection are covered by
+      `tests/lib/smsLink.test.ts` and were walked in a desktop browser; no real iPhone or Android
+      handset has been tested. CLAUDE.md §9 names this as a known risk and it stays named
+- [x] Prayer pipeline complete; rotation visible in the picker — `talks-c`, with a last-prayed
+      nudge that renders nothing rather than "Never"
+- [x] Topic library CRUD with `last_assigned_at` tracking and an accept/reject queue — `talks-c`.
+      The queue ships empty on purpose; Phase 5 fills it
+- [x] Reliability flags compute correctly and appear only to bishopric — `talks-d`. Three of the
+      four can fire on real data; `late_canceller` is **dormant** (see the deviations below)
+- [x] Goals compute status and surface where they can be acted on — `talks-d`. Status is computed
+      on read and the `goals.status` column is never selected by the app. **They surface on the
+      Sunday planning page, not the calendar** — see deviation 14 below; the phase plan's wording
+      ("surface as alerts on the planning calendar cells") was tried, walked, and rejected
+- [ ] All eight pipeline notification triggers fire — **five of nine do.** `plan_submitted`,
+      `plan_approved`, `plan_change_requested`, `assignment_declined` and the ninth key
+      `assignment_reverted` all fire from real code paths. `message_approved_ready`,
+      `sunday_confirmation_request`, `issue_flagged_post_sunday` and `appreciation_comments_ready`
+      are seeded in `supabase/seed/notification_triggers.sql` and are emitted by nothing. Three of
+      those four describe moments Phase 5 (AI message drafting) and Phase 11 (the notification UI)
+      own; `issue_flagged_post_sunday` has no surface at all yet. **Phase 11 inherits them.**
+- [x] All tests pass — 1224 across 86 files, with the phase's own suites listed above
 
 ---
 
@@ -347,3 +390,131 @@ deviations from, and additions to, the plan above — read them before building 
 - `POST /api/assignments/[id]/approve` with `approved: false` keeps the refusing member's own
   approval row when it clears the others — that row carries the comment saying what to change,
   which is the only explanation the planner gets.
+
+---
+
+## Decisions and deviations across talks-b, talks-c and talks-d
+
+Recorded 2026-08-22, when `talks-d` closed the phase. The `talks-a` section above stayed as it was
+written; this is everything the other three slices changed, added, or did differently from the plan.
+Read it before building on any of Phase 4.
+
+### talks-b — the month planner
+
+1. **`listTopicOptions()` was added to `lib/assignments/queries.ts`.** `plan` -> `review` refuses
+   without a `topic_id`, and the topic library belonged to `talks-c`, so the smallest possible topic
+   read was placed in the existing module rather than in a `lib/topics/queries.ts` that `talks-c`
+   would then have to reconcile. `talks-c` kept it and extended it with `suggestedScriptures`
+   instead of deleting it — one read used by two modules is not worth a migration of its own.
+2. **`MonthGrid` takes `regionsBySundayId`, one map, not per-cell props.** The page builds every
+   reserved region for the whole month from one read and threads them through. "Do not fetch per
+   cell" is structural this way rather than a rule anyone has to remember, and `talks-d` filled the
+   third region without touching the grid at all.
+3. **`MonthNavigation` gained a `basePath` prop**, because it hard-coded `/calendar?month=` and
+   reusing it on the planner would have navigated away from the planner.
+4. **The modal has no "Submit for review".** Every stage move lives on the detail page, so there is
+   exactly one place in the app where a stage advances. Planning a whole Sunday still never leaves
+   the month view, which is what the phase asked for.
+
+### talks-c — prayers and topics
+
+5. **The topic library lives at `/talks/topics`, not `/topics`.** SPEC.md §Component Structure
+   specifies it and `NAVIGATION_ITEMS` has always linked there. The plan's path would have left the
+   sidebar's Topics link pointing at a 404.
+6. **A unique index on `(ward_id, sunday_id, prayer_type)`**, which the plan did not ask for. "A
+   second write replaces the member rather than inserting" needs a constraint behind it or it is a
+   race, not a rule — without it, a double-submit gives a Sunday two invocations.
+7. **`MemberPicker` gained an `annotations` prop**, raised rather than added quietly, per roster-b's
+   rule for that frozen interface. The prayer board's whole reason to exist is spreading prayers
+   around the ward, and that judgement is made *while* choosing a name.
+8. **Migration numbering collides silently.** `talks-c` shipped as `028` rather than the plan's
+   `027`, and `talks-d` as `029`. Two migrations with the same number is a conflict the CLI resolves
+   by filename order, without saying so. Check the directory before numbering, not the plan.
+   Scenario numbers have the same problem — check `testing/scenarios/manifest.json`.
+
+### talks-d — reliability and goals
+
+9. **`goalStatus()` takes a fourth parameter, `createdAt`.** The signature in §Step 9 omits it, and
+   "never fulfilled counts as overdue once the interval has passed since creation" is unanswerable
+   without it: with only a null fulfilment date, a goal created this morning and one created three
+   years ago are the same value.
+10. **`late_canceller` is implemented, tested, and DORMANT on real data.** No code path writes an
+    `assignment_history` row with `outcome = 'cancelled'` or a `cancellation_days_notice` —
+    `writeAssignmentHistory()` writes only `declined` and `completed`, from the decline path and the
+    `complete` transition. The flag exists because §Step 8 specifies it and its boundary is tested,
+    but nothing in the app can make it fire. **Whoever builds a cancellation path owns making it
+    real**; the flag is not evidence that one exists.
+11. **`target_type: 'group'` is readable but not creatable.** The route must verify that a target
+    resolves to a live row in the right table, because `target_id` carries no foreign key. There is
+    no `groups` table, so a `group` target can never be verified — and accepting an unverifiable
+    target is precisely the permanent mystery that rule exists to prevent. Existing `group` rows
+    still render, as a target whose record cannot be found.
+12. **The `goals.status` column is not selected anywhere in `lib/goals/queries.ts`.** §Step 9 says
+    compute on read and treat the column as a cache; leaving it out of the select list makes that
+    structural rather than a rule everyone has to remember. `refresh_goal_status()` in migration 029
+    maintains it for a future report to index.
+13. **`pg_cron` is not enabled on this project**, so migration 029 schedules nothing and the refresh
+    function is callable by hand only. `supabase/migrations/001_extensions.sql` creates exactly two
+    extensions. The migration header carries the one-line `cron.schedule` call to run if it is ever
+    enabled. Nothing in the app depends on it, because nothing reads the column it maintains.
+14. **Goal alerts are computed as of EACH SUNDAY'S date, not as of today** — so an alert is a
+    statement about that Sunday rather than today's board repeated across a month. That part held.
+    **What did not hold is putting them on the calendar.** §Step 9 says "overdue and due-soon goals
+    surface as alerts on the planning calendar cells", and that is what talks-d built, filling the
+    third region calendar-b reserved. Walking scenario 019 rejected it: three overdue goals wrap to
+    nine lines in a ~130px grid column, under the speakers and the pipeline summary, on every
+    Sunday of every month whether or not anyone is planning. They now live on the **Sunday planning
+    page** as a banner that is dismissible for the month
+    (`components/goals/GoalAlertBanner.tsx`), where somebody has already decided to work on that
+    Sunday and the warning has a job to do.
+
+    Walking it a second time refined it twice more: the heading now **names both counts** ("3 ward
+    goals are overdue, 1 is due soon") rather than counting only the overdue ones above a longer
+    list, and the banner **collapses to a single summary line that expands** — 78px at desktop
+    against the 250px the open version stood at 375px, with Dismiss deliberately outside the toggle
+    because dismissing is what somebody does instead of reading.
+
+    The dismissal is a COOKIE rather than `localStorage`, and that is not a detail. localStorage is
+    invisible to the server, so the banner had to be rendered for everybody and hidden after
+    hydration — which painted a dismissed banner and then removed it, measured at 268 ms on an
+    unthrottled desktop and 3.8 s at 20x CPU throttle. A cookie travels with the request, so the
+    Server Component omits it and there is nothing to correct. The app solves the same class of
+    problem for the theme with a pre-paint inline script (app/layout.tsx); that works because a
+    theme is one class on `<html>`, and telling the server is simpler here.
+
+    **The third reserved region is therefore still OPEN.** `min-h-40` was never the constraint that
+    failed — the cells fitted the content without being resized. What failed was the density of
+    this particular content at this particular width, and a later slice with something terser to
+    say may still fill the region. That is a better outcome than a filled region nobody reads.
+15. **`MemberPicker` gained a `flags` prop, and `SpeakerField` already passed `showFlags`.** The
+    `talks-d` plan asserted that no caller set `showFlags`; `app/(app)/assignments/SpeakerField.tsx`
+    has set it since `talks-b`, rendering a deliberate no-op. Wiring it meant threading one record
+    from `app/(app)/assignments/page.tsx` down through `MonthPlannerBoard` and `AssignmentModal` —
+    built once per page from one bishopric-only read, never one query per row.
+16. **`ASSIGNMENT_TYPE_LABELS` moved from `AssignmentModal` to `types/domain.ts`** when the speaker
+    history table became its second reader (conventions.md: a thing used by two modules moves, it is
+    not copied).
+17. **`goals` is ORG-SCOPED, and this is where that asymmetry got closed rather than handed on.**
+    It shipped ward-scoped — migration 019's policy loop let any authenticated ward member read and
+    write every goal, while `goals.manage` reached only the bishopric and org leadership, so the
+    route was the only real boundary. That was recorded as a Phase 11 inheritance, and walking
+    scenario 019 surfaced what it meant in practice: an Elders Quorum president could mark a
+    bishopric goal fulfilled.
+
+    Migration **030** fixes it by copying the policy `visit_goals` has carried since migration 019:
+    `ward_id = current_ward_id() and (is_bishopric() or org_id = current_org_id())` on all four
+    verbs. `org_id` null is a ward-level goal the bishopric alone sees; a set `org_id` is that
+    organization's leadership plus the bishopric. Ownership is stamped from the session by
+    `POST /api/goals` and cannot be named by the request or moved by a `PATCH`.
+    `tests/rls/goal-access.test.ts` proves it, including the case that would catch a leftover
+    ward-scoped policy surviving alongside the new one.
+
+    **`members`, `households` and `member_organizations` still carry the original asymmetry** —
+    Phase 11 inherits those three, not four.
+18. **Speaking-history rows needed their own date formatter.** `formatSundayLabel()` renders
+    "Sunday, June 7" with no year, which is right on a calendar — the month you are looking at
+    supplies it — and wrong in a table that spans years by design. A member whose two rows were
+    2024-06-02 and 2026-06-07 read as the same month while the flag above them said "has not spoken
+    in two years". Found by walking scenario 018; fixed with `formatSundayLabelWithYear()`, a
+    sibling in `lib/calendar/dates.ts`. Both formatters now carry the reasoning, so the next person
+    does not merge them back together.

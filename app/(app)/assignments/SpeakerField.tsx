@@ -1,6 +1,7 @@
 "use client";
 
 import { MemberPicker } from "@/components/roster/MemberPicker";
+import type { ReliabilityFlagKind } from "@/components/roster/ReliabilityFlag";
 import { Input } from "@/components/ui/Input";
 import {
   MAX_EXTERNAL_SPEAKER_NAME,
@@ -29,6 +30,10 @@ export type SpeakerFieldProps = {
   // "youth" when the assignment type is youth_speaker, "adult" otherwise. The picker narrows in
   // memory, so switching this does not refetch the roster (roster-b).
   category: MemberCategory;
+  // The reliability flags the picker renders, keyed by member id. Empty for a non-bishopric
+  // planner: `assignment_history` is bishopric-only in migration 019, so the page that builds
+  // this computes nothing for them (talks-d).
+  flags?: Readonly<Record<string, readonly ReliabilityFlagKind[]>>;
   disabled?: boolean;
 };
 
@@ -49,6 +54,7 @@ export function SpeakerField({
   value,
   onChange,
   category,
+  flags,
   disabled = false,
 }: SpeakerFieldProps) {
   return (
@@ -82,9 +88,9 @@ export function SpeakerField({
         // this field is already inside one — Modal is deliberately not built to stack
         // (components/ui/Modal.tsx).
         //
-        // showFlags renders nothing until talks-d; ReliabilityFlag is a deliberate no-op. It is
-        // passed anyway because this is the planning view that wants it, and wiring a guessed
-        // rule here instead is exactly what that slice exists to decide.
+        // showFlags now renders REAL flags — lib/assignments/reliabilityFlags.ts, computed from
+        // recorded history at a tested boundary. roster-b passed the prop into a deliberate no-op
+        // and said the slice that could answer the question would wire it; this is that wiring.
         <MemberPicker
           value={value.memberId === null ? [] : [value.memberId]}
           onChange={(memberIds) =>
@@ -94,6 +100,7 @@ export function SpeakerField({
           multiple={false}
           filter={{ categories: [category] }}
           showFlags
+          flags={flags}
           mode="inline"
           label="Choose the speaker"
           disabled={disabled}

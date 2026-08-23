@@ -150,7 +150,7 @@ The single source of truth for all ward member data. Every module that reference
 - Fully editable by any bishopric member (with notification to the other two)
 
 ### Calendar View
-- Monthly view showing Sunday type, assignment pipeline status, speaker names, and goal alerts
+- Monthly view showing Sunday type, assignment pipeline status, and speaker names
 - Color-coded by pipeline stage
 
 ---
@@ -420,7 +420,9 @@ Simple objectives board for tracking recurring intentions beyond the standard ro
 
 - Goals linked to a target (member, household, org, or group)
 - Desired frequency, last fulfilled date, status (`On Track`, `Due Soon`, `Overdue`)
-- Overdue and due-soon goals surface as alerts on the planning calendar
+- Overdue and due-soon goals surface as a dismissible banner on the Sunday planning page —
+  where speakers are actually chosen. They were tried on the month calendar first and taken
+  back off: an alert on every cell of every month is a warning nobody reads (talks-d)
 - Examples: each quorum presidency speaks once per year, youth speaker twice per quarter, no member goes 2+ years without being asked
 
 ---

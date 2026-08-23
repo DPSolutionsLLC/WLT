@@ -499,6 +499,7 @@ created_at      timestamptz DEFAULT now()
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
 ward_id         uuid REFERENCES wards(id)
+org_id          uuid REFERENCES organizations(id)  -- NULL = ward-level, bishopric-only
 title           text NOT NULL
 target_type     text  -- 'member' | 'household' | 'org' | 'group'
 target_id       uuid  -- polymorphic reference
@@ -508,6 +509,10 @@ status          text  -- 'on_track' | 'due_soon' | 'overdue'
 notes           text
 created_at      timestamptz DEFAULT now()
 ```
+`org_id` was added in migration 030 and carries the access rule: NULL is a ward-level goal only the
+bishopric sees, a set value is that organization's leadership plus the bishopric. It is the same
+org-scoped shape `visit_goals` has had since migration 019. `org_id` says who OWNS the goal;
+`target_type`/`target_id` say what it is ABOUT, and the two are independent.
 
 ### `tithing_sessions`
 ```sql
@@ -771,10 +776,18 @@ POST   /api/auth/logout
 GET    /api/members              List members (filtered by org if non-bishopric)
 POST   /api/members              Create member
 PATCH  /api/members/[id]         Update member
+GET    /api/members/[id]/speaker-history   Bishopric-only. A SEPARATE call, deliberately
 GET    /api/households           List households
 POST   /api/households           Create household
 POST   /api/roster/import        CSV import
 ```
+`GET /api/members/[id]/speaker-history` is a route this spec did not list, added in talks-d. It is
+separate from every other member read ON PURPOSE: reliability flags and speaking history must never
+be a field on the shared member type, because a field on a shared type is one refactor away from a
+response a non-bishopric caller receives. It asserts `talks.view` **and** that the caller is
+bishopric, on top of `assignment_history` already being bishopric-only in migration 019 — the
+policy is the boundary, and the two checks make the refusal an honest 403 rather than an empty
+history that reads as "this member has never spoken".
 
 ### Sunday Calendar
 ```
@@ -829,6 +842,34 @@ POST   /api/topics/ai-suggest    NOT BUILT — Phase 5. It writes to topic_candi
 that could name its own source could launder an AI suggestion into the library as if a person had
 typed it. `PATCH /api/topic-candidates` is the only path that writes a topic with
 `source: 'ai_generated'`.
+
+### Goals
+```
+GET    /api/goals                List goals with a COMPUTED status, filtered by target type
+POST   /api/goals                Create a goal — the target is verified before insert
+PATCH  /api/goals/[id]           Edit a goal, or mark it fulfilled. Never both in one request
+```
+
+`GET /api/goals` never returns the `goals.status` column. Status is computed on read by
+`lib/goals/goalStatus.ts` and the column is a materialized cache that
+`supabase/migrations/029_goal_status_refresh.sql` maintains for a future report to index —
+`lib/goals/queries.ts` does not even select it. A stored status goes stale silently, which is the
+whole reason for the rule.
+
+`PATCH` takes a discriminated union — `{ action: 'update' }` or `{ action: 'fulfill' }` — following
+the same shape as `PATCH /api/assignments/[id]`. An edit and a fulfilment are different events with
+different audit rows, and making them mutually exclusive by shape means the schema refuses a
+request that tries both. `last_fulfilled_at` is writable by the fulfil path and by nothing else.
+
+`goals.target_id` is polymorphic and carries no foreign key, so both write paths resolve the target
+against its table before writing. `target_type: 'group'` is readable but **not creatable** — there
+is no `groups` table to verify against, and an unverifiable target is exactly the permanent mystery
+that check exists to prevent.
+
+`POST /api/goals` stamps `org_id` from the SESSION and never from the request: a bishopric author
+writes a ward-level goal (`org_id` null), anybody else writes one owned by their own organization.
+A caller that could name its own owner could put a goal on another organization's board, or make
+one invisible to the org that has to act on it. `PATCH` cannot move ownership at all.
 
 ### Hymns
 ```

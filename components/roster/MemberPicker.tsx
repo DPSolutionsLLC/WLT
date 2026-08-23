@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MemberPickerModal } from "@/components/roster/MemberPickerModal";
-import { ReliabilityFlag } from "@/components/roster/ReliabilityFlag";
+import {
+  ReliabilityFlag,
+  type ReliabilityFlagKind,
+} from "@/components/roster/ReliabilityFlag";
 import type { HouseholdWithMembers, Member } from "@/lib/roster/queries";
 import { defaultOrganizationFilter } from "@/lib/roster/organizationScope";
 import type { MemberFilters } from "@/lib/validation/roster";
@@ -40,6 +43,8 @@ import type {
 //   excludeIds         []                  Phase 10 — the water blesser differs from the bread
 //   allowDoNotContact  false               Offers the confirmation control (Decision 2)
 //   showFlags          false               Phase 4 planning view, bishopric only
+//   flags              none                The reliability flags per member id, rendered when
+//                                          showFlags is on. Added during talks-d — see below
 //   annotations        none                A short read-only note per member id, rendered beside
 //                                          the name. Phase 4's prayer board shows "Last prayed
 //                                          March 2025" here. Added during talks-c — see below
@@ -56,6 +61,14 @@ import type {
 // An ABSENT key renders nothing at all — not an empty span, not a dash. That is load-bearing for
 // its first caller: "Never" beside a name reads as a judgement about the person rather than as
 // an absence of data (lib/prayers/lastPrayed.ts).
+//
+// `flags` is the third addition, made in talks-d and RAISED for the same reason. `showFlags` has
+// existed since roster-b and rendered nothing, because nothing could compute a flag until the
+// pipeline wrote history; the caller that sets it (SpeakerField, inside the assignment modal) is
+// exactly the planning view the flags are for. It follows `annotations` deliberately: a
+// per-member-id record the picker renders and knows nothing about, with an absent key rendering
+// nothing at all. The data is bishopric-only by RLS — `assignment_history` is in migration 019's
+// bishopric loop, so a non-bishopric caller computes an empty record and this renders nothing.
 //
 // `user` is the one addition to roster-b's table. The plan has both the page and the picker
 // call defaultOrganizationFilter(), which a client component cannot do without the session —
@@ -82,6 +95,7 @@ export type MemberPickerProps = {
   excludeIds?: readonly string[];
   allowDoNotContact?: boolean;
   showFlags?: boolean;
+  flags?: Readonly<Record<string, readonly ReliabilityFlagKind[]>>;
   annotations?: Readonly<Record<string, string>>;
   mode?: "modal" | "inline";
   label?: string;
@@ -296,6 +310,7 @@ export function MemberPicker(props: MemberPickerProps) {
     excludeIds,
     allowDoNotContact = false,
     showFlags = false,
+    flags,
     annotations,
     mode = "modal",
     label = "Choose a member",
@@ -494,7 +509,9 @@ export function MemberPicker(props: MemberPickerProps) {
                           )}
                         </span>
 
-                        {showFlags && <ReliabilityFlag flags={[]} />}
+                        {showFlags && (
+                          <ReliabilityFlag flags={flags?.[member.id] ?? []} />
+                        )}
                       </button>
                     </li>
                   );
