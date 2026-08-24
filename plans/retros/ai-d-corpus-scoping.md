@@ -2,7 +2,7 @@
 id: ai-d-corpus-scoping
 type: feature
 iter: ["ITER-011"]
-commits: ["1f0f8b6"]
+commits: ["d96b83d"]
 date: 2026-08-24
 files:
   - supabase/migrations/033_knowledge_metadata.sql
