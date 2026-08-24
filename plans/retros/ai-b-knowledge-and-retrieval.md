@@ -2,7 +2,7 @@
 id: ai-b-knowledge-and-retrieval
 type: feature
 iter: null
-commits: []
+commits: ["96b25df"]
 date: 2026-08-24
 files:
   - supabase/migrations/031_knowledge_search.sql
