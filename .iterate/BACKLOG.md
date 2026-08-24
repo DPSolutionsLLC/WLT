@@ -31,6 +31,27 @@ is what the grouping asked for._
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
 
+- [ ] ITER-011 — Choose which conference talks count as reference → [scope](.iterate/scopes/ITER-011.md) | plan: [ai-d](plans/ai-d-conference-corpus-scoping.md)
+  _Raised 2026-08-23 deciding how General Conference gets into the corpus at all (CLAUDE.md §9,
+  "Conference talk corpus scope"). Once there are a hundred and fifty talks, active/inactive one at
+  a time is not a lever anybody will use. Wants a recency control, speaker-role checkboxes, and
+  custom filters the user describes in words — resolved by the AI **once, at save time**, into a
+  deterministic WHERE clause, shown before it is accepted, exactly like `topic_candidates`.
+  **Nothing about this is possible today:** `match_document_chunks` filters on ward, status, and
+  embedding-not-null, and `knowledge_documents` stores no speaker, no date, no calling. The bug it
+  will ship if nobody watches for it is a recency filter that silently removes the standard works,
+  because their `conference_date` is null. **Open:** does "talks by prophets" mean while-serving or
+  ever-held; do saved filters AND or OR with recency._
+
+- [ ] ITER-012 — Show how often a talk has been suggested → [scope](.iterate/scopes/ITER-012.md)
+  _Raised 2026-08-23 alongside ITER-011. Last-suggested date, plus "appeared in 8 of your last 20
+  generations" once it has come up more than once — a diagnostic that the corpus is too narrow, not
+  decoration. Already an idiom here: the topic library orders by staleness and `lastPrayed` does the
+  same for prayers, and `talks-c`'s render-nothing-rather-than-"Never" rule applies unchanged.
+  **The logging half is not deferred** — `retrieval_suggestions` and its writes ship inside ITER-011,
+  because suggestion history cannot be backfilled and every week without the write is permanently
+  missing from the denominator. This scope is the display only, and can wait indefinitely._
+
 - [ ] ITER-010 — Per-leader AI settings, applied when it is their turn → [scope](.iterate/scopes/ITER-010.md)
   _Raised 2026-08-23 walking scenario 020, alongside ITER-009. `ai-a` shipped ONE configuration per
   ward; the working pattern is that the bishop and both counselors rotate conducting and do not

@@ -14,7 +14,7 @@ feature in the app. Build this once, correctly, and every later AI feature is a 
 
 ## Sub-plans
 
-Planned 2026-08-23. This file is the phase brief; the three files below are what `/execute`
+Planned 2026-08-23. This file is the phase brief; the four files below are what `/execute`
 runs, **in this order**. Each is self-contained — do not load more than two at once
 (CLAUDE.md §2).
 
@@ -23,6 +23,7 @@ runs, **in this order**. Each is self-contained — do not load more than two at
 | 1 | [ai-a-client-and-settings.md](ai-a-client-and-settings.md) | Claude client and typed error handling, `buildSystemPrompt` layers 1–2 with the cache breakpoint, the AI Settings panel with versioning, history, restore, and preview |
 | 2 | [ai-b-knowledge-and-retrieval.md](ai-b-knowledge-and-retrieval.md) | Chunking, embedding, `match_document_chunks`, the vector index, document upload/management UI, the standard-works ingestion script — layer 3 turns on |
 | 3 | [ai-c-feature-routes.md](ai-c-feature-routes.md) | `/api/topics/ai-suggest` into the accept/reject queue, `/api/assignments/[id]/ai-message` into the two existing textareas |
+| 4 | [ai-d-conference-corpus-scoping.md](ai-d-conference-corpus-scoping.md) | Conference metadata columns, a filtered `match_document_chunks`, the corpus scoping panel and its AI filter resolver, the conference ingest script, and the suggestion log ITER-012 will read — **added 2026-08-23, after `ai-b`; orderable before or after `ai-c`** |
 
 **Three decisions settled at planning time, so they are not re-litigated during execution:**
 
