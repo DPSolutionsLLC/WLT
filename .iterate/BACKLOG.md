@@ -31,6 +31,21 @@ is what the grouping asked for._
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
 
+- [ ] ITER-017 — Token counts are redacted out of every AI audit row → [scope](.iterate/scopes/ITER-017.md)
+  _Found 2026-08-24 walking scenario 027 for `ai-d`. Every AI route logs `outputTokens` so spend is
+  traceable; the audit log stores the string `"[redacted]"` instead of the number, every time.
+  `writeAuditLog`'s sensitive-key filter matches the substring `token` in the FIELD NAME
+  `outputTokens` — unlike `\bkey\b`, that alternative has no word boundary. **Failing safe, not
+  leaking**, but the one signal these rows exist to carry is silently gone. **Pre-existing and
+  wider than the route that found it:** `ai-c`'s topic and message routes log the same field and
+  have been redacting it since they shipped, so there is no usable record of AI spend anywhere in
+  this app — and nobody noticed because the rows look populated. The over-broad pattern is
+  deliberate and must NOT be weakened (it catches `note`, which CLAUDE.md rule 5 depends on); the
+  narrow truth is that a token COUNT is not a token. Three options in the scope, leaning
+  "never redact a number" since a key or hash is always a string and a count never is. **Open:**
+  does usage belong in the audit log at all, or in its own table? That log records who did what;
+  cost is a different question._
+
 - [ ] ITER-015 — API routes redirect instead of answering 401 → [scope](.iterate/scopes/ITER-015.md)
   _Found 2026-08-24 probing the deployed app right after the `ai-b` push — a bare `curl` at
   `/api/knowledge/search` returned `307 → /login`, not `401`. `middleware.ts` deliberately refuses

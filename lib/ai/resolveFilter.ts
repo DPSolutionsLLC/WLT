@@ -152,8 +152,19 @@ export function buildFilterResolverPrompt(today: string): string {
       "filter would narrow nothing and mislead. Explain that in a sentence a bishopric member " +
       "would find convincing, not as a validation error.",
     "",
-    "Return kind `unresolvable` when the phrase means neither of those. Explain briefly what " +
-      "would work instead.",
+    // THE ALTERNATIVES ARE NAMED, AND A SUBJECT IS RULED OUT EXPLICITLY.
+    //
+    // Walking scenario 027 found this: given only "explain briefly what would work instead", the
+    // model ended an `unresolvable` explanation with "or a subject you'd like talks about" — which
+    // is exactly what the `semantic` branch above refuses. A person following that advice types a
+    // subject and gets refused again, one screen later, having done what they were told.
+    //
+    // The two branches have to agree, and the prompt is the only place they can. Stated once and
+    // plainly rather than emphatically, per the note above this section.
+    "Return kind `unresolvable` when the phrase means neither of those. Say briefly what would " +
+      "work instead, and name only these: a speaker, a calling, or a period. Do not suggest " +
+      "naming a subject or a topic — that is the `semantic` case above, and no filter can " +
+      "narrow by subject.",
     "",
     "Set every field you are not using to null. Never return an empty list.",
   ].join("\n");
