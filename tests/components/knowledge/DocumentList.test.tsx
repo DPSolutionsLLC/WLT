@@ -86,3 +86,70 @@ describe("DocumentList delete confirm", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 });
+
+// Walking scenario 022 at 375px settled both of these. Status was a word inside a grey metadata
+// run at the same size as the uploader's name; Delete sat beside Deactivate at equal weight, one
+// mis-tap from a destructive action.
+describe("DocumentList row presentation", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("gives status its own badge instead of burying it in the metadata line", () => {
+    render(<DocumentList initialDocuments={[documentWith(4)]} canManage />);
+
+    const badge = screen.getByText("Active");
+
+    // A badge, not a run of text: its own element, not a fragment of the metadata sentence.
+    expect(badge.tagName).toBe("SPAN");
+    expect(badge.className).toContain("rounded-full");
+  });
+
+  it("says the status exactly once, so the badge did not simply duplicate the metadata", () => {
+    render(<DocumentList initialDocuments={[documentWith(4)]} canManage />);
+
+    expect(screen.getAllByText("Active")).toHaveLength(1);
+  });
+
+  it("labels an inactive document by its word, not by colour alone", () => {
+    const inactive = { ...documentWith(4), status: "inactive" as const };
+    render(<DocumentList initialDocuments={[inactive]} canManage />);
+
+    expect(screen.getByText("Inactive")).toBeInTheDocument();
+  });
+
+  // jsdom does not implement <details> hiding, so getByRole would still find the button and an
+  // assertion phrased as "not visible" would pass for the wrong reason. Asserting the STRUCTURE
+  // is the honest version: Delete is inside a closed disclosure, so reaching it takes a
+  // deliberate second action.
+  it("keeps Delete inside a closed disclosure while Deactivate stays one tap away", () => {
+    const { container } = render(
+      <DocumentList initialDocuments={[documentWith(4)]} canManage />,
+    );
+
+    const disclosure = container.querySelector("details");
+    expect(disclosure).not.toBeNull();
+    expect(disclosure).not.toHaveAttribute("open");
+
+    const deleteButton = screen.getByRole("button", { name: "Delete" });
+    expect(disclosure).toContainElement(deleteButton);
+
+    const deactivate = screen.getByRole("button", { name: "Deactivate" });
+    expect(disclosure).not.toContainElement(deactivate);
+  });
+
+  it("shows no controls at all when the reader cannot manage the corpus", () => {
+    const { container } = render(
+      <DocumentList initialDocuments={[documentWith(4)]} canManage={false} />,
+    );
+
+    expect(container.querySelector("details")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    expect(screen.getByText("Active")).toBeInTheDocument();
+  });
+});

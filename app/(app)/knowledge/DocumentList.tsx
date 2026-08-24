@@ -9,6 +9,7 @@ import {
   KNOWLEDGE_STATUS_LABELS,
   KNOWLEDGE_TYPE_TAG_LABELS,
   type KnowledgeDocument,
+  type KnowledgeStatus,
 } from "@/types/domain";
 
 // THIS COMPONENT HOLDS NO COPY OF THE DOCUMENTS. It renders the prop and calls router.refresh()
@@ -25,6 +26,29 @@ export type DocumentListProps = {
   initialDocuments: KnowledgeDocument[];
   canManage: boolean;
 };
+
+// Status gets its own weight so it is scannable down a list, rather than sitting mid-sentence in
+// a grey metadata run at the same size as the uploader's name — which is where it was until
+// walking scenario 022 at 375px.
+//
+// Follows StageBadge: the LABEL always carries the meaning and colour only reinforces it, so the
+// badge reads the same to someone who cannot distinguish the two colours. Not a filled pill —
+// text on the surrounding surface, which is the contrast ratio the theme tokens were measured
+// against in both themes.
+const STATUS_BADGE_CLASSES: Record<KnowledgeStatus, string> = {
+  active: "border-success text-success",
+  inactive: "border-border text-muted",
+};
+
+function StatusBadge({ status }: { status: KnowledgeStatus }) {
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASSES[status]}`}
+    >
+      {KNOWLEDGE_STATUS_LABELS[status]}
+    </span>
+  );
+}
 
 function formatUploadedAt(value: string): string {
   return new Date(value).toLocaleDateString(undefined, {
@@ -123,14 +147,18 @@ export function DocumentList({ initialDocuments, canManage }: DocumentListProps)
           return (
             <li key={document.id} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0">
               <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium text-foreground">{document.title}</span>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-sm font-medium text-foreground">{document.title}</span>
+                  <StatusBadge status={document.status} />
+                </div>
 
+                {/* Status is NOT repeated here. It moved to the badge above, and saying it twice
+                    would make the metadata run longer while telling the reader nothing new. */}
                 <span className="text-xs text-muted">
                   {document.typeTag
                     ? KNOWLEDGE_TYPE_TAG_LABELS[document.typeTag]
                     : "Untagged"}{" "}
-                  · {KNOWLEDGE_STATUS_LABELS[document.status]} ·{" "}
-                  {document.uploadedByName ?? "Loaded from the command line"} ·{" "}
+                  · {document.uploadedByName ?? "Loaded from the command line"} ·{" "}
                   {formatUploadedAt(document.uploadedAt)}
                 </span>
 
@@ -158,13 +186,25 @@ export function DocumentList({ initialDocuments, canManage }: DocumentListProps)
                   >
                     {document.status === "active" ? "Deactivate" : "Reactivate"}
                   </Button>
-                  <Button
-                    variant="danger"
-                    disabled={isPending}
-                    onClick={() => handleDelete(document)}
-                  >
-                    Delete
-                  </Button>
+                  {/* Delete sits behind a disclosure, so the reversible action costs one tap and
+                      the destructive one costs two. Side by side at equal weight they were a
+                      mis-tap apart, which matters most at 375px where the thumb is the pointer.
+                      A native <details> rather than a menu primitive: no dependency, no
+                      click-outside handling, and it is keyboard-operable as it stands. */}
+                  <details className="group">
+                    <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-md px-3 text-sm text-muted hover:text-foreground [&::-webkit-details-marker]:hidden">
+                      More
+                    </summary>
+                    <div className="mt-2">
+                      <Button
+                        variant="danger"
+                        disabled={isPending}
+                        onClick={() => handleDelete(document)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </details>
                 </div>
               )}
             </li>

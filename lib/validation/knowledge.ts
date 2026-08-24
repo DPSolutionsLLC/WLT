@@ -27,6 +27,33 @@ export const MAX_SEARCH_QUERY = 500;
 // looks for it and the validation module is where the browser can safely reach it.
 export const MAX_SEARCH_RESULTS = 8;
 
+// The weakest score worth showing a reader. Defined here rather than in lib/ai/retrieve.ts for
+// the reason above: describeSimilarity() runs in the browser and the two belong together.
+// Re-exported by retrieve.ts, which is where server code looks for it.
+export const SIMILARITY_FLOOR = 0.3;
+
+// The bands a score is READ as. Calibrated to the range this model and this corpus actually
+// produce, NOT to 0–1: real queries land between roughly 0.32 and 0.45, so a naive scale calling
+// 0.4 "weak" would mislabel the best result a ward ever sees.
+//
+// Words rather than the raw number, decided by walking scenario 022. The number ordered the
+// results correctly and meant nothing without a scale — 0.405 is only legible to someone who
+// already knows the range, which is nobody reading this screen. Ordering is carried by the list
+// itself. Do not reinstate the number without deciding what tells a bishop 0.405 is good.
+const SIMILARITY_BANDS: readonly { floor: number; label: string }[] = [
+  { floor: 0.5, label: "Strong match" },
+  { floor: 0.4, label: "Close match" },
+  { floor: SIMILARITY_FLOOR, label: "Loosely related" },
+];
+
+export function describeSimilarity(similarity: number): string {
+  const band = SIMILARITY_BANDS.find((candidate) => similarity >= candidate.floor);
+
+  // Below the floor is unreachable through search, but a caller holding such a number must still
+  // render words rather than an empty span.
+  return band?.label ?? "Weak match";
+}
+
 export const uploadMetadataSchema = z.object({
   title: z
     .string()

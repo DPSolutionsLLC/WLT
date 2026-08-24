@@ -108,7 +108,7 @@ export async function parseDocument(file: File): Promise<ParsedDocument> {
   if (trimmed.length < MINIMUM_USEFUL_CHARACTERS) {
     throw new Error(
       type === "pdf"
-        ? `Only ${trimmed.length} characters of text could be read from this PDF. It may be a scan rather than text. Try uploading the text instead.`
+        ? `Only ${trimmed.length} characters could be read from this PDF, so its pages are almost certainly images rather than text — a scan. Run it through an OCR tool to convert it to text, or upload a file that already has the text in it.`
         : `Only ${trimmed.length} characters of text could be read from this file. It may be empty. Check the file and try again.`,
     );
   }

@@ -17,6 +17,7 @@ import {
   SIMILARITY_FLOOR,
   applySimilarityFloor,
   clampMatchCount,
+  describeSimilarity,
 } from "@/lib/ai/retrieve";
 
 function chunk(similarity: number, label = `chunk-${similarity}`) {
@@ -110,5 +111,48 @@ describe("clampMatchCount", () => {
 
   it("truncates a fractional limit rather than passing it to Postgres", () => {
     expect(clampMatchCount(3.9)).toBe(3);
+  });
+});
+
+// The bands replaced the raw score on the Retrieval Tester, decided by walking scenario 022.
+// They are calibrated to the range this model actually produces — floor 0.3, real results around
+// 0.32 to 0.45 — so the boundary cases are what matter here, not the middles.
+describe("describeSimilarity", () => {
+  it("never returns a band that would read as good for a score at the floor", () => {
+    expect(describeSimilarity(SIMILARITY_FLOOR)).toBe("Loosely related");
+  });
+
+  it("separates the two scores the walkthrough actually observed", () => {
+    // 0.405 and 0.322 sat 8 hundredths apart and rendered as near-identical numbers.
+    expect(describeSimilarity(0.405)).toBe("Close match");
+    expect(describeSimilarity(0.322)).toBe("Loosely related");
+  });
+
+  it("is inclusive at every band boundary", () => {
+    expect(describeSimilarity(0.5)).toBe("Strong match");
+    expect(describeSimilarity(0.4)).toBe("Close match");
+    expect(describeSimilarity(0.3)).toBe("Loosely related");
+  });
+
+  it("steps down just below each boundary", () => {
+    expect(describeSimilarity(0.499)).toBe("Close match");
+    expect(describeSimilarity(0.399)).toBe("Loosely related");
+  });
+
+  it("still yields words below the floor, which search never surfaces", () => {
+    expect(describeSimilarity(0.1)).toBe("Weak match");
+  });
+
+  it("describes every kept chunk, so no result can render a blank band", () => {
+    const kept = applySimilarityFloor(
+      [chunk(0.61), chunk(0.45), chunk(0.33), chunk(0.2)],
+      8,
+    );
+
+    expect(kept.map((entry) => describeSimilarity(entry.similarity))).toEqual([
+      "Strong match",
+      "Close match",
+      "Loosely related",
+    ]);
   });
 });

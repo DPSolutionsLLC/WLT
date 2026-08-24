@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import { Input } from "@/components/ui/Input";
+import { describeSimilarity } from "@/lib/validation/knowledge";
 
 // The one place a human can see what the corpus ACTUALLY returns. When a topic suggestion cites
 // something odd, the question is whether retrieval or the prompt is at fault, and one query here
@@ -96,9 +97,14 @@ export function RetrievalTester({ hasDocuments }: RetrievalTesterProps) {
           // A legitimate answer, not a failure. Worded so it does not read as a bug: the floor
           // exists because weak passages are worse than none — they read as authoritative to the
           // model, which then cites them.
+          //
+          // It also ends with the NEXT MOVE. Saying only that nothing matched is accurate and
+          // leaves the reader nowhere; the two things that actually change the outcome are
+          // different words or a document that covers the subject.
           <p className="text-sm text-muted">
-            Nothing in the knowledge base is close enough to this to be worth quoting. The AI
-            would answer from the ward&apos;s settings alone.
+            Nothing in the knowledge base is close enough to this to be worth quoting, so the AI
+            would answer from the ward&apos;s settings alone. Try different wording, or add a
+            document that covers this subject.
           </p>
         )}
 
@@ -113,11 +119,13 @@ export function RetrievalTester({ hasDocuments }: RetrievalTesterProps) {
                   <span className="text-sm font-medium text-foreground">
                     {result.sourceLabel}
                   </span>
-                  {/* The RAW number. Every other surface in this app prefers a sentence, but
-                      this one exists to be inspected and "0.412" says what "fairly relevant"
-                      cannot. */}
-                  <span className="text-xs tabular-nums text-muted">
-                    similarity {result.similarity.toFixed(3)}
+                  {/* WORDS, not the raw score. This screen exists to be inspected, which was the
+                      argument for "0.412" — but a number is only inspectable against a scale, and
+                      the scale here is 0.3 to about 0.45 rather than 0 to 1. Nobody reading this
+                      knows that, so the number ranked the results without ever saying whether any
+                      of them was good. The list already carries the ordering. */}
+                  <span className="text-xs text-muted">
+                    {describeSimilarity(result.similarity)}
                   </span>
                 </p>
                 <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">

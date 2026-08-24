@@ -3,7 +3,7 @@ import { embedQuery } from "@/lib/ai/embed";
 import type { RetrievedChunk } from "@/lib/ai/systemPrompt";
 import { splitLabelPrefix } from "@/lib/knowledge/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { MAX_SEARCH_RESULTS } from "@/lib/validation/knowledge";
+import { MAX_SEARCH_RESULTS, SIMILARITY_FLOOR } from "@/lib/validation/knowledge";
 import type { Database } from "@/types/database";
 
 // What buildSystemPrompt's layer 3 consumes. `ai-a` shipped that parameter and its branch
@@ -13,8 +13,13 @@ import type { Database } from "@/types/database";
 // systemPrompt.ts is pure, so a client component can reach the type without pulling in this
 // module, which is server-only through embedQuery.
 
-export const SIMILARITY_FLOOR = 0.3;
 export const DEFAULT_MATCH_COUNT = 6;
+
+// Both defined in lib/validation/knowledge.ts for the same reason MAX_SEARCH_RESULTS is: the
+// Retrieval Tester renders the band in the browser, and importing this module there would drag
+// next/headers into the client bundle. Re-exported here because this is where a reader looks for
+// anything about how retrieval scores.
+export { SIMILARITY_FLOOR, describeSimilarity } from "@/lib/validation/knowledge";
 
 // Defined in lib/validation/knowledge.ts and re-exported under the name retrieval code reads it
 // by. The dependency points this way because that module is client-safe and this one is not —

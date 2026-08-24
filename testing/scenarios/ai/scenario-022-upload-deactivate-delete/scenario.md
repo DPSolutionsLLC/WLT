@@ -167,6 +167,34 @@ query) and now names an uploaded document and a phrase from its own text.
 document row at 375px is the Next.js dev-mode indicator (`NEXTJS-PORTAL`). It does not exist in a
 production build.
 
+### The eight judgement calls, answered 2026-08-24
+
+Reviewed by the user against the screenshots in `walk-shots-022/`. Four produced code changes,
+all verified in the running app afterwards.
+
+| # | Judgement | Outcome |
+|---|---|---|
+| Q1 | Scanned-PDF refusal wording | **Changed.** "Try uploading the text instead" assumed the reader had text to hand. Now names OCR as the remedy |
+| Q2 | Partial embedding reads as usable | **Kept, with a follow-up.** Reporting it as usable is right; offering no way to fix it is not. A retry is scoped separately |
+| Q3 | "This is exactly what the AI receives" | **Kept as is** |
+| Q4 | Source label is the document title | **Kept for uploads.** Chapter-and-verse only matters for scripture, which already has it |
+| Q5 | Raw `similarity 0.405` | **Changed to words.** Three bands calibrated to the real 0.3–0.45 range, not 0–1 |
+| Q6 | Empty-search message | **Changed.** Now ends with the next move: different wording, or add a document |
+| Q7 | Deactivate vs Delete at equal weight | **Changed.** Delete moved behind a `<details>` disclosure — reversible costs one tap, destructive costs two |
+| Q8 | Status buried in the metadata run | **Changed.** Own badge, and dropped from the metadata line so it is not said twice |
+
+**Observed after the changes:** `charity` returned four passages reading "Close match" ×2 and
+"Loosely related" ×2 — the bands discriminate rather than all rendering the same. No raw score
+survives anywhere on the page. At 375px: overflow 0 px, the "More" summary measures 57×44, and
+all 31 controls are at least 44×44. The badge clears contrast in both themes (9.8:1 dark, ~5:1
+light) on the already-measured `--success` token.
+
+**Two follow-ups raised, neither built here:** a retry for passages that failed to embed (their
+text is already stored, so only the vector is missing — the fix is re-embedding existing rows, not
+re-uploading), and a cross-ward global library with a curator who promotes ward submissions into
+it. The second is multi-ward and therefore post-v1, but whether `knowledge_documents.ward_id` is
+nullable is a schema decision that is far cheaper now than as a later migration.
+
 ## Notes
 
 - The two PDF fixtures are generated, not downloaded — `conference-talk-text.pdf` carries a real
