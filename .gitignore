@@ -55,3 +55,7 @@ Thumbs.db
 
 # Playwright MCP session artifacts — snapshots and console logs from browser-driven checks.
 .playwright-mcp/
+
+# Knowledge-base corpus — the standard works are supplied locally and ingested with
+# `npm run knowledge:ingest`. Nothing copyrighted enters this repository.
+/corpus/

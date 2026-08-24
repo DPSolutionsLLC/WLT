@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 21,
+  "scenarioCount": 23,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -71,6 +71,85 @@
         "Is the error legible at 375px in both themes, and does it stand out from the muted note"
       ],
       "seedCommand": "npm run seed -- ai/scenario-021-ai-unreachable"
+    },
+    {
+      "id": "ai:scenario-022-upload-deactivate-delete",
+      "path": "ai/scenario-022-upload-deactivate-delete",
+      "name": "Upload, deactivate, delete",
+      "scope": "ai-b-knowledge-and-retrieval",
+      "part": 1,
+      "tags": [
+        "ai",
+        "knowledge",
+        "full"
+      ],
+      "prerequisites": "none",
+      "purpose": "The upload path cannot be tested end to end anywhere but here. It needs a real file, a real\nStorage bucket and a real embedding call, and the one judgement that matters most — whether a\n**scanned** PDF is refused with a sentence that explains itself, rather than ingested as a\ndocument with zero passages — can only be made by looking at a real scan.\n\nSeeding gives an existing corpus so that **deactivation is a visible change in retrieval** rather\nthan a status badge with nothing behind it, and so the delete confirm names a real passage count.\n\nIt also carries the one thing about partial failure a bishopric will notice being wrong: that a\ndocument where some passages failed to embed is reported as **usable**, with both numbers on\nscreen, rather than as a failure that invites a duplicate re-upload.",
+      "checklist": [
+        "`.txt`, `.md` and the text `.pdf` all ingest, each reporting a plausible passage count",
+        "The **scanned** PDF is refused, and the message says it may be a **scan** — it does not",
+        "After the refusal, no row for \"Ward newsletter\" exists in the document list",
+        "The seeded letter shows **6 passages, 5 embedded — 1 not searchable**",
+        "The seeded Holland talk shows **4 passages, all searchable**",
+        "The upload success line names both numbers (\"Added — N passages, N embedded.\")",
+        "A file over 10 MB is refused **before** anything uploads — the button does not spin",
+        "Retrieval Tester returns passages with readable source labels and a similarity score",
+        "Deactivating removes that document's passages from the **very next** search, with no",
+        "Reactivating brings them back",
+        "The delete confirm names the passage count and says drafts already written are unaffected",
+        "After the delete, that document's passages no longer appear in any search",
+        "Signed in as `secretary`, `/knowledge` shows **\"Not permitted\"** — not an empty library",
+        "As `secretary` there is no Knowledge Base link in the sidebar",
+        "No horizontal scrolling at 375px on any of the three cards",
+        "Every button is at least 44×44",
+        "Does the scanned-PDF refusal tell you **what to do next**, or only that something failed?",
+        "Does \"6 passages, 5 embedded — 1 not searchable\" read as a **problem you can ignore for",
+        "Does the line \"This is exactly what the AI receives as reference material\" change how you",
+        "Do the source labels look like something you could **go and check**? Could you find the",
+        "Is the similarity number useful here, or is it noise? This is the one screen where a raw",
+        "When a search returns nothing, does the message read as **a deliberate answer** (\"nothing",
+        "Is it obvious that Deactivate is reversible and Delete is not, without reading the confirm?",
+        "At 375px, can you tell at a glance which documents are active?"
+      ],
+      "seedCommand": "npm run seed -- ai/scenario-022-upload-deactivate-delete"
+    },
+    {
+      "id": "ai:scenario-023-standard-works-ingested",
+      "path": "ai/scenario-023-standard-works-ingested",
+      "name": "The standard works, ingested",
+      "scope": "ai-b-knowledge-and-retrieval",
+      "part": 1,
+      "tags": [
+        "ai",
+        "knowledge",
+        "full",
+        "script"
+      ],
+      "prerequisites": "none",
+      "purpose": "The ingestion script is the one thing in Phase 5 with no automated coverage at scale, and every\none of its failure modes only appears on a real run: a malformed record 30,000 rows in, a second\nrun silently doubling the corpus, an embedding batch failing without saying so, and a chunk that\nsplits mid-verse and produces a citation nobody can check.\n\nIt also proves the claim the whole plan rests on — that **the script and the upload route share\none pipeline**, so the count the script prints and the count `/knowledge` shows cannot disagree.\n\nA ~177-verse sample corpus exercises every path in about ten seconds: validation, grouping,\nchapter labelling, batching, the summary table, and the idempotency refusal. Bring your own full\ncorpus too if you have one, but do not treat the sample as a lesser test — it reaches everything\nexcept the wall-clock.",
+      "checklist": [
+        "Progress prints **during** the run — lines of the form `Book of Mormon — 40/101 passages",
+        "The final table has one row per volume with Passages, Embedded and Failed columns",
+        "Two volumes appear: **Book of Mormon** and **New Testament**, in that (canonical) order",
+        "`/knowledge` lists those two volumes as documents, tagged **Standard works**",
+        "The passage counts on `/knowledge` **match the table the script printed**",
+        "Their uploader reads as loaded from the command line, not as a person",
+        "Retrieval Tester on `charity` returns passages with chapter-and-verse source labels",
+        "**No label spans a partial verse** — every label ends on a verse boundary",
+        "The second run **refuses**, naming the existing document and its passage count",
+        "After the second run, `/knowledge` still shows **two** documents, not four, and the counts",
+        "The corrupt run fails naming **record 137** and its field",
+        "The corrupt run fails **before any embedding is spent** — no progress lines appear",
+        "The corrupt run exits **non-zero**",
+        "After the corrupt run, no new document was created",
+        "Does the progress output tell you it is **working** rather than stuck? A twenty-minute run",
+        "Does the refusal on the second run tell you **what to do** to reload deliberately, or only",
+        "Read a source label cold: could you open a physical copy and find that passage?",
+        "Do the retrieved passages read as **whole thoughts**, or do they start and stop mid-idea?",
+        "Does the final table read as a **report you would trust**, or would you want to go and",
+        "Is it clear from `/knowledge` alone that these came from a script rather than an upload?"
+      ],
+      "seedCommand": "npm run seed -- ai/scenario-023-standard-works-ingested"
     },
     {
       "id": "auth:scenario-001-role-shell",

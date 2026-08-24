@@ -929,12 +929,23 @@ DELETE /api/tithing/session      Clear all entries
 
 ### Knowledge Base
 ```
-POST   /api/knowledge/upload     Upload and chunk document
-GET    /api/knowledge/documents  List documents
-PATCH  /api/knowledge/documents/[id]  Update status
-DELETE /api/knowledge/documents/[id]  Delete document + chunks
-POST   /api/knowledge/search     Semantic search (internal use by AI routes)
+POST   /api/knowledge/upload     Upload and chunk document          [BUILT — ai-b]
+GET    /api/knowledge/documents  List documents                     [BUILT — ai-b]
+PATCH  /api/knowledge/documents/[id]  Update status                 [BUILT — ai-b]
+DELETE /api/knowledge/documents/[id]  Delete document + chunks      [BUILT — ai-b]
+POST   /api/knowledge/search     Bishopric-facing retrieval test    [BUILT — ai-b]
 ```
+
+**`/api/knowledge/search` is NOT internal-use, and this line has been corrected.** It previously
+read "semantic search (internal use by AI routes)"; nothing uses it that way and nothing should.
+Server code reaches server code with a function call — `ai-c`'s routes import `retrieveChunks()`
+from `lib/ai/retrieve.ts` directly. An internal HTTP hop to your own app costs a round trip, a
+second auth pass and a cold start, and can fail in ways a function call cannot.
+
+The route exists for a better reason: it is the only way to **see what the corpus actually
+returns**. When a topic suggestion cites something odd, the question is whether retrieval or the
+prompt is at fault, and one query at `/knowledge` answers it. It returns the raw similarity score
+because that surface exists to be inspected.
 
 ### AI Settings
 
@@ -1155,6 +1166,48 @@ Use OpenAI `text-embedding-3-small` (1536 dimensions) for document chunking and 
 - Chunk size: ~500 tokens with 50-token overlap
 - Split on paragraph boundaries where possible
 - Each chunk stores: content, document_id, chunk_index, embedding
+
+**Token estimation is 4 characters per token** (`CHARS_PER_TOKEN_ESTIMATE` in
+`lib/knowledge/chunk.ts`). There is no tokenizer in this project and adding one is not worth a
+dependency: chunk size affects retrieval granularity, not correctness, so overshoot is harmless.
+
+**Two entry points, and the second is not optional.** `chunkText()` handles uploaded prose:
+paragraphs, falling back to sentence boundaries for an over-long paragraph and to a hard character
+split only for a sentence that exceeds the target on its own. `chunkByBoundaries()` takes
+pre-split labelled sections and gives each its own chunk — **two sections are never merged**. That
+is the scripture path: a chunk spanning the end of Alma 32 and the start of Alma 33 retrieves
+badly and cites worse. `supabase/scripts/ingestStandardWorks.ts` groups verses into chapters and
+feeds them through it.
+
+**Labels are stored as a `[bracketed prefix]` on `content`**, not in a column — migration 014 has
+no `label` on `document_chunks`, and the prefix is embedded along with the text so "Alma 32" is
+itself signal. `lib/ai/retrieve.ts` reads it back out to build the citation.
+
+**A chunk whose embedding failed is still inserted, with `embedding = null`.** Dropping it would
+lose the text and hide the failure; `match_document_chunks` excludes nulls, and `/knowledge` shows
+chunk count and embedded count as two separate numbers so the gap is visible.
+
+### Vector Index — HNSW, not ivfflat
+Migration 031 builds `document_chunks_embedding_idx` using **HNSW**, deviating from
+`05-ai-platform.md`. ivfflat trains its list centroids on the data present at build time, so it
+must be created *after* ingestion and rebuilt when the corpus changes shape — an instruction
+somebody eventually forgets, leaving a worthless index nobody notices. HNSW has no training step:
+correct on an empty table, correct as rows arrive, better recall at the same query cost. The cost
+is a slower build, which at this scale is seconds. Migration 031 refuses to apply if the database
+has no `hnsw` access method (pgvector < 0.5.0).
+
+### The Search Function
+`match_document_chunks(query_embedding, match_ward_id, match_count)` is **SECURITY INVOKER**, and
+that is load-bearing rather than incidental. RLS applies inside the function, so
+`document_chunks_ward_select` is the real ward boundary and `match_ward_id` is defence in depth.
+`tests/rls/retrieval-scoping.test.ts` calls it with another ward's uuid and asserts it still
+returns nothing — that assertion is the reason the default must never be changed to
+SECURITY DEFINER.
+
+Retrieval applies a **similarity floor of 0.3, filtered before the result is clamped to the
+limit** (`lib/ai/retrieve.ts`). Filtering after clamping would silently starve the prompt of
+context available further down the ranking. An all-weak result set returns nothing at all, because
+weak chunks read as authoritative to the model and get cited.
 
 ### AI Routes Pattern
 All AI API calls are made server-side (Next.js Route Handlers), never from the client. The Claude API key is never exposed to the browser.

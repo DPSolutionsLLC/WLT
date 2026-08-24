@@ -254,6 +254,25 @@ Flag these when they become relevant; do not silently pick a side.
   dims) alongside the Anthropic key. Two vendors is accepted. Do not re-propose Voyage AI
   or Supabase `gte-small`; switching later means a schema migration and a full re-embed
   of the standard works.
+- **Vector index — DECIDED: HNSW, not ivfflat.** `05-ai-platform.md` specified ivfflat and said
+  to build it after ingestion, because ivfflat trains its centroids on the data present at build
+  time. Migration 031 uses HNSW instead: no training step, correct on an empty table, correct as
+  rows arrive, better recall at the same query cost. The "build it afterwards" instruction becomes
+  unnecessary rather than forgotten. Do not re-propose ivfflat. The migration refuses to apply on
+  a database with no `hnsw` access method (pgvector < 0.5.0).
+- **PDF text extraction — `unpdf`.** A third-party dependency with zero runtime dependencies,
+  built for serverless, bundling its own PDF.js so there is no worker to configure on Vercel.
+  Chosen over `pdf-parse` (unmaintained; reads a test fixture from disk at import time, which
+  breaks when bundled) and raw `pdfjs-dist` (worker plumbing that differs between dev and Vercel).
+  **Extraction is lossy on multi-column and heavily formatted layouts.** A conference talk usually
+  extracts cleanly; a formatted newsletter may not. `parseDocument()` refuses anything under ~200
+  characters with a message naming the likely cause, so a scan fails at upload rather than becoming
+  a document with zero useful passages.
+- **`lib/knowledge/queries.ts` imports the server client DYNAMICALLY**, unlike every other
+  queries module. `supabase/scripts/ingestStandardWorks.ts` runs under plain Node, where
+  `next/headers` cannot be imported at all — a static import would make the module unloadable
+  from the script that shares its pipeline. That script also needs
+  `supabase/scripts/register.mjs`, a ~20-line resolver hook teaching Node the `@/*` alias.
 - **Native SMS handoff.** The app opens `sms:` links with a pre-filled body. Behavior
   differs across iOS/Android and long bodies get truncated. Test on real devices before
   relying on it. There is no delivery confirmation — the user taps "sent" manually.
@@ -264,6 +283,30 @@ Flag these when they become relevant; do not silently pick a side.
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS
   upload is far simpler. Ship ICS first, treat Google sync as a stretch goal.
+- **Conference talk corpus scope — DECIDED: curated, not exhaustive.** The standard works are
+  ingested in full via `knowledge:ingest`. General Conference is ingested **forward from now,
+  plus roughly the last two years** — do not backfill decades. Two reasons, and the second is the
+  one that matters: the manual cost is real (conference talks go through the per-file upload path,
+  not the scripture corpus script), but more importantly `retrieveChunks` returns only 6–8 chunks
+  across the *entire* corpus, so every talk added competes with the Book of Mormon for those slots.
+  Tens of thousands of chunks of doctrinally excellent, semantically near-identical material will
+  crowd scripture out of the top 8 on almost every query, and the 0.3 similarity floor will not
+  save you — those are not weak matches, they are good ones. More corpus is not monotonically
+  better here. Do not re-propose replacing the corpus with the API's web search tool: it returns
+  whole pages (violating `ai-b`'s "no whole document is ever sent to Claude"), it is
+  non-deterministic run to run, and it makes the ward's Conference Talk Preferences meaningless.
+  If open-web research is ever wanted it is a **separate, explicitly labelled mode**, never mixed
+  into the retrieval that feeds approved drafts.
+- **Conference talk acquisition — human-triggered only.** There is no official API for conference
+  talks, so any bulk ingest means fetching from `churchofjesuschrist.org`. That content is
+  copyrighted by Intellectual Reserve, and automated bulk downloading is governed by that site's
+  terms of use and `robots.txt` — **read them before building any fetching step**, and check
+  whether a sanctioned bulk or export source exists first. Independent of that: no scheduled
+  scraper. It would break silently when markup changes, and it would break between conferences,
+  so the failure surfaces exactly when the corpus is needed. More to the point, a cron job writing
+  35 documents into the corpus unattended is the one place rule §4.3 would not be holding. The
+  sanctioned shape is `npm run knowledge:ingest-conference` — a person runs it twice a year, it
+  reports what it found, and it waits for a confirm.
 
 ---
 

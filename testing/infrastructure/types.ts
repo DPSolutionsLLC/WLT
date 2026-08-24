@@ -9,6 +9,8 @@ export type {
   CommentLevel,
   GoalStatus,
   HymnType,
+  KnowledgeStatus,
+  KnowledgeTypeTag,
   MeetingType,
   MemberCategory,
   MemberGender,

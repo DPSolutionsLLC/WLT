@@ -2892,6 +2892,22 @@ export type Database = {
       current_ward_id: { Args: never; Returns: string }
       is_active_sacrament_manager: { Args: never; Returns: boolean }
       is_bishopric: { Args: never; Returns: boolean }
+      match_document_chunks: {
+        Args: {
+          match_count: number
+          match_ward_id: string
+          query_embedding: string
+        }
+        Returns: {
+          chunk_id: string
+          chunk_index: number
+          content: string
+          document_id: string
+          similarity: number
+          title: string
+          type_tag: string
+        }[]
+      }
       refresh_goal_status: { Args: never; Returns: number }
       tables_without_rls: {
         Args: never

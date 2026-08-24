@@ -382,6 +382,54 @@ export type KnowledgeTypeTag = (typeof KNOWLEDGE_TYPE_TAGS)[number];
 export const KNOWLEDGE_STATUSES = ["active", "inactive"] as const;
 export type KnowledgeStatus = (typeof KNOWLEDGE_STATUSES)[number];
 
+// A Record rather than a lookup with a fallback, for the same reason ROLE_LABELS is one: a tag
+// added to KNOWLEDGE_TYPE_TAGS must not silently render as its raw snake_case column value.
+export const KNOWLEDGE_TYPE_TAG_LABELS: Record<KnowledgeTypeTag, string> = {
+  standard_works: "Standard works",
+  general_conference: "General conference",
+  other: "Other",
+};
+
+// "Inactive", not "Archived" or "Disabled". A document is excluded from retrieval and nothing
+// else — it is still listed, still downloadable, and reactivating it costs one tap.
+export const KNOWLEDGE_STATUS_LABELS: Record<KnowledgeStatus, string> = {
+  active: "Active",
+  inactive: "Inactive",
+};
+
+// The upload ceiling, in BYTES. Lives here rather than in lib/knowledge/parseDocument.ts so
+// UploadForm — a client component — can check a file before sending it without importing a
+// module that pulls in unpdf. parseDocument.ts re-exports it so the server checks the same
+// number; two copies of this constant is how a client-side check starts disagreeing with the
+// route that actually enforces it.
+//
+// 10 MB is roughly where a single upload stops finishing inside the route's 60-second budget.
+// Anything larger belongs in supabase/scripts/ingestStandardWorks.ts.
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+// What the file picker offers and what the route accepts. Extension → the suffix used to build
+// the storage key.
+export const SUPPORTED_UPLOAD_EXTENSIONS = ["txt", "md", "pdf"] as const;
+export type SupportedUploadExtension = (typeof SUPPORTED_UPLOAD_EXTENSIONS)[number];
+
+// One document in the knowledge base.
+//
+// `chunkCount` and `embeddedCount` are TWO NUMBERS on purpose. A partial embedding failure is
+// recorded rather than swallowed (lib/knowledge/ingest.ts), and "412 passages, 410 embedded" is
+// how that reaches a human instead of becoming quietly worse retrieval months later.
+export type KnowledgeDocument = {
+  id: string;
+  title: string;
+  typeTag: KnowledgeTypeTag | null;
+  fileUrl: string | null;
+  status: KnowledgeStatus;
+  uploadedBy: string | null;
+  uploadedByName: string | null;
+  uploadedAt: string;
+  chunkCount: number;
+  embeddedCount: number;
+};
+
 // ---------------------------------------------------------------------------------------------
 // Phase 5 — the AI platform
 // ---------------------------------------------------------------------------------------------

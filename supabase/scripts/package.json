@@ -1,0 +1,6 @@
+{
+  "name": "wlt-supabase-scripts",
+  "private": true,
+  "type": "module",
+  "//": "Marks this subtree as ESM so Node's --experimental-strip-types can run ingestStandardWorks.ts directly, exactly as testing/package.json does for the harness. Deliberately has no dependencies and needs no npm install — the script uses @supabase/supabase-js, openai and zod from the root package.json, which Node resolves by walking up to the root node_modules. The script line lives in the root package.json: npm run knowledge:ingest."
+}

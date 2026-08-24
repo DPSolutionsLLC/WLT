@@ -8,6 +8,8 @@ import type {
   AssignmentType,
   CommentLevel,
   HymnType,
+  KnowledgeStatus,
+  KnowledgeTypeTag,
   MeetingType,
   MemberCategory,
   MemberGender,
@@ -1143,6 +1145,78 @@ export async function createAiSettings(options: {
     thank_you_preferences: options.thankYouPreferences ?? null,
     saved_by: options.savedBy ?? null,
     created_at: options.createdAt,
+  });
+}
+
+// ============================================================================
+// Knowledge base
+// ============================================================================
+
+// EMBEDDINGS ARE HAND-WRITTEN UNIT VECTORS, NOT REAL ONES.
+//
+// A scenario that seeded real embeddings would have to call OpenAI on every `npm run seed`,
+// which costs money, needs a network, and makes the walk's results different every time. A unit
+// vector — 1 on one axis, 0 everywhere else — gives a similarity of exactly 1 against a query on
+// the same axis and 0 against any other. That is enough to make "deactivating this document
+// removes its passages from the next search" a visible, repeatable change.
+//
+// What it cannot do is make the RETRIEVAL TESTER return sensible results for a typed English
+// query: a real query embedding will not align with any of these axes, so a hand-seeded corpus
+// answers "nothing was close enough". Scenarios that need real retrieval must UPLOAD a document
+// through the app, which embeds it for real. Scenario 022 does exactly that, which is why it
+// seeds a corpus for the deactivate/delete half and uploads for the search half.
+const EMBEDDING_DIMENSIONS = 1536;
+
+export function unitEmbedding(axis: number): number[] {
+  return Array.from({ length: EMBEDDING_DIMENSIONS }, (_, index) =>
+    index === axis ? 1 : 0,
+  );
+}
+
+export async function createKnowledgeDocument(options: {
+  id?: string;
+  title: string;
+  typeTag?: KnowledgeTypeTag;
+  status?: KnowledgeStatus;
+  uploadedBy?: string;
+  uploadedAt?: string;
+  fileUrl?: string | null;
+}): Promise<string> {
+  return insertRow("knowledge_documents", {
+    id: options.id ?? testUuid(`knowledge_document:${options.title}`),
+    ward_id: TEST_WARD_ID,
+    title: options.title,
+    type_tag: options.typeTag ?? "other",
+    // null unless a scenario says otherwise: a seeded document has no uploaded file behind it,
+    // and pointing file_url at a storage object that was never written would make the delete
+    // path log a spurious failure.
+    file_url: options.fileUrl ?? null,
+    status: options.status ?? "active",
+    uploaded_by: options.uploadedBy ?? null,
+    ...(options.uploadedAt ? { uploaded_at: options.uploadedAt } : {}),
+  });
+}
+
+// `embeddingAxis: null` seeds a chunk whose embedding FAILED during ingest — the text is kept,
+// and match_document_chunks (migration 031) must never return it. That is a real state worth
+// seeding, not a broken fixture.
+export async function createDocumentChunk(options: {
+  documentId: string;
+  content: string;
+  chunkIndex: number;
+  embeddingAxis?: number | null;
+}): Promise<string> {
+  const axis = options.embeddingAxis;
+
+  return insertRow("document_chunks", {
+    id: testUuid(`document_chunk:${options.documentId}:${options.chunkIndex}`),
+    ward_id: TEST_WARD_ID,
+    document_id: options.documentId,
+    content: options.content,
+    // pgvector's text input format is `[1,2,3]`, byte-identical to a JSON array.
+    embedding:
+      axis === null || axis === undefined ? null : JSON.stringify(unitEmbedding(axis)),
+    chunk_index: options.chunkIndex,
   });
 }
 
