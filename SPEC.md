@@ -616,9 +616,22 @@ title           text NOT NULL
 type_tag        text  -- 'standard_works' | 'general_conference' | 'other'
 file_url        text  -- Supabase Storage
 status          text DEFAULT 'active'  -- 'active' | 'inactive'
+speaker         text  -- ai-d; conference talks only
+speaker_role    text  -- ai-d; 'prophet'|'apostle'|'seventy'|'presiding_bishopric'|'auxiliary'|'other'
+conference_date date  -- ai-d; FIRST DAY OF THE CONFERENCE MONTH (2026-04-01), never a timestamp
 uploaded_by     uuid REFERENCES users(id)
 uploaded_at     timestamptz DEFAULT now()
 ```
+
+**The three `ai-d` columns are nullable, and nullable is load-bearing.** Every document ingested
+before `ai-d` — the entire standard works included — has none of them and must keep retrieving
+exactly as it did. `speaker_role` is **the calling held when the talk was given**, not the
+speaker's current calling: a 2015 talk by a member of the Twelve who now presides is `apostle` and
+stays `apostle`. That is the only reading the column can answer on its own.
+
+A `general_conference` document with all three null is reachable by **no** filter, which per the
+search function below means it is silently **always included**. `/knowledge` badges such a
+document "Not filterable" rather than leaving that to be discovered months later.
 
 ### `document_chunks`
 ```sql
@@ -630,6 +643,51 @@ embedding       vector(1536)  -- pgvector; dimension matches embedding model
 chunk_index     integer
 created_at      timestamptz DEFAULT now()
 ```
+
+### `retrieval_filters`  *(ai-d)*
+```sql
+id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid REFERENCES wards(id)
+label           text NOT NULL
+source_phrase   text NOT NULL  -- what the user typed; the only durable explanation of the columns
+speaker_roles   text[]  -- NULL = this axis is not filtered. NEVER an empty array.
+speakers        text[]  -- NULL = this axis is not filtered. NEVER an empty array.
+since           date    -- absolute, unlike the panel's relative recency select
+created_by      uuid REFERENCES users(id)
+created_at      timestamptz DEFAULT now()
+UNIQUE (ward_id, label)
+-- CHECK: at least one of speaker_roles / speakers / since is non-null
+-- CHECK: cardinality(...) > 0 on each array (migration 035 — array_length returns NULL on '{}')
+```
+
+**NULL means "this axis is not filtered"; an empty array means the opposite.** `= any ('{}')`
+matches nothing, so an empty array would save a filter that silently returns zero documents while
+reading everywhere as "no restriction". Three layers refuse it: the Zod schema, the merge
+function, and the CHECK constraints. Migration 034's first attempt used `array_length`, which
+returns NULL rather than 0 on an empty array and therefore passed — 035 fixed it with
+`cardinality`.
+
+There is **no UPDATE path** — a filter is created and deleted, never edited. Editing one silently
+changes what every past retrieval meant, and `source_phrase` would then describe a filter that no
+longer does what it says.
+
+### `retrieval_suggestions`  *(ai-d)*
+```sql
+id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid REFERENCES wards(id)
+run_id          uuid NOT NULL  -- one per retrieveChunks call, shared by every document it returned
+module          text NOT NULL
+document_id     uuid REFERENCES knowledge_documents(id) ON DELETE CASCADE
+created_at      timestamptz DEFAULT now()
+```
+
+Written on every retrieval, read by nothing yet. **ITER-012's display is separate work**; the
+telemetry ships now because it cannot be backfilled — every week without the write is a week
+permanently missing from the denominator of "appeared in 8 of your last 20 generations". `run_id`
+is what makes that denominator countable at all.
+
+**This table stores document ids and timestamps. It never stores the query, the prompt, or the
+generated text.** Append-only: no update or delete policy.
 
 ### `ai_settings`
 ```sql
@@ -646,6 +704,38 @@ saved_by        uuid REFERENCES users(id)
 created_at      timestamptz DEFAULT now()
 -- Keep all versions; latest created_at is active
 ```
+
+**`conference_preferences` shape** (the `scope` key added by `ai-d`):
+
+```jsonc
+{
+  "maxYearsOld": 5,            // PROSE to the model: prefer recent talks among what it was given
+  "maxTalks": 3,
+  "preferKnowledgeBase": true,
+  "scope": {                   // SQL FILTER: which talks are searchable at all. null = unset.
+    "sinceYears": 2,           // RELATIVE, resolved to a date at retrieval time. null = no limit.
+    "speakerRoles": [],        // [] means NO RESTRICTION, not "no roles"
+    "savedFilterIds": []       // ids from retrieval_filters; a missing id is ignored, not fatal
+  }
+}
+```
+
+**`maxYearsOld` and `scope.sinceYears` are different things and the UI says so in words.**
+`maxYearsOld` shapes **output** — prose asking the model to prefer recent talks among whatever it
+received. `scope.sinceYears` shapes **input** — a SQL filter deciding what retrieval can find at
+all. They live on two different screens (`/ai-settings` and `/knowledge`), and shipping them
+without naming the difference is how a bishopric ends up with two recency controls it cannot tell
+apart.
+
+`scope` is **nullable with a default of null** in the Zod schema, which is load-bearing: every
+`ai_settings` row written before `ai-d` has no `scope` key, and `lib/ai/queries.ts` parses stored
+rows through that schema. A required field would fail the parse and silently discard every ward's
+existing conference preferences.
+
+`scope.sinceYears` is stored **relative** and resolved against today at retrieval time. Pinning
+the date at save time would make "the last two years" drift a month further from the truth every
+month, with nothing on screen changing. A saved filter's `since`, by contrast, is absolute — it is
+a pinned statement.
 
 ### `audit_log`
 ```sql
@@ -934,7 +1024,22 @@ GET    /api/knowledge/documents  List documents                     [BUILT — a
 PATCH  /api/knowledge/documents/[id]  Update status                 [BUILT — ai-b]
 DELETE /api/knowledge/documents/[id]  Delete document + chunks      [BUILT — ai-b]
 POST   /api/knowledge/search     Bishopric-facing retrieval test    [BUILT — ai-b]
+GET    /api/knowledge/filters    List the ward's saved filters      [BUILT — ai-d]
+POST   /api/knowledge/filters    Save an accepted proposal          [BUILT — ai-d]
+DELETE /api/knowledge/filters/[id]  Delete a saved filter           [BUILT — ai-d]
+POST   /api/knowledge/filters/resolve  Phrase to proposed filter    [BUILT — ai-d]
 ```
+
+**`/api/knowledge/filters/resolve` writes nothing.** It returns a proposal and the sentence
+`describeFilter()` renders for it; only a POST to `/api/knowledge/filters` turns that into a row.
+Propose, show, accept — CLAUDE.md rule 3 applied to a filter instead of a topic, the same shape
+`topic_candidates` uses. It is the one Claude call in `ai-d`, at `effort: "low"`, and it does
+**not** use `buildSystemPrompt`: it is a parser matching a phrase against a fixed vocabulary, not
+a judgment about the ward.
+
+`POST /api/knowledge/search` gained a `useScope` flag defaulting to **true**. Scoped is the honest
+preview — it shows what topic suggestions actually retrieve; unticking it searches everything,
+which is what you want while deciding what the scope should be.
 
 **`/api/knowledge/search` is NOT internal-use, and this line has been corrected.** It previously
 read "semantic search (internal use by AI routes)"; nothing uses it that way and nothing should.
@@ -1197,15 +1302,36 @@ is a slower build, which at this scale is seconds. Migration 031 refuses to appl
 has no `hnsw` access method (pgvector < 0.5.0).
 
 ### The Search Function
-`match_document_chunks(query_embedding, match_ward_id, match_count)` is **SECURITY INVOKER**, and
+`match_document_chunks(query_embedding, match_ward_id, match_count, filter_since,
+filter_speaker_roles, filter_speakers)` is **SECURITY INVOKER**, and
 that is load-bearing rather than incidental. RLS applies inside the function, so
 `document_chunks_ward_select` is the real ward boundary and `match_ward_id` is defence in depth.
 `tests/rls/retrieval-scoping.test.ts` calls it with another ward's uuid and asserts it still
 returns nothing — that assertion is the reason the default must never be changed to
 SECURITY DEFINER.
 
+**The three filter parameters apply to `general_conference` documents and to nothing else** —
+this is the single most dangerous thing in the schema to get wrong, and its failure is silent. A
+naive `d.conference_date >= filter_since` removes every document whose `conference_date` is null,
+which is the entire standard works: a ward sets "last two years" to narrow its conference talks
+and quietly loses the Book of Mormon from every suggestion, with nothing erroring and no test
+failing. The predicate is therefore `d.type_tag is distinct from 'general_conference'` **or**
+every non-null filter matches. `is distinct from` rather than `<>`, because `null <> 'x'`
+evaluates to NULL and would drop every untagged document the moment any filter was set.
+
+`tests/db/retrieval-filters.test.ts` asserts the exemption from four directions and carries a
+regression gate proving the unfiltered call still returns exactly what migration 031's
+three-argument version did.
+
+Migration 033 **drops and recreates** the function rather than adding defaulted parameters —
+adding them would create an overload and make the old three-argument call ambiguous. Dropping
+discards migration 031's `grant execute`, which 033 re-issues; a retrieval failing with a
+permission error after `ai-d` is almost certainly that grant and not a policy.
+
 Retrieval applies a **similarity floor of 0.3, filtered before the result is clamped to the
-limit** (`lib/ai/retrieve.ts`). Filtering after clamping would silently starve the prompt of
+limit** (`lib/ai/retrieve.ts`). A narrow scope does **not** lower that floor: a ward scoped to one
+speaker in one year will correctly get nothing back on most queries, and layer 3 is omitted. That
+is the floor working, not the scope failing. Filtering after clamping would silently starve the prompt of
 context available further down the ranking. An all-weak result set returns nothing at all, because
 weak chunks read as authoritative to the model and get cited.
 

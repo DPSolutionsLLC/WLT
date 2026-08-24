@@ -1288,8 +1288,11 @@ export type Database = {
       }
       knowledge_documents: {
         Row: {
+          conference_date: string | null
           file_url: string | null
           id: string
+          speaker: string | null
+          speaker_role: string | null
           status: string
           title: string
           type_tag: string | null
@@ -1298,8 +1301,11 @@ export type Database = {
           ward_id: string
         }
         Insert: {
+          conference_date?: string | null
           file_url?: string | null
           id?: string
+          speaker?: string | null
+          speaker_role?: string | null
           status?: string
           title: string
           type_tag?: string | null
@@ -1308,8 +1314,11 @@ export type Database = {
           ward_id: string
         }
         Update: {
+          conference_date?: string | null
           file_url?: string | null
           id?: string
+          speaker?: string | null
+          speaker_role?: string | null
           status?: string
           title?: string
           type_tag?: string | null
@@ -1910,6 +1919,99 @@ export type Database = {
           },
           {
             foreignKeyName: "report_read_status_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      retrieval_filters: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string
+          since: string | null
+          source_phrase: string
+          speaker_roles: string[] | null
+          speakers: string[] | null
+          ward_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label: string
+          since?: string | null
+          source_phrase: string
+          speaker_roles?: string[] | null
+          speakers?: string[] | null
+          ward_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string
+          since?: string | null
+          source_phrase?: string
+          speaker_roles?: string[] | null
+          speakers?: string[] | null
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retrieval_filters_created_by_ward_id_fkey"
+            columns: ["created_by", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "retrieval_filters_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      retrieval_suggestions: {
+        Row: {
+          created_at: string
+          document_id: string
+          id: string
+          module: string
+          run_id: string
+          ward_id: string
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          id?: string
+          module: string
+          run_id: string
+          ward_id: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          id?: string
+          module?: string
+          run_id?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retrieval_suggestions_document_id_ward_id_fkey"
+            columns: ["document_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_documents"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "retrieval_suggestions_ward_id_fkey"
             columns: ["ward_id"]
             isOneToOne: false
             referencedRelation: "wards"
@@ -2894,6 +2996,9 @@ export type Database = {
       is_bishopric: { Args: never; Returns: boolean }
       match_document_chunks: {
         Args: {
+          filter_since?: string
+          filter_speaker_roles?: string[]
+          filter_speakers?: string[]
           match_count: number
           match_ward_id: string
           query_embedding: string

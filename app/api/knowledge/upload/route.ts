@@ -5,6 +5,7 @@ import { respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { chunkText } from "@/lib/knowledge/chunk";
 import { ingestChunks } from "@/lib/knowledge/ingest";
+import { parseConferenceDate } from "@/lib/knowledge/conferenceMetadata";
 import { parseDocument, resolveUploadType } from "@/lib/knowledge/parseDocument";
 import {
   KNOWLEDGE_BUCKET,
@@ -102,14 +103,33 @@ export async function POST(request: Request) {
     const metadata = uploadMetadataSchema.parse({
       title: form.get("title") ?? "",
       typeTag: form.get("typeTag") ?? "",
+      // These three are REQUIRED when the tag is `general_conference` and refused otherwise —
+      // the schema decides which, because "an unlabelled conference talk" is a rule about what
+      // a person may submit, not about how a form is laid out. An unlabelled one would be
+      // invisible to every filter, and per migration 033 that means silently ALWAYS INCLUDED.
+      speaker: form.get("speaker"),
+      speakerRole: form.get("speakerRole"),
+      conferenceDate: form.get("conferenceDate"),
     });
+
+    // Normalised to the first of the conference month. Two talks from one conference entered as
+    // "April 2026" and "2026-04-12" must answer a `>= 2026-04-01` filter identically, and the
+    // place to guarantee that is here rather than in three callers.
+    const conferenceDate =
+      metadata.conferenceDate === null ? null : parseConferenceDate(metadata.conferenceDate);
 
     // Refuses with an actionable sentence when a PDF turns out to be a scan.
     const parsed = await parseOrRefuse(file);
 
     const document = await createDocument(
       user.wardId,
-      { title: metadata.title, typeTag: metadata.typeTag },
+      {
+        title: metadata.title,
+        typeTag: metadata.typeTag,
+        speaker: metadata.speaker,
+        speakerRole: metadata.speakerRole,
+        conferenceDate,
+      },
       user.id,
       supabase,
     );
@@ -146,6 +166,8 @@ export async function POST(request: Request) {
         detail: {
           documentId: document.id,
           typeTag: metadata.typeTag,
+          speakerRole: metadata.speakerRole,
+          conferenceDate,
           chunkCount: summary.chunkCount,
           embeddedCount: summary.embeddedCount,
         },

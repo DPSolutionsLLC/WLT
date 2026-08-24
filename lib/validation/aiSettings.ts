@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { STANDARD_WORKS } from "@/types/domain";
+import { SPEAKER_ROLES, STANDARD_WORKS } from "@/types/domain";
 
 // No wardId on any schema here, ever — it comes from the session (conventions.md §Validation).
 //
@@ -44,6 +44,39 @@ export const scripturePreferencesSchema = z.object({
 });
 export type ScripturePreferencesInput = z.infer<typeof scripturePreferencesSchema>;
 
+// The corpus scope: WHICH conference talks are searchable at all.
+//
+// NOT the same thing as `maxYearsOld` below it, and the scope panel says so in words. This is a
+// SQL filter over the knowledge base — it decides what retrieval can even find. `maxYearsOld` is
+// prose in the system prompt asking the model to prefer recent talks among whatever it was
+// given. Input versus output. Both are real, they live on two different screens, and a reader
+// who confuses them will set one and wonder why the other did not change.
+//
+// `speakerRoles: []` MEANS NO RESTRICTION, not "no roles". An empty array never reaches the
+// database as one — mergeConferenceScope collapses it to null, because `= any ('{}')` matches
+// nothing and would narrow the corpus to zero while reading like "everything".
+export const conferenceScopeSchema = z.object({
+  sinceYears: z
+    .number()
+    .int("Give the recency limit as a whole number of years.")
+    .min(1, "A recency limit is at least one year. Choose no limit instead.")
+    .max(MAX_CONFERENCE_YEARS, `Keep the recency limit to ${MAX_CONFERENCE_YEARS} years.`)
+    .nullable(),
+  speakerRoles: z
+    .array(z.enum(SPEAKER_ROLES))
+    .refine(
+      (roles) => new Set(roles).size === roles.length,
+      "Choose each calling only once.",
+    ),
+  savedFilterIds: z
+    .array(z.uuid("A saved filter reference is not valid."))
+    .refine(
+      (ids) => new Set(ids).size === ids.length,
+      "Choose each saved filter only once.",
+    ),
+});
+export type ConferenceScopeInput = z.infer<typeof conferenceScopeSchema>;
+
 export const conferencePreferencesSchema = z.object({
   // Nullable means "no recency limit". It is NOT zero — a zero-year limit would forbid every
   // talk, and lib/ai/systemPrompt.ts renders the two differently on purpose.
@@ -59,6 +92,14 @@ export const conferencePreferencesSchema = z.object({
     .min(0, "The number of talks cannot be negative.")
     .max(MAX_CONFERENCE_TALKS, `Ask for at most ${MAX_CONFERENCE_TALKS} talks.`),
   preferKnowledgeBase: z.boolean(),
+  // `.nullable().default(null)` RATHER THAN a required field, and that is load-bearing.
+  //
+  // lib/ai/queries.ts parses every STORED row through this schema, and every ai_settings row
+  // written before ai-d has no `scope` key at all. A required field would fail that parse,
+  // toConferencePreferences() would fall back to null, and every ward's existing conference
+  // preferences would silently vanish from the system prompt. The default is what makes an old
+  // row keep meaning what it meant.
+  scope: conferenceScopeSchema.nullable().default(null),
 });
 export type ConferencePreferencesInput = z.infer<typeof conferencePreferencesSchema>;
 

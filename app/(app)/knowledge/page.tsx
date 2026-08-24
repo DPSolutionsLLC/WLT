@@ -1,9 +1,14 @@
 import { DocumentList } from "@/app/(app)/knowledge/DocumentList";
+import { FilterResolver } from "@/app/(app)/knowledge/FilterResolver";
 import { RetrievalTester } from "@/app/(app)/knowledge/RetrievalTester";
+import { ScopePanel } from "@/app/(app)/knowledge/ScopePanel";
 import { UploadForm } from "@/app/(app)/knowledge/UploadForm";
 import { NotPermitted } from "@/components/ui/NotPermitted";
+import { getActiveAiSettings } from "@/lib/ai/queries";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
+import { todayDateOnly } from "@/lib/knowledge/conferenceMetadata";
+import { listSavedFilters, listSpeakers } from "@/lib/knowledge/filterQueries";
 import { listDocuments } from "@/lib/knowledge/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -30,7 +35,18 @@ export default async function KnowledgePage() {
 
   const canManage = can(user, "knowledge.manage", roleAccess);
 
-  const documents = await listDocuments(user.wardId, supabase);
+  const [documents, savedFilters, settings, speakers] = await Promise.all([
+    listDocuments(user.wardId, supabase),
+    listSavedFilters(user.wardId, supabase),
+    getActiveAiSettings(user.wardId, supabase),
+    listSpeakers(user.wardId, supabase),
+  ]);
+
+  // Resolved on the SERVER and passed down, so the panel's relative recency ("last 2 years")
+  // lands on the same date the server will compute at retrieval time. A browser clock in another
+  // timezone would otherwise show a count for a slightly different window than the one that
+  // actually applies.
+  const today = todayDateOnly();
 
   return (
     <div className="flex flex-col gap-6">
@@ -42,7 +58,17 @@ export default async function KnowledgePage() {
         </p>
       </div>
 
-      {canManage && <UploadForm />}
+      {canManage && <UploadForm knownSpeakers={speakers} />}
+
+      <ScopePanel
+        documents={documents}
+        savedFilters={savedFilters}
+        settings={settings}
+        today={today}
+        canManage={canManage}
+      />
+
+      <FilterResolver canManage={canManage} />
 
       <DocumentList initialDocuments={documents} canManage={canManage} />
 

@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 25,
+  "scenarioCount": 27,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -240,6 +240,78 @@
         "At 375px, one-handed: can you read a draft and decide on it without pinching?"
       ],
       "seedCommand": "npm run seed -- ai/scenario-025-drafting-a-message-nobody-sent"
+    },
+    {
+      "id": "ai:scenario-026-scoping-the-corpus",
+      "path": "ai/scenario-026-scoping-the-corpus",
+      "name": "Scoping the corpus",
+      "scope": "ai-d-conference-corpus-scoping",
+      "part": 1,
+      "tags": [
+        "ai",
+        "knowledge",
+        "full"
+      ],
+      "prerequisites": "none",
+      "purpose": "The count sentence and the standard-works exemption are the two things no unit test can judge.\n\nA test can prove scripture survives a recency filter — `tests/db/retrieval-filters.test.ts` does,\nfrom four directions. Only a person can tell you whether the panel made them **believe** it would.\nThat gap is the whole reason this scenario exists: a bishopric that does not trust the panel will\neither never set a scope, or set one and quietly assume it broke their suggestions.\n\nThe second judgement is the zero state. A scope matching no talks is a **legitimate** outcome — a\nward may genuinely scope to one speaker in a year they have not ingested — and the panel has to\nsay what will happen next rather than reading as an error somebody has to undo.",
+      "checklist": [
+        "The count sentence updates as the recency select changes, **before saving anything**",
+        "\"No limit\" counts all 13 conference talks; \"Last 2 years\" counts fewer",
+        "The sentence states that the standard works are always included",
+        "Setting \"Last 2 years\" and searching with the scope ticked **still returns scripture passages**",
+        "Unticking *Search using the ward's scope* and searching again returns at least as many results",
+        "\"An older talk somebody uploaded\" carries a **\"Not filterable\"** badge; the Book of Mormon",
+        "The panel reports how many talks have no speaker or date recorded",
+        "Saving a scope adds a row to the AI settings version history",
+        "Saving the AI settings form afterwards does **not** clear the scope — go back to",
+        "The upload form shows speaker, calling and conference **only** when the kind is",
+        "Uploading a General conference file with the speaker blank is refused with a sentence",
+        "The speaker box suggests names already in the corpus as you type",
+        "`secretary@…` sees \"Not permitted\", not an empty panel",
+        "No horizontal overflow at 375px; every checkbox and control is at least 44×44",
+        "After reading the count sentence, would you **believe** the standard works are still being",
+        "Does the line distinguishing this from the AI settings recency preference actually land, or",
+        "With no callings ticked, does the sentence make it obvious that means **everything** rather",
+        "Does the zero-match state read as a deliberate, recoverable choice — or as an error?",
+        "Does the \"Not filterable\" explanation make the consequence clear? It is the opposite of what",
+        "At 375px, can you tell at a glance which callings are ticked?"
+      ],
+      "seedCommand": "npm run seed -- ai/scenario-026-scoping-the-corpus"
+    },
+    {
+      "id": "ai:scenario-027-teaching-it-a-filter",
+      "path": "ai/scenario-027-teaching-it-a-filter",
+      "name": "Teaching it a filter",
+      "scope": "ai-d-conference-corpus-scoping",
+      "part": 1,
+      "tags": [
+        "ai",
+        "knowledge",
+        "full"
+      ],
+      "prerequisites": "none",
+      "purpose": "The resolver's value is entirely in whether a person understands what it produced **before** they\naccept it. A filter is stored as three columns of enum values; approval means nothing if that is\nwhat somebody is approving. `describeFilter()` renders it as a sentence, and whether that sentence\nis genuinely readable is not something a test can answer.\n\nThe second judgement is the **refusal**. Typing \"talks about the temple\" is asking for something\nretrieval already does on every single call — filtering by subject is not possible and would not\nhelp if it were. That has to teach rather than block: a bishopric member who reads the refusal\nshould come away understanding how search works, not feeling told off by a validation error.\n\nThis scenario spends one Anthropic call per phrase typed. Four phrases is the whole cost.",
+      "checklist": [
+        "A speaker name resolves, and the sentence shown **names the speaker**",
+        "\"talks by prophets\" resolves to the **calling**, not to a list of individual names",
+        "A subject phrase is refused — no filter is offered and no Save button appears",
+        "Nonsense is refused without a stack trace, and nothing is saved",
+        "Accepting adds a checkbox to the scope panel, with the **phrase you typed** shown under it",
+        "**The phrase box clears after a successful save** — it does not still hold what you typed",
+        "A duplicate label is refused with a sentence naming the clash, not a 500 and not \"please",
+        "Discarding leaves nothing behind — after the reload in step 10 there is no trace of it",
+        "Ticking a saved filter changes the count sentence in the scope panel",
+        "Deleting a filter removes its checkbox and **does not remove any document** — the document",
+        "`secretary@…` sees \"Not permitted\"; the card is not rendered for them at all",
+        "No horizontal overflow at 375px; the phrase box and both buttons clear 44×44",
+        "**Is the subject-phrase refusal convincing?** Would a bishopric member come away",
+        "Does the sentence describing a proposed filter tell you enough to accept it confidently,",
+        "Does the note that a calling is *the one held when the talk was given* land, or does it read",
+        "After discarding, are you confident nothing was written? Does anything on screen make you",
+        "Does the delete confirm make clear that documents are untouched?",
+        "At 375px, is the proposal card distinguishable from the form that produced it?"
+      ],
+      "seedCommand": "npm run seed -- ai/scenario-027-teaching-it-a-filter"
     },
     {
       "id": "auth:scenario-001-role-shell",

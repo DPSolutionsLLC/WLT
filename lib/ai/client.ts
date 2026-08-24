@@ -21,7 +21,13 @@ export const MESSAGE_MAX_TOKENS = 4096;
 export const GENERATION_MAX_TOKENS = 16000;
 
 // "medium" for message drafting, "high" for topic and scripture generation (CLAUDE.md §3).
-export type AiEffort = "medium" | "high";
+//
+// "low" was added by `ai-d` for ONE caller, and the distinction is worth keeping sharp: the
+// filter resolver is vocabulary-matching a phrase against a fixed enum, not making a judgment
+// about a ward. Nothing it produces reaches a person as prose, and the panel it feeds has to
+// stay responsive under typing. Every call that WRITES something a human will read stays at
+// medium or high — do not reach for "low" to make a drafting call cheaper.
+export type AiEffort = "low" | "medium" | "high";
 
 export type CallClaudeParams = {
   system: Anthropic.TextBlockParam[];

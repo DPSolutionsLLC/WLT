@@ -55,7 +55,24 @@ export async function POST(
             }
           : null,
         conferencePreferences: source.conferencePreferences
-          ? { ...source.conferencePreferences }
+          ? {
+              maxYearsOld: source.conferencePreferences.maxYearsOld,
+              maxTalks: source.conferencePreferences.maxTalks,
+              preferKnowledgeBase: source.conferencePreferences.preferKnowledgeBase,
+              // Spread into mutable arrays for the same reason canonPriority is above:
+              // AiSettingsInput is Zod-inferred and mutable, the domain type is readonly.
+              //
+              // RESTORING A VERSION RESTORES ITS CORPUS SCOPE TOO. That is the honest reading of
+              // "restore" — the scope was part of what was saved — and a restore that silently
+              // kept the current scope would produce a configuration that never existed.
+              scope: source.conferencePreferences.scope
+                ? {
+                    sinceYears: source.conferencePreferences.scope.sinceYears,
+                    speakerRoles: [...source.conferencePreferences.scope.speakerRoles],
+                    savedFilterIds: [...source.conferencePreferences.scope.savedFilterIds],
+                  }
+                : null,
+            }
           : null,
         topicPreferences: source.topicPreferences,
         wardContext: source.wardContext,

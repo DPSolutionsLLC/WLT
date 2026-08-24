@@ -28,7 +28,14 @@ function settings(id: string, toneVoice: string): AiSettings {
       maxReferences: 3,
       relevanceNotes: null,
     },
-    conferencePreferences: { maxYearsOld: null, maxTalks: 3, preferKnowledgeBase: true },
+    // `scope` is null: the corpus scope is edited on /knowledge, not on this form. The form
+    // carries it through untouched, which is what stops a save here erasing it.
+    conferencePreferences: {
+      maxYearsOld: null,
+      maxTalks: 3,
+      preferKnowledgeBase: true,
+      scope: null,
+    },
     topicPreferences: null,
     wardContext: null,
     thankYouPreferences: null,

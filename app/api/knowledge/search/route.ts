@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { retrieveChunks } from "@/lib/ai/retrieve";
+import { UNFILTERED_SCOPE, retrieveChunks } from "@/lib/ai/retrieve";
 import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
@@ -32,9 +32,19 @@ export async function POST(request: Request) {
 
     const input = searchRequestSchema.parse(await readJsonBody(request));
 
+    // SCOPED BY DEFAULT (`useScope` defaults to true in the schema). Searching the ward's saved
+    // scope is the HONEST preview — it shows what topic suggestions will actually retrieve, and
+    // a bishopric that tested retrieval against the whole corpus would have tested something the
+    // AI never sees.
+    //
+    // Passing UNFILTERED_SCOPE is how "search everything" is expressed, and it is a real need on
+    // this screen: deciding WHAT the scope should be is a different question from checking what
+    // it does, and it is asked from the same place.
     const results = await retrieveChunks(input.query, user.wardId, {
       limit: input.limit,
       client: supabase,
+      filters: input.useScope ? undefined : UNFILTERED_SCOPE,
+      module: "retrieval_tester",
     });
 
     // The RAW similarity goes back, unrounded and unworded. Every other surface in this app

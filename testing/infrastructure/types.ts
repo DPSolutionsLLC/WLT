@@ -25,6 +25,7 @@ export type {
   Role,
   RotationCadence,
   SacramentAssignmentType,
+  SpeakerRole,
   StandardWork,
   SundayType,
   TopicCandidateStatus,

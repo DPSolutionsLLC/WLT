@@ -241,6 +241,66 @@ A library of reference documents that AI draws from when generating topic sugges
 - Upload, tag, activate/deactivate, and delete documents
 - Accessible by all three bishopric members
 - Tags: `Standard Works`, `General Conference`, `Other`
+- A **General Conference** upload also records the speaker, the calling they held **at the time
+  of the talk**, and which conference it came from. These are required for that tag and hidden
+  for every other, because they are what the scoping controls below filter on.
+- A conference talk missing them is badged **"Not filterable"** — no scope can narrow it, so it
+  is searched every time however tightly the ward has scoped things. That is the opposite of what
+  the words suggest, so the list says what it means.
+- A whole conference can be loaded at once from the command line with
+  `npm run knowledge:ingest-conference`, which fills the speaker and date for every talk. This is
+  **human-triggered only** — there is no scheduled fetch, and nothing is downloaded from anywhere
+  (see CLAUDE.md §9).
+
+### Choosing Which Conference Talks Count as Reference
+
+Five volumes of scripture need no management. A hundred and fifty conference talks do, and
+activating them one at a time is not a lever anybody would use.
+
+The bishopric sets a scope **once** and every suggestion from then on respects it, with nothing
+further to press:
+
+- **How far back to look** — a single choice: no limit, or the last 2, 5, or 10 years.
+- **Callings** — checkboxes. **None ticked means no restriction**, and the panel says so; an empty
+  checkbox group that silently means "everything" is a trap.
+- **Saved filters** — filters the ward taught the app in its own words (below), ticked on and off.
+
+Everything narrows **together**: a ticked filter applies on top of the callings and the period,
+not instead of them.
+
+Under the three controls sits the sentence that makes the whole feature honest:
+
+> Currently scoped to 47 of 152 conference talks. The standard works are always included.
+
+**The standard works are never filtered.** A recency setting narrows conference talks and nothing
+else — scripture, stake letters and anything untagged are always searched. That sentence is the
+only place a person can see it, and it is the difference between a bishopric that trusts the panel
+and one that quietly wonders whether it broke their suggestions.
+
+A scope matching **no** talks is a legitimate choice, not an error. The panel says what will
+happen: suggestions fall back to the standard works alone.
+
+### Teaching It a Filter
+
+Type what you are after in plain words — *"talks by President Nelson"*, *"anything from the last
+five years"* — and the app works out a filter, **shows you the sentence it produced**, and saves
+nothing until you accept it. The phrase you typed is kept alongside the filter, because six months
+later it is the only thing that explains what the filter is for.
+
+Two things it will refuse, and both refusals teach rather than block:
+
+- **A subject** — *"talks about the temple"*. Searching by subject is what already happens on
+  every single search. A filter would narrow nothing and mislead.
+- **Anything it cannot turn into a speaker, a calling, or a period.**
+
+Saved filters are created and deleted, never edited: editing one would silently change what every
+past suggestion meant.
+
+### Trying a Search
+
+The retrieval tester shows exactly what the AI receives. By default it searches **using the ward's
+scope**, which is the honest preview; untick that to search everything, which is more useful while
+deciding what the scope should be.
 
 ---
 
@@ -254,7 +314,10 @@ A plain-English configuration panel defining how Claude behaves throughout the a
 - **Tone & Voice** — how messages should feel
 - **Doctrinal Emphasis** — priorities and guardrails
 - **Scripture Preferences** — canon priority, quantity, relevance notes
-- **Conference Talk Preferences** — recency, quantity, knowledge base priority
+- **Conference Talk Preferences** — recency, quantity, knowledge base priority.
+  **This is guidance to the AI about what to prefer among the talks it was given.** Which talks
+  are searchable in the first place is set separately, in the Knowledge Base (Module 5) — the two
+  are different things, and each screen says so.
 - **Topic Generation Preferences** — standing guidance for topic suggestions
 - **Ward Context** — demographic and cultural context for the ward
 - **Thank You Message Preferences** — style and length guidance

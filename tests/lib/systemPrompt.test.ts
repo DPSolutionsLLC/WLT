@@ -19,7 +19,7 @@ const FULL_SETTINGS: AiSettings = {
     maxReferences: 3,
     relevanceNotes: "Prefer passages a new member would recognise.",
   },
-  conferencePreferences: { maxYearsOld: 5, maxTalks: 2, preferKnowledgeBase: true },
+  conferencePreferences: { maxYearsOld: 5, maxTalks: 2, preferKnowledgeBase: true, scope: null },
   topicPreferences: "Avoid topics used in the last year.",
   wardContext: "A young ward with many families new to the area.",
   thankYouPreferences: "Mention what they actually spoke about.",
@@ -130,7 +130,12 @@ describe("renderSettingsProse", () => {
   it("spells maxYearsOld: null as words", () => {
     const prose = renderSettingsProse({
       ...FULL_SETTINGS,
-      conferencePreferences: { maxYearsOld: null, maxTalks: 2, preferKnowledgeBase: false },
+      conferencePreferences: {
+        maxYearsOld: null,
+        maxTalks: 2,
+        preferKnowledgeBase: false,
+        scope: null,
+      },
     });
 
     expect(prose).toContain("any year");

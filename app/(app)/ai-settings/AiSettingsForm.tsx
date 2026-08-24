@@ -18,6 +18,7 @@ import {
   STANDARD_WORKS,
   STANDARD_WORK_LABELS,
   type AiSettings,
+  type ConferenceScopeSettings,
   type StandardWork,
 } from "@/types/domain";
 
@@ -49,6 +50,13 @@ type DraftState = {
   maxYearsOld: string;
   maxTalks: string;
   preferKnowledgeBase: boolean;
+  // CARRIED THROUGH UNTOUCHED, AND THERE IS NO CONTROL FOR IT ON THIS PAGE.
+  //
+  // The corpus scope is edited on /knowledge, but it LIVES inside conference_preferences — and
+  // this form rebuilds that whole object from draft state on every save. Leaving it out would
+  // make saving the AI settings form silently erase the ward's scope, with nothing on either
+  // screen to suggest it happened. It rides in the draft so it rides back out.
+  scope: ConferenceScopeSettings | null;
   topicPreferences: string;
   wardContext: string;
   thankYouPreferences: string;
@@ -69,6 +77,7 @@ function toDraftState(settings: AiSettings | null): DraftState {
         : String(settings.conferencePreferences.maxYearsOld),
     maxTalks: String(settings?.conferencePreferences?.maxTalks ?? 3),
     preferKnowledgeBase: settings?.conferencePreferences?.preferKnowledgeBase ?? true,
+    scope: settings?.conferencePreferences?.scope ?? null,
     topicPreferences: settings?.topicPreferences ?? "",
     wardContext: settings?.wardContext ?? "",
     thankYouPreferences: settings?.thankYouPreferences ?? "",
@@ -101,6 +110,16 @@ export function toDraftInput(state: DraftState): AiSettingsInput {
       maxYearsOld: state.maxYearsOld.trim() === "" ? null : toNumber(state.maxYearsOld),
       maxTalks: toNumber(state.maxTalks),
       preferKnowledgeBase: state.preferKnowledgeBase,
+      // Spread into MUTABLE arrays because AiSettingsInput is Zod-inferred and mutable while
+      // ConferenceScopeSettings is readonly — the same conversion the canonPriority line above
+      // does, for the same reason.
+      scope: state.scope
+        ? {
+            sinceYears: state.scope.sinceYears,
+            speakerRoles: [...state.scope.speakerRoles],
+            savedFilterIds: [...state.scope.savedFilterIds],
+          }
+        : null,
     },
     topicPreferences: orNull(state.topicPreferences),
     wardContext: orNull(state.wardContext),

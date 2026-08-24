@@ -93,6 +93,11 @@ export async function POST(request: Request) {
         : await retrieveChunks(retrievalQuery, user.wardId, {
             limit: RETRIEVAL_LIMIT,
             client: supabase,
+            // Already loaded in the Promise.all above. Passing it saves retrieveChunks a second
+            // read of the same row to resolve the ward's conference scope; omitting it would
+            // still be correct, which is what keeps ai-d's change non-breaking.
+            settings,
+            module: "topic_suggestions",
           });
 
     const system = buildSystemPrompt({

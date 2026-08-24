@@ -5,9 +5,11 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
+import { formatConferenceDate } from "@/lib/knowledge/conferenceMetadata";
 import {
   KNOWLEDGE_STATUS_LABELS,
   KNOWLEDGE_TYPE_TAG_LABELS,
+  SPEAKER_ROLE_LABELS,
   type KnowledgeDocument,
   type KnowledgeStatus,
 } from "@/types/domain";
@@ -46,6 +48,32 @@ function StatusBadge({ status }: { status: KnowledgeStatus }) {
       className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASSES[status]}`}
     >
       {KNOWLEDGE_STATUS_LABELS[status]}
+    </span>
+  );
+}
+
+// A CONFERENCE TALK MISSING ANY OF ITS THREE METADATA FIELDS CANNOT BE REACHED BY A FILTER —
+// and per migration 033 that means it is silently ALWAYS INCLUDED, however narrow the ward's
+// scope looks. This badge is that silence made visible.
+//
+// It is deliberately NOT shown on standard works or an "other" document: those are exempt from
+// filtering by design, and badging them would turn a correct state into 30 rows of noise that
+// teaches people to ignore the badge.
+function isUnfilterable(document: KnowledgeDocument): boolean {
+  return (
+    document.typeTag === "general_conference" &&
+    (document.speaker === null ||
+      document.speakerRole === null ||
+      document.conferenceDate === null)
+  );
+}
+
+// Follows StageBadge and StatusBadge above: the LABEL carries the meaning and colour only
+// reinforces it, so it reads the same to somebody who cannot distinguish the two colours.
+function NotFilterableBadge() {
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-full border border-warning px-2 py-0.5 text-xs font-medium text-warning">
+      Not filterable
     </span>
   );
 }
@@ -149,8 +177,32 @@ export function DocumentList({ initialDocuments, canManage }: DocumentListProps)
               <div className="flex flex-col gap-1">
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-sm font-medium text-foreground">{document.title}</span>
-                  <StatusBadge status={document.status} />
+                  <span className="flex shrink-0 flex-wrap justify-end gap-1">
+                    {isUnfilterable(document) && <NotFilterableBadge />}
+                    <StatusBadge status={document.status} />
+                  </span>
                 </div>
+
+                {/* Speaker and conference on their OWN line rather than folded into the grey
+                    metadata run below. They are what the scope panel filters on, so somebody
+                    checking why a talk is or is not in scope should not have to parse a sentence
+                    to find them. Rendered only when present — a standard-works volume has none of
+                    this, and "Speaker: none" would be noise on every scripture row. */}
+                {(document.speaker !== null || document.conferenceDate !== null) && (
+                  <span className="text-xs text-foreground">
+                    {[
+                      document.speaker,
+                      document.speakerRole
+                        ? SPEAKER_ROLE_LABELS[document.speakerRole]
+                        : null,
+                      document.conferenceDate
+                        ? formatConferenceDate(document.conferenceDate)
+                        : null,
+                    ]
+                      .filter((part): part is string => part !== null)
+                      .join(" · ")}
+                  </span>
+                )}
 
                 {/* Status is NOT repeated here. It moved to the badge above, and saying it twice
                     would make the metadata run longer while telling the reader nothing new. */}
@@ -213,10 +265,26 @@ export function DocumentList({ initialDocuments, canManage }: DocumentListProps)
       </ul>
 
       {canManage && (
-        <p className="mt-3 text-xs text-muted">
-          Deactivating takes effect on the very next search. Nothing is rebuilt and nothing is
-          lost — reactivating brings the passages straight back.
-        </p>
+        <>
+          <p className="mt-3 text-xs text-muted">
+            Deactivating takes effect on the very next search. Nothing is rebuilt and nothing is
+            lost — reactivating brings the passages straight back.
+          </p>
+          {initialDocuments.some(isUnfilterable) && (
+            // Says what the badge MEANS and what to do about it. A badge whose consequence is
+            // left to be guessed teaches nothing — and the consequence here is the opposite of
+            // what most people would assume from the words "not filterable".
+            <p className="mt-2 text-xs text-muted">
+              A talk marked &ldquo;Not filterable&rdquo; has no speaker, calling or conference
+              recorded, so no scope can narrow it and it is searched every time. Delete and
+              re-upload it with those filled in, or load a whole conference at once with{" "}
+              <code className="rounded bg-surface px-1 py-0.5 text-xs">
+                npm run knowledge:ingest-conference
+              </code>
+              .
+            </p>
+          )}
+        </>
       )}
     </Card>
   );

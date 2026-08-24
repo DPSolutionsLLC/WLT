@@ -24,6 +24,7 @@ import type {
   Role,
   RotationCadence,
   SacramentAssignmentType,
+  SpeakerRole,
   StandardWork,
   SundayType,
   TopicCandidateStatus,
@@ -1119,6 +1120,11 @@ export async function createAiSettings(options: {
   maxYearsOld?: number | null;
   maxConferenceTalks?: number;
   preferKnowledgeBase?: boolean;
+  scope?: {
+    sinceYears: number | null;
+    speakerRoles: SpeakerRole[];
+    savedFilterIds: string[];
+  } | null;
   topicPreferences?: string;
   wardContext?: string;
   thankYouPreferences?: string;
@@ -1139,6 +1145,11 @@ export async function createAiSettings(options: {
       maxYearsOld: options.maxYearsOld === undefined ? null : options.maxYearsOld,
       maxTalks: options.maxConferenceTalks ?? 3,
       preferKnowledgeBase: options.preferKnowledgeBase ?? true,
+      // The CORPUS SCOPE, which is a different thing from maxYearsOld above and lives on a
+      // different screen — this decides which talks are SEARCHED, that one asks the AI to prefer
+      // recent ones among whatever it finds. null means the ward has never opened the scope
+      // panel, which must retrieve exactly what a pre-ai-d ward retrieved.
+      scope: options.scope ?? null,
     },
     topic_preferences: options.topicPreferences ?? null,
     ward_context: options.wardContext ?? null,
@@ -1173,6 +1184,12 @@ export function unitEmbedding(axis: number): number[] {
   );
 }
 
+// `speaker`, `speakerRole` and `conferenceDate` default to null, which is correct for the
+// standard works and for anything that is not a conference talk.
+//
+// A `general_conference` document seeded WITHOUT them is the "Not filterable" case, and it is a
+// real state worth seeding rather than a broken fixture: no filter can reach such a document, so
+// per migration 033 it is silently ALWAYS INCLUDED. Scenario 026 seeds one deliberately.
 export async function createKnowledgeDocument(options: {
   id?: string;
   title: string;
@@ -1181,12 +1198,18 @@ export async function createKnowledgeDocument(options: {
   uploadedBy?: string;
   uploadedAt?: string;
   fileUrl?: string | null;
+  speaker?: string | null;
+  speakerRole?: SpeakerRole | null;
+  conferenceDate?: string | null;
 }): Promise<string> {
   return insertRow("knowledge_documents", {
     id: options.id ?? testUuid(`knowledge_document:${options.title}`),
     ward_id: TEST_WARD_ID,
     title: options.title,
     type_tag: options.typeTag ?? "other",
+    speaker: options.speaker ?? null,
+    speaker_role: options.speakerRole ?? null,
+    conference_date: options.conferenceDate ?? null,
     // null unless a scenario says otherwise: a seeded document has no uploaded file behind it,
     // and pointing file_url at a storage object that was never written would make the delete
     // path log a spurious failure.
@@ -1219,6 +1242,38 @@ export async function createDocumentChunk(options: {
     chunk_index: options.chunkIndex,
   });
 }
+
+// A filter a ward taught the app once and reuses by ticking a box (migration 034).
+//
+// NULL MEANS "THIS AXIS IS NOT FILTERED", NEVER AN EMPTY ARRAY. `= any ('{}')` matches NOTHING,
+// so an empty array would seed a filter that silently narrows the corpus to zero while reading
+// as "no restriction" — migration 035's CHECK constraints refuse that shape, and a seed that
+// tried it would fail at insert rather than produce a confusing scenario.
+//
+// `sourcePhrase` is what the user typed. Seeding one that DIFFERS from the label is the case
+// worth seeding: the label alone does not tell you whether a filter is about a calling or a
+// person, and the phrase is the only durable record of what was meant.
+export async function createRetrievalFilter(options: {
+  id?: string;
+  label: string;
+  sourcePhrase: string;
+  speakerRoles?: SpeakerRole[];
+  speakers?: string[];
+  since?: string;
+  createdBy?: string;
+}): Promise<string> {
+  return insertRow("retrieval_filters", {
+    id: options.id ?? testUuid(`retrieval_filter:${options.label}`),
+    ward_id: TEST_WARD_ID,
+    label: options.label,
+    source_phrase: options.sourcePhrase,
+    speaker_roles: options.speakerRoles ?? null,
+    speakers: options.speakers ?? null,
+    since: options.since ?? null,
+    created_by: options.createdBy ?? null,
+  });
+}
+
 
 // ============================================================================
 // Sacrament administration

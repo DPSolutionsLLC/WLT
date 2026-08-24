@@ -20,8 +20,16 @@ import {
   describeSimilarity,
 } from "@/lib/ai/retrieve";
 
+// `documentId` is required on ScoredChunk since ai-d — retrieval records which documents it
+// suggested (ITER-012's telemetry). Nothing in this file asserts on it; it is here so the
+// fixture is a real ScoredChunk rather than a structural near-miss.
 function chunk(similarity: number, label = `chunk-${similarity}`) {
-  return { content: `Passage at ${similarity}`, sourceLabel: label, similarity };
+  return {
+    content: `Passage at ${similarity}`,
+    sourceLabel: label,
+    similarity,
+    documentId: `document-${label}`,
+  };
 }
 
 describe("applySimilarityFloor", () => {

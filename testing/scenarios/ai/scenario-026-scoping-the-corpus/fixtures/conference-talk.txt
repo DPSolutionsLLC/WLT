@@ -1,0 +1,41 @@
+The Ordinary Work of Faith
+Elder Jeffrey R. Holland (synthetic), April 2026 general conference
+
+This file is ORIGINAL TEXT written for the Ward Leadership Tools testing
+harness. It is not a real conference talk and nothing copyrighted enters this
+repository (CLAUDE.md §9). The attribution above is a fixture, not a citation.
+What the scenario needs from it is that it is tagged as general conference,
+that it carries a speaker, a calling and a conference date, and that a search
+for "faith" finds it — so a tester can watch it leave and re-enter the results
+as the scope changes.
+
+Brothers and sisters, I want to speak this morning about faith, and about how
+much of it turns out to be ordinary.
+
+We tend to picture faith at its most dramatic: the moment of rescue, the
+answer that arrives exactly when it was needed, the account that ends well
+enough to be told from a pulpit. Those moments are real. They are also rare,
+and building a life on the expectation of them is building on weather.
+
+Most faith is quieter than that. It is the decision to keep a commitment made
+on a better day. It is going to a home you have already visited twice with
+nothing obvious to show for it. It is teaching a class you are not sure anyone
+listened to, and preparing it again the following week anyway.
+
+I have watched members of this Church carry burdens for years without ever
+receiving the explanation they were owed. They kept covenants they did not
+feel. They served people who did not thank them. And when I have asked them
+why, almost none of them said anything about certainty. They said something
+closer to: this is who I decided to be.
+
+That is faith. Not the absence of doubt, but the presence of a decision that
+doubt was not permitted to overturn.
+
+To those who feel their faith is small, remember that a seed is small too, and
+nobody faults a seed for being one. What is asked of a seed is not that it be
+impressive but that it be planted, and then that it be left in the ground long
+enough for something to happen that could not have happened in a week.
+
+Hold on to what you do know while you wait for what you do not. And be patient
+with the season you are in, for the ordinary work of faith is still the work,
+and heaven has never once mistaken it for anything less.

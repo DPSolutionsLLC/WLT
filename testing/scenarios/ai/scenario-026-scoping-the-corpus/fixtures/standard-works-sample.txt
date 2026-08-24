@@ -1,0 +1,35 @@
+A Sample Passage on Faith
+Synthetic text for the Ward Leadership Tools testing harness.
+
+This file is ORIGINAL TEXT written for the harness. It is not scripture and
+nothing copyrighted enters this repository (CLAUDE.md §9). What the scenario
+needs from it is only that it is tagged as standard works and that a search
+for "faith" finds it, so that the standard-works exemption is something a
+tester can see on screen rather than infer.
+
+1 And now I would speak concerning faith, that it may be understood what
+manner of thing it is, and how it differs from the certainty men often
+mistake it for.
+
+2 For faith is not a perfect knowledge of things. If a man has a perfect
+knowledge of a thing, he has no need of faith concerning it, for he knows it
+already, and knowledge has taken the place where faith once stood.
+
+3 Therefore, if ye have faith ye hope for things which are not seen, but
+which are true; and hope of this kind is not a wish, but an expectation
+grounded in what ye have already been given.
+
+4 And ye cannot know of a surety at the beginning. This is not a failure of
+faith but the shape of it, for a seed is not judged in the hour it is planted
+but in the season it bears.
+
+5 Now, faith is a principle of action before it is ever a principle of
+comfort. It asks first what a man will do, and only afterward what he will
+feel; and they who wait for the feeling before the doing wait a long while.
+
+6 And charity suffereth long, and is kind, and thinketh no evil; and faith
+without that charity is a lamp with no oil in it, giving the appearance of
+light and none of its warmth.
+
+7 Wherefore, hold fast to what ye do know while ye wait upon what ye do not,
+for the waiting is not idleness, and the not-knowing is not abandonment.

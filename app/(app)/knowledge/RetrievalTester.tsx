@@ -25,6 +25,11 @@ type SearchResult = {
 
 export function RetrievalTester({ hasDocuments }: RetrievalTesterProps) {
   const [query, setQuery] = useState("");
+  // DEFAULTS TO SCOPED, matching the route's schema default. Scoped is the HONEST preview: it
+  // shows what topic suggestions will actually retrieve. Searching everything is genuinely more
+  // useful while DECIDING what the scope should be, which is a different question asked from the
+  // same screen — hence a toggle rather than one behaviour.
+  const [useScope, setUseScope] = useState(true);
   const [results, setResults] = useState<SearchResult[]>();
   const [searchError, setSearchError] = useState<string>();
   const [isSearching, setIsSearching] = useState(false);
@@ -41,7 +46,7 @@ export function RetrievalTester({ hasDocuments }: RetrievalTesterProps) {
       const response = await fetch("/api/knowledge/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query, useScope }),
       });
 
       const body: { results?: SearchResult[]; error?: string } = await response.json();
@@ -66,7 +71,9 @@ export function RetrievalTester({ hasDocuments }: RetrievalTesterProps) {
         <div>
           <h2 className="text-base font-semibold text-foreground">Try a search</h2>
           <p className="mt-1 text-sm text-muted">
-            This is exactly what the AI receives as reference material.
+            {useScope
+              ? "This is exactly what the AI receives as reference material."
+              : "Searching every active document, ignoring the scope above. Useful for deciding what to scope to — not what the AI will actually see."}
           </p>
         </div>
 
@@ -78,6 +85,22 @@ export function RetrievalTester({ hasDocuments }: RetrievalTesterProps) {
           placeholder="faith"
           maxLength={500}
         />
+
+        <label className="flex min-h-11 items-center gap-2 text-sm text-foreground">
+          <input
+            type="checkbox"
+            className="size-4 accent-[var(--color-primary)]"
+            checked={useScope}
+            onChange={(event) => {
+              setUseScope(event.target.checked);
+              // Cleared on toggle, so the previous results never sit under a changed setting
+              // looking like they answered it. Comparing scoped and unscoped is the whole point
+              // of the control, and stale results would make that comparison a lie.
+              setResults(undefined);
+            }}
+          />
+          Search using the ward&apos;s scope
+        </label>
 
         <div>
           <Button type="submit" disabled={isSearching || !hasDocuments}>
@@ -105,6 +128,12 @@ export function RetrievalTester({ hasDocuments }: RetrievalTesterProps) {
             Nothing in the knowledge base is close enough to this to be worth quoting, so the AI
             would answer from the ward&apos;s settings alone. Try different wording, or add a
             document that covers this subject.
+            {/* A NARROW SCOPE DOES NOT LOWER THE SIMILARITY FLOOR, and a ward that has scoped
+                tightly will see this often and correctly. Naming the scope as a possible cause is
+                what stops it reading as a broken search. */}
+            {useScope
+              ? " If the ward's scope is narrow, that alone can be the reason — untick the box above to search everything."
+              : ""}
           </p>
         )}
 

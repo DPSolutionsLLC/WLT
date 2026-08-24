@@ -1,10 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
-import type {
-  KnowledgeDocument,
-  KnowledgeStatus,
-  KnowledgeTypeTag,
-  SupportedUploadExtension,
+import {
+  SPEAKER_ROLES,
+  type KnowledgeDocument,
+  type KnowledgeStatus,
+  type KnowledgeTypeTag,
+  type SpeakerRole,
+  type SupportedUploadExtension,
 } from "@/types/domain";
 import type { Chunk } from "@/lib/knowledge/chunk";
 
@@ -62,6 +64,9 @@ type KnowledgeDocumentRow = {
   type_tag: string | null;
   file_url: string | null;
   status: string;
+  speaker: string | null;
+  speaker_role: string | null;
+  conference_date: string | null;
   uploaded_by: string | null;
   uploaded_at: string;
 };
@@ -69,7 +74,7 @@ type KnowledgeDocumentRow = {
 // One string literal on ONE line, never a `+` concatenation between column names
 // (plans/retros/calendar-a-rules-and-api.md).
 const DOCUMENT_COLUMNS =
-  "id, title, type_tag, file_url, status, uploaded_by, uploaded_at";
+  "id, title, type_tag, file_url, status, speaker, speaker_role, conference_date, uploaded_by, uploaded_at";
 
 // Insert size, not embedding batch size. A single insert of 20,000 rows exceeds PostgREST's
 // request limit; 200 rows of ~2,000 characters each is a comfortable ~400 KB body.
@@ -98,6 +103,15 @@ function toStatus(value: string): KnowledgeStatus {
   return value === "inactive" ? "inactive" : "active";
 }
 
+// Same reasoning as toTypeTag: migration 033's CHECK permits exactly these six plus null, so an
+// unknown value can only mean the constraint changed without this mapper. Falling back to null
+// renders the document as "Not filterable" rather than crashing the page — and that badge is
+// already the right thing to show for a conference talk whose role nobody can read.
+function toSpeakerRole(value: string | null): SpeakerRole | null {
+  if (value === null) return null;
+  return (SPEAKER_ROLES as readonly string[]).includes(value) ? (value as SpeakerRole) : null;
+}
+
 function mapDocumentRow(
   row: KnowledgeDocumentRow,
   counts: { chunkCount: number; embeddedCount: number },
@@ -109,6 +123,9 @@ function mapDocumentRow(
     typeTag: toTypeTag(row.type_tag),
     fileUrl: row.file_url,
     status: toStatus(row.status),
+    speaker: row.speaker,
+    speakerRole: toSpeakerRole(row.speaker_role),
+    conferenceDate: row.conference_date,
     uploadedBy: row.uploaded_by,
     uploadedByName: row.uploaded_by ? (uploaderNames.get(row.uploaded_by) ?? null) : null,
     uploadedAt: row.uploaded_at,
@@ -262,10 +279,19 @@ export async function getDocument(
   return mapDocumentRow(data, counts, names);
 }
 
+// THE THREE METADATA FIELDS ARE OPTIONAL HERE AND REQUIRED AT THE UPLOAD BOUNDARY.
+//
+// lib/validation/knowledge.ts refuses a `general_conference` document without them, which is
+// where that rule belongs — it is a rule about what a person may submit. This function is also
+// how the standard works get created (with all three null, correctly) and how
+// ingestConference.ts creates a talk with all three set, so the type cannot require them.
 export type CreateDocumentInput = {
   title: string;
   typeTag: KnowledgeTypeTag;
   fileUrl?: string | null;
+  speaker?: string | null;
+  speakerRole?: SpeakerRole | null;
+  conferenceDate?: string | null;
 };
 
 export async function createDocument(
@@ -284,6 +310,9 @@ export async function createDocument(
       type_tag: input.typeTag,
       file_url: input.fileUrl ?? null,
       status: "active",
+      speaker: input.speaker ?? null,
+      speaker_role: input.speakerRole ?? null,
+      conference_date: input.conferenceDate ?? null,
       uploaded_by: uploadedBy,
     })
     .select(DOCUMENT_COLUMNS)

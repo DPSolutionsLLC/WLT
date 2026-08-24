@@ -139,6 +139,11 @@ export async function POST(request: Request, context: AiMessageRouteContext) {
         retrievedChunks = await retrieveChunks(topic.title, user.wardId, {
           limit: RETRIEVAL_LIMIT,
           client: supabase,
+          // The settings row is ALREADY IN MEMORY from the Promise.all above. Passing it saves
+          // retrieveChunks a second read of the same row purely to resolve the ward's conference
+          // scope. Not passing it would still be correct — just one round trip slower.
+          settings,
+          module: "confirmation_message",
         });
       }
 

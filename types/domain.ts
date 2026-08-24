@@ -417,12 +417,21 @@ export type SupportedUploadExtension = (typeof SUPPORTED_UPLOAD_EXTENSIONS)[numb
 // `chunkCount` and `embeddedCount` are TWO NUMBERS on purpose. A partial embedding failure is
 // recorded rather than swallowed (lib/knowledge/ingest.ts), and "412 passages, 410 embedded" is
 // how that reaches a human instead of becoming quietly worse retrieval months later.
+//
+// `speaker`, `speakerRole` and `conferenceDate` are ALL NULL for everything ingested before
+// ai-d, the standard works included, and they stay null for anything that is not a conference
+// talk. A `general_conference` document with three nulls is invisible to every filter — which,
+// per migration 033's predicate, means it is silently ALWAYS INCLUDED. DocumentList badges that
+// document "Not filterable" rather than leaving the silence to be discovered months later.
 export type KnowledgeDocument = {
   id: string;
   title: string;
   typeTag: KnowledgeTypeTag | null;
   fileUrl: string | null;
   status: KnowledgeStatus;
+  speaker: string | null;
+  speakerRole: SpeakerRole | null;
+  conferenceDate: string | null;
   uploadedBy: string | null;
   uploadedByName: string | null;
   uploadedAt: string;
@@ -463,12 +472,118 @@ export const STANDARD_WORK_LABELS: Record<StandardWork, string> = {
   pearl_of_great_price: "Pearl of Great Price",
 };
 
+// ---------------------------------------------------------------------------------------------
+// Conference corpus scoping (ai-d)
+// ---------------------------------------------------------------------------------------------
+
+// Matches the CHECK constraint on knowledge_documents.speaker_role (migration 033) EXACTLY. A
+// value here the constraint rejects is a 400 nobody can diagnose from the UI, so the two lists
+// are kept identical on purpose and tests/lib/conferenceMetadata.test.ts asserts the count.
+export const SPEAKER_ROLES = [
+  "prophet",
+  "apostle",
+  "seventy",
+  "presiding_bishopric",
+  "auxiliary",
+  "other",
+] as const;
+export type SpeakerRole = (typeof SPEAKER_ROLES)[number];
+
+// A Record rather than a lookup with a fallback, for the same reason ROLE_LABELS is one: a role
+// added to SPEAKER_ROLES must not silently render as its raw snake_case column value.
+export const SPEAKER_ROLE_LABELS: Record<SpeakerRole, string> = {
+  prophet: "President of the Church",
+  apostle: "Apostle",
+  seventy: "Seventy",
+  presiding_bishopric: "Presiding Bishopric",
+  auxiliary: "Auxiliary leader",
+  other: "Other",
+};
+
+// The three axes a conference talk can actually be filtered on, resolved down to what
+// match_document_chunks takes. This is the shape retrieval passes to the database, not the shape
+// a ward configures — see ConferenceScopeSettings for that.
+//
+// NULL MEANS "THIS AXIS IS NOT FILTERED", never an empty array. `= any ('{}')` matches NOTHING,
+// so an empty array would silently narrow the corpus to zero while reading exactly like "no
+// restriction". Migration 034 refuses to store one; mergeConferenceScope refuses to build one.
+export type ConferenceScope = {
+  since: string | null;
+  speakerRoles: readonly SpeakerRole[] | null;
+  speakers: readonly string[] | null;
+};
+
+// What a ward configures in the scope panel, stored inside ai_settings.conference_preferences.
+//
+// `sinceYears` is RELATIVE and stored as a number of years, resolved to a date at retrieval time.
+// Storing the absolute date would mean "the last two years" quietly came to mean "since August
+// 2026" and drifted further from the truth every month.
+//
+// `speakerRoles: []` means NO RESTRICTION, not "no roles". That distinction is on screen in
+// ScopePanel because an empty checkbox group silently meaning "everything" is the same trap as
+// an empty `WHERE ... IN ()`.
+export type ConferenceScopeSettings = {
+  sinceYears: number | null;
+  speakerRoles: readonly SpeakerRole[];
+  savedFilterIds: readonly string[];
+};
+
+// A filter a ward taught the app once, in its own words, and reuses by ticking a box.
+//
+// `since` here is ABSOLUTE, unlike ConferenceScopeSettings.sinceYears, and the difference is
+// deliberate. A saved filter is a PINNED STATEMENT — "talks since April 2021" means the same
+// thing next year as it does today. The panel's recency select is the live, relative control.
+// `sourcePhrase` is what the user typed, which is the only durable explanation of why the three
+// columns hold what they hold.
+export type SavedFilter = {
+  id: string;
+  label: string;
+  sourcePhrase: string;
+  speakerRoles: readonly SpeakerRole[] | null;
+  speakers: readonly string[] | null;
+  since: string | null;
+  createdBy: string | null;
+  createdByName: string | null;
+  createdAt: string;
+};
+
+// What the resolver proposes back from a typed phrase. A DISCRIMINATED UNION with three arms,
+// and the middle one is the point of the feature.
+//
+// The corpus can be filtered by WHO SPOKE AND WHEN. It cannot be filtered by what a talk is
+// ABOUT — that is what the vector search already does on every single call. Someone typing
+// "talks about the temple" is asking for something they are already getting, and building them a
+// metadata filter from it would produce a filter matching nothing while looking like it worked.
+export type ResolvedFilter =
+  | {
+      kind: "filter";
+      label: string;
+      speakerRoles: readonly SpeakerRole[] | null;
+      speakers: readonly string[] | null;
+      since: string | null;
+    }
+  | { kind: "semantic"; explanation: string }
+  | { kind: "unresolvable"; explanation: string };
+
 // `maxYearsOld: null` means "no recency limit" and is spelled that way in the prose renderer.
 // It is NOT zero, and a renderer that treats it as zero silently forbids every conference talk.
+//
+// `maxYearsOld` AND `scope` ARE TWO DIFFERENT THINGS AND THE PANEL SAYS SO IN WORDS.
+// `maxYearsOld` is prose sent to the model — "prefer recent talks when you cite one" — and it
+// shapes OUTPUT. `scope` is a SQL filter and it decides which talks are searchable at all, which
+// shapes INPUT. Both are legitimate, they live on different screens, and shipping them without
+// naming the difference is how a bishopric ends up with two recency controls it cannot tell
+// apart. ScopePanel carries that sentence.
+//
+// `scope` is NULLABLE AND DEFAULTS TO NULL, which is load-bearing rather than lazy: every
+// ai_settings row written before ai-d has no `scope` key at all, and lib/ai/queries.ts parses
+// stored rows through conferencePreferencesSchema. A required field there would fail the parse
+// and silently discard every ward's existing conference preferences.
 export type ConferencePreferences = {
   maxYearsOld: number | null;
   maxTalks: number;
   preferKnowledgeBase: boolean;
+  scope: ConferenceScopeSettings | null;
 };
 
 // `maxReferences: 0` means "do not suggest scriptures" — a real choice, not an unset field.

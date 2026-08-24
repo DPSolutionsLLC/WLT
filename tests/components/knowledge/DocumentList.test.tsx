@@ -24,6 +24,11 @@ function documentWith(chunkCount: number, embeddedCount = chunkCount): Knowledge
     typeTag: "other",
     status: "active",
     fileUrl: null,
+    // An "other" document, so all three are null and the "Not filterable" badge must NOT appear —
+    // that badge is for conference talks alone. See the conference fixture in this file.
+    speaker: null,
+    speakerRole: null,
+    conferenceDate: null,
     uploadedBy: "00000000-0000-4000-8000-000000000001",
     uploadedByName: "Mark Andersen",
     uploadedAt: "2026-08-23T00:00:00.000Z",
