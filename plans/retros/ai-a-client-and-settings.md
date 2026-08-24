@@ -2,7 +2,7 @@
 id: ai-a-client-and-settings
 type: feature
 iter: null
-commits: ["3cf9d28"]
+commits: ["4dee9a2"]
 date: 2026-08-23
 files:
   - lib/ai/errors.ts
