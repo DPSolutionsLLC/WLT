@@ -1,7 +1,77 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 19,
+  "scenarioCount": 21,
   "scenarios": [
+    {
+      "id": "ai:scenario-020-preview-before-you-save",
+      "path": "ai/scenario-020-preview-before-you-save",
+      "name": "Preview before you save",
+      "scope": "ai-a-client-and-settings",
+      "part": 1,
+      "tags": [
+        "ai",
+        "full",
+        "settings"
+      ],
+      "prerequisites": "none",
+      "purpose": "The preview panel's entire value is that it runs against **unsaved** settings, and no automated\ntest can judge whether the tone the bishopric asked for is the tone that came back. A route test\ncan prove the draft settings reached `buildSystemPrompt` and that nothing was written to the\ndatabase — both are already asserted in `tests/routes/ai-settings.test.ts`. What it cannot prove\nis that a person typing \"warm and brief, never formal\" *hears the difference* in what comes back.\n\nTwo saved versions are seeded, deliberately plain in tone, so \"the draft changed when I changed\nthe tone\" is a real comparison rather than a first impression.\n\nIt also carries the one thing about the versioning a bishopric will notice being wrong: that\nrestoring an older configuration **adds** a row rather than removing the ones after it.",
+      "checklist": [
+        "The form loads the **12 August** values, not the 12 July ones — Tone & Voice reads",
+        "The \"Only talks from the last … years\" box is **blank**, not `0` — null means no limit",
+        "The scripture priority list reads `1. Book of Mormon`, `2. New Testament`, in that order",
+        "History lists both seeded versions **newest first**, with the correct names",
+        "**Only** the newest row is badged `Active`, and that row has no Restore button",
+        "Preview returns real text and the token line under it shows a **non-zero** written-token",
+        "After the reload in step 7, Tone & Voice shows the **seeded** August value again — the",
+        "Saving in step 9 adds a **third** row to the history; the two seeded rows are both still",
+        "Restoring the oldest row in step 10 adds a **fourth** row rather than removing any —",
+        "After the restore, the newest row is badged Active and is attributed to whoever pressed it",
+        "**After the restore, the form above visibly changes to the restored version's values** —",
+        "The restore prints a confirmation naming both halves — that the settings above now show",
+        "Signed in as `secretary`, `/ai-settings` shows \"Not permitted\" — **not** an empty form",
+        "No horizontal scrolling at 375px on any of the seven sections",
+        "The ↑ / ↓ / Remove buttons are at least 44×44",
+        "Does the step-6 output actually sound different from the step-5 output? If the two read the",
+        "Does the preview output read as a **sample** rather than as a message that has been sent?",
+        "Does the note \"This runs against what is on screen, including changes you have not saved\"",
+        "Does the restore confirmation sentence remove the fear? Read it cold: does",
+        "Is the canon-priority reorder control obvious, or did you have to work out what ↑ does?",
+        "After a restore, is it obvious **which** version is now active without counting rows?",
+        "Seven cards on one page at 375px — does it read as a settings screen you could work through",
+        "Both themes: is the dashed sample block distinguishable from the cards around it in dark"
+      ],
+      "seedCommand": "npm run seed -- ai/scenario-020-preview-before-you-save"
+    },
+    {
+      "id": "ai:scenario-021-ai-unreachable",
+      "path": "ai/scenario-021-ai-unreachable",
+      "name": "The AI is unreachable",
+      "scope": "ai-a-client-and-settings",
+      "part": 2,
+      "tags": [
+        "ai",
+        "full",
+        "failure"
+      ],
+      "prerequisites": "none",
+      "purpose": "The phase plan's most important pitfall is a **silent AI failure**: a spinner that never resolves,\nan empty output box that looks like an answer, a message so generic the bishopric cannot tell a\nmissing key from a busy server. `tests/lib/aiErrorHandling.test.ts` already proves the six error\nkinds are distinct and that an unknown error is rethrown rather than dressed up. What it cannot\nshow is **what a bishop actually sees**.\n\nThat cannot be seeded — it is an environment manipulation, which is exactly why this is a scenario\nand not a test. Two of the six failures are reachable by hand without touching any code: an\ninvalid key and an absent one.",
+      "checklist": [
+        "An **invalid** key produces a visible error message, not a spinner that never resolves",
+        "An **absent** key produces the *not configured* message naming the API key, and it appears",
+        "The output area stays **empty** in both cases. There is no blank bordered block presented as",
+        "The Preview button returns to \"Preview\" — it does not stay stuck on \"Running…\"",
+        "Preview can be pressed again straight away, and pressing it clears the old error before",
+        "The version history still shows **exactly two** rows — 12 August 2026 and 12 July 2026.",
+        "The form's own values are unchanged after every failure",
+        "With the real key restored, Preview returns real text again with no reload needed",
+        "The error message contains no API key, no key fragment, and no stack trace",
+        "Read the absent-key message cold. Does it tell a bishop **what to do next**, or only that",
+        "Is the invalid-key message *distinguishable* from a \"the service is busy\" message? If the",
+        "Does the failure read as **the app being honest** rather than the app being broken?",
+        "Is the error legible at 375px in both themes, and does it stand out from the muted note"
+      ],
+      "seedCommand": "npm run seed -- ai/scenario-021-ai-unreachable"
+    },
     {
       "id": "auth:scenario-001-role-shell",
       "path": "auth/scenario-001-role-shell",

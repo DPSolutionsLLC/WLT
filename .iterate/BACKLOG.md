@@ -1,6 +1,6 @@
 # Backlog
 
-_Last updated: 2026-08-22_
+_Last updated: 2026-08-23_
 
 ---
 
@@ -30,6 +30,29 @@ is what the grouping asked for._
 
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
+
+- [ ] ITER-010 — Per-leader AI settings, applied when it is their turn → [scope](.iterate/scopes/ITER-010.md)
+  _Raised 2026-08-23 walking scenario 020, alongside ITER-009. `ai-a` shipped ONE configuration per
+  ward; the working pattern is that the bishop and both counselors rotate conducting and do not
+  write alike, so drafts for a counselor's Sunday should sound like that counselor — with nothing
+  to remember and nothing to press. Architectural rather than a settings-screen addition. Three
+  things make it real work: "the ward's settings" becomes two layers and the merge rule is a
+  product decision (`mergeRoleAccess` is the precedent for storing a delta rather than a
+  replacement); the settings that apply belong to whoever conducts **the Sunday being planned**,
+  not to whoever is logged in, so it must READ the conducting rotation rather than re-derive it;
+  and it needs a new RLS shape — readable by the bishopric, writable only by its owner — which no
+  table in this schema has yet. **Open:** can a counselor read the bishop's settings? Shared
+  bishopric authority says yes, and a secretary drafting on the bishop's behalf needs it._
+
+- [ ] ITER-009 — Name a settings version → [scope](.iterate/scopes/ITER-009.md)
+  _Raised 2026-08-23 walking scenario 020. The history reads "Saved by Mark Andersen on 12 August
+  2026" — a complete audit record and a poor recall tool. Six versions means six dates and no way
+  to find the one that was right for thank-you notes. Wants a default name and a custom override.
+  Small but not trivial: it needs a migration (`ai_settings` has no `label` column, and `ai-a`
+  deliberately shipped without one), and the append-only rule means a rename is a NEW version
+  rather than an UPDATE — `lib/ai/queries.ts` has no update function on purpose. **Open:** what is
+  the default — a sequence, the date, or something derived from what changed? Worth doing before
+  ITER-010, which will want to point at a named thing rather than a timestamp._
 
 - [ ] ITER-008 — Sort the roster by what you are assigning → [scope](.iterate/scopes/ITER-008.md)
   _Raised 2026-08-22 reviewing the `talks-c` walkthrough. Picking somebody for a prayer should let

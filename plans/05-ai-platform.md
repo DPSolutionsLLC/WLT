@@ -12,6 +12,32 @@ feature in the app. Build this once, correctly, and every later AI feature is a 
 
 ---
 
+## Sub-plans
+
+Planned 2026-08-23. This file is the phase brief; the three files below are what `/execute`
+runs, **in this order**. Each is self-contained — do not load more than two at once
+(CLAUDE.md §2).
+
+| # | Plan | Ships |
+|---|---|---|
+| 1 | [ai-a-client-and-settings.md](ai-a-client-and-settings.md) | Claude client and typed error handling, `buildSystemPrompt` layers 1–2 with the cache breakpoint, the AI Settings panel with versioning, history, restore, and preview |
+| 2 | [ai-b-knowledge-and-retrieval.md](ai-b-knowledge-and-retrieval.md) | Chunking, embedding, `match_document_chunks`, the vector index, document upload/management UI, the standard-works ingestion script — layer 3 turns on |
+| 3 | [ai-c-feature-routes.md](ai-c-feature-routes.md) | `/api/topics/ai-suggest` into the accept/reject queue, `/api/assignments/[id]/ai-message` into the two existing textareas |
+
+**Three decisions settled at planning time, so they are not re-litigated during execution:**
+
+- **The standard-works corpus is a local file the operator supplies**, gitignored, in a JSON shape
+  the ingestion script validates. Nothing copyrighted enters the repository, and the script is
+  verified against a small sample corpus rather than only against a full load.
+- **Upload accepts `.txt`, `.md`, and `.pdf`.** PDF adds one dependency — `unpdf`, zero runtime
+  dependencies, serverless-safe — approved 2026-08-23.
+- **The vector index is HNSW, not the ivfflat this file specifies below.** HNSW has no training
+  step, so it can be created before ingestion and stays correct as rows arrive, which removes the
+  "build the index afterwards" instruction rather than leaving it to be forgotten. Reasoning in
+  `ai-b` Task 1.
+
+---
+
 ## Rules That Apply to Every AI Feature
 
 1. **Server-side only.** All Claude and OpenAI calls happen in route handlers. Neither

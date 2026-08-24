@@ -382,6 +382,69 @@ export type KnowledgeTypeTag = (typeof KNOWLEDGE_TYPE_TAGS)[number];
 export const KNOWLEDGE_STATUSES = ["active", "inactive"] as const;
 export type KnowledgeStatus = (typeof KNOWLEDGE_STATUSES)[number];
 
+// ---------------------------------------------------------------------------------------------
+// Phase 5 — the AI platform
+// ---------------------------------------------------------------------------------------------
+
+// FOUR entries, not six. Phase 6 adds `hymn_suggestions` and `program_edit`; adding them now
+// would mean two module-instruction blocks nothing calls, which read as finished work.
+export const AI_MODULES = [
+  "settings_preview",
+  "topic_suggestions",
+  "confirmation_message",
+  "thank_you_message",
+] as const;
+export type AiModule = (typeof AI_MODULES)[number];
+
+export const STANDARD_WORKS = [
+  "old_testament",
+  "new_testament",
+  "book_of_mormon",
+  "doctrine_and_covenants",
+  "pearl_of_great_price",
+] as const;
+export type StandardWork = (typeof STANDARD_WORKS)[number];
+
+// A Record rather than a lookup with a fallback, for the same reason ROLE_LABELS is one: a work
+// added to STANDARD_WORKS must not silently default to its raw snake_case name on screen.
+export const STANDARD_WORK_LABELS: Record<StandardWork, string> = {
+  old_testament: "Old Testament",
+  new_testament: "New Testament",
+  book_of_mormon: "Book of Mormon",
+  doctrine_and_covenants: "Doctrine and Covenants",
+  pearl_of_great_price: "Pearl of Great Price",
+};
+
+// `maxYearsOld: null` means "no recency limit" and is spelled that way in the prose renderer.
+// It is NOT zero, and a renderer that treats it as zero silently forbids every conference talk.
+export type ConferencePreferences = {
+  maxYearsOld: number | null;
+  maxTalks: number;
+  preferKnowledgeBase: boolean;
+};
+
+// `maxReferences: 0` means "do not suggest scriptures" — a real choice, not an unset field.
+export type ScripturePreferences = {
+  canonPriority: readonly StandardWork[];
+  maxReferences: number;
+  relevanceNotes: string | null;
+};
+
+// One saved version of a ward's AI configuration. `ai_settings` is APPEND-ONLY (migration 014):
+// the row with the latest created_at is the active one, and no row is ever updated or deleted.
+export type AiSettings = {
+  id: string;
+  toneVoice: string | null;
+  doctrinalEmphasis: string | null;
+  scripturePreferences: ScripturePreferences | null;
+  conferencePreferences: ConferencePreferences | null;
+  topicPreferences: string | null;
+  wardContext: string | null;
+  thankYouPreferences: string | null;
+  savedBy: string | null;
+  createdAt: string;
+};
+
 export const THREAD_TYPES = ["org", "ward_council"] as const;
 export type ThreadType = (typeof THREAD_TYPES)[number];
 

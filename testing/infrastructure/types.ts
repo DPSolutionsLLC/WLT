@@ -23,6 +23,7 @@ export type {
   Role,
   RotationCadence,
   SacramentAssignmentType,
+  StandardWork,
   SundayType,
   TopicCandidateStatus,
   TopicCategory,

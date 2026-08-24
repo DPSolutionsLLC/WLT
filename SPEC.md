@@ -14,7 +14,7 @@
 | Realtime | Supabase Realtime |
 | File Storage | Supabase Storage |
 | Vector Search | Supabase pgvector |
-| AI | Claude API (`claude-sonnet-4-6`) |
+| AI | Claude API (`claude-sonnet-5`) — adaptive thinking, effort inside `output_config` |
 | PDF Generation | `@react-pdf/renderer` or `puppeteer` (server-side) |
 | Email | Resend (for agenda and program PDF distribution) |
 | Styling | Tailwind CSS with dark mode support (`dark:` variant) |
@@ -937,13 +937,22 @@ POST   /api/knowledge/search     Semantic search (internal use by AI routes)
 ```
 
 ### AI Settings
+
+All five BUILT (`ai-a-client-and-settings`). `ai_settings` is append-only: nothing here updates
+or deletes a row, and restore appends a copy rather than removing the versions after it.
+
 ```
-GET    /api/ai-settings          Get current settings
-POST   /api/ai-settings          Save new settings version
-GET    /api/ai-settings/history  List all versions
-POST   /api/ai-settings/restore/[id]  Restore a version
-POST   /api/ai-settings/preview  Test current settings with a sample prompt
+GET    /api/ai-settings          Get active settings          BUILT  ai_settings.view
+POST   /api/ai-settings          Append a new settings version BUILT  ai_settings.manage
+GET    /api/ai-settings/history  List all versions            BUILT  ai_settings.view
+POST   /api/ai-settings/restore/[id]  Copy a version forward  BUILT  ai_settings.manage
+POST   /api/ai-settings/preview  Run a test prompt against DRAFT settings in the body
+                                                              BUILT  ai_settings.manage
 ```
+
+`preview` takes `ai_settings.manage`, not `.view`: it spends money and sends ward text to a
+third-party vendor, which is the authority to change the settings rather than to read them. It
+reads and writes NOTHING in `ai_settings`.
 
 ### Notifications
 ```
@@ -1116,9 +1125,19 @@ PATCH  /api/admin/ward-settings  Update ward settings (with bishopric notificati
 
 ### System Prompt Construction
 Every Claude API call prepends a system prompt assembled from:
-1. Active `ai_settings` record for the ward
-2. Module-specific instructions (e.g. "You are helping generate a sacrament program")
-3. Retrieved knowledge base chunks (via pgvector semantic search)
+1. Active `ai_settings` record for the ward, rendered as PROSE (null and blank fields skipped)
+2. Module-specific instructions plus the citation instruction
+3. Retrieved knowledge base chunks (via pgvector semantic search) — the block is OMITTED entirely
+   when there are none
+
+`buildSystemPrompt()` in `lib/ai/systemPrompt.ts` is **pure and takes resolved settings as an
+argument** rather than a `wardId`. A function that resolves its own ward needs a database to
+test; the caller resolves settings, this assembles them. It returns
+`Anthropic.TextBlockParam[]` — two blocks when there are no chunks, three when there are.
+
+**The cache breakpoint sits on block 1, the last stable block, and the chunks come after it.**
+Caching is a prefix match, so anything cached after per-request chunks never hits. Block 0 is
+present even when settings are null, so the prefix shape is constant.
 
 ### Knowledge Base Retrieval
 ```

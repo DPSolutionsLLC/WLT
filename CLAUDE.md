@@ -70,8 +70,9 @@ it is too large — split it.
 | Data fetching | TanStack Query | Client components only |
 | Hosting | Vercel | |
 
-**Model note:** SPEC.md says `claude-sonnet-4-6`. Use `claude-sonnet-5` instead — same
-tier and price, current generation. Use `output_config: { effort: "medium" }` for
+**Model note:** `claude-sonnet-5`, and SPEC.md now says so too (it named `claude-sonnet-4-6`
+until `ai-a`). `thinking: { type: "adaptive" }` — `budget_tokens` is REMOVED on this model and
+sending it is a 400. Use `output_config: { effort: "medium" }` for
 message drafting and `"high"` for topic/scripture generation.
 
 ---

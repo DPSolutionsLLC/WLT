@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { isAiRequestError } from "@/lib/ai/errors";
 import { isForbiddenError, isPinLockedError } from "@/lib/auth/errors";
 
 export type RouteErrorContext = {
@@ -55,6 +56,18 @@ export function respondToRouteError(
 ): NextResponse {
   if (isForbiddenError(error)) {
     return NextResponse.json({ error: FORBIDDEN_MESSAGE }, { status: 403 });
+  }
+
+  // Logs AND returns. An AI failure is both a user-facing event and something worth having in the
+  // server log with its `cause` attached — the cause is the SDK's own error, which is the only
+  // place the real reason survives. The MESSAGE the user reads is already written for a human
+  // (lib/ai/errors.ts); re-wording it here would collapse six distinguishable failures into one.
+  if (isAiRequestError(error)) {
+    console.error(`AI request failed in ${context.route} — ${error.kind}`, {
+      ...context.detail,
+      cause: error.cause,
+    });
+    return NextResponse.json({ error: error.message }, { status: error.status });
   }
 
   // 429, not 403. The credentials may well be correct; what is being refused is the rate.

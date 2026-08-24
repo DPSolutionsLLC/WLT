@@ -22,6 +22,7 @@ import type {
   Role,
   RotationCadence,
   SacramentAssignmentType,
+  StandardWork,
   SundayType,
   TopicCandidateStatus,
   TopicCategory,
@@ -1091,6 +1092,57 @@ export async function createTithingEntry(options: {
     checks: options.checks ?? null,
     ...(options.bills ?? {}),
     ...(options.coins ?? {}),
+  });
+}
+
+// ============================================================================
+// AI platform
+// ============================================================================
+
+// `ai_settings` is APPEND-ONLY (migration 014): the row with the latest created_at is the active
+// configuration. A scenario that seeds two versions is seeding a HISTORY, so `createdAt` is
+// required rather than defaulted — two rows written a millisecond apart would give the walk no
+// stable answer to "which one is Active".
+//
+// There is deliberately no update helper here, for the same reason lib/ai/queries.ts has none.
+export async function createAiSettings(options: {
+  id?: string;
+  createdAt: string;
+  savedBy?: string;
+  toneVoice?: string;
+  doctrinalEmphasis?: string;
+  canonPriority?: StandardWork[];
+  maxScriptureReferences?: number;
+  scriptureNotes?: string;
+  maxYearsOld?: number | null;
+  maxConferenceTalks?: number;
+  preferKnowledgeBase?: boolean;
+  topicPreferences?: string;
+  wardContext?: string;
+  thankYouPreferences?: string;
+}): Promise<string> {
+  return insertRow("ai_settings", {
+    id: options.id ?? testUuid(`ai_settings:${options.createdAt}`),
+    ward_id: TEST_WARD_ID,
+    tone_voice: options.toneVoice ?? null,
+    doctrinal_emphasis: options.doctrinalEmphasis ?? null,
+    scripture_preferences: {
+      canonPriority: options.canonPriority ?? [],
+      maxReferences: options.maxScriptureReferences ?? 3,
+      relevanceNotes: options.scriptureNotes ?? null,
+    },
+    // `maxYearsOld: null` means NO recency limit. It is not zero, and lib/ai/systemPrompt.ts
+    // renders the two differently — a seed that confuses them changes what the walk is judging.
+    conference_preferences: {
+      maxYearsOld: options.maxYearsOld === undefined ? null : options.maxYearsOld,
+      maxTalks: options.maxConferenceTalks ?? 3,
+      preferKnowledgeBase: options.preferKnowledgeBase ?? true,
+    },
+    topic_preferences: options.topicPreferences ?? null,
+    ward_context: options.wardContext ?? null,
+    thank_you_preferences: options.thankYouPreferences ?? null,
+    saved_by: options.savedBy ?? null,
+    created_at: options.createdAt,
   });
 }
 
