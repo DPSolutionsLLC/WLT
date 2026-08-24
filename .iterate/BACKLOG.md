@@ -31,6 +31,19 @@ is what the grouping asked for._
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
 
+- [ ] ITER-015 — API routes redirect instead of answering 401 → [scope](.iterate/scopes/ITER-015.md)
+  _Found 2026-08-24 probing the deployed app right after the `ai-b` push — a bare `curl` at
+  `/api/knowledge/search` returned `307 → /login`, not `401`. `middleware.ts` deliberately refuses
+  to redirect API routes ("a 401 the caller can handle" versus "an HTML login page it cannot"), and
+  then `requireSessionUser()` does it anyway from inside the handler. **Pre-existing and systemic:**
+  from `auth-a`, and **41 route files** call it identically. The visible symptom is a wrong message
+  — an expired session makes `fetch` follow the redirect, receive the login page as 200 HTML, pass
+  `response.ok`, and fail on `.json()`, so the reader is told to check their network connection.
+  The fix is a sibling guard that throws for `respondToRouteError` to turn into a 401, leaving
+  `requireSessionUser` redirecting for pages. **No test could have caught it:** route tests use an
+  authenticated mocked client and `tests/routes/` contains no 401 assertion at all — the same
+  fixture blind spot that hid the plural bug._
+
 - [ ] ITER-014 — A global reference library, with a curator → [scope](.iterate/scopes/ITER-014.md)
   _Raised 2026-08-24 reviewing the scenario 022 walkthrough, thinking ahead to more than one ward.
   Standard works and conference talks shared by every ward; ward uploads staying private; a curator
