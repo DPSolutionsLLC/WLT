@@ -2,7 +2,7 @@
 id: ai-c-feature-routes
 type: feature
 iter: null
-commits: ["9f3e483"]
+commits: ["882ef04"]
 date: 2026-08-24
 files:
   - lib/ai/topicSuggestions.ts
