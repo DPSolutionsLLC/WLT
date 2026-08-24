@@ -31,6 +31,28 @@ is what the grouping asked for._
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
 
+- [ ] ITER-014 — A global reference library, with a curator → [scope](.iterate/scopes/ITER-014.md)
+  _Raised 2026-08-24 reviewing the scenario 022 walkthrough, thinking ahead to more than one ward.
+  Standard works and conference talks shared by every ward; ward uploads staying private; a curator
+  who promotes ward submissions into the shared library, where they become locked. **The UI is
+  post-v1 but one decision is not:** whether `knowledge_documents.ward_id` is nullable. Deciding it
+  now costs one migration and no interface; retrofitting it means a data migration plus re-scoping
+  every RLS policy on that table, with live ward rows in it. It also breaks CLAUDE.md rule 1
+  (`hymns` is currently the sole ward-less table) and needs the first **app-wide** role in a model
+  where RLS resolves a ward from `users.ward_id`. **Open:** copyright posture on redistributing
+  conference talks to every ward — freely readable is not the same as licensed to redistribute._
+
+- [ ] ITER-013 — Retry the passages that failed to embed → [scope](.iterate/scopes/ITER-013.md)
+  _Raised 2026-08-24 from Q2 of the scenario 022 walkthrough. `ai-b` reports a partial embedding
+  failure honestly — "6 passages, 5 embedded — 1 not searchable" — and then offers no way to act on
+  it; the document stays permanently incomplete with Delete as the only lever. **Cheaper than it
+  looks:** the failed chunk's text is already in `document_chunks.content` and only the vector is
+  missing, so a retry re-embeds existing rows rather than re-uploading, re-parsing or re-chunking.
+  The failure is usually a rate limit, which is exactly what a retry fixes.
+  `ingestStandardWorks.ts` has the same gap and shares the pipeline, so both close together.
+  **Open:** how a chunk that fails twice is reported, so the control does not become a button that
+  always fails._
+
 - [ ] ITER-011 — Choose which conference talks count as reference → [scope](.iterate/scopes/ITER-011.md) | plan: [ai-d](plans/ai-d-conference-corpus-scoping.md)
   _Raised 2026-08-23 deciding how General Conference gets into the corpus at all (CLAUDE.md §9,
   "Conference talk corpus scope"). Once there are a hundred and fifty talks, active/inactive one at
