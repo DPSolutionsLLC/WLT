@@ -1,8 +1,10 @@
 # ITER-011: Choose Which Conference Talks Count as Reference
 
 **Type:** Feature
-**Status:** Backlogged
+**Status:** Completed
 **Created:** 2026-08-23
+**Completed:** 2026-08-24
+**Commit:** d96b83d
 
 ## Summary
 

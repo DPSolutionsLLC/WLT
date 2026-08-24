@@ -1,7 +1,10 @@
 # ITER-012: Show How Often a Talk Has Been Suggested
 
 **Type:** Feature
-**Status:** Backlogged — **logging ships with ITER-011; only the display is deferred**
+**Status:** Backlogged — **the logging now EXISTS; only the display remains**
+**Unblocked:** 2026-08-24 (d96b83d) — `retrieval_suggestions` ships written on every retrieval, with a
+`run_id` per call so "appeared in 8 of your last 20 generations" has a denominator. History
+accumulates from this date; the display can be built whenever it is wanted, over real data.
 **Created:** 2026-08-23
 
 ## Summary

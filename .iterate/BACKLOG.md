@@ -59,6 +59,9 @@ Each of these is large or complex enough to tackle on its own.
   also the only thing that makes this a testable property rather than a hope. **Sequence after
   ITER-011**, which adds the speaker and date fields such a pass would match on. **Open:** drop the
   unverifiable ones, or flag them and leave the judgement to a person?_
+  _**Unblocked 2026-08-24 (d96b83d).** ITER-011 shipped `speaker`, `speaker_role` and
+  `conference_date` on `knowledge_documents`, so the deterministic verification pass now has
+  columns to match a citation against._
 
 - [ ] ITER-014 — A global reference library, with a curator → [scope](.iterate/scopes/ITER-014.md)
   _Raised 2026-08-24 reviewing the scenario 022 walkthrough, thinking ahead to more than one ward.
@@ -82,26 +85,16 @@ Each of these is large or complex enough to tackle on its own.
   **Open:** how a chunk that fails twice is reported, so the control does not become a button that
   always fails._
 
-- [ ] ITER-011 — Choose which conference talks count as reference → [scope](.iterate/scopes/ITER-011.md) | plan: [ai-d](plans/ai-d-conference-corpus-scoping.md)
-  _Raised 2026-08-23 deciding how General Conference gets into the corpus at all (CLAUDE.md §9,
-  "Conference talk corpus scope"). Once there are a hundred and fifty talks, active/inactive one at
-  a time is not a lever anybody will use. Wants a recency control, speaker-role checkboxes, and
-  custom filters the user describes in words — resolved by the AI **once, at save time**, into a
-  deterministic WHERE clause, shown before it is accepted, exactly like `topic_candidates`.
-  **Nothing about this is possible today:** `match_document_chunks` filters on ward, status, and
-  embedding-not-null, and `knowledge_documents` stores no speaker, no date, no calling. The bug it
-  will ship if nobody watches for it is a recency filter that silently removes the standard works,
-  because their `conference_date` is null. **Open:** does "talks by prophets" mean while-serving or
-  ever-held; do saved filters AND or OR with recency._
-
 - [ ] ITER-012 — Show how often a talk has been suggested → [scope](.iterate/scopes/ITER-012.md)
   _Raised 2026-08-23 alongside ITER-011. Last-suggested date, plus "appeared in 8 of your last 20
   generations" once it has come up more than once — a diagnostic that the corpus is too narrow, not
   decoration. Already an idiom here: the topic library orders by staleness and `lastPrayed` does the
   same for prayers, and `talks-c`'s render-nothing-rather-than-"Never" rule applies unchanged.
-  **The logging half is not deferred** — `retrieval_suggestions` and its writes ship inside ITER-011,
-  because suggestion history cannot be backfilled and every week without the write is permanently
-  missing from the denominator. This scope is the display only, and can wait indefinitely._
+  **The logging half has now SHIPPED** (ITER-011, d96b83d) — `retrieval_suggestions` is written on
+  every retrieval with a `run_id` per call, because suggestion history cannot be backfilled and
+  every week without the write is permanently missing from the denominator. History accumulates
+  from 2026-08-24. **This scope is the display only**, it is now unblocked, and it can still wait
+  indefinitely — but every week it waits is a week of history it will have to show._
 
 - [ ] ITER-010 — Per-leader AI settings, applied when it is their turn → [scope](.iterate/scopes/ITER-010.md)
   _Raised 2026-08-23 walking scenario 020, alongside ITER-009. `ai-a` shipped ONE configuration per
@@ -182,6 +175,7 @@ _None._
 
 ## Completed
 
+- [x] ITER-011 — Choose which conference talks count as reference _(completed 2026-08-24, d96b83d)_
 - [x] ITER-002 — No conductor on Sundays with no meeting, and skip them in the rotation _(completed 2026-08-22)_
 - [x] ITER-003 — Ward conference Sunday type _(completed 2026-08-22)_
 - [x] ITER-005 — Ward role-access overrides ignored by 25 of 62 permission checks _(completed 2026-08-22)_
