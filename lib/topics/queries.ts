@@ -400,6 +400,66 @@ export async function listTopicOptions(
 // Phase 5 writes `pending` rows here and NEVER inserts into `topics`. This queue is the only
 // door, and acceptCandidate below is the only thing that opens it (CLAUDE.md rule 3).
 
+// What a generated suggestion looks like on its way in. There is no `status` here and no
+// `reviewedBy` — the only status this function can write is `pending`, so a caller cannot insert
+// a candidate that is already accepted. The topic_candidates_review_pair CHECK would refuse the
+// combination anyway; this makes it unreachable one layer earlier.
+export type NewTopicCandidate = {
+  title: string;
+  category: TopicCategory;
+  description: string | null;
+  suggestedScriptures: string[];
+  suggestedTalks: string[];
+};
+
+// The ONLY insert into `topic_candidates`, and it writes NOTHING to `topics`. A suggestion enters
+// the queue here and leaves it through acceptCandidate() above, which is the single door
+// (CLAUDE.md rule 3).
+//
+// One statement for the whole batch rather than a loop of inserts: a partial batch would leave
+// the ward with some of a generation and no record of the rest, and the count the route reports
+// would be a guess.
+//
+// An empty list returns [] without touching the database. "Every suggestion was one you already
+// have" is a real answer, and it must not become a malformed insert.
+export async function createCandidates(
+  wardId: string,
+  candidates: readonly NewTopicCandidate[],
+  client?: SupabaseClient<Database>,
+): Promise<TopicCandidate[]> {
+  if (candidates.length === 0) return [];
+
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("topic_candidates")
+    .insert(
+      candidates.map((candidate) => ({
+        ward_id: wardId,
+        title: candidate.title,
+        category: candidate.category,
+        description: candidate.description,
+        suggested_scriptures: candidate.suggestedScriptures,
+        suggested_talks: candidate.suggestedTalks,
+        status: "pending",
+        accepted_topic_id: null,
+        reviewed_by: null,
+        reviewed_at: null,
+      })),
+    )
+    .select(CANDIDATE_COLUMNS);
+
+  if (error) {
+    console.error(`Could not save topic suggestions — ${error.message}`, {
+      wardId,
+      count: candidates.length,
+    });
+    throw new Error(`Could not save the suggested topics: ${error.message}`);
+  }
+
+  return (data ?? []).map(mapCandidateRow);
+}
+
 export async function listCandidates(
   wardId: string,
   status: TopicCandidateStatus = "pending",

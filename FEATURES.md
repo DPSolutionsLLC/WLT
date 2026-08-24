@@ -191,7 +191,7 @@ PLAN → REVIEW → APPROVE → REQUEST → CONFIRM → NOTIFY → SPEAK → APP
 
 **SPEAK** — Day after the meeting, app sends in-app confirmation prompt to all bishopric. Any issue flagged opens a comment thread.
 
-**APPRECIATE** — Bishopric members submit brief personal comments about each speaker. AI drafts a personalized thank you message. Conducting counselor reviews, approves, and sends (or delegates to secretary).
+**APPRECIATE** — Bishopric members submit brief personal comments about each speaker, in the comment thread on that assignment. Those comments are what the thank-you is built from, and both the AI draft and the plain template draw on them. **With no comments recorded, no message is offered at all** — by this stage the speaker has usually been thanked in person, and a generic text afterwards subtracts from that rather than adding to it; the stage can still be marked done. Conducting counselor reviews, approves, and sends (or delegates to secretary).
 
 **COMPLETE** — Thank you sent and Sunday confirmed. Assignment closed.
 

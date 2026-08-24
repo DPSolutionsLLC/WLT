@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CandidateQueue } from "@/app/(app)/talks/topics/CandidateQueue";
+import { SuggestTopicsButton } from "@/app/(app)/talks/topics/SuggestTopicsButton";
 import { TopicForm, type TopicFormValues } from "@/app/(app)/talks/topics/TopicForm";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -350,6 +351,11 @@ export function TopicList({ initialTopics, initialCandidates, canManage }: Topic
           })}
         </ul>
       )}
+
+      {/* Above the queue it fills, and only for somebody who could accept what it produces.
+          `refreshCandidates` is the callback CandidateQueue already takes — one refresh path,
+          not a second one added beside it. */}
+      {canManage && <SuggestTopicsButton onSuggested={refreshCandidates} />}
 
       <CandidateQueue
         candidates={candidatesQuery.data ?? []}

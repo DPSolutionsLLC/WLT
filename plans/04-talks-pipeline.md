@@ -315,6 +315,22 @@ not — an unticked box with a reason is worth more than a ticked one that is as
       own; `issue_flagged_post_sunday` has no surface at all yet. **Phase 11 inherits them.**
 - [x] All tests pass — 1224 across 86 files, with the phase's own suites listed above
 
+**Phase 4's AI retrofit closed 2026-08-24 with `ai-c`.** The two textareas
+`buildConfirmationMessage` and `buildThankYouMessage` fill now have an AI alternative delivering
+into the same place on the same terms — a draft a person edits and approves, with approving still
+the only thing that writes a column.
+
+One thing `ai-c` fixed that is NOT AI work and is worth naming: **`ContactStagePanel` had been
+passing `comments: []` hard-coded to `buildThankYouMessage` since `talks-b`.** The template has
+always taken that parameter and nothing had ever written it, so every thank-you this app has
+produced was generic. The assignment's own comment thread now feeds it. The plain template's
+output changes for every assignment that has comments, with or without AI.
+
+The four dormant notification triggers are **unchanged**. `message_approved_ready`,
+`sunday_confirmation_request`, `issue_flagged_post_sunday` and `appreciation_comments_ready` are
+still emitted by nothing — `ai-c` adds no `emitNotification()` call, deliberately, because a
+draft is not an event anybody needs telling about. **Phase 11 still inherits all four.**
+
 ---
 
 ## Pitfalls

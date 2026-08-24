@@ -1,6 +1,6 @@
 # Backlog
 
-_Last updated: 2026-08-23_
+_Last updated: 2026-08-24_
 
 ---
 
@@ -43,6 +43,22 @@ Each of these is large or complex enough to tackle on its own.
   `requireSessionUser` redirecting for pages. **No test could have caught it:** route tests use an
   authenticated mocked client and `tests/routes/` contains no 401 assertion at all — the same
   fixture blind spot that hid the plural bug._
+
+- [ ] ITER-016 — Citations the model invented → [scope](.iterate/scopes/ITER-016.md)
+  _Found 2026-08-24 walking scenario 024 for `ai-c`. Two of fifteen suggested conference talk
+  citations were wrong and confirmed so — a real speaker on a shifted date, and a real speaker on
+  a title that is not theirs — while others in the same batch were correct. **That mixture is the
+  problem:** an all-wrong batch gets noticed, a mostly-right one teaches the bishopric to trust the
+  rest. **Uploading real talks does not fix it on its own,** and the reasons are all in shipped
+  code: `CITATION_INSTRUCTION` never says "only cite what you were given", `preferKnowledgeBase`
+  renders as *"Prefer talks… over ones you recall"* which is explicit permission to fall back, and
+  `suggestedTalks` is free text the route inserts unchecked. CLAUDE.md §9 also keeps the conference
+  corpus deliberately thin, so most topics will have no relevant talk in it at all. **Scripture is
+  probably already fine** — the standard works are ingested in full; this is about talks. The cheap
+  half is a deterministic verification pass against `knowledge_documents` before insert, which is
+  also the only thing that makes this a testable property rather than a hope. **Sequence after
+  ITER-011**, which adds the speaker and date fields such a pass would match on. **Open:** drop the
+  unverifiable ones, or flag them and leave the judgement to a person?_
 
 - [ ] ITER-014 — A global reference library, with a curator → [scope](.iterate/scopes/ITER-014.md)
   _Raised 2026-08-24 reviewing the scenario 022 walkthrough, thinking ahead to more than one ward.

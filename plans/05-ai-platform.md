@@ -249,16 +249,34 @@ inserts nothing into `topics`, and `/api/assignments/[id]/ai-message` does not s
 
 ## Definition of Done
 
-- [ ] Claude client with correct model, adaptive thinking, effort, and error handling
-- [ ] System prompt assembles all three layers with a correct cache breakpoint
-- [ ] Standard works ingested via script; chunk count and embedding coverage verified
-- [ ] Document upload, list, activate/deactivate, delete all work
-- [ ] Retrieval returns ward-scoped, active-only, similarity-floored chunks
-- [ ] AI settings panel with all seven sections, versioning, history, restore, and preview
-- [ ] Topic suggestions land in an accept/reject queue, never the library directly
-- [ ] Confirmation and thank-you drafting wired into the Phase 4 pipeline
-- [ ] Suggestions cite sources
-- [ ] Keys never reach the browser; all eight tests pass
+**Closed 2026-08-24 when `ai-c` landed.** Ticked where it is true, and stated plainly where it is
+not — an unticked box with a reason is worth more than a ticked one that is aspirational.
+
+- [x] Claude client with correct model, adaptive thinking, effort, and error handling — `ai-a`,
+      six distinct error kinds pinned by `tests/lib/aiErrorHandling.test.ts`
+- [x] System prompt assembles all three layers with a correct cache breakpoint — `ai-a`. The
+      breakpoint sits on the LAST STABLE block with retrieved chunks after it
+- [ ] Standard works ingested via script; chunk count and embedding coverage verified — **the
+      script ships and is tested; the ingest RUN is an operational step, not a code deliverable.**
+      `npm run knowledge:ingest` works under plain Node (`ai-b`) and scenario 023 walks the
+      result. Whether a given database has been ingested is a fact about that database
+- [x] Document upload, list, activate/deactivate, delete all work — `ai-b`, walked as scenario 022
+- [x] Retrieval returns ward-scoped, active-only, similarity-floored chunks — `ai-b`, with
+      `tests/rls/retrieval-scoping.test.ts` and `tests/lib/similarityFloor.test.ts` behind it
+- [x] AI settings panel with all seven sections, versioning, history, restore, and preview —
+      `ai-a`, walked as scenario 020
+- [x] Topic suggestions land in an accept/reject queue, never the library directly — `ai-c`.
+      `tests/routes/ai-suggest.test.ts` counts `topics` rows either side of a generation,
+      including one that fails
+- [x] Confirmation and thank-you drafting wired into the Phase 4 pipeline — `ai-c`, into the two
+      textareas `buildConfirmationMessage` and `buildThankYouMessage` already filled. Neither
+      route writes a column; approving is still the only thing that saves
+- [x] Suggestions cite sources — `CITATION_INSTRUCTION` is composed into every module block, and
+      a topic candidate carries scripture references and talk citations as checkable strings
+- [x] Keys never reach the browser — `lib/ai/client.ts` and `lib/ai/embed.ts` both throw at
+      import time in a browser, asserted by `tests/lib/aiClientKeys.test.ts`. The phase's tests
+      are **seventeen** files, not the eight this plan estimated — the four `ai-c` added took the
+      count past it
 
 ---
 

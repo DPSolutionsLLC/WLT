@@ -65,7 +65,7 @@ function assignment(overrides: Partial<Assignment> = {}): Assignment {
   };
 }
 
-function renderPanel(row: Assignment) {
+function renderPanel(row: Assignment, comments: readonly string[] = []) {
   return render(
     <ContactStagePanel
       assignment={row}
@@ -74,6 +74,7 @@ function renderPanel(row: Assignment) {
       speakerPhone={null}
       topicTitle="Faith in Jesus Christ"
       suggestedScriptures={["Alma 32:21"]}
+      assignmentComments={comments}
       waivedByName="Peter Nakamura"
       requestedByName={null}
       canPlan
@@ -188,5 +189,85 @@ describe("ContactStagePanel — a ward member", () => {
 
     expect(screen.queryByText(/Not applicable/)).toBeNull();
     expect(screen.getAllByText(/Not started/).length).toBeGreaterThan(0);
+  });
+});
+
+// A thank-you built from nothing is a form letter, and by the appreciate stage somebody has
+// almost certainly thanked the speaker in person. The product decision (2026-08-24, from the
+// scenario 025 walk) is that no message is better than a generic one — so the whole drafting
+// surface is absent rather than pre-filled with something nobody would send.
+describe("ContactStagePanel — the appreciate stage with nothing recorded", () => {
+  const APPRECIATE = assignment({
+    memberId: "member-1",
+    externalSpeakerName: null,
+    externalSpeakerTitle: null,
+    stage: "appreciate",
+  });
+
+  it("says there is nothing specific to write", () => {
+    renderPanel(APPRECIATE, []);
+
+    expect(screen.getByText(/nothing specific to write/i)).toBeInTheDocument();
+    expect(screen.getByText(/in-person thank-you is probably enough/i)).toBeInTheDocument();
+  });
+
+  it("offers no textarea and no AI button", () => {
+    renderPanel(APPRECIATE, []);
+
+    expect(screen.queryByLabelText(/Thank-you message/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Draft the thank-you with AI/ })).toBeNull();
+  });
+
+  // The stage still completes. The thanking may well have happened, just not here.
+  it("still lets the stage be marked done", () => {
+    renderPanel(APPRECIATE, []);
+
+    expect(
+      screen.getByRole("button", { name: /Mark the thank-you as sent/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("says what would make a draft possible", () => {
+    renderPanel(APPRECIATE, []);
+
+    expect(screen.getByText(/Add a comment on this assignment/i)).toBeInTheDocument();
+  });
+
+  // Nothing here may read as an outstanding task — same rule the waiver follows. "There is
+  // nothing to say" is a finished state, not a pending one.
+  it("renders no disabled action", () => {
+    renderPanel(APPRECIATE, []);
+
+    for (const button of screen.queryAllByRole("button")) {
+      expect(button).not.toBeDisabled();
+    }
+  });
+
+  it("shows the drafting surface as soon as one comment exists", () => {
+    renderPanel(APPRECIATE, ["The room went completely quiet."]);
+
+    expect(screen.getByLabelText(/Thank-you message/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Draft the thank-you with AI/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/nothing specific to write/i)).toBeNull();
+  });
+
+  // An already-approved message was written when there WAS something to say. It must not vanish
+  // because the comments were later removed.
+  it("keeps an approved message even with no comments left", () => {
+    renderPanel(
+      assignment({
+        memberId: "member-1",
+        externalSpeakerName: null,
+        externalSpeakerTitle: null,
+        stage: "appreciate",
+        thankYouMessage: "Thank you for the talk you gave.",
+      }),
+      [],
+    );
+
+    expect(screen.getByLabelText(/Thank-you message/)).toBeInTheDocument();
+    expect(screen.queryByText(/nothing specific to write/i)).toBeNull();
   });
 });

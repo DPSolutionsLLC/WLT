@@ -59,3 +59,5 @@ Thumbs.db
 # Knowledge-base corpus — the standard works are supplied locally and ingested with
 # `npm run knowledge:ingest`. Nothing copyrighted enters this repository.
 /corpus/
+walk-shots-ai-c/
+walk-review-ai-c.html

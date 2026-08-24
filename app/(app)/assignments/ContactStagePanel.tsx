@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { AiDraftButton } from "@/components/assignments/AiDraftButton";
 import { SmsHandoff } from "@/components/assignments/SmsHandoff";
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/FormError";
@@ -59,6 +60,25 @@ const TEXTAREA_CLASSES =
   "rounded-md border border-border bg-surface-raised px-3 py-2 text-base text-foreground " +
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
+// Said out loud under the thank-you textarea, because otherwise the connection is invisible and
+// the comment thread stays empty forever. A field nobody knows feeds anything does not get used.
+export const THANK_YOU_COMMENT_SOURCE =
+  "Anything the bishopric wrote in the comments on this assignment is used here.";
+
+// WITH NOTHING RECORDED, THERE IS NO MESSAGE TO OFFER — not a generic one, and not an AI-drafted
+// version of a generic one. A thank-you that says nothing specific is worse than no text at all:
+// by the appreciate stage somebody has almost certainly thanked them in person, and a form letter
+// afterwards subtracts from that rather than adding to it.
+//
+// The stage still completes. "Mark the thank-you as sent" stays, because the thanking may well
+// have happened — it just did not happen here.
+export const NOTHING_SPECIFIC_TO_SAY =
+  "Nobody recorded anything about this talk, so there is nothing specific to write. An " +
+  "in-person thank-you is probably enough.";
+
+export const COMMENT_TO_ENABLE_DRAFTING =
+  "Add a comment on this assignment if you would like a message drafted from it.";
+
 export type ContactStagePanelProps = {
   assignment: Assignment;
   sundayDate: DateOnly;
@@ -68,6 +88,11 @@ export type ContactStagePanelProps = {
   // From the topic library (talks-c). An empty list omits the scripture sentence rather than
   // emitting a placeholder — buildConfirmationMessage's signature is unchanged.
   suggestedScriptures: readonly string[];
+  // The assignment's own comment thread, oldest first. `buildThankYouMessage` has always taken
+  // this parameter and this panel has always passed `[]` — the template had the input and
+  // nothing ever wrote it (ai-c). Real comments now reach both the template AND the AI prompt,
+  // which is the whole reason a thank-you can say something specific.
+  assignmentComments: readonly string[];
   waivedByName: string | null;
   requestedByName: string | null;
   canPlan: boolean;
@@ -118,6 +143,7 @@ export function ContactStagePanel({
   speakerPhone,
   topicTitle,
   suggestedScriptures,
+  assignmentComments,
   waivedByName,
   requestedByName,
   canPlan,
@@ -130,23 +156,28 @@ export function ContactStagePanel({
     assignment.requestOutcome ?? "pending",
   );
   const [requestNotes, setRequestNotes] = useState(assignment.requestNotes ?? "");
+  // Held as named values rather than computed inline, because both are now needed twice: once as
+  // the textarea's starting content, and once as the thing "Back to the plain version" restores.
+  // Pure functions of their inputs, so recomputing per render costs nothing.
+  const confirmationTemplate = buildConfirmationMessage({
+    speakerFirstName,
+    date: sundayDate,
+    topicTitle,
+    slotLengthMinutes: assignment.slotLengthMinutes,
+    suggestedScriptures: [...suggestedScriptures],
+  });
+
+  const thankYouTemplate = buildThankYouMessage({
+    speakerFirstName,
+    date: sundayDate,
+    comments: assignmentComments,
+  });
+
   const [confirmationDraft, setConfirmationDraft] = useState(
-    assignment.notifyMessage ??
-      buildConfirmationMessage({
-        speakerFirstName,
-        date: sundayDate,
-        topicTitle,
-        slotLengthMinutes: assignment.slotLengthMinutes,
-        suggestedScriptures: [...suggestedScriptures],
-      }),
+    assignment.notifyMessage ?? confirmationTemplate,
   );
   const [thankYouDraft, setThankYouDraft] = useState(
-    assignment.thankYouMessage ??
-      buildThankYouMessage({
-        speakerFirstName,
-        date: sundayDate,
-        comments: [],
-      }),
+    assignment.thankYouMessage ?? thankYouTemplate,
   );
 
   const [isWorking, setIsWorking] = useState(false);
@@ -156,6 +187,11 @@ export function ContactStagePanel({
   const isExternal = speaker.kind === "external";
   const isWaived = assignment.contactWaivedAt !== null;
   const stage = assignment.stage;
+
+  // An already-approved message counts: somebody wrote it when there was something to say, and
+  // it must not vanish because the comments were later removed.
+  const hasSomethingToSay =
+    assignmentComments.length > 0 || assignment.thankYouMessage !== null;
 
   // The one transition this panel does NOT offer is review -> approve. That belongs to
   // ApprovalPanel, where the gate it depends on is visible — two buttons for one move, in two
@@ -398,6 +434,18 @@ export function ContactStagePanel({
             >
               Confirmation message
             </label>
+            {/* Inside the `stage === "confirm" && canConfirm` branch, so a WAIVED assignment —
+                which returns above with no controls at all — gains nothing. There is no disabled
+                variant on purpose: a disabled button reads as "this is coming", and the point of
+                the waiver is that it is not (talks-b). */}
+            <AiDraftButton
+              assignmentId={assignment.id}
+              type="confirmation"
+              currentValue={confirmationDraft}
+              templateValue={confirmationTemplate}
+              onDraft={setConfirmationDraft}
+              disabled={isWorking}
+            />
             <textarea
               id={`confirmation-message-${assignment.id}`}
               rows={8}
@@ -482,7 +530,21 @@ export function ContactStagePanel({
       </StageBlock>
 
       <StageBlock stage="appreciate">
-        {stage === "appreciate" && canPlan ? (
+        {stage === "appreciate" && canPlan && !hasSomethingToSay ? (
+          <div className="mt-2 flex flex-col gap-2">
+            <p className="text-sm text-foreground">{NOTHING_SPECIFIC_TO_SAY}</p>
+            <div>
+              <Button
+                type="button"
+                onClick={() => void markThankYouSent()}
+                disabled={isWorking}
+              >
+                Mark the thank-you as sent
+              </Button>
+            </div>
+            <p className="text-sm text-muted">{COMMENT_TO_ENABLE_DRAFTING}</p>
+          </div>
+        ) : stage === "appreciate" && canPlan ? (
           <div className="mt-2 flex flex-col gap-2">
             <label
               htmlFor={`thank-you-${assignment.id}`}
@@ -490,6 +552,14 @@ export function ContactStagePanel({
             >
               Thank-you message
             </label>
+            <AiDraftButton
+              assignmentId={assignment.id}
+              type="thank_you"
+              currentValue={thankYouDraft}
+              templateValue={thankYouTemplate}
+              onDraft={setThankYouDraft}
+              disabled={isWorking}
+            />
             <textarea
               id={`thank-you-${assignment.id}`}
               rows={6}
@@ -498,6 +568,7 @@ export function ContactStagePanel({
               onChange={(event) => setThankYouDraft(event.target.value)}
               className={TEXTAREA_CLASSES}
             />
+            <p className="text-sm text-muted">{THANK_YOU_COMMENT_SOURCE}</p>
             <div className="flex flex-col gap-2 md:flex-row">
               <Button
                 type="button"

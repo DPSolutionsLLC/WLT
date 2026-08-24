@@ -802,7 +802,7 @@ GET    /api/assignments          List assignments (by sunday_id or month)
 POST   /api/assignments          Create assignment
 PATCH  /api/assignments/[id]     Update assignment (stage, outcome, message, etc.)
 POST   /api/assignments/[id]/approve     Submit approval
-POST   /api/assignments/[id]/ai-message  Generate AI confirmation/thank-you message
+POST   /api/assignments/[id]/ai-message  Draft a confirmation/thank-you. Writes NOTHING
 GET    /api/assignment-comments  List comments (by assignmentId or sundayId)
 POST   /api/assignment-comments  Post a comment at either level
 ```
@@ -835,7 +835,7 @@ POST   /api/topics               Create topic (source is set to 'manual' server-
 PATCH  /api/topics/[id]          Update topic, or archive it. NO DELETE
 GET    /api/topic-candidates     The pending AI accept/reject queue
 PATCH  /api/topic-candidates     Accept or reject ONE candidate
-POST   /api/topics/ai-suggest    NOT BUILT — Phase 5. It writes to topic_candidates, never topics
+POST   /api/topics/ai-suggest    Generate candidates. Writes to topic_candidates, NEVER topics
 ```
 
 `POST /api/topics` sets `source: 'manual'` itself and does not read it from the request: a caller

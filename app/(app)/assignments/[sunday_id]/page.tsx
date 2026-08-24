@@ -286,6 +286,12 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
                           ? []
                           : (topicScriptures.get(assignment.topicId) ?? [])
                       }
+                      // The same thread rendered below as Comments, as plain strings. It has
+                      // always been the input buildThankYouMessage wanted and never had, so
+                      // every thank-you has been generic since talks-b (ai-c).
+                      assignmentComments={(assignmentComments.get(assignment.id) ?? []).map(
+                        (entry) => entry.comment,
+                      )}
                       waivedByName={
                         assignment.contactWaivedBy === null
                           ? null
