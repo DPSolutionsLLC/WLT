@@ -385,3 +385,192 @@ export async function recordProgramApproval(
 
   return data ? mapProgramRow(data) : null;
 }
+
+// ===============================================================================================
+// THE PUBLIC PAGE SLUG
+// ===============================================================================================
+//
+// program-c reads `public_pages` through the restricted view and NOTHING creates a row in it. That
+// gap is why /public/[slug] has never been reachable: the projection, the view and the page were
+// all shipped, and no ward had a slug. program-d closes it, because the QR code printed on the
+// back panel encodes that URL — and a QR pointing at /public/null is the kind of defect that
+// survives every test and fails in a chapel.
+//
+// ONE ACTIVE PROGRAM PAGE PER WARD. A slug identifies a ward's programme PAGE, not a programme:
+// the view joins public_pages to programs on ward_id alone, so one slug answers for every Sunday
+// the ward has ever distributed and `order by sunday_date desc limit 1` picks the current one
+// (lib/program/publicQueries.ts).
+
+export const PROGRAM_PAGE_TYPE = "program";
+
+// ---------------------------------------------------------------------------------------------
+// WHY THE SLUG IS RANDOM RATHER THAN THE WARD'S NAME
+// ---------------------------------------------------------------------------------------------
+// The public page publishes EVERY participant's full name — first and last, by the product
+// decision of 2026-08-24 (CLAUDE.md §9). The only thing standing between that and the open web is
+// that the page is `noindex` and the URL is not published anywhere but on the ward's own paper.
+//
+// A slug like "buffalo-ward-program" would be guessable in one try, which quietly undoes both
+// protections. Sixteen hex characters is not a secret, but it is not a guess either.
+function generateProgramSlug(): string {
+  return `program-${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+}
+
+// Returns the ward's active programme slug, creating one the first time it is asked for.
+//
+// Two concurrent first-time calls could each insert a row, leaving a ward with two working slugs.
+// That is untidy rather than harmful — both URLs serve the same current programme — and the
+// `order by created_at` below makes every later read pick the same one of them, so the QR code
+// stays stable from the second generation onwards.
+export async function ensureProgramPublicPage(
+  wardId: string,
+  client?: SupabaseClient<Database>,
+): Promise<string> {
+  const supabase = await resolveClient(client);
+
+  const { data: existing, error: readError } = await supabase
+    .from("public_pages")
+    .select("slug")
+    .eq("ward_id", wardId)
+    .eq("page_type", PROGRAM_PAGE_TYPE)
+    .eq("is_active", true)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (readError) {
+    console.error(`Could not read a ward's public page — ${readError.message}`, { wardId });
+    throw new Error(`Could not read the ward's public page: ${readError.message}`);
+  }
+
+  if (existing) return existing.slug;
+
+  const slug = generateProgramSlug();
+
+  const { data, error } = await supabase
+    .from("public_pages")
+    .insert({
+      ward_id: wardId,
+      page_type: PROGRAM_PAGE_TYPE,
+      slug,
+      is_active: true,
+    })
+    .select("slug")
+    .single();
+
+  if (error) {
+    console.error(`Could not create a ward's public page — ${error.message}`, { wardId });
+    throw new Error(`Could not create the ward's public page: ${error.message}`);
+  }
+
+  return data.slug;
+}
+
+// ---------------------------------------------------------------------------------------------
+// THE ABSOLUTE URL THE QR CODE ENCODES
+// ---------------------------------------------------------------------------------------------
+// NEXT_PUBLIC_SITE_URL first, because it is the only one a person has deliberately set.
+//
+// VERCEL_PROJECT_PRODUCTION_URL second — the STABLE production domain. Deliberately NOT
+// VERCEL_URL, which is the per-deployment hostname and changes on every push: a QR encoding one
+// would scan correctly today and 404 after the next deploy, on paper that has already been printed
+// and handed out.
+//
+// Returns null rather than guessing at localhost. A programme printed with a QR pointing at
+// http://localhost:3000 is worse than one printed with no QR at all, so the back panel renders
+// nothing and the route reports a warning saying why.
+export function resolveSiteUrl(): string | null {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (configured) return configured.replace(/\/+$/, "");
+
+  const vercelProduction = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (vercelProduction) return `https://${vercelProduction.replace(/\/+$/, "")}`;
+
+  return null;
+}
+
+export function programPublicUrl(slug: string): string | null {
+  const siteUrl = resolveSiteUrl();
+  return siteUrl === null ? null : `${siteUrl}/public/${slug}`;
+}
+
+// Stores the signed URL of a freshly rendered PDF.
+//
+// The status filter is `in ('approved', 'distributed')` rather than an exact expected value,
+// because both are legitimate states to render from and neither is being CHANGED here. What it
+// prevents is the race that matters: somebody reopening the programme as a draft while the render
+// was in flight, which would leave pdf_url pointing at a PDF of a programme that is no longer
+// approved. Zero rows back means exactly that, and the route says so.
+export async function setProgramPdfUrl(
+  wardId: string,
+  programId: string,
+  pdfUrl: string,
+  client?: SupabaseClient<Database>,
+): Promise<Program | null> {
+  const supabase = await resolveClient(client);
+
+  const patch: ProgramUpdate = { pdf_url: pdfUrl };
+
+  const { data, error } = await supabase
+    .from("programs")
+    .update(patch)
+    .eq("ward_id", wardId)
+    .eq("id", programId)
+    .in("status", ["approved", "distributed"])
+    .select(PROGRAM_COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`Could not store a program's PDF link — ${error.message}`, {
+      wardId,
+      programId,
+    });
+    throw new Error(`Could not store the PDF link: ${error.message}`);
+  }
+
+  return data ? mapProgramRow(data) : null;
+}
+
+// THE IRREVERSIBLE ONE. The status and both stamps move in a single UPDATE, so no reader can
+// observe a distributed programme that does not say who sent it or when.
+//
+// Same expected-status guard as recordProgramApproval, and it matters more here: there is no path
+// out of `distributed` in LEGAL_TRANSITIONS, so a double-click that sent twice could not be
+// undone. `eq("status", "approved")` is what makes the second call match zero rows.
+//
+// public_data is NOT touched. It was written at approval and is what /public/[slug] serves; the
+// view additionally requires status = 'distributed', so this UPDATE is the moment the public page
+// lights up.
+export async function recordProgramDistribution(
+  wardId: string,
+  programId: string,
+  distributedByUserId: string,
+  client?: SupabaseClient<Database>,
+): Promise<Program | null> {
+  const supabase = await resolveClient(client);
+
+  const patch: ProgramUpdate = {
+    status: "distributed",
+    distributed_by: distributedByUserId,
+    distributed_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from("programs")
+    .update(patch)
+    .eq("ward_id", wardId)
+    .eq("id", programId)
+    .eq("status", "approved")
+    .select(PROGRAM_COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`Could not mark a program distributed — ${error.message}`, {
+      wardId,
+      programId,
+    });
+    throw new Error(`Could not mark that program distributed: ${error.message}`);
+  }
+
+  return data ? mapProgramRow(data) : null;
+}

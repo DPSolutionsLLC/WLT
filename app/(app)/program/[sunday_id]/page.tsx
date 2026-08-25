@@ -6,9 +6,11 @@ import { SundayTypeBadge } from "@/components/calendar/SundayTypeBadge";
 import { Card } from "@/components/ui/Card";
 import { NotPermitted } from "@/components/ui/NotPermitted";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
+import { emailConfiguration } from "@/lib/email/resend";
 import { requireSessionUser } from "@/lib/auth/session";
 import { formatSundayLabelWithYear } from "@/lib/calendar/dates";
 import { getSunday } from "@/lib/calendar/queries";
+import { readDistributionRecipients } from "@/lib/program/distribution";
 import { getProgramBySunday } from "@/lib/program/queries";
 import { programSundayIdSchema } from "@/lib/validation/program";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -53,6 +55,7 @@ export default async function ProgramPage({ params }: ProgramPageProps) {
 
   const sundayLabel = formatSundayLabelWithYear(sunday.date);
   const canBuild = can(user, "program.build", roleAccess);
+  const canDistribute = can(user, "program.distribute", roleAccess);
 
   const heading = (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -129,6 +132,16 @@ export default async function ProgramPage({ params }: ProgramPageProps) {
     );
   }
 
+  // Resolved on the server, so the confirm dialog can name the number of recipients without a
+  // second round trip and the button knows whether email is switched on at all. Read only for
+  // somebody who could actually distribute — a music coordinator has no business pulling the
+  // ward's email list into a page render.
+  const recipients = canDistribute
+    ? await readDistributionRecipients(user.wardId, supabase)
+    : { addresses: [], invalid: [] };
+
+  const emailConfig = emailConfiguration();
+
   return (
     <div className="flex flex-col gap-6">
       {heading}
@@ -139,6 +152,11 @@ export default async function ProgramPage({ params }: ProgramPageProps) {
         initialStatus={program.status}
         initialDraft={program.draft}
         canBuild={canBuild}
+        canDistribute={canDistribute}
+        pdfUrl={program.pdfUrl}
+        distributedAt={program.distributedAt}
+        recipients={{ count: recipients.addresses.length, invalid: recipients.invalid }}
+        emailDisabledReason={emailConfig.configured ? null : emailConfig.reason}
       />
     </div>
   );

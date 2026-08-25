@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 33,
+  "scenarioCount": 35,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -887,6 +887,94 @@
         "Does the 404 tell a visitor anything about whether this ward has a program waiting? It should not."
       ],
       "seedCommand": "npm run seed -- program/scenario-033-a-program-that-is-not-distributed-yet"
+    },
+    {
+      "id": "program:scenario-034-print-it-and-fold-it",
+      "path": "program/scenario-034-print-it-and-fold-it",
+      "name": "Print it and fold it",
+      "scope": "program-d-pdf-and-distribution",
+      "part": 1,
+      "tags": [
+        "program",
+        "pdf",
+        "physical",
+        "full"
+      ],
+      "prerequisites": "none",
+      "purpose": "**The one check no test can perform.** 06-program-music.md makes it a Definition-of-Done item for\nMilestone M4, and this is why: panel imposition is not reading order, and the difference only exists\non paper.\n\n`tests/lib/pdfRender.test.ts` renders the real PDF and extracts its text, so it already proves the\ntwo **outside** panels share the front of the sheet and the two **inside** panels share the reverse.\nWhat it cannot prove is that a sheet printed double-sided and folded once puts the cover on the\noutside right — that depends on the printer's duplex flip edge and on physical paper, and it is the\nkind of defect that is discovered by a congregation rather than by a suite.\n\nThe QR code is the same shape of problem. It is generated, sized and encoded correctly according to\n`tests/lib/qrCode.test.ts`; whether it survives being creased and photographed in chapel lighting is\na question for a phone.",
+      "checklist": [
+        "Generating takes a few seconds and the button says so (\"Building the PDF…\") rather than appearing hung",
+        "The PDF is **2 pages**, US Letter, **landscape**",
+        "`programs.pdf_url` is now a **signed URL** beginning `https://` — not a bare storage key like `<ward-id>/2026-09-20.pdf`",
+        "An object exists in the `programs` bucket at `<ward_id>/2026-09-20.pdf`",
+        "An `audit_log` row exists with action `program_pdf_generated`, carrying `byteLength`",
+        "Page 1 carries the **cover** and the **back panel** (missionaries, announcements, QR)",
+        "Page 2 carries the **contacts** and the **meeting order**",
+        "No page carries both the cover and the meeting order",
+        "The four leadership phone numbers appear on the contacts panel",
+        "The word \"TBD\" appears nowhere; neither does \"Nobody yet\", \"Not chosen yet\", \"null\" or \"undefined\"",
+        "No warning is shown — `#7b1d1d` clears the contrast floor, so the heading colour is the ward's own",
+        "Folded, the **cover is on the outside right** and the **back panel on the outside left**",
+        "Opened, **contacts are on the left** and the **meeting order on the right**",
+        "Nothing is cut off at the fold",
+        "Nothing is cut off at the outer margins — check the QR code and the last line of announcements specifically",
+        "The external speaker prints as **\"President Mark Andersen\"** — in full, with the title (ITER-004)",
+        "The meeting order reads top to bottom in the order it will actually be conducted",
+        "The QR scans **on the first try** flat",
+        "The QR **still scans when the sheet is folded**",
+        "The web address is printed as text under the QR, so somebody without a working camera can type it",
+        "Would you hand this to a congregation? Look at it as an object, not as a checklist.",
+        "Is the type large enough to read in a dim chapel, at arm's length?",
+        "The QR scans to a **404** in this scenario, because the programme is approved and not yet distributed. Is that the right behaviour to ship — or should the code be absent until distribution? Scenario 035 shows the other half.",
+        "Set `primary_color` to `#ffee88` in ward settings and generate again. The heading should print in the default dark, with a warning naming the setting. Does the warning make the cause obvious?"
+      ],
+      "seedCommand": "npm run seed -- program/scenario-034-print-it-and-fold-it"
+    },
+    {
+      "id": "program:scenario-035-distribution-and-what-happens-after",
+      "path": "program/scenario-035-distribution-and-what-happens-after",
+      "name": "Distribution, and what happens after",
+      "scope": "program-d-pdf-and-distribution",
+      "part": 1,
+      "tags": [
+        "program",
+        "email",
+        "full"
+      ],
+      "prerequisites": "none",
+      "purpose": "The irreversible step, and the edit that follows it.\n\nDistribution is the only action in this app with **no undo**: `LEGAL_TRANSITIONS` gives\n`distributed` no exit, because an email that has gone cannot be recalled. Every refusal in the route\ntherefore has to happen *before* anything is sent, and every sentence on the screen has to be worded\nby consequence rather than by mechanism. Whether that actually reads clearly to a ward secretary at\nnine on a Thursday night is not a thing a test can answer.\n\nIt is also the moment `/public/[slug]` stops being dark. Scenario 033 showed an approved programme\nwhose public page 404s; this is the step that lights it up, and it is the first time in the project\nthat anything can reach `distributed` at all.",
+      "checklist": [
+        "Before generating, the distribute button is **disabled** and the screen says \"Generate the PDF first — that is the file people receive\"",
+        "`programs.status` moves to `distributed`, and `distributed_at` / `distributed_by` are both stamped",
+        "`distributed_by` is the **secretary's** user id, not the bishop's",
+        "An `audit_log` row exists with action `program_distributed`",
+        "That audit row's `detail` carries a **`recipientCount`** and contains **no `@` and no email address at all** — search the JSON",
+        "`/public/harness-ward-program` now **renders** the programme. It 404'd in scenario 033",
+        "The public page shows **no phone number** — search its source for `555-`",
+        "The public page's \"Open the printed program (PDF)\" link works and opens the same document",
+        "The bishop's notification bell has a \"The sacrament program has gone out\" entry",
+        "Pressing distribute a second time is refused: \"already been distributed. An email cannot be sent twice or recalled\"",
+        "There is **no Reopen as a draft** button on a distributed programme",
+        "The confirm dialog names the number of recipients — and it says **3**, not 2: the librarian is on the list",
+        "The confirm is worded by consequence (\"Email this program to 3 people?\"), not \"Confirm distribution?\"",
+        "The dialog says it cannot be undone **before** the button, not after",
+        "The PDF arrives as an **attachment**, and opens on a phone",
+        "Each recipient's copy is addressed only to **them** — check the To: header; nobody sees the other addresses",
+        "If some addresses fail, the result names **both** counts (\"Sent to 2 of 3\"), not just the successes",
+        "The button reads **Publish to the public page**, not \"Email the program\"",
+        "The screen says why, in words a secretary can act on, **before** they press it",
+        "The result says the programme was published and **not** emailed — it never claims a send",
+        "The public page and QR work exactly as they do with email on",
+        "A \"This program has gone out\" notice appears on the programme screen",
+        "It says **\"This will update the online program. The emailed PDF will not change.\"**",
+        "It also says that reopening would take the public page dark until re-approval",
+        "It explains that a distributed programme cannot be reopened, and says what to do instead",
+        "Did the confirm dialog give you enough to decide? Imagine you are the secretary and the count is 43.",
+        "Read the post-distribution notice as somebody who wants to fix a misspelled name. Do you understand what would and would not change — and what you are supposed to do instead?",
+        "**The plan's scenario asked you to edit and re-approve after distributing, and the app gives you no way to do it.** `distributed` has no exit in `LEGAL_TRANSITIONS` (program-a's decision: an email cannot be recalled). Is \"you cannot reopen it, build next Sunday's instead\" the right answer — or should a distributed programme be reopenable, with the notice as the warning? **This is an open product question and this checkbox is where it gets decided.**",
+        "Is it clear that distributing did **two** things — emailed and published? Or does \"distribute\" read as email only?"
+      ],
+      "seedCommand": "npm run seed -- program/scenario-035-distribution-and-what-happens-after"
     },
     {
       "id": "roster:scenario-007-roster-browse-and-notes",

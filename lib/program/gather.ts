@@ -310,3 +310,38 @@ export async function gatherProgramSources(
     wardSettings,
   };
 }
+
+// ---------------------------------------------------------------------------------------------
+// program-d's reader
+// ---------------------------------------------------------------------------------------------
+// The template and the ward's own name, in one read, for the PDF renderer.
+//
+// This is what the ProgramWardSettings comment above means by "program-d reads it at render
+// time": the template describes how the programme LOOKS, so it is deliberately not stored in the
+// snapshot, and this is the one function that fetches it. Not a second reader of wards.settings —
+// the same parseProgramWardSettings() every other caller uses.
+//
+// `wards.name` comes along because resolveTheme() needs a fallback for a ward that has never
+// filled in program_template.ward_name, which is every ward until Phase 11's admin screen exists.
+export async function readProgramRenderSettings(
+  wardId: string,
+  client: SupabaseClient<Database>,
+): Promise<{ settings: ProgramWardSettings; wardName: string }> {
+  const { data, error } = await client
+    .from("wards")
+    .select("name, settings")
+    .eq("id", wardId)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`Could not read the ward's program settings — ${error.message}`, {
+      wardId,
+    });
+    throw new Error(`Could not read the ward's program settings: ${error.message}`);
+  }
+
+  return {
+    settings: parseProgramWardSettings(data?.settings ?? null),
+    wardName: data?.name ?? "",
+  };
+}

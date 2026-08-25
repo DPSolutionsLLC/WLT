@@ -91,3 +91,34 @@ export type RefreshProgramInput = z.infer<typeof refreshProgramSchema>;
 
 export const programSundayIdSchema = z.uuid("That Sunday id is not valid.");
 export const programIdSchema = z.uuid("That program id is not valid.");
+
+// ---------------------------------------------------------------------------------------------
+// program-d: the two irreversible-ish routes
+// ---------------------------------------------------------------------------------------------
+
+// GENERATING A PDF TAKES NO INPUT. Everything it needs — the draft, the template, the slug — is
+// already stored, and a body would be a second source of truth for a document the bishopric has
+// already approved. `{}` is accepted so a client that sends an empty object is not refused, and
+// nothing else is.
+//
+// `.strict()` matters here: a field silently ignored is a field somebody will one day believe is
+// doing something.
+export const generateProgramPdfSchema = z.object({}).strict();
+export type GenerateProgramPdfInput = z.infer<typeof generateProgramPdfSchema>;
+
+// DISTRIBUTION CANNOT BE UNDONE. There is no path out of `distributed` in LEGAL_TRANSITIONS,
+// because an email cannot be recalled.
+//
+// `expectedRecipientCount` is the number the confirm dialog SHOWED the person before they clicked
+// ("Email this programme to 12 people?" — calendar-b: a confirm is worded by consequence). The
+// route compares it against the list it actually resolved and refuses when they differ, so a
+// distribution list edited in another tab between the dialog opening and the button being pressed
+// cannot quietly send to a different set of people.
+//
+// Optional, so a caller that has not shown a dialog is not blocked — but the UI always sends it.
+export const distributeProgramSchema = z
+  .object({
+    expectedRecipientCount: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type DistributeProgramInput = z.infer<typeof distributeProgramSchema>;

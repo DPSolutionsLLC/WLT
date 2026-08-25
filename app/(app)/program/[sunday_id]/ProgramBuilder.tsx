@@ -5,6 +5,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AiEditPanel } from "@/app/(app)/program/[sunday_id]/AiEditPanel";
 import { MeetingOrderForm, SNAPSHOT_NOTE } from "@/app/(app)/program/[sunday_id]/MeetingOrderForm";
 import { MissingPanel } from "@/app/(app)/program/[sunday_id]/MissingPanel";
+import { PostDistributionNotice } from "@/app/(app)/program/[sunday_id]/PostDistributionNotice";
+import {
+  ProgramDistribution,
+  type DistributionRecipients,
+} from "@/app/(app)/program/[sunday_id]/ProgramDistribution";
 import { RefreshButton } from "@/app/(app)/program/[sunday_id]/RefreshButton";
 import { PENDING_LINE_NOTE, ProgramPreview } from "@/components/program/ProgramPreview";
 import { ProgramStatusBadge } from "@/components/program/ProgramStatusBadge";
@@ -77,6 +82,13 @@ export type ProgramBuilderProps = {
   initialStatus: ProgramStatus;
   initialDraft: ProgramDraft;
   canBuild: boolean;
+  // program-d. Resolved on the server so the confirm dialog can name the number of recipients
+  // without a second round trip, and so the button knows whether email is switched on at all.
+  canDistribute: boolean;
+  pdfUrl: string | null;
+  distributedAt: string | null;
+  recipients: DistributionRecipients;
+  emailDisabledReason: string | null;
 };
 
 function isLocked(status: ProgramStatus): boolean {
@@ -113,6 +125,11 @@ export function ProgramBuilder({
   initialStatus,
   initialDraft,
   canBuild,
+  canDistribute,
+  pdfUrl,
+  distributedAt,
+  recipients,
+  emailDisabledReason,
 }: ProgramBuilderProps) {
   const queryClient = useQueryClient();
 
@@ -349,11 +366,13 @@ export function ProgramBuilder({
             </p>
           )}
 
+          {/* The inline sentence that used to live here has become PostDistributionNotice, which
+              says the same thing and then the two halves it was missing: that the emailed PDF will
+              not change, and that reopening would take the public page dark. */}
           {status === "distributed" && (
-            <p className="mt-2 text-sm text-muted">
-              This program has been distributed and cannot be reopened. The PDF has already gone
-              out; build the next Sunday&rsquo;s program instead.
-            </p>
+            <div className="mt-3">
+              <PostDistributionNotice sentCount={null} distributedAt={distributedAt} />
+            </div>
           )}
 
           {!canBuild && !locked && (
@@ -432,6 +451,26 @@ export function ProgramBuilder({
           <MissingPanel draft={draft} />
           <p className="px-1 text-sm text-muted">{MISSING_IS_A_SNAPSHOT}</p>
         </div>
+
+        {/* program-d. Renders nothing until the bishopric has approved the program — see
+            ProgramDistribution, which returns null for draft and pending_approval. It is the
+            mirror image of the panels below: those disappear exactly when this appears. */}
+        {(status === "approved" || status === "distributed") && (
+          <Card>
+            <h2 className="text-base font-semibold text-foreground">Print and send</h2>
+            <div className="mt-3">
+              <ProgramDistribution
+                programId={programId}
+                status={status}
+                pdfUrl={pdfUrl}
+                canBuild={canBuild}
+                canDistribute={canDistribute}
+                recipients={recipients}
+                emailDisabledReason={emailDisabledReason}
+              />
+            </div>
+          </Card>
+        )}
 
         {/* HIDDEN, not disabled, once the program is approved or distributed. Both routes refuse
             it with a 409, and a UI should not offer a thing it knows will be refused. */}

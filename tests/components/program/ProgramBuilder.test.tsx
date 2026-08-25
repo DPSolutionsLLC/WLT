@@ -104,6 +104,14 @@ function renderBuilder(
         initialStatus={initialStatus}
         initialDraft={initialDraft}
         canBuild
+        // program-d's props. This suite is about the EDITOR — the form state, the cache and the
+        // ai-a trap — so distribution is switched off here and covered by its own tests. A
+        // canDistribute of false keeps the print-and-send panel out of these queries entirely.
+        canDistribute={false}
+        pdfUrl={null}
+        distributedAt={null}
+        recipients={{ count: 0, invalid: [] }}
+        emailDisabledReason={null}
       />
     </QueryClientProvider>,
   );

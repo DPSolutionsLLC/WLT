@@ -1553,7 +1553,7 @@ youth_followup_submitted
 program_pending_approval       -- a builder submitted a program for approval (program-a)
 program_approved               -- a bishopric member signed it off (program-a)
 program_changes_requested      -- sent back to draft with a comment (program-a)
-program_distributed            -- the PDF was emailed to the ward (program-d, NOT YET EMITTED)
+program_distributed            -- the program went out: emailed where email is configured, and published to /public/[slug] either way
 
 -- Agendas
 agenda_published
@@ -1611,11 +1611,40 @@ DELETE FROM tithing_sessions WHERE session_date < CURRENT_DATE;
 ## Sacrament Program PDF
 
 ### Generation
-- Trigger: `POST /api/programs/[id]/generate-pdf`
-- Server-side render using `@react-pdf/renderer`
-- Bifold layout: 4 panels (cover, inside-left contacts, inside-right meeting order, back announcements)
-- Template variables injected from program `draft_data` JSON
-- PDF stored in Supabase Storage under `programs/[ward_id]/[sunday_date].pdf`
+- Trigger: `POST /api/programs/[id]/generate-pdf` — requires `program.build` and status
+  `approved` or `distributed`. A `draft` is refused with a 409: a printable PDF of a document
+  nobody has signed off is exactly the artefact somebody would hand to a librarian.
+- Server-side render using `@react-pdf/renderer`, from `lib/pdf/renderProgram.tsx` — the only
+  file in the app that calls `renderToBuffer`.
+- Bifold layout: 4 panels (cover, inside-left contacts, inside-right meeting order, back
+  announcements + QR). **Panel order on the sheet is not reading order** — the imposition table
+  lives in `lib/pdf/ProgramDocument.tsx`.
+- Fonts are the standard PDF base-14 (`Times-Roman`, `Helvetica`, `Courier`), selected by
+  `font_family`. Nothing is registered and no font file is committed, so there is no font fetch
+  at render time to fail on a cold start.
+- Template variables injected from program `draft_data` JSON.
+
+### Storage
+- Bucket `programs`, **private** (`public: false`), created by migration 040 with ward-scoped
+  policies following migration 032's shape.
+- Objects keyed `[ward_id]/[sunday_date].pdf` — ward first, so `(storage.foldername(name))[1]`
+  reads it.
+- SELECT is ward-wide (a programme is read aloud on Sunday); INSERT and DELETE are narrowed to
+  `bishop`, `counselor`, `ward_secretary`. **There is no UPDATE policy** — a regenerated
+  programme is replaced by delete-then-upload, so `upsert: true` is not available.
+- `programs.pdf_url` holds a **signed URL with a 90-day lifetime**, not a storage key:
+  `/public/[slug]` renders that value straight into an `href`. anon holds no policy on the
+  bucket.
+
+### Public page slug
+- `public_pages` rows are created on demand by the generate-pdf route
+  (`ensureProgramPublicPage`). Nothing created them before program-d, which is why
+  `/public/[slug]` had never been reachable.
+- Slugs are random (`program-` + 16 hex characters), not derived from the ward's name. The public
+  page publishes participants' full names, and `noindex` plus an unguessable URL are the only two
+  things in front of that.
+- The QR code encodes `NEXT_PUBLIC_SITE_URL` + `/public/[slug]`. With no site URL configured the
+  programme prints **without** a QR rather than encoding a guess.
 
 ### Template Configuration
 Stored in `ward.settings`:
@@ -1627,9 +1656,33 @@ Stored in `ward.settings`:
     "cover_image_url": "...",
     "font_family": "serif",
     "primary_color": "#000000"
-  }
+  },
+  "program_distribution_list": ["secretary@example.com", "bishop@example.com"],
+  "librarian_email": "librarian@example.com"
 }
 ```
+
+`primary_color` is checked for contrast against white paper (4.5:1) and falls back to the default
+with a reported warning if it fails — a programme printed in pale yellow because a setting was
+mistyped is a ward-visible failure with no error attached.
+
+### Distribution
+- Trigger: `POST /api/programs/[id]/distribute` — requires `program.distribute` (held by
+  `ward_secretary` **and** the bishopric), status `approved`, and a non-null `pdf_url`.
+- Recipients: `ward.settings.program_distribution_list` (an array of addresses) plus
+  `ward.settings.librarian_email`, deduped case-insensitively. Invalid entries are reported, never
+  silently dropped. An empty list is a 422 with its own sentence.
+- One send per recipient, not one send with every address in `to` — addresses stay private and
+  partial failure becomes observable. Resend's `batch.send` is unusable here: it carries no
+  attachments.
+- **Email is off until `RESEND_FROM_ADDRESS` names an address at a domain verified in Resend.**
+  The route still publishes (status moves, the public page lights up, the QR works) and says
+  plainly that nothing was emailed. Resend's shared test sender only delivers to the account
+  owner, so a send with it configured would report success and reach nobody.
+- Marks the program `distributed`, stamps `distributed_at`/`distributed_by`, emits
+  `program_distributed` (migration 041), audits the recipient **count and never the addresses**,
+  and revalidates `/public/[slug]`.
+- Irreversible. `LEGAL_TRANSITIONS` gives `distributed` no exit.
 
 ### Leadership Contacts Auto-Population
 - Contacts panel populated from `ward.settings.leadership_contacts`

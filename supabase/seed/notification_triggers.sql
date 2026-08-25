@@ -49,15 +49,16 @@ cross join (values
   ('youth_followup_submitted',      array['org_president', 'org_counselor']),
 
   -- Programs
-  -- Added by migration 036 alongside this block; a new trigger key is always BOTH, or it silently
-  -- never fires for one set of wards. `program_distributed` belongs to program-d, which is the
-  -- plan that emits it — a key nothing fires is indistinguishable from a broken one.
+  -- The first three were added by migration 036 alongside this block, and `program_distributed` by
+  -- migration 041. A new trigger key is always BOTH, or it silently never fires for one set of
+  -- wards — no error, no log, just nothing arriving.
   --
-  -- The ward secretary is on the two OUTCOME keys but not on the request for approval: they are
+  -- The ward secretary is on the three OUTCOME keys but not on the request for approval: they are
   -- the person who submitted it, and telling somebody their own action happened is noise.
   ('program_pending_approval',      array['bishop', 'counselor']),
   ('program_approved',              array['bishop', 'counselor', 'ward_secretary']),
   ('program_changes_requested',     array['bishop', 'counselor', 'ward_secretary']),
+  ('program_distributed',           array['bishop', 'counselor', 'ward_secretary']),
 
   -- Agendas
   ('agenda_published',              array['bishop', 'counselor', 'ward_council_member', 'executive_secretary']),
