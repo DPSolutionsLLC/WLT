@@ -2,7 +2,7 @@
 id: program-c-public-pages
 type: feature
 iter: ITER-004 (public half; program-d closes the printed half and the scope)
-commits: ["b954176"]
+commits: ["07709ed"]
 date: 2026-08-24
 files:
   - lib/program/publicProjection.ts
