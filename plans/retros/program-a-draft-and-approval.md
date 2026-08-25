@@ -2,7 +2,7 @@
 id: program-a-draft-and-approval
 type: feature
 iter: ITER-004 (partial — left open; program-c and program-d close it)
-commits: ["06b464a", "940dea4"]
+commits: ["91f0f75", "940dea4"]
 date: 2026-08-24
 files:
   - lib/program/draft.ts
