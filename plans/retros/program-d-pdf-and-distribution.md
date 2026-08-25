@@ -2,7 +2,7 @@
 id: program-d-pdf-and-distribution
 type: feature
 iter: ITER-004 (printed half; program-c closed the public half, and this closes the scope)
-commits: []
+commits: ["be4ea6e"]
 date: 2026-08-25
 files:
   - lib/pdf/theme.ts

@@ -1,9 +1,19 @@
 # ITER-004: Speakers Who Are Not Members of the Ward
 
 **Type:** Feature
-**Status:** In Progress — `talks-a` landed 2026-08-20, `talks-b` 2026-08-21, `program-a` and
-`program-c` 2026-08-24. **`program-d` (the printed half) is all that remains.** The public page
-names an external speaker in full and is live; the PDF and its QR code are not built.
+**Status:** Completed
+**Completed:** 2026-08-25
+**Commit:** be4ea6e
+
+`talks-a` landed 2026-08-20, `talks-b` 2026-08-21, `program-a` and `program-c` 2026-08-24, and
+`program-d` (the printed half) on 2026-08-25. An external speaker now reaches all three surfaces: the
+pipeline with its contact stages waived, the public page in full, and the printed programme as
+"President Mark Andersen" via `printedName` in `MeetingOrderPanel`.
+
+Proven by `tests/lib/pdfRender.test.ts`, which renders the real PDF and extracts its text rather
+than asserting on a component tree. **Scenario 034's human confirmation of the same fact is not yet
+walked** — that walk is about the fold and the QR scan, which are Milestone M4's business, not this
+scope's.
 **Plan:** plans/talks-a-pipeline-core.md (schema + pipeline), plans/talks-b-month-planner.md (on-screen),
 plans/program-a-draft-and-approval.md (the name reaches the draft),
 plans/program-c-public-pages.md (public), plans/program-d-pdf-and-distribution.md (printed)

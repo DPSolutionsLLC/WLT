@@ -1,26 +1,13 @@
 # Backlog
 
-_Last updated: 2026-08-24_
+_Last updated: 2026-08-25_
 
 ---
 
 ## In Progress
 Items currently being planned or actively worked.
 
-- [ ] ITER-004 — Speakers who are not members of the ward → [scope](.iterate/scopes/ITER-004.md) | plans: [talks-a](plans/talks-a-pipeline-core.md), [talks-b](plans/talks-b-month-planner.md), [program-a](plans/program-a-draft-and-approval.md), [program-c](plans/program-c-public-pages.md), [program-d](plans/program-d-pdf-and-distribution.md)
-  _**The Phase 4 half is complete.** `talks-a` landed the schema and pipeline shape — a nullable
-  member link, inline external name and title with a CHECK that a row holds one or the other, and
-  an explicit contact waiver. `talks-b` landed the on-screen half: the waived contact stages read
-  "Not applicable - invited outside the ward" with the name and date of whoever decided it, and
-  nothing about them reads as an outstanding task. Scenario 013 walked.
-  **The Phase 6 half is now PLANNED (2026-08-24) but not built.** `program-a` §Decision 3 answers
-  the open question: the draft carries **both** a `printedName` and a `publicName` for every
-  person. A member is "Sarah Whitfield" printed and "Sarah W." public; an external speaker is
-  "President Mark Andersen" in both, because their name was typed in order to be printed and there
-  is no member record to protect. Storing both is what makes `program-c`'s public projection safe
-  by construction — `toPublicProgram()` reads only `publicName`, so a member's surname has no code
-  path to the open internet. Ships across `program-a` (into the draft), `program-d` (printed) and
-  `program-c` (public). **Do not close this scope until `program-c` and `program-d` both merge.**_
+_None. ITER-004 closed 2026-08-25; the Phase 6 program plans are done through `program-d`, and `program-e` is BLOCKED on an authoritative hymn source._
 
 ---
 
@@ -194,6 +181,7 @@ _None._
 
 ## Completed
 
+- [x] ITER-004 — Speakers who are not members of the ward _(completed 2026-08-25, be4ea6e)_
 - [x] ITER-011 — Choose which conference talks count as reference _(completed 2026-08-24, d96b83d)_
 - [x] ITER-002 — No conductor on Sundays with no meeting, and skip them in the rotation _(completed 2026-08-22)_
 - [x] ITER-003 — Ward conference Sunday type _(completed 2026-08-22)_
