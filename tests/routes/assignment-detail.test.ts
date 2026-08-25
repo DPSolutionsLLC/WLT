@@ -436,19 +436,29 @@ describe("PATCH /api/assignments/[id]", () => {
     });
 
     // The plan asked for a 409 here, from canTransition's "Only the bishopric can move an
-    // assignment back a stage". That branch is UNREACHABLE through this route, and the reason is
-    // worth writing down rather than working around:
+    // assignment back a stage". That branch is still UNREACHABLE through this route, but the
+    // reason CHANGED with migration 038 and the history is worth keeping:
     //
-    //   - talks.plan is held only by bishop and counselor (lib/auth/permissions.ts), and
-    //   - migration 019 puts `assignments` in the bishopric-only policy loop, where
-    //     is_bishopric() is exactly `role in ('bishop','counselor')`.
+    // It used to be a 404. `assignments` was in migration 019's bishopric-only policy loop, so
+    // anyone who could READ an assignment was already bishopric and getAssignment() answered 404
+    // to everyone else before any permission was checked. This test recorded that, and noted the
+    // rule was defence in depth "for the day a ward's role_access override grants talks.plan more
+    // widely".
     //
-    // So anyone who can READ an assignment is already bishopric, and getAssignment() answers 404
-    // to everyone else before canTransition is ever called. The pure rule is real and is tested
-    // where it is reachable, in tests/lib/pipelineTransitions.test.ts ("refuses a non-bishopric
-    // actor even with a reason"). It is defence in depth for the day a ward's role_access
-    // override grants talks.plan more widely — do not delete it as dead code.
-    it("answers 404, not 409, to a non-bishopric caller", async () => {
+    // Migration 038 made a ward_secretary able to READ an assignment — `talks.view` had been
+    // granted to three non-bishopric roles in lib/auth/permissions.ts and refused by the database
+    // ever since, which program-a found when a secretary's sacrament program assembled with every
+    // speaking slot silently empty.
+    //
+    // So the read now succeeds and the route reaches assertCan, which refuses `talks.plan`. 403,
+    // not 404 — and that is strictly better: the caller is told they lack permission rather than
+    // told the assignment does not exist.
+    //
+    // canTransition's bishopric branch stays untested here because assertCan still fires first.
+    // It is tested where it is reachable, in tests/lib/pipelineTransitions.test.ts ("refuses a
+    // non-bishopric actor even with a reason"), and it is still the guard for a ward whose
+    // role_access override grants talks.plan more widely. Do not delete it as dead code.
+    it("answers 403 to a caller who may read an assignment but not move it back", async () => {
       const assignmentId = await seedAssignment({
         stage: "review",
         speaker: "member",
@@ -461,8 +471,8 @@ describe("PATCH /api/assignments/[id]", () => {
         reason: "Moving it back.",
       });
 
-      expect(status).toBe(404);
-      expect(errorMessage(body)).toBe("That assignment is not in your ward.");
+      expect(status).toBe(403);
+      expect(errorMessage(body)).toBe("You do not have permission to do that.");
       expect((await readAssignment(assignmentId)).pipeline_stage).toBe("review");
     });
 

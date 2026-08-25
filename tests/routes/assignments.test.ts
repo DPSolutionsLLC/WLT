@@ -233,16 +233,25 @@ describe("/api/assignments", () => {
       expect(errorMessage(body)).toBe("You do not have permission to do that.");
     });
 
-    // The permission matrix lets the music coordinator through; migration 019 then refuses the
-    // read at the database. Two different boundaries, and the second is the one that holds.
-    // Recorded here because it reads like a bug until you know both halves.
-    it("lets the music coordinator in, and RLS still returns nothing", async () => {
+    // THIS TEST USED TO ASSERT THE OPPOSITE, and the change is the point.
+    //
+    // It read "lets the music coordinator in, and RLS still returns nothing", with a comment
+    // saying the permission matrix and migration 019 disagreed and that this "reads like a bug
+    // until you know both halves". It read like a bug because it WAS one: `talks.view` was held
+    // by three roles that the database then refused, so the permission was dead.
+    //
+    // Nothing surfaced it until program-a, where a ward_secretary holding `program.build` built a
+    // sacrament program with every speaking slot silently empty and got a 200 back. Migration 038
+    // makes SELECT on `assignments` and `topics` follow the roles that hold `talks.view`.
+    //
+    // Writes are unchanged — see the insert assertions in tests/rls/program-access.test.ts.
+    it("lets the music coordinator in, and they can now read the plan they pick hymns from", async () => {
       await actAs(fixtures, "musicCoordinator");
 
       const { status, body } = await callGet(RANGE);
 
       expect(status).toBe(200);
-      expect(body.assignments).toEqual([]);
+      expect((body.assignments as unknown[]).length).toBeGreaterThan(0);
     });
 
     it("never shows one ward another ward's assignments", async () => {

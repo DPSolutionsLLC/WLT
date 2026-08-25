@@ -52,6 +52,7 @@ describe("assignment access", () => {
       "wardSecretary",
       "executiveSecretary",
       "eqPresident",
+      "musicCoordinator",
       "sacramentManager",
       "wardBBishop",
     ]);
@@ -287,11 +288,23 @@ describe("assignment access", () => {
   });
 
   describe("non-bishopric roles inside the ward", () => {
-    // `talks.view` is held by ward_secretary, executive_secretary and music_coordinator in
-    // lib/auth/permissions.ts, but migration 019 puts these four tables in the BISHOPRIC-ONLY
-    // loop. The database is stricter than the permission matrix here, deliberately: a talk
-    // pipeline carries a member's circumstances, and Phase 11 is what gives the secretary a
-    // read-only view through a route that decides what to expose.
+    // MIGRATION 038 SPLIT THIS LIST IN TWO, and the reason is worth reading before editing it.
+    //
+    // This suite used to assert that ALL FOUR tables were hidden from EVERY non-bishopric role,
+    // with a comment saying the database was deliberately stricter than the permission matrix.
+    // It was not deliberate. `talks.view` is granted to ward_secretary, executive_secretary and
+    // music_coordinator in lib/auth/permissions.ts, and migration 019 refused all three at the
+    // database — so the permission was dead, with no symptom, because nothing read `assignments`
+    // on behalf of a non-bishopric user until Phase 6.
+    //
+    // program-a found it: a ward_secretary holding `program.build` assembled a sacrament program
+    // with every speaking slot silently empty. Migration 038 makes SELECT follow `talks.view`.
+    //
+    // `assignments` moved. The other three did NOT: approvals and comments are the bishopric
+    // deliberating about a person, history is the record of it, and no program is built from any
+    // of them.
+    const TALKS_VIEW_HANDLES = ["wardSecretary", "executiveSecretary", "musicCoordinator"] as const;
+
     const REFUSED_HANDLES = [
       "wardSecretary",
       "executiveSecretary",
@@ -299,11 +312,16 @@ describe("assignment access", () => {
       "sacramentManager",
     ] as const;
 
-    it("hides all four tables from every non-bishopric role in the ward", async () => {
+    // Everything except `assignments`, which TALKS_VIEW_HANDLES may now read.
+    const STILL_BISHOPRIC_ONLY = BISHOPRIC_ONLY_TABLES.filter(
+      (table) => table !== "assignments",
+    );
+
+    it("hides deliberation and history from every non-bishopric role in the ward", async () => {
       for (const handle of REFUSED_HANDLES) {
         const client = await asRole(fixtures, handle);
 
-        for (const table of BISHOPRIC_ONLY_TABLES) {
+        for (const table of STILL_BISHOPRIC_ONLY) {
           const { data, error } = await client
             .from(table)
             .select("id")
@@ -312,6 +330,34 @@ describe("assignment access", () => {
           expect(error, `${handle} errored reading ${table}`).toBeNull();
           expect(data, `${handle} could read ${table}`).toEqual([]);
         }
+      }
+    });
+
+    it("hides assignments from a role that does NOT hold talks.view", async () => {
+      for (const handle of ["eqPresident", "sacramentManager"] as const) {
+        const client = await asRole(fixtures, handle);
+
+        const { data, error } = await client
+          .from("assignments")
+          .select("id")
+          .eq("ward_id", fixtures.wardAId);
+
+        expect(error, `${handle} errored reading assignments`).toBeNull();
+        expect(data, `${handle} could read assignments`).toEqual([]);
+      }
+    });
+
+    it("shows assignments to every role that DOES hold talks.view (migration 038)", async () => {
+      for (const handle of TALKS_VIEW_HANDLES) {
+        const client = await asRole(fixtures, handle);
+
+        const { data, error } = await client
+          .from("assignments")
+          .select("id")
+          .eq("id", wardAAssignmentId);
+
+        expect(error, `${handle} errored reading assignments`).toBeNull();
+        expect(data, `${handle} could not read assignments`).toHaveLength(1);
       }
     });
 

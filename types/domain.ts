@@ -317,6 +317,65 @@ export const PROGRAM_STATUSES = [
 ] as const;
 export type ProgramStatus = (typeof PROGRAM_STATUSES)[number];
 
+// Beside PROGRAM_STATUSES for the same reason ROLE_LABELS sits beside ROLES: a status added
+// there fails to compile until somebody decides what it is called on screen.
+//
+// "Waiting for approval", not "Pending" — the secretary who submitted it is waiting on a person,
+// and the label should say so rather than describe a column value.
+export const PROGRAM_STATUS_LABELS: Record<ProgramStatus, string> = {
+  draft: "Draft",
+  pending_approval: "Waiting for approval",
+  approved: "Approved",
+  distributed: "Distributed",
+};
+
+// The CLOSED set of things a program draft can report as absent.
+//
+// A closed set rather than free text, because program-b renders one written sentence per key
+// instead of interpolating a raw field name into "X is missing" — "sacrament_hymn is missing" is
+// a column name leaking onto a bishop's screen, which is calendar-b's raw-uuid rule again.
+//
+// This is NOT an error list. A program built on Thursday with six entries here is the normal
+// case (06-program-music.md §Step 2). Absent is null in the draft, and this names it; no field
+// is ever the string "TBD" or "Not yet assigned", because program-d would print that as though
+// somebody had typed it.
+//
+// `organist` and `chorister` have no upstream table in this schema — 06-program-music.md sources
+// them from "music coordinator entry or manual", and neither exists until program-e. They
+// therefore assemble as null and appear here every time, until somebody types them in program-b.
+export const MISSING_FIELD_KEYS = [
+  "presiding_unconfirmed_ward_conference",
+  "opening_hymn",
+  "sacrament_hymn",
+  "closing_hymn",
+  "invocation",
+  "benediction",
+  "speaker_slot",
+  "organist",
+  "chorister",
+  "announcements",
+] as const;
+export type MissingFieldKey = (typeof MISSING_FIELD_KEYS)[number];
+
+// The sentence a person reads. A Record rather than a lookup with a fallback, for the same
+// reason PROGRAM_STATUS_LABELS is one.
+//
+// Each says what to DO, not what is null. "Nobody is assigned to a speaking slot yet" is a fact
+// about the meeting; "speaker_slot is missing" is a fact about a database column.
+export const MISSING_FIELD_LABELS: Record<MissingFieldKey, string> = {
+  presiding_unconfirmed_ward_conference:
+    "A ward conference usually has a visiting presiding officer. Confirm who is presiding.",
+  opening_hymn: "No opening hymn has been chosen.",
+  sacrament_hymn: "No sacrament hymn has been chosen.",
+  closing_hymn: "No closing hymn has been chosen.",
+  invocation: "Nobody has been asked to give the invocation.",
+  benediction: "Nobody has been asked to give the benediction.",
+  speaker_slot: "A speaking slot has no confirmed speaker.",
+  organist: "No organist has been named.",
+  chorister: "No chorister has been named.",
+  announcements: "No announcements have been written.",
+};
+
 export const VISIT_TARGET_TYPES = [
   "all_households",
   "specific_households",

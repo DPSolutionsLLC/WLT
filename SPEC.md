@@ -970,13 +970,31 @@ POST   /api/hymns/select         Save hymn selection for a Sunday
 
 ### Programs
 ```
-GET    /api/programs/[sunday_id] Get program draft for a Sunday
-POST   /api/programs             Create/update program draft
+GET    /api/programs/by-sunday/[sunday_id]  Get the stored program draft for a Sunday
+POST   /api/programs             Build a draft, save an edited one, or move its status
+POST   /api/programs/[id]/refresh   Diff against current data; apply only on a second call
 POST   /api/programs/[id]/ai-edit   AI conversational edit
 POST   /api/programs/[id]/generate-pdf  Generate PDF
 POST   /api/programs/[id]/approve
 POST   /api/programs/[id]/distribute
 ```
+
+The read route is nested under `by-sunday/` rather than sitting at `/api/programs/[sunday_id]`.
+Next.js refuses to build with two differently-named dynamic segments as siblings — `[sunday_id]`
+beside `[id]` is `You cannot use different slug names for the same dynamic path`. A static segment
+also says out loud which kind of id the handler takes, which reusing `[id]` for both meanings
+would not.
+
+`POST /api/programs` carries a discriminated `action`, following `updateAssignmentSchema`:
+
+| `action` | Body | Does |
+|---|---|---|
+| `build` | `sundayId`, optional `draft` | Assembles from current data, or stores the draft as given |
+| `save` | `programId`, `draft` | Stores an edited draft; never moves the status |
+| `status` | `programId`, `to: draft \| pending_approval` | Submits for approval, withdraws, or reopens an approved program |
+
+Saving and moving the status are mutually exclusive **by shape**, so a save cannot submit a
+program for approval as a side effect.
 
 ### Agendas
 ```
@@ -1433,6 +1451,12 @@ youth_event_uncovered
 youth_support_assigned
 youth_followup_prompt
 youth_followup_submitted
+
+-- Programs
+program_pending_approval       -- a builder submitted a program for approval (program-a)
+program_approved               -- a bishopric member signed it off (program-a)
+program_changes_requested      -- sent back to draft with a comment (program-a)
+program_distributed            -- the PDF was emailed to the ward (program-d, NOT YET EMITTED)
 
 -- Agendas
 agenda_published

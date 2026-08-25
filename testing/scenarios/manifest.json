@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 27,
+  "scenarioCount": 29,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -675,6 +675,69 @@
         "Both light and dark: \"No meeting\" is readable and does not look like a disabled control"
       ],
       "seedCommand": "npm run seed -- calendar/scenario-015-no-meeting-sundays"
+    },
+    {
+      "id": "program:scenario-028-a-program-draft-with-a-gap-in-it",
+      "path": "program/scenario-028-a-program-draft-with-a-gap-in-it",
+      "name": "A program draft with a gap in it",
+      "scope": "program-a-draft-and-approval",
+      "part": 1,
+      "tags": [
+        "program",
+        "smoke",
+        "iter-004"
+      ],
+      "prerequisites": "program-b-builder-screen must ship first — see Blocked below",
+      "purpose": "The Thursday case — the state the builder is actually used in, and the one that decides whether it\nis usable at all.\n\nA program is almost never complete when somebody sits down to build it. A speaker has not replied,\nthe music coordinator has not chosen the sacrament hymn, and nobody has written the announcements\nyet. **That is the normal case, not the error case**, and the single judgement no test can make is\nwhether the screen reads as *work remaining* or as *something went wrong*.\n\nThe second judgement is ITER-004's. A visiting stake president and a ward member sit in adjacent\nslots, and they are named by different rules on purpose — full for the visitor, first-name-plus-\ninitial for the member once the public page exists. Whether that looks deliberate rather than\ninconsistent is something only a person can answer.",
+      "checklist": [
+        "The draft builds — no error, no refusal, no empty screen",
+        "Slot 1 reads **\"Sarah Whitfield\"** with the topic \"Charity Never Faileth\"",
+        "Slot 2 reads **\"President Mark Andersen\"** — the title is intact and the name is in full (ITER-004)",
+        "Slot 3 reads as an open slot, not as a blank line and not as a speaker with no name",
+        "The sacrament hymn, the benediction and the announcements are **each** named as missing",
+        "The organist and the chorister are also named as missing",
+        "Nothing anywhere on the screen reads \"TBD\" or \"Not yet assigned\"",
+        "No raw uuid appears anywhere on the screen",
+        "Opening hymn reads \"19 — We Thank Thee, O God, for a Prophet\", closing \"152 — God Be with You Till We Meet Again\"",
+        "Presiding reads **Mark Andersen** (the bishop, because no override was typed)",
+        "There is no horizontal overflow at 375px, and tap targets are at least 44×44",
+        "Does the missing list read as **work still to do**, or as a list of errors? It should feel like a checklist, not a validation summary.",
+        "Slot 3 sits between two named speakers. Does it read as *nobody has been asked yet*, or as *something failed to load*?",
+        "Slots 1 and 2 are named by different rules. Side by side, does that look deliberate or does it look like a bug?",
+        "Five things are missing at once. Is that overwhelming, or does the screen make it feel manageable?",
+        "Would a secretary looking at this know what to do next without being told?"
+      ],
+      "seedCommand": "npm run seed -- program/scenario-028-a-program-draft-with-a-gap-in-it"
+    },
+    {
+      "id": "program:scenario-029-the-snapshot-holds",
+      "path": "program/scenario-029-the-snapshot-holds",
+      "name": "The snapshot holds",
+      "scope": "program-a-draft-and-approval",
+      "part": 1,
+      "tags": [
+        "program",
+        "full"
+      ],
+      "prerequisites": "program-b-builder-screen must ship first — see Blocked below",
+      "purpose": "The central rule of the whole phase, checked in the app rather than in a test.\n\n`draft_data` is a snapshot. Once written it stops tracking the calendar, the assignments and the\nprayers it came from, because an approved program that silently changed after the bishop approved\nit is a trust problem rather than a bug.\n\nThe consequence is a screen that is deliberately **out of date**, and that is a strange thing to\nshow somebody. A bishop who changed a speaker ten seconds ago and then sees the old name on the\nprogram will conclude one of two things: *the app is holding what I approved* or *the app is\nbroken*. Which one it reads as is the entire judgement here, and no automated test can make it.",
+      "checklist": [
+        "At step 6, before any refresh, the program still shows **Sarah Whitfield** — not Ruth",
+        "The refresh diff names **both** sides: \"Sarah Whitfield\" before, \"Ruth Okonkwo\" after",
+        "The diff row is labelled **\"First speaker\"** — not `speakers.1.printedName`",
+        "Dismissing the diff at step 7 leaves the program showing Sarah Whitfield",
+        "Applying at step 8 changes it to Ruth Okonkwo, and only then",
+        "The diff shows nothing about `publicName` — one row per person, not two",
+        "Refreshing again immediately reports that nothing has moved, rather than showing an empty panel",
+        "An audit row exists for the applied refresh naming the fields that changed",
+        "No raw uuid appears in the diff",
+        "At step 6 the program is knowingly out of date. Does that read as **the app holding what was approved**, or as a stale page that failed to reload?",
+        "Does the diff make it obvious which side is the program and which side is current data?",
+        "Is it clear at step 7 that dismissing changed nothing — or does it leave doubt about whether something was saved?",
+        "\"Nothing has moved\" after a second refresh: does it read as reassurance, or as a failure?",
+        "Is the refresh discoverable at all? A snapshot nobody knows how to update is worse than a live view."
+      ],
+      "seedCommand": "npm run seed -- program/scenario-029-the-snapshot-holds"
     },
     {
       "id": "roster:scenario-007-roster-browse-and-notes",

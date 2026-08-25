@@ -2,7 +2,7 @@
 --
 -- The keys below must match SPEC.md §Trigger Keys EXACTLY. emitNotification() (plan C) looks
 -- them up by string, so a typo here is a notification that silently never fires — no error,
--- no log, just nothing arriving. Twenty-five keys; count them against the spec if you edit.
+-- no log, just nothing arriving. Twenty-eight keys; count them against the spec if you edit.
 --
 -- default_roles is the role list that receives the trigger unless a user opts out in
 -- notification_user_prefs. Bishop and counselor always appear together: bishopric admin
@@ -47,6 +47,17 @@ cross join (values
   ('youth_support_assigned',        array['org_president', 'org_counselor', 'org_secretary']),
   ('youth_followup_prompt',         array['org_president', 'org_counselor', 'org_secretary']),
   ('youth_followup_submitted',      array['org_president', 'org_counselor']),
+
+  -- Programs
+  -- Added by migration 036 alongside this block; a new trigger key is always BOTH, or it silently
+  -- never fires for one set of wards. `program_distributed` belongs to program-d, which is the
+  -- plan that emits it — a key nothing fires is indistinguishable from a broken one.
+  --
+  -- The ward secretary is on the two OUTCOME keys but not on the request for approval: they are
+  -- the person who submitted it, and telling somebody their own action happened is noise.
+  ('program_pending_approval',      array['bishop', 'counselor']),
+  ('program_approved',              array['bishop', 'counselor', 'ward_secretary']),
+  ('program_changes_requested',     array['bishop', 'counselor', 'ward_secretary']),
 
   -- Agendas
   ('agenda_published',              array['bishop', 'counselor', 'ward_council_member', 'executive_secretary']),
