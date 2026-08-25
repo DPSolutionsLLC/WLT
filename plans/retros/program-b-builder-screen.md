@@ -2,7 +2,7 @@
 id: program-b-builder-screen
 type: feature
 iter: null
-commits: ["ea32a2b"]
+commits: ["b8470ab"]
 date: 2026-08-24
 files:
   - app/(app)/program/page.tsx
