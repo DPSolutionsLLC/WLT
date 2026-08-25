@@ -2,7 +2,9 @@
 
 **Type:** Feature
 **Status:** In Progress — `talks-a` landed 2026-08-20, `talks-b` 2026-08-21; the Phase 6 half remains
-**Plan:** plans/talks-a-pipeline-core.md (schema + pipeline), plans/talks-b-month-planner.md (on-screen)
+**Plan:** plans/talks-a-pipeline-core.md (schema + pipeline), plans/talks-b-month-planner.md (on-screen),
+plans/program-a-draft-and-approval.md (the name reaches the draft),
+plans/program-c-public-pages.md (public), plans/program-d-pdf-and-distribution.md (printed)
 **Created:** 2026-08-19
 
 ## Summary
@@ -91,6 +93,20 @@ the reasoning is what a later reader needs.
   the state the CHECK forbids cannot be typed. Covered by
   `tests/components/assignments/ContactStagePanel.test.tsx`, which asserts the ABSENCE of
   outstanding-task wording as well as the presence of the right words, and walked as scenario 013.
-- **Remaining — Phase 6.** How an external speaker prints on the program, and how much of their
-  name `/public/[slug]` shows. A visiting stake president is normally named in full, which is a
-  different privacy case from a ward member's first name and last initial. Unplanned.
+- **Remaining — Phase 6. PLANNED 2026-08-24, not yet built.** The question was how an external
+  speaker prints on the program, and how much of their name `/public/[slug]` shows.
+  **Answered in `program-a` §Decision 3:** the draft carries **both** a `printedName` and a
+  `publicName` for every person, computed once at assembly. A ward member is
+  `"Sarah Whitfield"` printed and `"Sarah W."` public; an external speaker is
+  `"President Mark Andersen"` in both — their name was typed by the bishopric *in order to be
+  printed*, and there is no member record to protect.
+
+  The reason for storing both rather than deciding at render time is that it makes
+  `program-c`'s public projection safe **by construction**: `toPublicProgram()` reads only
+  `publicName`, so a member's surname has no code path to the public page. The privacy rule is
+  enforced by which field the projector selects, not by a SQL `CASE` a later migration could get
+  wrong.
+
+  Ships across three plans: `program-a` (the name reaches the draft), `program-d`
+  (`MeetingOrderPanel` prints it), `program-c` (`publicProjection.ts` publishes it).
+  **Close this scope when `program-c` and `program-d` have both merged** — not before.

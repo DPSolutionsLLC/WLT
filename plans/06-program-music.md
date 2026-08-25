@@ -8,6 +8,36 @@ and distribution, and the two public no-auth pages.
 
 ---
 
+## Sub-plans — execute these, not this file
+
+This phase is too large to execute in one pass. Split 2026-08-24 into five sequential plans,
+following the `talks-a`…`talks-d` and `ai-a`…`ai-d` precedent. **This file remains the reference
+for what the phase must achieve; the sub-plans are what get executed.**
+
+| # | Plan | Covers | Status |
+|---|---|---|---|
+| 1 | [program-a-draft-and-approval.md](program-a-draft-and-approval.md) | Step 2 + Step 5 — draft assembly, the snapshot rule, program routes, approval | Ready |
+| 2 | [program-b-builder-screen.md](program-b-builder-screen.md) | Step 4 — the builder screen, HTML preview, refresh diff, AI editing | Ready |
+| 3 | [program-c-public-pages.md](program-c-public-pages.md) | Step 6 — the safe projection, the public shell, `/public/[slug]` | Ready |
+| 4 | [program-d-pdf-and-distribution.md](program-d-pdf-and-distribution.md) | Step 3 + distribution — bifold PDF, QR, storage, Resend | Ready |
+| 5 | [program-e-music-and-hymns.md](program-e-music-and-hymns.md) | Step 1 — music coordination, hymn selection, AI suggestions | ⛔ **Blocked** |
+
+**Two orderings are deliberate and not arbitrary:**
+
+- **`program-c` comes before `program-d`.** The QR code encodes the public program URL. Building
+  the PDF first means either a QR pointing at a page that does not exist, or a placeholder nobody
+  remembers to replace before it is printed and handed to a congregation.
+- **`program-e` is last and blocked.** `supabase/seed/hymns.sql` holds 42 of 341 hymns and forbids
+  padding it with plausible entries — a wrong number gets sung. The other four plans were written
+  not to need hymn data, so Milestone M4 is reachable without it: a secretary can type a hymn
+  number and title by hand, which is correct behaviour for a partial hymnbook rather than a
+  workaround. `program-e` Task 0 is the gate, and it needs a source the user supplies.
+
+**One dependency is unapproved.** No QR library is installed. `program-d` owns that decision and
+must raise it before its Task 3; nothing earlier in the sequence touches it.
+
+---
+
 ## Goals
 
 1. Music coordinator selects hymns with AI assistance; selections feed the program
@@ -223,7 +253,21 @@ and revalidate on approval so edits appear promptly.
 
 ---
 
-## Open questions handed over from Phase 3 (ITER-003)
+## Open questions handed over from Phase 3 (ITER-003) — ANSWERED 2026-08-24
+
+Both are decided in [program-a-draft-and-approval.md](program-a-draft-and-approval.md)
+§Decisions This Plan Makes, with the reasoning recorded there:
+
+1. **A ward conference is an ordinary program with a heading**, not a second template. The meeting
+   order is the same shape; only the presiding officer and a heading differ, and a second template
+   would double the bifold imposition work and the physical print test for one line.
+2. **`presiding_override` gets no default.** It becomes a named missing field instead — a guessed
+   presiding name is a name nobody typed, printed and emailed to a ward. The bishopric is told what
+   to confirm rather than having it filled in for them.
+
+The original wording follows, kept because the reasoning is what a later reader needs.
+
+
 
 `ward_conference` became a real Sunday type in migration 027. Phase 3 deliberately stopped at
 the calendar's own behaviour — it displaces Fast Sunday, keeps a conductor, keeps speaking
