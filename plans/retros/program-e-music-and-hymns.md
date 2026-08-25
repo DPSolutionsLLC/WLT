@@ -2,7 +2,7 @@
 id: program-e-music-and-hymns
 type: feature
 iter: null
-commits: ["8926419"]
+commits: ["a329459"]
 date: 2026-08-25
 files:
   - supabase/migrations/042_hymn_source.sql
