@@ -79,6 +79,12 @@ describe("public views", () => {
         pdf_url: `https://example.test/${fixtures.runId}.pdf`,
         distributed_at: "2026-03-01T18:00:00Z",
         draft_data: { secret: "should never be public" },
+        // Migration 039 added `public_data is not null` to the view, so a distributed program
+        // with no projection is now invisible. The value is a MINIMAL hand-written object rather
+        // than a real projection: this suite is about the view's column list and its grant, and
+        // building a whole ProgramDraft here would make it about the projector instead
+        // (tests/rls/public-program-anon.test.ts owns that).
+        public_data: { version: 1, date: "2026-03-01", speakers: [] },
       })
       .select("id")
       .single();
@@ -128,8 +134,28 @@ describe("public views", () => {
     expect(data?.[0]?.pdf_url).toBe(`https://example.test/${fixtures.runId}.pdf`);
   });
 
-  // draft_data is an unstructured snapshot that may carry full names or notes. Phase 6 must
-  // define an explicit named projection before anything beyond the PDF link is published.
+  // The two columns migration 039 added. `ward_name` is a new join, and a join is the way a
+  // future column arrives on this surface without anybody editing the select list they were
+  // looking at — so it is named here as well as in the view.
+  it("exposes the ward name and the projection, and only those two new columns", async () => {
+    const { data } = await anon.from("public_program").select("*").eq("slug", programSlug);
+
+    const columns = Object.keys(data?.[0] ?? {});
+
+    expect(columns.sort()).toEqual(
+      ["distributed_at", "pdf_url", "public_data", "slug", "sunday_date", "ward_name"].sort(),
+    );
+    expect(data?.[0]?.ward_name).toBeTruthy();
+    expect(data?.[0]?.public_data).toEqual({
+      version: 1,
+      date: "2026-03-01",
+      speakers: [],
+    });
+  });
+
+  // draft_data is an unstructured snapshot that carries full names, leadership phone numbers and
+  // missionary information. Phase 6 published an explicit named projection beside it
+  // (lib/program/publicProjection.ts) and left draft_data exactly where it was: withheld.
   it("withholds draft_data from the program view", async () => {
     const { data } = await anon.from("public_program").select("*").eq("slug", programSlug);
 

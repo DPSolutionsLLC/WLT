@@ -46,24 +46,38 @@ import {
 // A placeholder baked into the data would be printed by program-d exactly as though somebody had
 // typed it, and nobody would be able to tell the difference.
 
-// The public form of a name that came from a record: "Sarah Whitfield" -> "Sarah W.".
+// The DEFAULT public form of a name that came from a record.
 //
-// This is the function the public page's privacy rests on, which is why it is exported and tested
-// directly rather than living inline. It shortens the LAST token and keeps the first, so a middle
-// name drops and a hyphenated surname yields one initial ("Whitfield-Jones" -> "W.") rather than
-// two — the surname is one name, however it is spelled.
+// ---------------------------------------------------------------------------------------------
+// THIS USED TO SHORTEN TO "Sarah W." AND NO LONGER DOES
+// ---------------------------------------------------------------------------------------------
+// Reversed by a product decision on 2026-08-24, walking scenario 032. A sacrament programme names
+// the people taking part in full, and a public page that shortened only the ward members read as a
+// bug sitting next to the visiting speaker's full name rather than as a rule. First and last, the
+// same on the paper and on the web.
 //
-// A single-word name comes back unchanged: there is no surname to protect, and returning "M." for
-// a performer or a one-name record would be less private-looking and less useful at once.
+// ---------------------------------------------------------------------------------------------
+// SO WHY IS THERE STILL A PAIR?
+// ---------------------------------------------------------------------------------------------
+// Because the two fields now mean what they say rather than encoding one fixed rule.
+// `printedName` is what goes on the paper; `publicName` is what goes on the web; this function
+// only supplies the DEFAULT, and program-b's editor lets the bishopric change either one for any
+// person on any programme. A ward that wants one particular name shortened, or a visitor named
+// differently on the web than on the handout, can do it per programme without a code change.
+//
+// Everything downstream is unchanged: toPublicProgram() still reads ONLY publicName, and
+// `printedName` still has no code path to the public page. What each field CONTAINS moved; the
+// boundary between them did not.
+//
+// Whitespace is still normalised, and a blank still becomes null — an empty string would render as
+// something somebody typed (lib/program/publicProjection.ts).
 export function publicNameFor(full: string | null): string | null {
   if (full === null) return null;
 
   const tokens = full.trim().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return null;
-  if (tokens.length === 1) return tokens[0];
 
-  const surname = tokens[tokens.length - 1];
-  return `${tokens[0]} ${surname.charAt(0).toUpperCase()}.`;
+  return tokens.join(" ");
 }
 
 // A name read from a member or user record.

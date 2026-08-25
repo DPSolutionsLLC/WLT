@@ -116,8 +116,9 @@ export async function seed(): Promise<void> {
     conductingUserId: bishop.id,
   });
 
-  // Slot 1 — a ward member, notified. Prints as "Sarah Whitfield"; the public page will read
-  // "Sarah W." once program-c exists.
+  // Slot 1 — a ward member, notified. Prints as "Sarah Whitfield" on the paper AND on the public
+  // page: program-c shortened it to "Sarah W." at first, and that was reversed on 2026-08-24
+  // (lib/program/publicProjection.ts).
   await createAssignment({
     sundayId: sunday,
     slotNumber: 1,

@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 31,
+  "scenarioCount": 33,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -817,6 +817,76 @@
         "In dark mode, is the panel still legible and still un-alarming?"
       ],
       "seedCommand": "npm run seed -- program/scenario-031-the-program-that-is-not-ready"
+    },
+    {
+      "id": "program:scenario-032-the-qr-page-a-visitor-sees",
+      "path": "program/scenario-032-the-qr-page-a-visitor-sees",
+      "name": "The QR page a visitor sees",
+      "scope": "program-c-public-pages",
+      "part": 1,
+      "tags": [
+        "program",
+        "public",
+        "privacy",
+        "smoke",
+        "iter-004"
+      ],
+      "prerequisites": "none",
+      "purpose": "The application's only unauthenticated page, and **the single most likely privacy incident in this\r\napp**. Everything else can be wrong and be fixed. This can be wrong and be indexed — the app is\r\nlive at `wlt-iota.vercel.app` and there is no staging gate between a merge and the open internet.\r\n\r\nMachine tests prove a great deal here: `tests/lib/publicProjection.test.ts` scans the projection\r\nfor the fixture's phone number, address, surname and member id; `tests/rls/public-program-anon.test.ts`\r\nproves the anon key reaches two views and no base table; `tests/routes/public-page.test.ts` renders\r\nthe page with no session and scans the HTML. What none of them can do is **look at the page**. A\r\nfield can be absent from every assertion and present on the screen, because the assertion only\r\nknows what somebody thought to name.\r\n\r\n**This scenario was walked on 2026-08-24 and the walk changed the feature twice.** Both speakers\r\nare now named in full, and an empty slot now renders instead of vanishing. The checklist below is\r\nthe corrected one; the reasoning is in the Walkthrough record, and both original questions are kept\r\nthere rather than deleted.",
+      "checklist": [
+        "The page renders **signed out** — no redirect to `/login`, no login prompt, no app chrome",
+        "There is no sidebar, no top nav, no notification bell and no theme toggle",
+        "The heading reads \"Sacrament Meeting\" with \"Harness Test Ward\" and \"Sunday, September 20, 2026\"",
+        "Slot 1 reads **\"Sarah Whitfield\"** in full",
+        "Slot 2 reads **\"President Mark Andersen\"** in full, title intact (ITER-004)",
+        "Both are named the **same way** — no shortened name anywhere on the page",
+        "Slot 3 renders as an **open slot** (\"Third speaker — Nobody yet\"), not omitted and not \"TBD\"",
+        "The page source contains `noindex` (view source, or check the response headers)",
+        "**No phone number appears anywhere in the rendered source** — search it for `555-`",
+        "No street address: search the source for \"Canyon\" and \"Meadow\"",
+        "No leadership contacts panel, no missionary block, no email address",
+        "The musical number reads \"I Am a Child of God — The Primary children\" with **no** sound-check note",
+        "All three hymns appear with number and title",
+        "Announcements and ward business appear — those are written to be read aloud to everyone",
+        "`/public/definitely-not-a-real-slug` gives a **404**, not an empty program",
+        "No raw uuid anywhere on the page or in the source",
+        "No horizontal overflow at 375px",
+        "Read the page as a visitor who has never seen this ward. Is there **anything at all** on it you would not want a stranger to have?",
+        "The page now carries a full ward roster of names. Does anything about seeing them all together change that answer?",
+        "The open third slot sits between a named speaker and the closing hymn. Does it read as *a slot nobody has filled*, or as *something broken*?",
+        "Is it legible one-handed at 375px, in **both** light and dark?",
+        "The 404 says only that the link is not active. Does it give away whether the slug exists?"
+      ],
+      "seedCommand": "npm run seed -- program/scenario-032-the-qr-page-a-visitor-sees"
+    },
+    {
+      "id": "program:scenario-033-a-program-that-is-not-distributed-yet",
+      "path": "program/scenario-033-a-program-that-is-not-distributed-yet",
+      "name": "A program that is not distributed yet",
+      "scope": "program-c-public-pages",
+      "part": 1,
+      "tags": [
+        "program",
+        "public",
+        "full"
+      ],
+      "prerequisites": "none",
+      "purpose": "The gate, and the product decision behind it.\r\n\r\nFEATURES.md says the public page \"always reflects the most current **approved** version\", which\r\nreads as though approval were what publishes a program. It is not, and the difference is the whole\r\nsubject of this scenario: **distribution is the act of publishing**. A program the bishopric has\r\nsigned off and not yet handed to anybody is not yet the congregation's, and a QR code that showed\r\nit would publish it before the ward had it.\r\n\r\nThis is the one state that is genuinely awkward to reach by hand — build, submit, approve, and stop\r\nexactly there — so it is seeded rather than clicked. The seed writes `public_data` and leaves the\r\npublic page **active**: every ingredient is present except the status. If the page rendered anyway,\r\nthe gate would not exist.\r\n\r\n**Walk this after 032**, which shows what the page looks like when it *is* published. This one is\r\nabout what it looks like when it is not.",
+      "checklist": [
+        "The slug **404s**. It does not render an empty program, a header with nothing under it, or a \"coming soon\" page",
+        "The 404 is the **same page** an unknown slug gives — compare it with `/public/definitely-not-a-real-slug`",
+        "Nothing from the program appears in the 404's source: search it for \"Sarah\", \"Whitfield\", \"Andersen\" and `555-`",
+        "The program itself is visible and **approved** inside the app to the bishop — this is a public-page gate, not a broken program",
+        "Every field is read-only while approved, and a **Reopen as a draft** button is present",
+        "After reopening, the fields become editable and the badge reads Draft",
+        "The confirmation says the program is no longer on the public page — not merely that it reopened",
+        "After step 5 (reopen as draft), `programs.public_data` for that row is **null**",
+        "After step 5, the public URL still 404s",
+        "After step 5, `draft_data` is **untouched** — reopening withdraws the program, it does not erase it",
+        "The bishop can see an approved program in the app while the public page shows nothing. Is it obvious **why** — or does it look like the public page is broken?",
+        "Does the 404 tell a visitor anything about whether this ward has a program waiting? It should not."
+      ],
+      "seedCommand": "npm run seed -- program/scenario-033-a-program-that-is-not-distributed-yet"
     },
     {
       "id": "roster:scenario-007-roster-browse-and-notes",

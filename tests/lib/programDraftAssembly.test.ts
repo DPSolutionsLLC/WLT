@@ -135,7 +135,7 @@ describe("assembleDraft — field sources", () => {
     expect(draft.date).toBe(SUNDAY_DATE);
     expect(draft.conducting).toEqual({
       printedName: "Peter Lindqvist",
-      publicName: "Peter L.",
+      publicName: "Peter Lindqvist",
     });
   });
 
@@ -181,7 +181,10 @@ describe("assembleDraft — field sources", () => {
   it("resolves prayers to member names, never to ids", () => {
     const draft = assembleDraft(sources());
 
-    expect(draft.invocation).toEqual({ printedName: "David Brooks", publicName: "David B." });
+    expect(draft.invocation).toEqual({
+      printedName: "David Brooks",
+      publicName: "David Brooks",
+    });
     expect(draft.benediction).toBeNull();
   });
 
@@ -196,14 +199,17 @@ describe("assembleDraft — field sources", () => {
 });
 
 describe("assembleDraft — the three speaker kinds in one meeting", () => {
-  it("names a member speaker in full and shortens their public name", () => {
+  // Both halves now hold the SAME text for a member too. The shortening was reversed on
+  // 2026-08-24 (see tests/lib/publicNameFor.test.ts); what survives is that the pair still exists,
+  // so a ward can give the web a different name from the handout for one person on one program.
+  it("names a member speaker in full on the paper and on the web alike", () => {
     const [first] = assembleDraft(sources()).speakers;
 
     expect(first).toEqual({
       slotNumber: 1,
       kind: "member",
       printedName: "Sarah Whitfield",
-      publicName: "Sarah W.",
+      publicName: "Sarah Whitfield",
       topic: "Charity Never Faileth",
     });
   });
@@ -336,7 +342,7 @@ describe("assembleDraft — presiding and the ward conference heading", () => {
   it("resolves presiding to the bishop when no override is typed", () => {
     const draft = assembleDraft(sources());
 
-    expect(draft.presiding).toEqual({ printedName: "Mark Chen", publicName: "Mark C." });
+    expect(draft.presiding).toEqual({ printedName: "Mark Chen", publicName: "Mark Chen" });
   });
 
   it("keeps a typed presiding override verbatim in both names", () => {

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { programDraftSchema, type ProgramDraft } from "@/lib/program/draft";
+import type { PublicProgram } from "@/lib/program/publicProjection";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/types/database";
 import { PROGRAM_STATUSES, type ProgramStatus } from "@/types/domain";
@@ -309,7 +310,16 @@ export async function setProgramStatus(
 
   const supabase = await resolveClient(client);
 
-  const patch: ProgramUpdate = { status: next };
+  // A program on its way back to draft STOPS BEING PUBLIC in the same update that moves it.
+  //
+  // public_program's `public_data is not null` guard then makes /public/[slug] go dark rather than
+  // keep serving a projection of a program somebody is in the middle of changing. Two writes would
+  // leave a window where the status says draft and the open internet still says otherwise.
+  //
+  // Written as an explicit `null` rather than omitted, because a key omitted from a PostgREST
+  // patch leaves the column untouched — which is exactly the stale-projection bug.
+  const patch: ProgramUpdate =
+    next === "draft" ? { status: next, public_data: null } : { status: next };
 
   const { data, error } = await supabase
     .from("programs")
@@ -333,15 +343,21 @@ export async function setProgramStatus(
   return data ? mapProgramRow(data) : null;
 }
 
-// The status and BOTH stamps move in one update, so no reader can observe an approved program
-// that does not say who approved it or when.
+// The status, BOTH stamps and the public projection move in one update, so no reader can observe
+// an approved program that does not say who approved it, or one that is approved and unpublishable.
 //
 // Same expected-status guard as setProgramStatus, for the same reason: this is the write that a
 // double-click would otherwise run twice.
+//
+// `publicData` is a REQUIRED argument, not an optional one. The caller computes it with
+// toPublicProgram() from the draft it just read; making it optional would let a future route
+// approve a program and leave the column null, which the public view reads as "not published" with
+// nothing anywhere to say why. It is never taken from a request body — see the approve route.
 export async function recordProgramApproval(
   wardId: string,
   programId: string,
   approvedByUserId: string,
+  publicData: PublicProgram,
   client?: SupabaseClient<Database>,
 ): Promise<Program | null> {
   const supabase = await resolveClient(client);
@@ -350,6 +366,7 @@ export async function recordProgramApproval(
     status: "approved",
     approved_by: approvedByUserId,
     approved_at: new Date().toISOString(),
+    public_data: publicData as unknown as Json,
   };
 
   const { data, error } = await supabase

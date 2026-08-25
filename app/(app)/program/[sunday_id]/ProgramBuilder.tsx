@@ -14,7 +14,7 @@ import { FormError } from "@/components/ui/FormError";
 import { programDraftSchema, type ProgramDraft } from "@/lib/program/draft";
 import { missingItems } from "@/lib/program/missingMessages";
 import { messageFromPayload, readJsonPayload } from "@/lib/program/requests";
-import { PROGRAM_STATUS_LABELS, type ProgramStatus } from "@/types/domain";
+import type { ProgramStatus } from "@/types/domain";
 
 // The editor shell: the draft on screen, the cache behind it, and the four things that can
 // change it — typing, a refresh, an AI edit, and reloading from the server.
@@ -136,6 +136,7 @@ export function ProgramBuilder({
 
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
   const [note, setNote] = useState<string>();
 
@@ -264,6 +265,62 @@ export function ProgramBuilder({
     }
   }
 
+  // Reopening an APPROVED program as a draft.
+  //
+  // The screen has said "Reopen it as a draft to change it" since program-b, and until now there
+  // was no button to do it with: the sentence rendered inside the locked branch while every action
+  // sat inside `!locked`, so the instruction appeared exactly where the control did not. Walking
+  // scenario 033 found it. A sentence telling somebody to do something the app gives them no way
+  // to do is worse than no sentence.
+  //
+  // ONLY from `approved`. There is no path out of `distributed` — LEGAL_TRANSITIONS in
+  // lib/program/queries.ts gives it none, because a PDF that has been emailed cannot be recalled.
+  // The route would answer 409 and a button that is always refused should not be drawn.
+  //
+  // This also clears programs.public_data in the same UPDATE that moves the status, so the public
+  // page goes dark rather than serving a projection of a program somebody is midway through
+  // changing (setProgramStatus). The note below says so, because "reopen" does not sound like
+  // "unpublish" and a bishopric member deserves to know it did both.
+  async function reopenAsDraft(): Promise<void> {
+    setErrorMessage(undefined);
+    setNote(undefined);
+    setIsReopening(true);
+
+    try {
+      const response = await fetch("/api/programs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "status", programId, to: "draft" }),
+      });
+
+      const payload = await readJsonPayload(response);
+
+      if (!response.ok) {
+        setErrorMessage(messageFromPayload(payload, "Could not reopen that program."));
+        return;
+      }
+
+      const program = payload.program as { status?: ProgramStatus } | undefined;
+      const next = program?.status ?? "draft";
+
+      // Same cancel-then-write as applyDraft and submitForApproval. A cache write can be
+      // overwritten by a refetch already in flight (walking scenario 031).
+      await queryClient.cancelQueries({ queryKey: [PROGRAM_QUERY_KEY, sundayId] });
+
+      queryClient.setQueryData<ProgramState>([PROGRAM_QUERY_KEY, sundayId], {
+        status: next,
+        draft,
+      });
+
+      setNote("Reopened as a draft. It is no longer on the public page.");
+    } catch (error) {
+      console.error("Could not reopen a program", error);
+      setErrorMessage("Could not reach the server. Check your connection and try again.");
+    } finally {
+      setIsReopening(false);
+    }
+  }
+
   const loadError =
     programQuery.error instanceof Error ? programQuery.error.message : undefined;
 
@@ -280,10 +337,22 @@ export function ProgramBuilder({
 
           <p className="mt-2 text-sm text-muted">{SNAPSHOT_NOTE}</p>
 
-          {locked && (
+          {/* Two different sentences, because the two locked states are not the same. An approved
+              program can be reopened and there is now a button below to do it. A DISTRIBUTED one
+              cannot: LEGAL_TRANSITIONS gives it no path out, because the PDF has already been
+              emailed and cannot be recalled. Saying "reopen it" there would be an instruction
+              nobody can follow. */}
+          {status === "approved" && (
             <p className="mt-2 text-sm text-muted">
-              This program is {PROGRAM_STATUS_LABELS[status].toLowerCase()}. Reopen it as a
-              draft to change it.
+              This program is approved. Reopen it as a draft to change it — that also takes it
+              off the public page until it is approved and distributed again.
+            </p>
+          )}
+
+          {status === "distributed" && (
+            <p className="mt-2 text-sm text-muted">
+              This program has been distributed and cannot be reopened. The PDF has already gone
+              out; build the next Sunday&rsquo;s program instead.
             </p>
           )}
 
@@ -319,6 +388,22 @@ export function ProgramBuilder({
                     {isSubmitting ? "Sending…" : "Send for approval"}
                   </Button>
                 )}
+              </div>
+            )}
+
+            {/* The control the sentence above refers to. Held behind program.build, the same
+                permission as Save and Send for approval — a ward secretary can reopen a program
+                the bishopric approved, which is deliberate: they are the one who edits it. */}
+            {canBuild && status === "approved" && (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={isReopening}
+                  onClick={() => void reopenAsDraft()}
+                >
+                  {isReopening ? "Reopening…" : "Reopen as a draft"}
+                </Button>
               </div>
             )}
 

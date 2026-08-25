@@ -1,50 +1,67 @@
 import { describe, expect, it } from "vitest";
 import { publicNameFor } from "@/lib/program/assembleDraft";
 
-// The function the public page's privacy rests on.
+// The DEFAULT public form of a name read from a record.
 //
-// program-c's toPublicProgram() reads only `publicName`, and every publicName that came from a
-// record was produced here. If this function is wrong, a ward member's surname reaches the open
-// internet — which is why it is tested directly rather than only through the assembler.
+// ---------------------------------------------------------------------------------------------
+// THIS FUNCTION USED TO SHORTEN TO "Sarah W." AND DELIBERATELY NO LONGER DOES
+// ---------------------------------------------------------------------------------------------
+// Reversed by a product decision on 2026-08-24, walking scenario 032: a public program that
+// shortened only the ward members, while naming a visiting speaker in full one line below, read as
+// a bug rather than as a rule. Everybody is named in full now.
+//
+// The tests that asserted the shortening were not deleted — they are inverted below and kept
+// together in one block, so the reversal is visible in the suite rather than being a set of cases
+// that quietly stopped existing. A future session wondering "did anybody think about hyphenated
+// surnames?" can see that somebody did, and see what was decided instead.
+//
+// What did NOT change is the whitespace and blank handling, which is why those cases are unchanged
+// below. Nor did the boundary move: toPublicProgram() still reads ONLY `publicName`, and the two
+// name fields are still separate so a ward can override either one per program.
 
 describe("publicNameFor", () => {
-  it("shortens a first-and-last name to a last initial", () => {
-    expect(publicNameFor("Sarah Whitfield")).toBe("Sarah W.");
+  describe("names are published in full", () => {
+    it("keeps a first-and-last name whole", () => {
+      expect(publicNameFor("Sarah Whitfield")).toBe("Sarah Whitfield");
+    });
+
+    it("keeps a hyphenated surname whole", () => {
+      // Previously "Sarah W.". The hyphen was the interesting case for a shortening rule; with no
+      // shortening there is nothing to get wrong, and this asserts exactly that.
+      expect(publicNameFor("Sarah Whitfield-Jones")).toBe("Sarah Whitfield-Jones");
+    });
+
+    it("keeps a middle name", () => {
+      // Previously "Sarah W." — the middle name was dropped. It is printed now, because the name
+      // on the web is the name on the handout.
+      expect(publicNameFor("Sarah Anne Whitfield")).toBe("Sarah Anne Whitfield");
+    });
+
+    it("changes no letter case", () => {
+      // Previously "sarah W." — the old rule upper-cased the initial it produced. Nothing is
+      // produced now, so a name is passed through exactly as the record spells it.
+      expect(publicNameFor("sarah whitfield")).toBe("sarah whitfield");
+    });
+
+    it("returns a single-word name unchanged", () => {
+      expect(publicNameFor("Madison")).toBe("Madison");
+    });
   });
 
-  it("returns a single-word name unchanged", () => {
-    // There is no surname to protect, and "M." would be less useful and no more private.
-    expect(publicNameFor("Madison")).toBe("Madison");
-  });
+  // Unchanged by the reversal, and still load-bearing: publicProjection.ts turns a blank into
+  // nothing at all, and a name of "" would render as something somebody typed.
+  describe("blank handling", () => {
+    it("returns null for null", () => {
+      expect(publicNameFor(null)).toBeNull();
+    });
 
-  it("gives a hyphenated surname ONE initial, not two", () => {
-    // A hyphenated surname is one name however it is spelled. "Whitfield-Jones" must not become
-    // "W.-J.", which reads as a typo and leaks slightly more than the rule intends.
-    expect(publicNameFor("Sarah Whitfield-Jones")).toBe("Sarah W.");
-  });
+    it("returns null for a blank or whitespace-only name", () => {
+      expect(publicNameFor("")).toBeNull();
+      expect(publicNameFor("   ")).toBeNull();
+    });
 
-  it("drops a middle name and initials the SURNAME, not the middle name", () => {
-    // The initial comes from the last token. Initialling "Anne" instead would publish the
-    // surname in full, which is the exact leak this function exists to prevent.
-    expect(publicNameFor("Sarah Anne Whitfield")).toBe("Sarah W.");
-  });
-
-  it("returns null for null", () => {
-    expect(publicNameFor(null)).toBeNull();
-  });
-
-  it("returns null for a blank or whitespace-only name", () => {
-    // A member row with an empty last name is possible, and "Sarah ." on a public page would be
-    // a visible bug rather than a private one.
-    expect(publicNameFor("")).toBeNull();
-    expect(publicNameFor("   ")).toBeNull();
-  });
-
-  it("collapses extra whitespace rather than treating it as a name part", () => {
-    expect(publicNameFor("  Sarah   Whitfield  ")).toBe("Sarah W.");
-  });
-
-  it("upper-cases the initial of a lowercase surname", () => {
-    expect(publicNameFor("sarah whitfield")).toBe("sarah W.");
+    it("collapses extra whitespace rather than keeping it", () => {
+      expect(publicNameFor("  Sarah   Whitfield  ")).toBe("Sarah Whitfield");
+    });
   });
 });

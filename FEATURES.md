@@ -371,8 +371,9 @@ Based on the standard bifold format (Buffalo Ward template):
 4. Bishopric can complete this entire process if secretary is unavailable
 
 ### Public Program Link
-- Each Sunday's approved program has a persistent public URL — no login required to view
-- Always reflects the most current approved version; updates instantly if edits are made post-distribution
+- The ward has a persistent public URL — no login required to view. The slug belongs to the **ward**, not to a Sunday: it always shows the most recent program that has been distributed
+- **Distribution is what publishes a program**, not approval (`program-c`). An approved program the bishopric has signed off and not yet sent is not yet the congregation's, so the public page shows nothing until it goes out
+- Reopening a distributed program as a draft takes the public page **dark** until it is approved and distributed again, rather than showing a version somebody is midway through changing. It does not update in place — the earlier wording said it did, and that was never how the status machine worked (`lib/program/queries.ts`)
 - A QR code linking to this URL is embedded in the printed program PDF
 - Members without a physical program, visitors, or anyone following along digitally can scan or use a previously shared link
 - Design is clean and mobile-optimized
@@ -683,8 +684,8 @@ Three rotating assignment types:
 
 ### Public Program Page
 - The sacrament meeting program also has a persistent public URL
-- Displays the current approved program for the upcoming Sunday
-- Updates automatically if the program is edited after distribution
+- Displays the most recently **distributed** program — see Public Program Link above for why distribution rather than approval is the gate
+- Editing it again means reopening it as a draft, which takes the page dark until it is re-approved and re-distributed
 - A QR code linking to this URL is printed on the physical program
 - Visitors, members without a physical program, or anyone who wants to follow along digitally can scan or use a previously shared link
 - Both the assignments page and the program page share the same public-facing design — clean, mobile-optimized, no login prompt

@@ -792,13 +792,26 @@ export async function createMusicalNumber(options: {
   });
 }
 
+// `publicData` is the ONLY thing /public/[slug] can read, and `public_program` also requires
+// `status = 'distributed'` AND a non-null projection. A scenario that seeds one without the other
+// renders a 404, which looks exactly like a broken seed — set all three together or none.
+//
+// It is written out by hand in the scenario, the same way draftData is, and NOT built by calling
+// toPublicProgram(): that module imports through the `@/` alias, which the seed runner does not
+// resolve (only supabase/scripts/register.mjs teaches Node that alias, and `npm run seed` does not
+// load it). Keep the shape in step with lib/program/publicProjection.ts — a projection the app
+// cannot parse makes the page 404 with the reason only in the server log.
 export async function createProgram(options: {
   id?: string;
   sundayId: string;
   status?: ProgramStatus;
   pdfUrl?: string;
   draftData?: Record<string, unknown>;
+  publicData?: Record<string, unknown>;
   createdBy?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  distributedAt?: string;
 }): Promise<string> {
   return insertRow("programs", {
     id: options.id ?? testUuid(`program:${options.sundayId}`),
@@ -807,7 +820,11 @@ export async function createProgram(options: {
     status: options.status ?? "draft",
     pdf_url: options.pdfUrl ?? null,
     draft_data: options.draftData ?? null,
+    public_data: options.publicData ?? null,
     created_by: options.createdBy ?? null,
+    approved_by: options.approvedBy ?? null,
+    approved_at: options.approvedAt ?? null,
+    distributed_at: options.distributedAt ?? null,
   });
 }
 

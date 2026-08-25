@@ -191,7 +191,7 @@ describe("the program routes", () => {
         slotNumber: 1,
         kind: "member",
         printedName: "Sarah Whitfield",
-        publicName: "Sarah W.",
+        publicName: "Sarah Whitfield",
       });
       expect(draft.date).toBe(SUNDAY_DATE);
     });

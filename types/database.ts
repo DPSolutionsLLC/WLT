@@ -1776,6 +1776,7 @@ export type Database = {
           draft_data: Json | null
           id: string
           pdf_url: string | null
+          public_data: Json | null
           status: string
           sunday_id: string | null
           ward_id: string
@@ -1790,6 +1791,7 @@ export type Database = {
           draft_data?: Json | null
           id?: string
           pdf_url?: string | null
+          public_data?: Json | null
           status?: string
           sunday_id?: string | null
           ward_id: string
@@ -1804,6 +1806,7 @@ export type Database = {
           draft_data?: Json | null
           id?: string
           pdf_url?: string | null
+          public_data?: Json | null
           status?: string
           sunday_id?: string | null
           ward_id?: string
@@ -2953,8 +2956,10 @@ export type Database = {
         Row: {
           distributed_at: string | null
           pdf_url: string | null
+          public_data: Json | null
           slug: string | null
           sunday_date: string | null
+          ward_name: string | null
         }
         Relationships: []
       }
@@ -2989,6 +2994,7 @@ export type Database = {
         Args: { p_households: Json; p_members: Json; p_ward_id: string }
         Returns: Json
       }
+      can_view_talks: { Args: never; Returns: boolean }
       current_org_id: { Args: never; Returns: string }
       current_user_role: { Args: never; Returns: string }
       current_ward_id: { Args: never; Returns: string }

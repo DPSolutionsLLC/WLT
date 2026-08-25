@@ -3,6 +3,7 @@ import { writeAuditLog } from "@/lib/audit/writeAuditLog";
 import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
+import { toPublicProgram } from "@/lib/program/publicProjection";
 import {
   getProgram,
   recordProgramApproval,
@@ -25,6 +26,17 @@ import { PROGRAM_STATUS_LABELS } from "@/types/domain";
 //
 // There is also no assignment_approvals equivalent to write to: the decision IS the status move
 // plus the approved_by / approved_at stamps, recorded atomically by recordProgramApproval().
+//
+// ---------------------------------------------------------------------------------------------
+// THIS IS ALSO THE ONLY PLACE public_data IS EVER WRITTEN
+// ---------------------------------------------------------------------------------------------
+// Approval is what makes a program publishable, so approval is where the public projection is
+// computed — server-side, from the draft ALREADY STORED, by toPublicProgram() and nothing else.
+//
+// public_data is never read from the request body and must never appear in a Zod request schema.
+// A client that could hand over its own projection could hand over anything, and /public/[slug] is
+// unauthenticated: that would not be a bug in this route, it would be an open write to the
+// internet. See lib/program/publicProjection.ts for what the projection may contain.
 
 const NOT_FOUND = "That program is not in your ward.";
 
@@ -110,7 +122,27 @@ export async function POST(
       return NextResponse.json({ program: reverted, approved: false });
     }
 
-    const approved = await recordProgramApproval(user.wardId, programId, user.id, supabase);
+    // A draft that could not be parsed cannot be projected, and approving it would stamp
+    // approved_by on a document nobody can render. draftError says why (CLAUDE.md rule 7) rather
+    // than the route failing later in the projector with a stack trace.
+    if (program.draft === null) {
+      return NextResponse.json(
+        {
+          error:
+            program.draftError ??
+            "That program has no stored draft, so there is nothing to approve. Build it again first.",
+        },
+        { status: 409 },
+      );
+    }
+
+    const approved = await recordProgramApproval(
+      user.wardId,
+      programId,
+      user.id,
+      toPublicProgram(program.draft),
+      supabase,
+    );
 
     // Zero rows means somebody else approved it between the read and the write. The
     // expected-status filter in the UPDATE is what makes a double approval impossible without a

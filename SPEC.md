@@ -360,7 +360,8 @@ topic_tags      text[]  -- for AI suggestion matching
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
 ward_id         uuid REFERENCES wards(id)
 sunday_id       uuid REFERENCES sundays(id)
-draft_data      jsonb  -- full program content snapshot
+draft_data      jsonb  -- full program content snapshot (NEVER public)
+public_data     jsonb  -- the safe projection; the only part anon can read. See Public Pages
 pdf_url         text   -- Supabase Storage URL
 status          text DEFAULT 'draft'  -- 'draft' | 'pending_approval' | 'approved' | 'distributed'
 created_by      uuid REFERENCES users(id)
@@ -847,7 +848,79 @@ Enable RLS on all tables. Key patterns:
 
 **Sacrament assignments** — `sacrament_assignments` and `sacrament_rotation_pools`: bishopric can read/write; active assignment manager user can read and update assignments only; no other roles
 
-**Public pages** — `public_pages` records are readable without auth; the pages they power (`/public/[slug]`) query only the specific data needed (assignments or program) scoped to `ward_id`, with no member PII exposed beyond first name and last initial
+**Public pages** — `/public/[slug]` reads two views and no base table. Note the two public pages do
+NOT agree about names: the program page publishes them in full, while `public_sacrament_assignments`
+still exposes `first_name` plus `left(last_name, 1)`. Phase 10 owns that page and that decision. `anon` holds a grant on `public_program` and `public_sacrament_assignments` and on nothing else — not even `public_pages`. Both views are `security_invoker = false`, so they run with the owner's rights and are **not** re-filtered by the caller's RLS: the projection *is* the boundary. See §Public Pages.
+
+---
+
+## Public Pages
+
+The application's only unauthenticated surface, and the one place where a mistake is published
+rather than merely wrong. Three layers, and each is independently sufficient to stop a leak:
+
+| Layer | File | What it guarantees |
+|---|---|---|
+| The projection | `lib/program/publicProjection.ts` | `toPublicProgram()` builds a new object field by field. Forbidden fields are **absent from the `PublicProgram` type**, not nulled, so rendering one is a compile error |
+| The column | `programs.public_data` (migration 039) | Stores that function's output and nothing else. Written only by `POST /api/programs/[id]/approve`, never from a request body; cleared to `null` whenever the program returns to `draft` |
+| The view | `public_program` (migration 039) | Names its columns explicitly — never `SELECT *` — and exposes `public_data`, never `draft_data` |
+
+### What the program page exposes, field by field
+
+| Field | Public | Why |
+|---|---|---|
+| Ward name, meeting date, meeting order | ✅ | The point of the page |
+| Hymn number and title | ✅ | Printed on every paper program |
+| **Every person's name** | ✅ **In full, first and last** | A sacrament programme names the people taking part, and names all of them the same way |
+| Announcements, ward business, special notes | ✅ | Written by the secretary to be read aloud to everyone |
+| Phone numbers | ❌ | |
+| Street addresses and emails | ❌ | |
+| Leadership contacts | ❌ | Names *and phone numbers* of specific people |
+| Missionary information | ❌ | Same, and often includes a personal phone |
+| Member ids, user ids, any identifier | ❌ | |
+| Anything not in this table | ❌ | Default deny |
+
+**Names in full is a reversal, made 2026-08-24.** The page originally shortened a ward member to
+"Sarah W." while naming an external speaker in full (ITER-004). Walking scenario 032 settled that
+the split read as a bug sitting beside the visitor's full name rather than as a rule. The
+shortening lived in `publicNameFor()` and is gone; nothing else in the table moved.
+
+Because a full-name roster on an indexable page is a different exposure from one on a handout, the
+public shell sends `robots: { index: false, follow: false }` (`app/public/layout.tsx`). Anyone with
+the link or the QR code reads the page exactly as before; search engines are asked not to keep it.
+That is not an access control — the view and the projection are.
+
+`printedName` does not appear anywhere in `publicProjection.ts` and must never appear there. The
+two halves now default to the same text, which makes reading either one look harmless — that is
+exactly why the rule is kept by habit. `publicName` is the field a ward edits when it wants the web
+to say something the handout does not, and reading `printedName` would silently discard that edit.
+`speakers[].kind` is not carried through either: publishing the discriminator would announce which
+names came from the roster and which were typed.
+
+### The gate
+
+A program is public when it is **`distributed`**, not when it is `approved`. FEATURES.md says the
+page "always reflects the most current approved version", which reads the other way; the tension is
+resolved deliberately, because distribution *is* the act of publishing. An approved program is a
+document the bishopric has signed off and not yet handed to anybody.
+
+**A slug identifies a ward's program page, not a program.** `public_program` joins `public_pages`
+to `programs` on `ward_id` alone, so an active slug matches every distributed program that ward has
+ever had. The page serves the one with the **latest `sunday_date`** — next Sunday's program becomes
+the answer the moment it is distributed, and stays the answer through the meeting it was printed
+for. `program-d` creates at most one program page row per ward for this reason; a second slug would
+be a second URL onto the same program.
+
+### Not existing
+
+An unknown slug, a deactivated slug, an undistributed program and an unparseable projection all
+produce the **same 404**. Distinguishing them would let somebody with a word list work out which
+slugs exist. A database *error* is not one of them: `lib/program/publicQueries.ts` throws, so a
+dropped grant surfaces as a 500 in a log rather than as a 404 that looks like an ordinary typo.
+
+`revalidate = 300`, and `program-d`'s distribute route calls `revalidatePath()` so a change appears
+immediately. There is no `generateStaticParams` — pre-rendering every ward's slug would bake ward
+data into the deployment.
 
 ---
 
@@ -1027,12 +1100,17 @@ POST   /api/youth/logs           Log post-activity report
 ```
 
 ### Tithing
+
+**NONE OF THESE ROUTES EXIST, AND THAT IS THE DECISION — see §Tithing Auto-Clear.** A counting
+session lives in React state in the browser and is never sent anywhere. The routes below are the
+shape it would take if persistence is ever added; do not build them without revisiting that
+decision first.
 ```
-GET    /api/tithing/session      Get or create today's session
-POST   /api/tithing/entries      Create entry
-PATCH  /api/tithing/entries/[id] Update entry
-DELETE /api/tithing/entries/[id] Delete entry
-DELETE /api/tithing/session      Clear all entries
+GET    /api/tithing/session      Get or create today's session   (not built)
+POST   /api/tithing/entries      Create entry                    (not built)
+PATCH  /api/tithing/entries/[id] Update entry                    (not built)
+DELETE /api/tithing/entries/[id] Delete entry                    (not built)
+DELETE /api/tithing/session      Clear all entries               (not built)
 ```
 
 ### Knowledge Base
@@ -1113,8 +1191,16 @@ GET    /api/sacrament/send-log          Get send history
 ### Public Pages (no auth required)
 ```
 GET    /public/[slug]                   Render public page (assignments or program)
-GET    /api/public/[slug]               Return JSON data for public page
 ```
+
+There is **no** `/api/public/[slug]`. It was specified and deliberately not built: a JSON endpoint
+beside the page is a second unauthenticated surface with a second column list to keep correct, and
+nothing needs it — `/public/[slug]` is a Server Component that reads the view directly and ships no
+client JavaScript to fetch anything with. Adding one later means duplicating the projection, and
+the whole design of §Public Pages is that the projection exists exactly once.
+
+`page_type` is not read by the page. `public_pages` is not granted to `anon`, and it does not need
+to be: each view filters on its own `page_type`, so **which view answers is the page type**.
 
 ### Admin
 ```
@@ -1180,7 +1266,11 @@ PATCH  /api/admin/ward-settings  Update ward settings (with bishopric notificati
     /profiles/page.tsx         Activity profiles
     /calendar/page.tsx         Activity calendar
     /events/[id]/page.tsx      Event detail
-  /tithing/page.tsx            Tithing calculator
+  /tithing/page.tsx            Tithing calculator — lives under app/(tithing)/, NOT app/(app)/.
+                               Its header and tab bar are sticky at the top of the viewport, which
+                               cannot be true beneath the app sidebar and TopNav. Its components
+                               sit beside the page rather than under /components/tithing/, because
+                               nothing outside this one screen renders them.
   /agendas/
     /page.tsx                  Agenda list
     /[id]/page.tsx             Agenda builder
@@ -1190,7 +1280,10 @@ PATCH  /api/admin/ward-settings  Update ward settings (with bishopric notificati
     /page.tsx                  Sacrament assignments (manager view)
     /admin/page.tsx            Rotation pool configuration (bishopric)
   /public/
-    /[slug]/page.tsx           Public assignments or program page (no auth)
+    layout.tsx                 No-auth shell: no sidebar, nav, theme toggle or QueryProvider
+    /[slug]/page.tsx           Branches on which view answers; 404s for every other outcome
+    /[slug]/ProgramPanel.tsx   The program branch — renders PublicProgram and nothing else
+    /[slug]/not-found.tsx      One vague 404 for unknown, inactive and undistributed alike
   /admin/
     /page.tsx                  Admin home
     /users/page.tsx            User management
@@ -1237,10 +1330,6 @@ PATCH  /api/admin/ward-settings  Update ward settings (with bishopric notificati
     ActivityCalendar.tsx
     EventCoverageCard.tsx
     AwarenessDigest.tsx
-  /tithing/
-    EntryForm.tsx
-    SessionSummary.tsx
-    EntryList.tsx
   /agendas/
     AgendaBuilder.tsx
     ActionItemList.tsx
@@ -1256,9 +1345,9 @@ PATCH  /api/admin/ward-settings  Update ward settings (with bishopric notificati
     RotationPoolEditor.tsx     Bishopric tool to configure pools and order
     AssignmentOverrideModal.tsx  Insert special assignment for one Sunday
     SendConfirmButton.tsx      Manager taps to mark message sent
-  /public/
-    PublicAssignmentsPage.tsx  Mobile-optimized, no-auth assignments view
-    PublicProgramPage.tsx      Mobile-optimized, no-auth program view
+  (no /components/public — the public pages' components are colocated under app/public/[slug]/,
+   deliberately. A shared component folder invites reuse from an authenticated screen, and the
+   moment a public component takes a wider prop the privacy boundary moves into JSX.)
 ```
 
 ---
@@ -1486,8 +1575,29 @@ The `notification_settings` table is the source of truth. Adding a new trigger r
 
 ## Tithing Auto-Clear
 
-Implement as a Supabase Edge Function (cron) running at midnight:
+**DECIDED (2026-08-24): there is nothing to clear.** The tithing calculator writes NOTHING — no
+database row, no localStorage, no sessionStorage, no server request of any kind. A counting
+session lives in React state for as long as the tab is open and is gone the moment it is not.
+
+`tithing_sessions` and `tithing_entries` exist in migration 011 with their RLS policies and
+`tests/rls/tithing-access.test.ts`, and the module does not touch either table. Keep them: they
+are the shape persistence would take, and the RLS suite is what proves the tables are refused to
+everyone outside the bishopric if they ever are used.
+
+Two consequences:
+
+- The cron below is **not built and not needed**. The ward-local-midnight problem
+  (plans/09-meetings-tithing.md §Pitfalls — a UTC-midnight job wiping an in-progress Sunday
+  evening count) stops existing rather than being solved carefully.
+- **A refresh or a navigation away destroys an in-progress count with nothing to recover from.**
+  `/tithing` guards both with a confirm; that guard is load-bearing, not a nicety. If a real count
+  is ever lost, this is the decision to revisit — and persistence then belongs behind the tables
+  below, never in browser storage, which would put dollar amounts on a shared or borrowed phone.
+
+If it is ever revisited, the cron was to be a Supabase Edge Function running at ward-local
+midnight:
 ```sql
+-- NOT BUILT. Retained as the shape persistence would take.
 DELETE FROM tithing_entries
 WHERE session_id IN (
   SELECT id FROM tithing_sessions

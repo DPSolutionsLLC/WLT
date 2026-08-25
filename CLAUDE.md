@@ -126,7 +126,7 @@ These override convenience. Violating one is a bug, not a style preference.
   /layout             Sidebar, TopNav, NotificationBell, ThemeToggle
   /<module>           Module-scoped components (roster, assignments, visits…)
 /lib
-  /supabase           Client factories: browser, server, service-role
+  /supabase           Client factories: browser, server, service-role, anon (public pages)
   /ai                 Claude client, system prompt assembly, retrieval
   /auth               Session, role resolution, permission checks
   /audit              writeAuditLog()
@@ -276,9 +276,23 @@ Flag these when they become relevant; do not silently pick a side.
 - **Native SMS handoff.** The app opens `sms:` links with a pre-filled body. Behavior
   differs across iOS/Android and long bodies get truncated. Test on real devices before
   relying on it. There is no delivery confirmation — the user taps "sent" manually.
-- **Public pages leak surface.** `/public/[slug]` is unauthenticated. It must expose
-  first name + last initial only, never phone numbers, addresses, or notes. Every field
-  added to a public page is a privacy decision.
+- **Public pages leak surface — the boundary is `lib/program/publicProjection.ts`.**
+  `/public/[slug]` is unauthenticated and the app is live, so a page is public the moment it
+  deploys. **Names are published IN FULL — first and last, everybody, the same on the paper and on
+  the web.** That reverses the original "first name + last initial" rule, by a product decision on
+  2026-08-24: shortening only the ward members while naming a visiting speaker in full read as a
+  bug rather than as a rule, and a sacrament programme names the people taking part. What is
+  **never** published is a phone number, a street address, an email, a member or user id, the
+  leadership contacts array or the missionary block — those fields are ABSENT from `PublicProgram`,
+  not nulled, so publishing one is a type error rather than a review miss. The page is served
+  `noindex` (`app/public/layout.tsx`) so a ward roster of full names is reachable by anyone holding
+  the link without being gathered into a search index; that is a smaller promise than the
+  shortening was, and it is deliberate. `programs.public_data` holds nothing but
+  `toPublicProgram()`'s output, is written only by the approve route, and is cleared to null
+  whenever a program returns to draft. Every field added to a public page is a privacy decision.
+  **Phase 10's `public_sacrament_assignments` view still shortens to a last initial**
+  (`left(last_name, 1)` in migration 019) — it was not touched here, and whether the two public
+  pages should agree is Phase 10's question to settle.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

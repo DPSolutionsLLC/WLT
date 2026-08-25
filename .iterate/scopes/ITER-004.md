@@ -1,7 +1,9 @@
 # ITER-004: Speakers Who Are Not Members of the Ward
 
 **Type:** Feature
-**Status:** In Progress — `talks-a` landed 2026-08-20, `talks-b` 2026-08-21; the Phase 6 half remains
+**Status:** In Progress — `talks-a` landed 2026-08-20, `talks-b` 2026-08-21, `program-a` and
+`program-c` 2026-08-24. **`program-d` (the printed half) is all that remains.** The public page
+names an external speaker in full and is live; the PDF and its QR code are not built.
 **Plan:** plans/talks-a-pipeline-core.md (schema + pipeline), plans/talks-b-month-planner.md (on-screen),
 plans/program-a-draft-and-approval.md (the name reaches the draft),
 plans/program-c-public-pages.md (public), plans/program-d-pdf-and-distribution.md (printed)

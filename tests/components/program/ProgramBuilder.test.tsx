@@ -28,12 +28,12 @@ function draft(overrides: Partial<ProgramDraft> = {}): ProgramDraft {
     heading: null,
     date: "2026-09-20",
     sundayType: "standard",
-    presiding: { printedName: "Mark Andersen", publicName: "Mark A." },
-    conducting: { printedName: "Peter Lindqvist", publicName: "Peter L." },
+    presiding: { printedName: "Mark Andersen", publicName: "Mark Andersen" },
+    conducting: { printedName: "Peter Lindqvist", publicName: "Peter Lindqvist" },
     organist: null,
     chorister: null,
     openingHymn: { number: 19, title: "We Thank Thee, O God, for a Prophet" },
-    invocation: { printedName: "David Brooks", publicName: "David B." },
+    invocation: { printedName: "David Brooks", publicName: "David Brooks" },
     wardBusiness: null,
     sacramentHymn: null,
     specialNotes: null,
@@ -43,7 +43,7 @@ function draft(overrides: Partial<ProgramDraft> = {}): ProgramDraft {
         slotNumber: 1,
         kind: "member",
         printedName: "Sarah Whitfield",
-        publicName: "Sarah W.",
+        publicName: "Sarah Whitfield",
         topic: "Charity Never Faileth",
       },
       { slotNumber: 2, kind: "empty", printedName: null, publicName: null, topic: null },
@@ -410,5 +410,96 @@ describe("ProgramBuilder — an approved program offers no way to change it", ()
     expect(screen.queryByRole("button", { name: "Check for changes" })).toBeNull();
     expect(screen.queryByLabelText("What would you like changed?")).toBeNull();
     expect(screen.queryByRole("button", { name: "Save the program" })).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// THE DEAD-END REGRESSION
+// ---------------------------------------------------------------------------------------------
+// Walking scenario 033 found this screen printing "Reopen it as a draft to change it" with NO
+// BUTTON ANYWHERE: the sentence rendered inside the locked branch while every action sat inside
+// `!locked`, so the instruction appeared exactly where the control did not.
+//
+// These tests assert the PAIRING — an instruction and the control it names — rather than either
+// half alone. A test that only checked for the button would still pass if somebody rewrote the
+// sentence to describe something else, and a test that only checked the sentence is what was there
+// before, passing, while the feature was unusable.
+describe("ProgramBuilder — reopening an approved program", () => {
+  beforeEach(() => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({ program: { status: "draft", draft: draft(), draftError: null } }),
+    );
+  });
+
+  it("offers the button the locked sentence tells you to press", () => {
+    renderBuilder(draft(), "approved");
+
+    expect(screen.getByText(/Reopen it as a draft to change it/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reopen as a draft" })).toBeInTheDocument();
+  });
+
+  it("asks the status route to move the program back to draft", async () => {
+    renderBuilder(draft(), "approved");
+
+    fireEvent.click(screen.getByRole("button", { name: "Reopen as a draft" }));
+
+    // The POST, not fetchMock.mock.calls[0] — the builder's own load query fires a GET to
+    // /api/programs/by-sunday first, and asserting on call zero picks that up instead.
+    const post = await waitFor(() => {
+      const call = fetchMock.mock.calls.find(
+        ([, init]) => (init as RequestInit | undefined)?.method === "POST",
+      );
+      expect(call).toBeTruthy();
+      return call as [string, RequestInit];
+    });
+
+    expect(post[0]).toBe("/api/programs");
+    expect(JSON.parse(post[1].body as string)).toEqual({
+      action: "status",
+      programId: "program-1",
+      to: "draft",
+    });
+  });
+
+  // "Reopen" does not sound like "unpublish", and it does both — setProgramStatus clears
+  // public_data in the same UPDATE. A bishopric member pressing this deserves to be told.
+  it("says the program has left the public page, not merely that it reopened", async () => {
+    renderBuilder(draft(), "approved");
+
+    fireEvent.click(screen.getByRole("button", { name: "Reopen as a draft" }));
+
+    expect(
+      await screen.findByText("Reopened as a draft. It is no longer on the public page."),
+    ).toBeInTheDocument();
+  });
+
+  it("surfaces a refusal rather than silently doing nothing", async () => {
+    // Only the POST fails. Failing every request would make the LOAD query error too, and the
+    // same sentence would render twice from two different causes — a test that passes without
+    // proving which code path produced it.
+    fetchMock.mockImplementation(async (_url: string, init?: RequestInit) =>
+      init?.method === "POST"
+        ? jsonResponse({ error: "Somebody else changed this program a moment ago." }, 409)
+        : jsonResponse({ program: { status: "approved", draft: draft(), draftError: null } }),
+    );
+
+    renderBuilder(draft(), "approved");
+
+    fireEvent.click(screen.getByRole("button", { name: "Reopen as a draft" }));
+
+    expect(
+      await screen.findByText("Somebody else changed this program a moment ago."),
+    ).toBeInTheDocument();
+  });
+
+  // A DISTRIBUTED program has no path back — LEGAL_TRANSITIONS gives it none, because an emailed
+  // PDF cannot be recalled. Offering the button would be offering a request the route always
+  // refuses, which is the same dead end pointed the other way.
+  it("offers no reopen button once a program is distributed, and says why", () => {
+    renderBuilder(draft(), "distributed");
+
+    expect(screen.queryByRole("button", { name: "Reopen as a draft" })).toBeNull();
+    expect(screen.getByText(/cannot be reopened/)).toBeInTheDocument();
+    expect(screen.queryByText(/Reopen it as a draft to change it/)).toBeNull();
   });
 });

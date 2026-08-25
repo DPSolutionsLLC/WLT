@@ -117,7 +117,7 @@ describe("the program draft is a snapshot, not a view", () => {
       slotNumber: 1,
       kind: "member",
       printedName: "Sarah Whitfield",
-      publicName: "Sarah W.",
+      publicName: "Sarah Whitfield",
     });
     expect(stored?.draftError).toBeNull();
   });
