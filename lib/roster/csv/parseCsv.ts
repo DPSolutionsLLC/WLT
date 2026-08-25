@@ -94,7 +94,17 @@ class CsvAssembler {
   private replacementCharacterCount = 0;
   private byteCount = 0;
 
-  constructor(private readonly options: ParseCsvOptions = {}) {}
+  private readonly options: ParseCsvOptions;
+
+  // Written out longhand rather than as a constructor parameter property. A parameter property is
+  // one of the few TypeScript constructs that EMITS code rather than only removing types, so
+  // Node's --experimental-strip-types refuses the whole file with
+  // ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX. supabase/scripts/hymns.ts runs under plain Node and reaches
+  // this module through lib/music/hymnSource.ts, so the shorthand would make it unloadable — the
+  // same class of constraint that makes lib/knowledge/queries.ts import its client dynamically.
+  constructor(options: ParseCsvOptions = {}) {
+    this.options = options;
+  }
 
   countBytes(byteLength: number): void {
     this.byteCount += byteLength;

@@ -7,11 +7,15 @@ import {
   listBishopricUsers,
   type Sunday,
 } from "@/lib/calendar/queries";
+import {
+  getMusicalNumber as readMusicalNumberRow,
+  listSelections,
+} from "@/lib/music/queries";
 import { listPrayers, type Prayer } from "@/lib/prayers/queries";
 import { listMembers } from "@/lib/roster/queries";
 import { listTopicOptions } from "@/lib/topics/queries";
 import type { Database } from "@/types/database";
-import { HYMN_TYPES, MEMBER_STATUSES, type HymnType } from "@/types/domain";
+import { MEMBER_STATUSES, type HymnType } from "@/types/domain";
 
 // The I/O half of the program builder. Everything assembleDraft() needs, read once.
 //
@@ -23,10 +27,13 @@ import { HYMN_TYPES, MEMBER_STATUSES, type HymnType } from "@/types/domain";
 // (plans/retros/roster-b-picker-and-orgs.md).
 //
 // EVERY READ GOES THROUGH AN EXISTING QUERY MODULE. No `.from("prayer_assignments")` here, no
-// `.from("assignments")`, no `.from("sundays")` — talks-c asked for exactly that, because a
-// second reader of a table is a second place for the ward scope and the stage rules to drift.
-// The two exceptions are hymn_selections and musical_numbers, which have no query module yet;
-// see the comment above readHymnSelections().
+// `.from("assignments")`, no `.from("sundays")`, no `.from("hymn_selections")` — talks-c asked
+// for exactly that, because a second reader of a table is a second place for the ward scope and
+// the stage rules to drift.
+//
+// The last two exceptions closed with program-e. hymn_selections and musical_numbers were read
+// inline here because no module owned them; lib/music/queries.ts does now, and this file is the
+// only one outside that plan that changed (program-a §Integration Notes).
 
 export type HymnSelection = {
   hymnType: HymnType;
@@ -154,75 +161,43 @@ async function readWardSettings(
   return parseProgramWardSettings(data?.settings ?? null);
 }
 
-// TEMPORARY HOME. hymn_selections and musical_numbers have no query module, because nothing has
-// needed to read them until now. program-e builds lib/music/queries.ts and owns them properly;
-// when it does, these two functions are deleted and gather.ts calls that module instead — it is
-// the only file that changes (program-a §Integration Notes).
+// The two music readers, now thin adapters over lib/music/queries.ts.
 //
-// Kept narrow on purpose: ward-scoped, one Sunday, no writes, no business rules. A hymn that is
-// stored with a number and no title is returned as it is stored, because the hymnbook is only
-// partially seeded and the snapshot must record what was actually chosen.
+// They stay as named functions rather than becoming inline calls because the draft's shape is
+// NARROWER than the table's: a snapshot needs the slot, the number and the title, and has no use
+// for the row id, who chose it, or whether the AI suggested it. Mapping here means a field added
+// to hymn_selections cannot leak into a stored program by accident.
+//
+// A hymn stored with a number and no title is returned exactly as it is stored. The hymnbook is
+// only partly verified, and the snapshot must record what was actually chosen (lib/pdf/values.ts
+// prints the number alone for that case).
 async function readHymnSelections(
-  supabase: SupabaseClient<Database>,
   wardId: string,
   sundayId: string,
+  supabase: SupabaseClient<Database>,
 ): Promise<HymnSelection[]> {
-  const { data, error } = await supabase
-    .from("hymn_selections")
-    .select("hymn_type, hymn_number, hymn_title")
-    .eq("ward_id", wardId)
-    .eq("sunday_id", sundayId);
+  const selections = await listSelections(wardId, { sundayId }, supabase);
 
-  if (error) {
-    console.error(`Could not read the Sunday's hymns — ${error.message}`, {
-      wardId,
-      sundayId,
-    });
-    throw new Error(`Could not read the hymn selections: ${error.message}`);
-  }
-
-  return (data ?? []).flatMap((row) =>
-    row.hymn_type !== null && (HYMN_TYPES as readonly string[]).includes(row.hymn_type)
-      ? [
-          {
-            hymnType: row.hymn_type as HymnType,
-            hymnNumber: row.hymn_number,
-            hymnTitle: row.hymn_title,
-          },
-        ]
-      : [],
-  );
+  return selections.map((selection) => ({
+    hymnType: selection.hymnType,
+    hymnNumber: selection.hymnNumber,
+    hymnTitle: selection.hymnTitle,
+  }));
 }
 
-// See readHymnSelections() above — same temporary home, same program-e handover.
 async function readMusicalNumber(
-  supabase: SupabaseClient<Database>,
   wardId: string,
   sundayId: string,
+  supabase: SupabaseClient<Database>,
 ): Promise<MusicalNumber | null> {
-  const { data, error } = await supabase
-    .from("musical_numbers")
-    .select("performer, piece_title, notes")
-    .eq("ward_id", wardId)
-    .eq("sunday_id", sundayId)
-    .order("created_at")
-    .limit(1)
-    .maybeSingle();
+  const musicalNumber = await readMusicalNumberRow(wardId, sundayId, supabase);
 
-  if (error) {
-    console.error(`Could not read the Sunday's musical number — ${error.message}`, {
-      wardId,
-      sundayId,
-    });
-    throw new Error(`Could not read the musical number: ${error.message}`);
-  }
-
-  if (!data) return null;
+  if (musicalNumber === null) return null;
 
   return {
-    performer: data.performer,
-    pieceTitle: data.piece_title,
-    notes: data.notes,
+    performer: musicalNumber.performer,
+    pieceTitle: musicalNumber.pieceTitle,
+    notes: musicalNumber.notes,
   };
 }
 
@@ -285,8 +260,8 @@ export async function gatherProgramSources(
     listPrayers(wardId, { sundayId }, supabase),
     readMemberNames(supabase, wardId),
     readTopicTitles(wardId, supabase),
-    readHymnSelections(supabase, wardId, sundayId),
-    readMusicalNumber(supabase, wardId, sundayId),
+    readHymnSelections(wardId, sundayId, supabase),
+    readMusicalNumber(wardId, sundayId, supabase),
     listBishopricUsers(wardId, supabase),
     readWardSettings(supabase, wardId),
   ]);

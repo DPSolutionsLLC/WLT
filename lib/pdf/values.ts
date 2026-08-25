@@ -36,8 +36,23 @@ export function printedNameOf(name: NameField | null | undefined): string | null
 }
 
 // A hymn whose title could not be resolved still prints its NUMBER. The hymnbook is only partly
-// seeded until program-e (42 of 341), so "a number with no title" is a state that will actually
-// occur, and a chorister can work from the number alone.
+// verified (42 of 341 rows carry `source = 'authoritative'`, migration 042), so "a number with no
+// title" is a state that will actually occur, and a chorister can work from the number alone.
+//
+// ---------------------------------------------------------------------------------------------
+// A PLACEHOLDER PRINTS ITS OWN UGLY TITLE, ON PURPOSE — AND THE WALK DECIDES WHETHER THAT IS
+// ENOUGH
+// ---------------------------------------------------------------------------------------------
+// program-e fills the 299 unverified numbers with rows titled "[Placeholder] Hymn 43". Nothing
+// here strips or softens that: if one reaches a printed programme it reads as "43 — [Placeholder]
+// Hymn 43" on the sheet, which is unmissable. That IS the safety property — the same
+// safe-by-construction instinct as omitting fields from PublicProgram rather than nulling them.
+//
+// The open question program-e left for the walk is whether the PDF should REFUSE to render at all
+// when a placeholder is present, rather than printing it loudly. Refusing is stronger; it also
+// means a ward cannot print a programme on a Saturday night because of a number nobody minded.
+// That trade needs a person looking at real paper, so it is deliberately not decided here.
+// isPlaceholderTitle() in lib/music/hymnSource.ts is what a refusal would be built on.
 export function hymnOf(hymn: HymnRef | null | undefined): string | null {
   if (hymn === null || hymn === undefined) return null;
   const title = textOf(hymn.title);

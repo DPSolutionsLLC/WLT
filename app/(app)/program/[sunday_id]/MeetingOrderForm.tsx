@@ -1,11 +1,11 @@
 "use client";
 
 import { useId } from "react";
+import { HymnPicker } from "@/components/music/HymnPicker";
 import { Input } from "@/components/ui/Input";
 import { speakerSlotLabel } from "@/lib/program/diff";
 import type {
   ContactField,
-  HymnRef,
   MusicalNumberField,
   NameField,
   ProgramDraft,
@@ -145,64 +145,6 @@ function NameFields({
   );
 }
 
-// The number AND the title, always both. The hymnbook is only partially seeded until program-e,
-// so "a number whose title cannot be resolved" is a state that WILL occur rather than a
-// hypothetical — which is why the title is typed rather than looked up here.
-//
-// A blank number means no hymn. program-e replaces these two inputs with a picker.
-function HymnFields({
-  idPrefix,
-  label,
-  value,
-  onChange,
-  disabled,
-}: {
-  idPrefix: string;
-  label: string;
-  value: HymnRef | null;
-  onChange: (next: HymnRef | null) => void;
-  disabled: boolean;
-}) {
-  function update(next: { number?: string; title?: string }): void {
-    const rawNumber = next.number ?? (value === null ? "" : String(value.number));
-    const title = next.title ?? value?.title ?? "";
-    const parsedNumber = Number.parseInt(rawNumber, 10);
-
-    if (!Number.isInteger(parsedNumber) || parsedNumber <= 0) {
-      onChange(null);
-      return;
-    }
-
-    onChange({ number: parsedNumber, title });
-  }
-
-  return (
-    <div className="grid gap-3 sm:grid-cols-[8rem_1fr]">
-      <Input
-        id={`${idPrefix}-number`}
-        label={`${label} number`}
-        type="number"
-        min={1}
-        inputMode="numeric"
-        value={value === null ? "" : String(value.number)}
-        disabled={disabled}
-        onChange={(event) => update({ number: event.target.value })}
-      />
-      {/* Disabled until there IS a number. A hymn is identified by its number, so a title with
-          no number cannot be stored — and an input that accepted keystrokes and discarded them
-          would be worse than one that plainly cannot be typed in yet. */}
-      <Input
-        id={`${idPrefix}-title`}
-        label={`${label} title`}
-        value={value?.title ?? ""}
-        disabled={disabled || value === null}
-        placeholder={value === null ? "Enter a hymn number first" : undefined}
-        onChange={(event) => update({ title: event.target.value })}
-      />
-    </div>
-  );
-}
-
 export type MeetingOrderFormProps = {
   draft: ProgramDraft;
   onChange: (next: ProgramDraft) => void;
@@ -321,21 +263,27 @@ export function MeetingOrderForm({ draft, onChange, disabled }: MeetingOrderForm
           disabled={disabled}
           onChange={(next) => set("chorister", nameOrNull(next))}
         />
-        <HymnFields
+        {/* Pickers backed by GET /api/hymns since program-e, not the pair of bare text boxes
+            that stood here. Typing a number fills the title in; a search finds a hymn when the
+            words are known and the number is not. FREE TEXT STILL WORKS in both boxes — a ward
+            that sings something outside the hymnbook is a real case, not an error state. A number
+            with no verified hymn behind it is marked, so a placeholder cannot reach the paper
+            unnoticed (migration 042). */}
+        <HymnPicker
           idPrefix={fieldId("opening-hymn")}
           label="Opening hymn"
           value={draft.openingHymn}
           disabled={disabled}
           onChange={(next) => set("openingHymn", next)}
         />
-        <HymnFields
+        <HymnPicker
           idPrefix={fieldId("sacrament-hymn")}
           label="Sacrament hymn"
           value={draft.sacramentHymn}
           disabled={disabled}
           onChange={(next) => set("sacramentHymn", next)}
         />
-        <HymnFields
+        <HymnPicker
           idPrefix={fieldId("closing-hymn")}
           label="Closing hymn"
           value={draft.closingHymn}

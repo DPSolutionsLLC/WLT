@@ -6,20 +6,30 @@
 **Depends on:** `program-a` (the draft reads hymn selections). `program-b`, `program-c` and
 `program-d` are independent of this plan and must not wait for it.
 
-> ## ⛔ BLOCKED — do not execute this plan yet
+> ## ✅ GATE CLEARED BY DECISION — 2026-08-25
 >
-> **The hymnbook is not seeded.** `supabase/seed/hymns.sql` contains **42 of 341 hymns** behind an
-> explicit instruction:
+> This plan used to open with a ⛔ BLOCKED notice: the hymnbook is not seeded,
+> `supabase/seed/hymns.sql` holds **42 of 341** hymns, and its own header forbids padding the gap:
 >
 > > *The full list MUST be sourced from an authoritative source before
 > > `plans/06-program-music.md` ships hymn selection. Until then, treat an empty lookup as "not
 > > seeded yet", not as "no such hymn". **Do not pad this file with plausible-looking entries.***
 >
-> A wrong hymn number prints on a real program that a congregation then sings from. Task 0 below is
-> the gate. **Every other task in this plan is blocked behind it**, and the gate is not something an
-> executing agent can clear on its own — it needs a source the user supplies.
+> **An authoritative source is still not available**, and the warning above still stands. What
+> changed is that the user decided (2026-08-25) how to build against the gap without breaking it:
 >
-> This is why this plan is last, and why the four plans before it were written not to need it.
+> **Fill the 299 missing numbers with rows nobody could mistake for real hymns**, and record which
+> is which in a new `hymns.source` column. A placeholder is titled `[Placeholder] Hymn 43` —
+> obviously synthetic, believable by no one. No plausible-looking entry is ever written, so the
+> seed file's instruction is honoured rather than waived.
+>
+> **This is a build-and-test measure, not a shipping one.** A ward must not print a programme from
+> a placeholder, and Task 0 below makes that visible rather than merely documented. When the real
+> hymnbook arrives, `npm run hymns:reset` clears every placeholder — leaving the 42 verified rows
+> untouched — and `npm run hymns:import` loads the approved data.
+>
+> **Task 0 is still the gate.** Every other task depends on 341 searchable rows existing. It is no
+> longer blocked on the user, but it must be built first.
 
 ---
 
@@ -48,36 +58,102 @@ goes *into* the prompt and every returned number is validated against the table 
 
 ---
 
-## Task 0 — The Gate (must clear before anything else)
+## Task 0 — The Gate (build this first; everything else depends on it)
 
-**Files:** `supabase/seed/hymns.sql`, a new `supabase/migrations/04X_hymns_full.sql`
+**Files:** `supabase/migrations/042_hymn_source.sql`, `lib/music/hymnSource.ts`,
+`supabase/scripts/hymns.ts`, `supabase/seed/hymns.sql`, `package.json`,
+`tests/lib/hymnSource.test.ts`
 
-**This is a conversation with the user, not a research task for an agent.**
+**Migration number: 042.** 039 went to `program-c`, 040 and 041 to `program-d`. Check
+`supabase/migrations/` before writing the file — the digits before the first underscore are the
+version `supabase db push` reads, and a duplicate is a collision. Three plans in a row have had to
+correct this.
 
-1. **Ask the user for the authoritative source.** A file, an export, or a URL they have confirmed is
-   sanctioned for this use. The seed file's warning forbids inventing entries, and that includes
-   inferring them from a model's memory.
+### 1. The provenance column
 
-2. **Copyright posture — check before fetching anything.** Hymn text and the hymnbook's contents are
-   published by Intellectual Reserve. CLAUDE.md §9 already records the equivalent caution for
-   conference talks: *"read [the site's terms of use and `robots.txt`] before building any fetching
-   step, and check whether a sanctioned bulk or export source exists first."* The same applies here.
-   **Numbers and titles are a much lighter case than full lyrics** — this plan needs only
-   `number`, `title`, and `topic_tags`, and never stores or displays hymn text. Say that
-   explicitly when raising it; it is likely the difference between a blocked plan and an easy yes.
+```sql
+alter table hymns add column source text not null default 'authoritative';
+alter table hymns alter column source drop default;
+alter table hymns add constraint hymns_source_check
+  check (source in ('authoritative', 'placeholder'));
+```
 
-3. **Load it as a migration, not by editing the seed.** The seed runs for new wards; existing
-   databases need a migration. Follow the two-part pattern `foundation-c` established for
-   notification triggers. Use `on conflict (number) do update` so the 42 existing rows are corrected
-   rather than colliding.
+**Add the default, then drop it.** `ADD COLUMN ... DEFAULT` backfills the existing 42 rows as
+`authoritative`, which is correct — they were hand-verified. Dropping it afterwards forces every
+future insert to state what it is; left in place, a placeholder insert that forgot `source` would
+be silently recorded as authoritative, and that is the one direction this column must never be
+wrong in.
 
-4. **Verify the count** before proceeding: `select count(*) from hymns` should be 341, and a
-   spot-check of five known number/title pairs should pass. Record the source in the migration's
-   comment header — the next person to doubt a number needs to know where it came from.
+Comment the column with what each value means and how to clear placeholders. Update
+`supabase/seed/hymns.sql` to set `source` explicitly on its 42 rows — the column is NOT NULL with
+no default, so the seed fails loudly otherwise, which is the intended behaviour.
 
-**Until Task 0 clears, the honest fallback already in place stands:** an empty lookup means "not
-seeded yet". `program-b` lets a secretary type a hymn number and title by hand, which is correct
-behaviour for a partial hymnbook rather than a workaround.
+### 2. `lib/music/hymnSource.ts` — the pure half
+
+- `HYMN_SOURCES = ['authoritative', 'placeholder']`, `HYMNBOOK_SIZE = 341`.
+- `placeholderTitle(n)` returns `[Placeholder] Hymn <n>`. **Do not make these look like real
+  titles.** The ugliness is the safety property: this codebase prefers safe-by-construction over
+  safe-by-a-flag-somebody-notices, the same instinct as `program-c` omitting fields from
+  `PublicProgram` rather than nulling them. If one reaches a printed programme, it is obvious.
+- `isPlaceholderTitle(title)` for the UI flag and for the reset script's sanity check.
+- `buildPlaceholderRows(existingNumbers)` returns rows for every number in 1..341 **not** already
+  present. Takes the existing numbers rather than querying, so it stays pure and testable, and it
+  never overwrites — running it twice is harmless and it cannot clobber the 42 verified rows.
+  **Give placeholders no topic tags.** A synthetic tag makes topic search *look* populated while
+  returning meaningless results, which is worse for testing than an honestly empty result.
+- `parseHymnImport(text)` returns `{ rows, problems }`. Accepts **JSON or CSV**, decided by content
+  rather than file extension — an export renamed by hand is not a reason to refuse it. Reuse
+  `parseCsvText` from `lib/roster/csv/parseCsv.ts`: it is `roster-c`'s hand-written RFC 4180 parser
+  and **imports nothing**, which is exactly what lets a plain-Node script use it.
+  - Carry the parser's own `problems` through as well as the validation ones. A caller that saw
+    only the validation problems would report a clean import of a partly unreadable file.
+  - Use the parser's `rowNumbers`, not an index: blank records are dropped, so an index names the
+    wrong line after the first one.
+  - Report every bad row and still load the good ones — `roster-c`'s rule: a file is normally 99%
+    fine, and refusing all of it means somebody hand-edits a spreadsheet in the dark.
+  - **Refuse a row whose title is itself a placeholder.** Importing one would write an unverifiable
+    title under the `authoritative` label, which is the exact confusion the column exists to prevent.
+
+### 3. `supabase/scripts/hymns.ts` — the CLI
+
+Follow `supabase/scripts/ingestStandardWorks.ts`: service-role client, env through
+`testing/infrastructure/envLoader.ts`, and the `--import ./supabase/scripts/register.mjs` hook in
+the npm script so plain Node understands the `@/*` alias.
+
+| Script | Does |
+|---|---|
+| `npm run hymns:placeholders` | Inserts a placeholder for every number 1..341 not already present. Reports how many added, how many skipped. |
+| `npm run hymns:reset` | Deletes **`where source = 'placeholder'` only**. Reports the count. |
+| `npm run hymns:import -- <file>` | Parses, prints problems, upserts `on conflict (number) do update`, marks rows `authoritative`. Reports added / updated / refused. |
+
+**`reset` deliberately has no `--all`.** Deleting the 42 verified rows is not something anybody
+should be one flag away from, and a short import file would otherwise leave the ward with *fewer*
+hymns than it started with.
+
+### 4. Make a placeholder visible wherever a hymn is shown
+
+A column nobody sees is a column that stops being true. Search results, the coordinator's selection
+card and `program-b`'s hymn fields should all mark an unverified row — and `MeetingOrderPanel`
+(the printed PDF, `program-d`) is the one that matters most. **Decide during the walk whether the
+PDF should refuse to print a placeholder outright.**
+
+### 5. Verify
+
+`select source, count(*) from hymns group by source` gives 42 authoritative and 299 placeholder.
+Spot-check that hymn 2 is still `The Spirit of God` and `authoritative`, and that hymn 43 is a
+placeholder.
+
+### When the real hymnbook arrives
+
+1. **Copyright posture — check before fetching anything.** Hymn text is published by Intellectual
+   Reserve, and CLAUDE.md §9 records the equivalent caution for conference talks: read the terms of
+   use and `robots.txt` first, and look for a sanctioned bulk or export source. **Numbers and titles
+   are a much lighter case than full lyrics** — this plan stores only `number`, `title` and
+   `topic_tags`, and never stores or displays hymn text. Say that explicitly when raising it; it is
+   likely the difference between a blocked plan and an easy yes.
+2. `npm run hymns:reset`, then `npm run hymns:import -- <file>`.
+3. Record where the data came from, in a migration comment or a note. The next person to doubt a
+   number needs to know.
 
 ---
 
@@ -87,7 +163,9 @@ behaviour for a partial hymnbook rather than a workaround.
 
 | File | What it does |
 |---|---|
-| `supabase/migrations/04X_hymns_full.sql` | The full hymnbook (Task 0) |
+| `supabase/migrations/042_hymn_source.sql` | The `hymns.source` provenance column (Task 0) |
+| `lib/music/hymnSource.ts` | Placeholder rules and import parsing, pure (Task 0) |
+| `supabase/scripts/hymns.ts` | `hymns:placeholders`, `hymns:reset`, `hymns:import` (Task 0) |
 | `lib/music/queries.ts` | `hymns`, `hymn_selections`, `musical_numbers` — the module `program-a`'s `gather.ts` switches to |
 | `lib/music/hymnSearch.ts` | Number / title / tag matching, pure |
 | `lib/music/hymnCandidates.ts` | Topic tags → the candidate list handed to Claude |
@@ -101,13 +179,15 @@ behaviour for a partial hymnbook rather than a workaround.
 | `app/(app)/music/SundayMusicCard.tsx` | One Sunday: topics, three slots, warnings |
 | `app/(app)/music/HymnSearchModal.tsx` | `"use client"` — search and pick |
 | `app/(app)/music/SuggestHymnsButton.tsx` | `"use client"` — the AI path |
-| `supabase/migrations/04Y_music_write_scope.sql` | Narrows selection writes below ward-wide |
+| `supabase/migrations/043_music_write_scope.sql` | Narrows selection writes below ward-wide |
 
 ### Modify
 
 | File | What changes |
 |---|---|
-| `lib/program/gather.ts` | Reads through `lib/music/queries.ts` instead of inline |
+| `lib/program/gather.ts` | Reads through `lib/music/queries.ts` instead of inline. **Keep `readProgramRenderSettings`** — `program-d` added it after this plan was written; only the `hymn_selections` / `musical_numbers` readers go |
+| `supabase/seed/hymns.sql` | Its 42 rows set `source` explicitly (Task 0) |
+| `package.json` | The three `hymns:*` scripts (Task 0) |
 | `app/(app)/program/[sunday_id]/MeetingOrderForm.tsx` | Hymn fields become pickers |
 | `types/domain.ts` | `HYMN_TYPES`, and `AI_MODULES` gains `hymn_suggestions` |
 | `lib/ai/moduleInstructions.ts` | The `hymn_suggestions` block |
@@ -235,7 +315,7 @@ ITER-016. The next person to "simplify" this by trusting the model needs to find
 
 ### Task 8: Write scope
 
-**File:** `supabase/migrations/04Y_music_write_scope.sql` (create)
+**File:** `supabase/migrations/043_music_write_scope.sql` (create)
 
 Narrow `hymn_selections` and `musical_numbers` inserts/updates/deletes to
 `('bishop', 'counselor', 'music_coordinator', 'ward_secretary')` via `current_user_role()`,
@@ -253,7 +333,7 @@ note that the ward's `role_access` override is honoured by `assertCan()` in the 
 | `tests/lib/hymnValidation.test.ts` | **A suggested number not in the table is rejected.** All-rejected is an error, not an empty list. The phase plan's named test |
 | `tests/routes/hymn-suggest.test.ts` | The prompt contains the candidate list; the route writes nothing; each AI error kind maps to its own status |
 | `tests/routes/hymn-select.test.ts` | `music_coordinator` 200; `org_president` 403; a no-meeting Sunday 422 |
-| `tests/rls/music-access.test.ts` | Ward isolation on selections; `hymns` readable by all; post-04Y an `org_secretary` cannot insert a selection |
+| `tests/rls/music-access.test.ts` | Ward isolation on selections; `hymns` readable by all; post-043 an `org_secretary` cannot insert a selection |
 | `tests/db/hymn-seed.test.ts` | 341 rows; five known number/title pairs; no duplicate numbers |
 
 ---

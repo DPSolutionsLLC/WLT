@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 35,
+  "scenarioCount": 37,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -675,6 +675,80 @@
         "Both light and dark: \"No meeting\" is readable and does not look like a disabled control"
       ],
       "seedCommand": "npm run seed -- calendar/scenario-015-no-meeting-sundays"
+    },
+    {
+      "id": "music:scenario-036-choosing-hymns-for-a-sunday-with-topics",
+      "path": "music/scenario-036-choosing-hymns-for-a-sunday-with-topics",
+      "name": "Choosing hymns for a Sunday with topics",
+      "scope": "program-e-music-and-hymns",
+      "part": 1,
+      "tags": [
+        "music",
+        "ai",
+        "full"
+      ],
+      "prerequisites": "none",
+      "purpose": "The music coordinator's whole loop, and the ITER-016-shaped risk in the one place a person can\ncatch it.\n\nITER-016 recorded two confirmed-wrong AI conference talk citations out of fifteen, and the note\nthat matters is that the MIXTURE is the problem: an all-wrong batch gets noticed, a mostly-right\none teaches people to trust the rest. A hymn number is that failure with a congregation singing\nthe result on Sunday morning.\n\nThe mitigation is built and unit-tested — the candidate list goes into the prompt so the model\nranks rather than recalls, and every number that comes back is checked against the hymns table\nbefore it reaches the screen (`tests/lib/hymnValidation.test.ts`, `tests/routes/hymn-suggest.test.ts`).\nWhat a test cannot do is open a physical hymnbook. **That is the reason this scenario is walked\nby a person rather than automated**: somebody has to look up three of the suggested numbers in a\nreal book and confirm the titles match.\n\nThe second thing it proves is a boundary rather than a behaviour: the coordinator sees what the\nSunday is ABOUT and nothing about who is speaking. `lib/music/sundayTopics.ts` makes that\nstructural rather than careful, and this is where somebody checks the screen agrees.\n\n> **⚠️ THE HYMNBOOK IS ONLY PARTLY VERIFIED.** 42 of the 341 rows carry\n> `source = 'authoritative'`; the other 299 are placeholders titled `[Placeholder] Hymn 43`\n> (migration 042). AI suggestions are drawn only from the 42, so a suggestion is always a real\n> hymn — but a SEARCH will surface placeholders, and they are marked \"Not a real hymn\". That is\n> the design, not a bug.",
+      "checklist": [
+        "The Music link appears in the sidebar for the music coordinator",
+        "Six Sundays or fewer are listed, and every one of them holds a sacrament meeting",
+        "Sunday A's card shows the opening hymn as `19 — We Thank Thee, O God, for a Prophet` and the other two slots as \"Not chosen yet\"",
+        "Sunday A's card says \"Two hymns still to choose\" — not \"2 hymns\", and not a count of 3",
+        "Sunday A lists exactly two topics: \"Gratitude in Every Season\" and \"Bearing One Another's Burdens\"",
+        "**No speaker name appears anywhere on the Music screen** — not \"Sarah Whitfield\", not \"David Brooks\"",
+        "No pipeline stage, contact state, or approval count appears anywhere on the Music screen",
+        "Every suggestion carries a number and a title, and the title matches the app's own hymn table for that number",
+        "Generating suggestions creates NO row: `select count(*) from hymn_selections where sunday_id = <Sunday A>` is unchanged from before step 6",
+        "After step 11 (navigating away and back), the shortlist is GONE — no suggestions are shown",
+        "The accepted hymn's row has `ai_suggested = true`; the one chosen by search has `ai_suggested = false`",
+        "The accepted hymn's row has `selected_by` set to the music coordinator's user id",
+        "Searching `43` returns hymn 43 titled `[Placeholder] Hymn 43`, marked **Not a real hymn**",
+        "Sunday B, with no topics, still lets a hymn be chosen by search",
+        "An audit row exists with action `hymn_suggestions_generated` and module `music`, whose detail names `candidateCount`, `kept` and `droppedNumbers`",
+        "An audit row exists with action `hymn_selected` for each hymn saved",
+        "No horizontal overflow at 375px on any card",
+        "Every button on the card is at least 44×44",
+        "**Three suggested numbers, checked against a physical hymnbook, name the hymn the app says they do.** This is the check the whole scenario exists for — if one is wrong, stop and report the number",
+        "Each suggestion's one-line reason genuinely connects that hymn to a topic on that Sunday, rather than being a generic sentence that would fit any hymn",
+        "\"Nothing here is saved\" is believable where it sits — a coordinator reading the shortlist understands they have not chosen anything yet",
+        "The three \"Use as opening / sacrament / closing\" buttons read as a choice of slot, not as three ways of saying yes",
+        "\"Not chosen yet\" reads as work remaining, not as an error or a missing value",
+        "On Sunday B, \"No topics yet.\" reads as an ordinary state rather than as something the coordinator needs to fix",
+        "The **Not a real hymn** badge is impossible to miss beside a placeholder, in both light and dark",
+        "The screen is legible and usable one-handed at 375px, in both themes"
+      ],
+      "seedCommand": "npm run seed -- music/scenario-036-choosing-hymns-for-a-sunday-with-topics"
+    },
+    {
+      "id": "music:scenario-037-the-selection-reaches-the-program",
+      "path": "music/scenario-037-the-selection-reaches-the-program",
+      "name": "The selection reaches the program",
+      "scope": "program-e-music-and-hymns",
+      "part": 1,
+      "tags": [
+        "music",
+        "program",
+        "smoke"
+      ],
+      "prerequisites": "none",
+      "purpose": "The seam between this plan and `program-a`'s snapshot rule.\n\nA program draft is a SNAPSHOT, not a view. Once it is stored it stops tracking the calendar, the\nassignments, the prayers and the hymns it came from, and `POST /api/programs/[id]/refresh` is the\nonly sanctioned way to move it forward. `program-e` adds a fourth upstream source to that list,\nand the rule has to hold for it exactly as it does for the other three.\n\nThe failure this guards against is the tempting one: a hymn selection that writes through into an\nexisting draft. It would feel helpful. It would also mean the secretary's approved program could\nchange under them between the approval and the printing, which is the whole reason the snapshot\nexists.\n\n> **Why a person walks this rather than a test.** `tests/db/program-snapshot.test.ts` already\n> proves the stored draft does not move when its sources do. What it cannot judge is whether the\n> refresh diff READS as a change worth accepting — whether \"Sacrament hymn: (nothing) → 173 —\n> While of These Emblems We Partake\" tells a secretary what they are about to agree to.",
+      "checklist": [
+        "After step 4, `hymn_selections` holds three rows for that Sunday: opening 19, sacrament 173, closing 152",
+        "After step 4 and BEFORE the refresh, the stored `programs.draft_data` still has `sacramentHymn: null` — the write did not reach through",
+        "At step 7 the program screen shows the sacrament hymn as absent, and `sacrament_hymn` is still in the missing list",
+        "The refresh diff names the sacrament hymn and shows both the **number and the title**, not the number alone",
+        "The refresh diff does NOT list the opening or closing hymn as changed — they were already correct",
+        "After applying and saving, `programs.draft_data.sacramentHymn` is `{ number: 173, title: \"While of These Emblems We Partake\" }`",
+        "After applying and saving, `sacrament_hymn` is gone from the program's missing list",
+        "The program's status is still `draft` — a refresh does not submit or approve anything",
+        "An audit row exists for the hymn selection with action `hymn_selected` and module `music`",
+        "No horizontal overflow at 375px on the diff panel",
+        "At step 7, the unchanged program does not look broken or stale — it looks like a program that has not been refreshed yet",
+        "The diff line for the sacrament hymn tells the secretary what they are agreeing to without them needing to know what a snapshot is",
+        "Applying the diff feels like accepting a change, not like the app correcting an error the secretary made",
+        "The program screen after saving reads as complete rather than as \"the gap has been patched\""
+      ],
+      "seedCommand": "npm run seed -- music/scenario-037-the-selection-reaches-the-program"
     },
     {
       "id": "program:scenario-028-a-program-draft-with-a-gap-in-it",

@@ -760,12 +760,17 @@ export async function createPrayerAssignment(options: {
 // Music and programs
 // ============================================================================
 
+// `aiSuggested` DEFAULTS TO FALSE, matching POST /api/hymns/select: a selection that does not say
+// otherwise is a person's own choice, and a seed that could not distinguish the two would make
+// scenario 036's "the accepted hymn is marked as AI-suggested, the searched ones are not" check
+// unwalkable.
 export async function createHymnSelection(options: {
   sundayId: string;
   hymnType: HymnType;
   hymnNumber: number;
   hymnTitle: string;
   selectedBy?: string;
+  aiSuggested?: boolean;
 }): Promise<string> {
   return insertRow("hymn_selections", {
     ward_id: TEST_WARD_ID,
@@ -774,6 +779,7 @@ export async function createHymnSelection(options: {
     hymn_number: options.hymnNumber,
     hymn_title: options.hymnTitle,
     selected_by: options.selectedBy ?? null,
+    ai_suggested: options.aiSuggested ?? false,
   });
 }
 

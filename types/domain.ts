@@ -502,15 +502,16 @@ export type KnowledgeDocument = {
 // Phase 5 — the AI platform
 // ---------------------------------------------------------------------------------------------
 
-// FIVE entries. `program_edit` arrived with program-b, which is the plan that calls it; the
-// sixth, `hymn_suggestions`, still belongs to program-e and is still absent, because a
-// module-instruction block nothing calls reads as finished work.
+// SIX entries. Each one has a route that calls it — a module-instruction block nothing calls
+// reads as finished work. `hymn_suggestions` arrived with program-e and is called by
+// GET /api/hymns/suggest.
 export const AI_MODULES = [
   "settings_preview",
   "topic_suggestions",
   "confirmation_message",
   "thank_you_message",
   "program_edit",
+  "hymn_suggestions",
 ] as const;
 export type AiModule = (typeof AI_MODULES)[number];
 

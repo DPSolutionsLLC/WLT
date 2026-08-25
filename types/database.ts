@@ -1205,18 +1205,21 @@ export type Database = {
         Row: {
           id: number
           number: number
+          source: string
           title: string
           topic_tags: string[]
         }
         Insert: {
           id?: number
           number: number
+          source: string
           title: string
           topic_tags?: string[]
         }
         Update: {
           id?: number
           number?: number
+          source?: string
           title?: string
           topic_tags?: string[]
         }

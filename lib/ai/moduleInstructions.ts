@@ -47,6 +47,28 @@ const BLOCKS: Record<AiModule, string> = {
     "nobody in it stays null: never write \"TBD\" or any other placeholder, because it would " +
     "be printed as though somebody had typed it. Nothing you return is saved until they have " +
     "read the change and accepted it.",
+
+  // ---------------------------------------------------------------------------------------
+  // WHY THE HYMNS ARE HANDED OVER RATHER THAN RECALLED
+  // ---------------------------------------------------------------------------------------
+  // ITER-016 recorded two confirmed-wrong conference talk citations out of fifteen, and noted
+  // that the MIXTURE is what does the damage: an all-wrong batch gets noticed, a mostly-right
+  // one teaches people to trust the rest. A hymn number is the same failure with a worse
+  // ending — it is sung by a congregation on a Sunday morning.
+  //
+  // So the model is never asked which hymn is about gratitude. The whole candidate list goes
+  // into the user prompt (lib/music/hymnCandidates.ts) and it RANKS rather than RECALLS, and
+  // every number that comes back is checked against that list before it reaches a screen
+  // (validateSuggestions in lib/ai/hymnSuggestions.ts).
+  //
+  // If you are here to simplify this by trusting the model with hymn numbers: that is the
+  // change ITER-016 exists to warn you off. The candidate set is 341 rows at most. It fits.
+  hymn_suggestions:
+    "A ward music coordinator is choosing hymns for a sacrament meeting. Choose from the list " +
+    "of hymns in the request and from nothing else, and give each choice one line saying what " +
+    "connects it to that meeting. If the list holds nothing that fits, say so rather than " +
+    "reaching for a hymn that is not on it. Nothing you suggest is saved until the " +
+    "coordinator accepts it.",
 };
 
 // Every block ends with the citation instruction. Composed here rather than written into each
