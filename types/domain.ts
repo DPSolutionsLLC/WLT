@@ -502,13 +502,15 @@ export type KnowledgeDocument = {
 // Phase 5 — the AI platform
 // ---------------------------------------------------------------------------------------------
 
-// FOUR entries, not six. Phase 6 adds `hymn_suggestions` and `program_edit`; adding them now
-// would mean two module-instruction blocks nothing calls, which read as finished work.
+// FIVE entries. `program_edit` arrived with program-b, which is the plan that calls it; the
+// sixth, `hymn_suggestions`, still belongs to program-e and is still absent, because a
+// module-instruction block nothing calls reads as finished work.
 export const AI_MODULES = [
   "settings_preview",
   "topic_suggestions",
   "confirmation_message",
   "thank_you_message",
+  "program_edit",
 ] as const;
 export type AiModule = (typeof AI_MODULES)[number];
 

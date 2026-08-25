@@ -1161,8 +1161,15 @@ PATCH  /api/admin/ward-settings  Update ward settings (with bishopric notificati
   /prayers/
     /page.tsx                  BUILT in talks-c. Prayer tracker (Server Component)
     /PrayerBoard.tsx           "use client" — invocation and benediction per Sunday, four stages
-  /program/
-    /[sunday_id]/page.tsx      Program builder
+  /program/                    As BUILT in program-b. The list is new — the original tree had
+    /page.tsx                  only the detail page, and a builder with no way in needs one
+    /[sunday_id]/page.tsx      Server Component — guards, loads, hands the draft down
+    /[sunday_id]/ProgramBuilder.tsx    "use client" — the form state and its TanStack Query cache
+    /[sunday_id]/MeetingOrderForm.tsx  "use client" — every draft field, edited
+    /[sunday_id]/MissingPanel.tsx      What is still needed, as sentences. Never an error state
+    /[sunday_id]/RefreshButton.tsx     "use client" — /refresh with apply:false, then confirm
+    /[sunday_id]/AiEditPanel.tsx       "use client" — the conversation, its diff and its errors
+    /[sunday_id]/BuildProgramButton.tsx  "use client" — the one action a Sunday with no row offers
   /music/page.tsx              Music coordinator view
   /visits/
     /page.tsx                  Visit tracker dashboard
@@ -1215,9 +1222,10 @@ PATCH  /api/admin/ward-settings  Update ward settings (with bishopric notificati
                                (PipelineCard, ApprovalThread and AIMessageComposer were the
                                guess; the first two are folded into the pages above and
                                AIMessageComposer belongs to Phase 5)
-  /program/
-    ProgramPreview.tsx
-    ProgramEditorChat.tsx      AI conversational editor
+  /program/                    As BUILT in program-b. ProgramEditorChat was the guess; the
+    ProgramPreview.tsx         conversation lives in AiEditPanel beside the form it edits, and
+    DraftDiff.tsx              the diff it renders is SHARED with the refresh flow — one panel,
+    ProgramStatusBadge.tsx     two callers, so neither can word the same table differently
   /visits/
     VisitDashboard.tsx
     VisitProgressMap.tsx

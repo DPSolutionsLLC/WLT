@@ -162,6 +162,42 @@ export async function getProgramBySunday(
   return data ? mapProgramRow(data) : null;
 }
 
+// Every Sunday's program in one read, for the /program list. Returned keyed by sunday_id so the
+// page can render eight Sundays without eight round trips — the same shape countApprovalsFor()
+// uses on the month planner, and for the same reason.
+//
+// A Sunday with no program row is ABSENT from the map rather than mapped to null. The list
+// renders that as "not built yet", which is a different thing from a program that exists and is
+// empty, and an absent key cannot be mistaken for either.
+export async function listProgramsBySundays(
+  wardId: string,
+  sundayIds: readonly string[],
+  client?: SupabaseClient<Database>,
+): Promise<Map<string, Program>> {
+  if (sundayIds.length === 0) return new Map();
+
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("programs")
+    .select(PROGRAM_COLUMNS)
+    .eq("ward_id", wardId)
+    .in("sunday_id", [...sundayIds]);
+
+  if (error) {
+    console.error(`Could not read a ward's programs — ${error.message}`, { wardId });
+    throw new Error(`Could not read those programs: ${error.message}`);
+  }
+
+  return new Map(
+    (data ?? [])
+      .map(mapProgramRow)
+      .flatMap((program) =>
+        program.sundayId === null ? [] : [[program.sundayId, program] as const],
+      ),
+  );
+}
+
 export async function getProgram(
   wardId: string,
   programId: string,

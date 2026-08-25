@@ -36,6 +36,17 @@ const BLOCKS: Record<AiModule, string> = {
   thank_you_message:
     "Draft a short thank-you message to someone who has spoken in sacrament meeting. Refer to " +
     "what they spoke about rather than thanking them in general terms. Two or three sentences.",
+
+  // The only module that returns a WHOLE DOCUMENT rather than a paragraph, which changes what
+  // the constraints have to say. The risk here is not tone; it is a field quietly going missing
+  // or being improved without being asked.
+  program_edit:
+    "A ward secretary is editing a sacrament meeting program by describing the change they " +
+    "want. Return the whole program with their change made and every other field exactly as it " +
+    "was — the fields they did not mention are not yours to tidy or improve. A place with " +
+    "nobody in it stays null: never write \"TBD\" or any other placeholder, because it would " +
+    "be printed as though somebody had typed it. Nothing you return is saved until they have " +
+    "read the change and accepted it.",
 };
 
 // Every block ends with the citation instruction. Composed here rather than written into each

@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 29,
+  "scenarioCount": 31,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -738,6 +738,85 @@
         "Is the refresh discoverable at all? A snapshot nobody knows how to update is worse than a live view."
       ],
       "seedCommand": "npm run seed -- program/scenario-029-the-snapshot-holds"
+    },
+    {
+      "id": "program:scenario-030-editing-a-program-by-describing-the-change",
+      "path": "program/scenario-030-editing-a-program-by-describing-the-change",
+      "name": "Editing a program by describing the change",
+      "scope": "program-b-builder-screen",
+      "part": 1,
+      "tags": [
+        "program",
+        "ai",
+        "full"
+      ],
+      "prerequisites": "ANTHROPIC_API_KEY must be set in .env.local — this scenario makes a real Claude call",
+      "purpose": "**The highest-risk AI surface in the app, exercised end to end.**\n\nEvery other AI feature in this app returns PROSE. A human skims a drafted text message, sees it is\nwrong, and fixes it. This one returns a whole structured program, and a JSON draft that silently\ndropped the benediction *looks completely fine on screen* — it is a field that is simply not\nthere any more — and then prints wrong on Sunday morning.\n\nThree layers exist to stop that, and only the third can be walked: structured output makes the\nresponse parseable, `programDraftSchema` makes it valid, and **the diff makes it visible**. This\nscenario is the walk of that third layer. The judgement no test can make is whether a person\nreading the diff can actually tell what would change — and whether \"nothing is saved until you\npress Apply\" is *believable* rather than merely true.\n\nThe second judgement is continuity. A conversation is only a conversation if the second\ninstruction edits the result of the first. Whether that is obvious from the screen, or whether the\ntester has to guess, is not something a route test reaches.",
+      "checklist": [
+        "The reply is a **diff** — the old text and the new text are both on screen, not just the new program",
+        "Exactly **two** rows appear in the diff: \"Ward business\" and \"Special notes\". Nothing else moved",
+        "The \"Special notes\" row's before value is a dash, not the word \"None\" or \"Not set\"",
+        "The \"Ward business\" row shows the seeded sentence as its before value, in full",
+        "No dotted machine path (`specialNotes`, `speakers.2.printedName`) appears anywhere on screen",
+        "After step 8 — leaving without applying — the ward business on the form is the **seeded** text again",
+        "After **Apply** in step 9, the form's Ward business and Special notes boxes show the **new** text (not the old values)",
+        "The panel says the change is on the program and must be **saved to keep it** — it does not say \"Saved\"",
+        "The conversation list shows the first instruction and what it changed",
+        "The second instruction's diff shows the **already-updated** note as its before value, not the original null",
+        "The missing panel still lists the same gaps — the AI edit did not quietly rewrite them",
+        "After **Save the program**, reloading the page shows the edited text",
+        "There is no horizontal overflow at 375px with the diff open, and tap targets are at least 44×44",
+        "Read the diff cold. Could you tell, in two seconds, exactly what would change if you pressed Apply?",
+        "Before pressing Apply — is it **believable** that nothing has been saved? Or does the screen feel like it already did something?",
+        "The Apply button is worded by consequence (\"Apply these 2 changes\"). Does that read better than \"Confirm\" would have?",
+        "After Apply, is it clear that you still have to Save? Or would a secretary close the tab thinking they were done?",
+        "The second instruction edits the first result. Is that obvious from the conversation on screen, or did you have to trust it?",
+        "Does the panel read as a tool you would reach for, or as a novelty you would use once?"
+      ],
+      "seedCommand": "npm run seed -- program/scenario-030-editing-a-program-by-describing-the-change"
+    },
+    {
+      "id": "program:scenario-031-the-program-that-is-not-ready",
+      "path": "program/scenario-031-the-program-that-is-not-ready",
+      "name": "The program that is not ready",
+      "scope": "program-b-builder-screen",
+      "part": 1,
+      "tags": [
+        "program",
+        "smoke"
+      ],
+      "prerequisites": "none",
+      "purpose": "**Proves that missing is not an error state.**\n\nA program is almost never complete when somebody sits down with it. A speaker has not replied, the\nmusic coordinator has not chosen the sacrament hymn, nobody has written the announcements, and\nthis ward has no organist or chorister recorded at all because neither has a screen until\n`program-e`. **That is the normal Thursday, not the broken case.**\n\nEvery automated check here already passes: the sentences exist, they are pluralised, they carry no\nfield names, the panel has no alert role. What none of them can answer is the only question that\ndecides whether this screen is usable — does a secretary reading six gaps at once feel *behind*,\nor feel *broken*? A checklist and a validation summary are made of the same words. What separates\nthem is tone, ordering and what sits beside them, and those need eyes.\n\nThe second thing it proves is that the app does not get in the way. A program with gaps can still\nbe sent for approval. Blocking that would make the feature unusable in the exact week it is used.",
+      "checklist": [
+        "The list row reads \"**6 things still needed**\", not \"6 errors\" and not a bare number",
+        "With one Sunday in range the list says \"The next **Sunday** that holds a sacrament",
+        "Every gap is a sentence naming what to do — never a field name like `sacrament_hymn`",
+        "No underscore appears anywhere in the panel",
+        "The two open speaking slots read as **one line** with a count: \"2 speaking slots are still open.\"",
+        "The panel header count reads \"**6 things still needed**\", plural",
+        "Nothing on screen reads \"TBD\", \"Not yet assigned\", \"None\", \"required\", \"invalid\" or \"error\"",
+        "The panel carries no warning icon, no red, and no `role=\"alert\"`",
+        "In the **Preview**, the nine fixed meeting-order lines all render — Presiding,",
+        "An empty person line reads \"Nobody yet\"; an empty hymn line reads \"Not chosen yet\"",
+        "**Announcements** and the other optional blocks are still **absent entirely** from the",
+        "Nothing in the preview reads \"TBD\", \"Not yet assigned\" or \"None assigned\"",
+        "Slot 1 reads \"Sarah Whitfield — Charity Never Faileth\"; slots 2 and 3 read as nobody yet",
+        "Pressing **Send for approval** succeeds. It warns about the gaps, it does not block",
+        "The confirmation reads exactly \"**Sent for approval.**\" It does **not** claim the",
+        "After sending, the status badge reads **Waiting for approval** and the Send control is gone",
+        "**Save the program** is still offered, and still works. A program waiting for approval is",
+        "No raw uuid appears anywhere on the screen",
+        "No horizontal overflow at 375px",
+        "Buttons, inputs and textareas are at least 44px tall. **Inline navigation links are",
+        "Read the panel cold. Does it feel like a **checklist of work left**, or like a list of things the app is complaining about?",
+        "Six gaps at once. Overwhelming, or manageable?",
+        "Would a secretary looking at this know what to do next without being told?",
+        "The preview greys the empty organist line rather than dropping it. Does the greyed skeleton read as *a program still being filled in*?",
+        "The sentence under the panel says the list moves when you check for changes. Does that explain why a field you typed still shows as needed, or does it read as an excuse?",
+        "The warning above **Send for approval** — does it inform without discouraging? Would you press it?",
+        "In dark mode, is the panel still legible and still un-alarming?"
+      ],
+      "seedCommand": "npm run seed -- program/scenario-031-the-program-that-is-not-ready"
     },
     {
       "id": "roster:scenario-007-roster-browse-and-notes",
