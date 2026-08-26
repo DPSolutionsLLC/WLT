@@ -3,10 +3,15 @@
 **Created:** 2026-08-25
 **Type:** feature
 **Structure:** Sequential — plan 2 of 3 for Phase 7 ([07-visits.md](07-visits.md))
-**Depends on:** `visits-a` ([visits-a-goals-logs-and-notes.md](visits-a-goals-logs-and-notes.md)).
-This plan replaces the placeholder body of `app/(app)/visits/page.tsx` that `visits-a` leaves
-behind, and reads the goals and logs its data layer creates. **Do not start before
-`visits-a` is committed.**
+**Depends on:** `visits-a` ([visits-a-goals-logs-and-notes.md](visits-a-goals-logs-and-notes.md))
+and `visits-d`
+([visits-d-attempts-appointments-and-participants.md](visits-d-attempts-appointments-and-participants.md)),
+both built. This plan adds the dashboard to `app/(app)/visits/page.tsx` and reads the goals and
+logs their data layers create.
+
+**`/visits` IS NO LONGER A PLACEHOLDER — read §The page already has three panels before Task 4.**
+This plan was written when the page held a plain list and a form. `visits-d` added two more
+panels, one of which is the only way to log a visit at all.
 
 ---
 
@@ -121,7 +126,8 @@ them load-bearing here:
 
 ### Modify
 
-- `app/(app)/visits/page.tsx` — replace the `visits-a` placeholder list with the dashboard.
+- `app/(app)/visits/page.tsx` — ADD the dashboard and REPLACE only the "Recent visits" list.
+  Three other panels stay; see §The page already has three panels.
 - `types/domain.ts` — `HouseholdVisitStatus` and `HOUSEHOLD_VISIT_STATUS_LABELS`.
 - `lib/visits/queries.ts` — add `listVisitLogsForPeriod()` if the progress read needs a shape
   `visits-a` did not provide. Extend; do not restructure.
@@ -271,6 +277,54 @@ Rules, in evaluation order:
 - Session resolved **outside** the `try` — `requireSessionUser()` redirects by throwing.
 - No audit row: this is a read.
 
+## The page already has three panels
+
+**This plan used to say "replace the placeholder body", and that was wrong by the time anyone
+would have read it.** It was written on 2026-08-25 against a `/visits` that held one goal panel,
+one form and one flat list; the wording has been corrected wherever it appeared, and this section
+is why. `visits-d` shipped the same day and left the page carrying **four** things:
+
+| Panel | Came from | What this plan does with it |
+|---|---|---|
+| `VisitGoalPanel` | `visits-a` | **Keep.** Task 5 moves it above the banner |
+| `AppointmentPanel` | `visits-d` | **Keep.** Untouched by this plan |
+| `VisitLogForm` | `visits-a`, extended by `visits-d` | **Keep.** See the warning below |
+| "Recent visits" `<ul>` | `visits-a` | **This is the only thing the dashboard replaces** |
+
+**`VisitLogForm` IS THE ONLY WAY TO LOG A VISIT.** Deleting or orphaning it while "replacing the
+placeholder body" would leave a module that reports progress against visits nobody can record.
+It also carries state this plan must not disturb:
+
+- the outcome and arrangement controls, and the `Who went` participants field;
+- a `key` on the component in `page.tsx`, which is load-bearing — it remounts the form when
+  `?appointment=` changes, and without it the appointment prefill silently stops working
+  (`plans/retros/visits-d-attempts-appointments-and-participants.md`);
+- `appointment={appointmentPrefill}`, resolved from the query parameter by
+  `lib/visits/appointmentLink.ts`.
+
+**`AppointmentPanel` reads `?appointment=` too**, via the same module. Any change to how
+`page.tsx` handles `searchParams` has to keep both halves of that protocol working — and the
+constant must keep coming from `appointmentLink.ts`, never from the panel, because a value
+imported from a `"use client"` module reaches a Server Component as a client-reference proxy
+rather than as a string. That cost this feature a silent dead flow once already.
+
+### Order on the page
+
+Progress first, because the dashboard is what a president opens `/visits` to see:
+
+1. Progress banner + dashboard table
+2. `VisitGoalPanel` (Task 5 — the cadence driving the numbers sits beside them)
+3. `AppointmentPanel`
+4. `VisitLogForm`
+
+Four stacked panels is a lot for one screen, and at 375px it is a long scroll. **Raise tabs or a
+split before building rather than after, rather than deciding it silently by stacking.**
+`visits-c` then adds a tab across to `/visits/feed` from this same page, so whatever navigation
+shape you land on has to hold that too — it is cheaper to choose it once, here, than to retrofit
+it around four panels that were stacked because nobody stopped.
+
+---
+
 ### Task 4: The dashboard UI
 
 **Files:** `app/(app)/visits/page.tsx` (modify), `VisitProgressTable.tsx`,
@@ -289,7 +343,14 @@ Rules, in evaluation order:
   dashboard is one org's households, not a paginated set.
 - Status renders as a `Badge`-style pill with a distinct treatment per status, `dark:`
   variants included. Colour alone must not carry the meaning — keep the text label.
+  **There is a working precedent to copy:** `AppointmentPanel`'s state badges follow
+  `components/assignments/StageBadge.tsx` and add a MARK as well as a colour
+  (`○ Scheduled`, `✓ Kept`, `✕ Cancelled`, `! Missed`), so they separate in greyscale. That
+  shape was reviewed by the user and chosen over a bare coloured line, which did not stand out.
 - The "last visited" column uses a formatter **that renders the year** (§Known Pitfalls).
+  **`AppointmentPanel.formatScheduledFor` currently does NOT** — a 2099 appointment renders
+  identically to a 2026 one, recorded as an open minor defect in `visits-d`'s walkthrough. One
+  shared formatter closes both; put it somewhere `AppointmentPanel` can import it.
 - Mobile-first: the table collapses to stacked cards at small widths, as the roster does.
 - The org switcher appears only for the bishopric.
 

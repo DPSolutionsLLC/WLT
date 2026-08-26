@@ -484,6 +484,39 @@ export const VISIT_CADENCE_LABELS: Record<VisitCadence, string> = {
   custom: "Every so many months",
 };
 
+// ---------------------------------------------------------------------------
+// WHERE ONE HOUSEHOLD STANDS AGAINST ITS ORGANIZATION'S VISIT GOAL
+// ---------------------------------------------------------------------------
+// COMPUTED, never stored. There is no status column on visit_logs and none should be added: a
+// household crosses into `overdue` because the clock moved, and a column recording that would be
+// a snapshot of whenever somebody last wrote to the row. lib/visits/householdStatus.ts is the
+// one place that decides, and it takes `asOf` as a parameter so the answer is a statement about
+// a moment rather than about whenever the function happened to run.
+//
+// `attempted_never_reached` IS THE ONE THAT EARNS ITS PLACE. An attempt counts towards nothing —
+// a leader knocked and nobody answered, and the family has not been visited — so without a state
+// of its own a household the ward keeps trying to reach would sit in `not_yet_visited` looking
+// exactly like one nobody has thought about. That is the invisibility visits-d's `attempted`
+// outcome exists to end, and hiding it again in the dashboard's numbers would waste it.
+export const HOUSEHOLD_VISIT_STATUSES = [
+  "visited",
+  "due_soon",
+  "overdue",
+  "attempted_never_reached",
+  "not_yet_visited",
+] as const;
+export type HouseholdVisitStatus = (typeof HOUSEHOLD_VISIT_STATUSES)[number];
+
+// A Record rather than a lookup with a fallback, for the same reason VISIT_TYPE_LABELS is one: a
+// status added later must not render as its own snake_case key.
+export const HOUSEHOLD_VISIT_STATUS_LABELS: Record<HouseholdVisitStatus, string> = {
+  visited: "Visited",
+  due_soon: "Due soon",
+  overdue: "Overdue",
+  attempted_never_reached: "Attempted, never reached",
+  not_yet_visited: "Not yet visited",
+};
+
 export const REPORT_TYPES = ["visit_log", "youth_activity"] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];
 

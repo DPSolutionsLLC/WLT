@@ -8,6 +8,7 @@ import { FormError } from "@/components/ui/FormError";
 import { Input } from "@/components/ui/Input";
 import { appointmentViewState } from "@/lib/visits/appointmentStatus";
 import { logVisitHref } from "@/lib/visits/appointmentLink";
+import { formatAppointmentInstant } from "@/lib/visits/visitDates";
 import { MAX_SHARED_NOTES } from "@/lib/validation/visit";
 import {
   APPOINTMENT_VIEW_STATE_LABELS,
@@ -110,22 +111,6 @@ async function readJson(response: Response): Promise<Record<string, unknown>> {
 
 function errorFrom(payload: Record<string, unknown>, fallback: string): string {
   return typeof payload.error === "string" ? payload.error : fallback;
-}
-
-// The ward's own locale and timezone, from the browser. An appointment is the one thing in this
-// app stored as an instant rather than a date, so it is the one thing that must be rendered in
-// somebody's local time rather than UTC.
-function formatScheduledFor(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-
-  return parsed.toLocaleString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  });
 }
 
 // <input type="datetime-local"> speaks local wall-clock with no offset, and the API takes an ISO
@@ -285,7 +270,7 @@ export function AppointmentPanel({
                   {appointment.householdName ?? "Unknown household"}
                 </p>
                 <p className="mt-1 text-sm text-muted">
-                  {formatScheduledFor(appointment.scheduledFor)}
+                  {formatAppointmentInstant(appointment.scheduledFor)}
                   {appointment.madeByName === null ? "" : ` · booked by ${appointment.madeByName}`}
                 </p>
 

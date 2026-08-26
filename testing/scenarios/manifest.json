@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 41,
+  "scenarioCount": 42,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -1583,6 +1583,49 @@
         "Dark mode: the flagged state is still visible at a glance in the list"
       ],
       "seedCommand": "npm run seed -- visits/scenario-039-flagging-for-ward-council"
+    },
+    {
+      "id": "visits:scenario-040-the-dashboard-and-its-denominator",
+      "path": "visits/scenario-040-the-dashboard-and-its-denominator",
+      "name": "The dashboard and its denominator",
+      "scope": "visits",
+      "part": 1,
+      "tags": [
+        "visits",
+        "smoke",
+        "dashboard"
+      ],
+      "prerequisites": "none",
+      "purpose": "Two things on this page are only real on a screen.\n\n**The denominator is smaller than the ward.** `listHouseholds()` filters the members it *attaches*,\nnot the households it *returns*, so a household whose people have all moved out comes back present\nwith an empty member list. Counting it makes every organization look permanently behind, and a\nprogress number a ward stops trusting is worse than no number. Two households here are emptied —\none by `moved_out`, one by `do_not_contact` — and neither may appear in the count or the list.\n\n**Every status boundary needs a household at a precise distance from a precise goal start.** That\nis unreasonable to arrange by hand and it is exactly what the numbers on this page depend on. Six\nvisitable households sit at six known distances, one per status, so the page can be read against\nwhat it should say rather than against what it does say.",
+      "checklist": [
+        "The banner reads **\"3 of 6 households visited — 3 remaining\"** — not 8, and not 6 of 8",
+        "Delgado and Sorensen appear **nowhere** on the page: not in the list, not in the count",
+        "`select count(*) from households where ward_id = '111…111'` returns **8**, so the two",
+        "All five statuses are on screen: Brooks and Whitfield **Visited**, Okonkwo **Due soon**,",
+        "Okonkwo reads **Due soon** and is still one of the three counted as visited",
+        "Ferreira's **Visits this period** is **0** and its **Last attempted** shows a date",
+        "Ferreira is counted in the **remaining**, not in the visited",
+        "Halvorsen's **Last visited** shows a **year**, and it is a different year from the others",
+        "Whitfield's **Conducted by** reads **\"Nobody recorded\"** — never \"Peter Nakamura\"",
+        "Brooks' **Conducted by** names Miguel Cortez **and** Sister Alvarez",
+        "Sorting by **Status** groups the statuses rather than scrambling them, and opens on Overdue",
+        "Sorting by **Last visited** puts Nakamura (never visited) at the **same end** in both",
+        "Saving the new *Twice a year* goal moves the statuses **and** the banner without a page",
+        "Logging a visit from **Log a visit** moves the banner and that household's row without a",
+        "Signed in as the bishop, the **organization switcher is present**; as the EQ president it",
+        "With Relief Society selected, the page says **no goal is set** and shows **no denominator**",
+        "The RS president sees the **Relief Society** dashboard, never the Elders Quorum one",
+        "**Log a visit** still works: the form is there, one section down, and saving a visit still",
+        "No horizontal scrolling at 375px; every button ≥ 44×44",
+        "Is the banner the first thing you read, and does \"3 of 6\" land as a fact rather than as",
+        "Would a leader looking at Okonkwo understand that it is **both** visited and due again? Or",
+        "**Attempted, never reached** — does it read as a household somebody is failing to catch at",
+        "In dark mode, are the five pills distinguishable — and are they still distinguishable with",
+        "At 375px, is the stacked card readable, or is it a wall of labels? Is the sort control",
+        "The four action panels are collapsed under the dashboard. Does that read as \"the page is",
+        "Does \"Nobody recorded\" read as a fact about the visit, or as data that failed to load?"
+      ],
+      "seedCommand": "npm run seed -- visits/scenario-040-the-dashboard-and-its-denominator"
     },
     {
       "id": "visits:scenario-043-who-actually-went",

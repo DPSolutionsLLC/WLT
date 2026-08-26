@@ -6,6 +6,14 @@
 **Depends on:** `visits-a` (the logs and the notes boundary) and `visits-b` (the dashboard
 `/visits` shell this adds a tab to). **Do not start before both are committed.**
 
+> **WHEN THIS SLICE IS DONE, RUN ITER-018 BEFORE STARTING PHASE 8.**
+> [`.iterate/scopes/ITER-018.md`](../.iterate/scopes/ITER-018.md) — the visit goal becomes a
+> rolling cadence rather than a dated period, and the five status buckets become a priority
+> scale. Phase 8's youth-activity coverage is documented to reuse `householdVisitStatus`
+> (`visits-b` §Integration Notes), so landing that redesign after Phase 8 leaves that module
+> built on a model already known to be wrong. **Nothing in THIS slice is affected** — the feed
+> is over logs, not goals — which is why it goes first.
+
 > **Phase 8 reuses `ReportFeed` unchanged.** Build it generic from the first line. Retrofitting
 > genericity after a visit-specific component ships is the pitfall the phase file names, and
 > `activity_logs` already exists in migration 009 to check the design against.

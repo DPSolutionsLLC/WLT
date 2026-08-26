@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { VISIT_PROGRESS_QUERY_KEY } from "@/app/(app)/visits/VisitProgressTable";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
@@ -78,6 +80,7 @@ export function VisitGoalPanel({
   ownOrgId,
 }: VisitGoalPanelProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const emptyDraft: Draft = {
     title: "",
@@ -159,7 +162,16 @@ export function VisitGoalPanel({
 
       setDraft(emptyDraft);
       setOpen(false);
+
+      // BOTH, because they refresh different things. router.refresh() re-renders the Server
+      // Component so this panel lists the new goal; the invalidation is what makes the progress
+      // dashboard above recompute against the cadence that just changed.
+      //
+      // The seeded `initialData` on that query cannot do it: TanStack reads initialData once, on
+      // first mount, so a fresh server payload arriving as a new prop would be ignored and the
+      // banner would keep counting against the OLD interval until a full reload.
       router.refresh();
+      await queryClient.invalidateQueries({ queryKey: [VISIT_PROGRESS_QUERY_KEY] });
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
     } finally {

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { VISIT_PROGRESS_QUERY_KEY } from "@/app/(app)/visits/VisitProgressTable";
 import {
   recorderParticipant,
   toParticipantPayload,
@@ -132,6 +134,7 @@ export function VisitLogForm({
   appointment,
 }: VisitLogFormProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const emptyDraft: Draft = {
     // Prefilled from the appointment when one is being kept, so "log the visit we arranged" does
@@ -240,7 +243,19 @@ export function VisitLogForm({
       // Clears `?appointment=` so a second visit logged straight afterwards is not silently
       // attached to the appointment the first one kept.
       if (appointment !== undefined) router.replace("/visits");
+
+      // BOTH, because they refresh different things, and the second one is not optional.
+      //
+      // router.refresh() re-renders the Server Component, which is what updates the appointment
+      // panel and the recent-visits list. It does NOT touch the progress dashboard: that table
+      // reads a TanStack query, and `initialData` is consulted only on FIRST MOUNT, so a fresh
+      // server payload arriving as a new prop is ignored.
+      //
+      // Without the invalidation the headline number goes stale on the most common action on this
+      // page — a leader logs a visit and the banner still reports the household as unvisited until
+      // a full reload. Found walking scenario 040.
       router.refresh();
+      await queryClient.invalidateQueries({ queryKey: [VISIT_PROGRESS_QUERY_KEY] });
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
     } finally {
