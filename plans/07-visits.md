@@ -13,6 +13,32 @@ a progress dashboard, and the tile-based report feed.
 
 ---
 
+## Execution Plans
+
+Phase 7 is split into three execution plans, following the `talks-a`…`talks-d` and
+`program-a`…`program-e` precedent. **This file remains the reference for what the phase must
+achieve; the sub-plans are what get executed.**
+
+| # | Plan | Covers | Status |
+|---|---|---|---|
+| 1 | [visits-a-goals-logs-and-notes.md](visits-a-goals-logs-and-notes.md) | Steps 1–3 — goals, visit logs, the notes split, ward-council flagging | ✅ Built |
+| 2 | [visits-b-progress-dashboard.md](visits-b-progress-dashboard.md) | Step 4 — progress dashboard, `householdStatus.ts` | Ready |
+| 3 | [visits-c-report-feed-and-cross-org.md](visits-c-report-feed-and-cross-org.md) | Steps 5–6 — generic `ReportFeed`, per-user read state, cross-org admin toggle | Ready |
+| 4 | [visits-d-attempts-appointments-and-participants.md](visits-d-attempts-appointments-and-participants.md) | Step 7 — attempted visits, appointment vs drop-in, scheduled appointments, participants, `recorded_by` | Ready |
+
+**The order is `a` → `d` → `b` → `c`, and `visits-d` moved ahead of `visits-b` deliberately.**
+Step 7 changes what a visit *is* — a row may record an attempt rather than a visit, and the person
+who went is no longer the person who typed it in. `visits-b` computes its denominator and its
+per-household status over exactly those two facts, so building it first would mean writing it
+against a data model `visits-d` then invalidates. `visits-b` still replaces the placeholder page
+body `visits-a` leaves behind, and `visits-c` still adds a tab to it.
+
+**One decision is deferred out of all three.** `visit_overdue` (§Step 4) has nowhere to run —
+there is no `supabase/functions/` directory and `pg_cron` is not enabled. The trigger is seeded
+and fires from nothing. Raise the mechanism before `visits-c`.
+
+---
+
 ## Goals
 
 1. Each organization sets and tracks its own visit goals independently
@@ -173,6 +199,72 @@ several dozen people can see; treat it as a significant setting and confirm befo
 
 ---
 
+## Step 7 — Attempts, Appointments and Who Actually Went
+
+**Added 2026-08-25, by the user, during the `visits-a` walkthrough.** Not built. The execution plan
+is [visits-d-attempts-appointments-and-participants.md](visits-d-attempts-appointments-and-participants.md),
+written 2026-08-25, and **all four decisions below were settled with the user before it was
+written** — see that plan's §Confirmed decisions for the answers and the reasoning. They are left
+here because the questions are what make the plan's answers legible.
+
+### What was asked for
+
+1. **Logging an attempted visit must be easy.** A leader who knocked and got no answer has done
+   the work and should be able to say so in one action, not be forced to record a visit that did
+   not happen or record nothing at all.
+2. **Appointment or drop-in.** Whether the visit was arranged beforehand or was a call-in on the
+   way past.
+3. **Appointments that are MADE.** A scheduled future visit, tracked before it happens.
+4. **Who actually went.** The person recording it is a visitor by default, **can remove
+   themselves**, and can add companions — **up to five**.
+5. **The report names both roles.** Every visit shows who *conducted* it and, separately, who
+   *recorded it in the app*. Those are frequently not the same person and the record should not
+   pretend otherwise.
+
+### The four decisions this needs, before any code
+
+None of these should be settled by whoever writes the migration.
+
+- **A scheduled appointment is not a visit log.** `visit_logs` means "a thing that happened" —
+  `createVisitLogSchema` refuses a future date for exactly that reason, and `visits-b` counts
+  those rows as progress. A scheduled appointment living in the same table would inflate the
+  denominator with visits nobody has made yet. **Recommendation: a separate `visit_appointments`
+  table** that a completed visit optionally points back at, so "we kept the appointment" is
+  answerable and an unkept one does not quietly count.
+- **Does an attempted visit count as a visit?** Almost certainly not for the progress number, but
+  it must be *visible* — a household nobody can ever catch at home is exactly what a president
+  needs to see. This decides `visits-b`'s denominator and its "household status" wording, so
+  settle it before `visits-b`, not after.
+- **`visited_by` currently means two things at once.** It is stamped from the session and is read
+  as both "who went" and "who typed it in". Splitting it means a `recorded_by` column plus a
+  participants table, and **every existing read changes** — `lib/visits/queries.ts`, the list
+  response, the flag notification's labels, and `visits-b`'s per-household status.
+- **Companions may not have accounts.** A leader's spouse who came along is a `members` row, not a
+  `users` row; a visiting friend may be neither. A participants table keyed only to `users` cannot
+  record most real companions. **Decide what a participant is** — user, member, or free text —
+  before writing the foreign key, because it is painful to widen later.
+
+### Sketch, not a specification
+
+| Thing | Shape | Note |
+|---|---|---|
+| `visit_logs.outcome` | `completed` / `attempted` | Drives whether it counts in `visits-b` |
+| `visit_logs.arrangement` | `appointment` / `drop_in` | Requirement 2 |
+| `visit_logs.recorded_by` | user id, from the session | Never from the request body |
+| `visit_appointments` | ward, org, household, scheduled date, made_by, status | Requirement 3; future dates ALLOWED here |
+| `visit_participants` | visit log id + participant | Max five companions; see the decision above |
+
+**`visit_type` already carries a single-value CHECK** (`in_home`, migration 044). Whether
+`arrangement` is a second column or a widening of that CHECK is a design call — a single column
+mixing "in-home" with "drop-in" would conflate place and arrangement, which is why the sketch
+keeps them apart.
+
+**RLS:** every new table is org-scoped exactly as `visit_logs` is (migration 019), and
+`visit_appointments` needs the same cross-org read branch. No new table gets a bishopric override
+that `visit_logs` does not have.
+
+---
+
 ## Tests
 
 | Test | Asserts |
@@ -211,7 +303,10 @@ several dozen people can see; treat it as a significant setting and confirm befo
 - **Ambiguous note fields in the UI.** If a leader cannot tell which box is private, they
   will eventually put the wrong thing in the wrong one. Make it visually obvious.
 - **Wrong progress denominator.** Counting moved-out households makes every org look
-  behind and erodes trust in the number.
+  behind and erodes trust in the number. **This one bit during the `visits-a` walk**: the
+  household picker offered a household whose only member had moved out, because
+  `listHouseholds()` filters the members it attaches rather than the households it returns.
+  `visits-b` must filter on `members.length > 0`, not merely pass the status option.
 - **Nightly overdue spam.** Emit once per household per period, not every night.
 - **Building the feed visit-specific.** Phase 8 needs the same component. Parameterize now.
 - **Enforcing cross-org visibility in the UI only.** It must be an RLS predicate.

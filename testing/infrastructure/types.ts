@@ -34,6 +34,7 @@ export type {
   TopicStatus,
   VisitCadence,
   VisitTargetType,
+  VisitType,
 } from "../../types/domain.ts";
 
 export type ScenarioManifestEntry = {

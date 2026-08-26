@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 37,
+  "scenarioCount": 39,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -688,12 +688,12 @@
         "full"
       ],
       "prerequisites": "none",
-      "purpose": "The music coordinator's whole loop, and the ITER-016-shaped risk in the one place a person can\ncatch it.\n\nITER-016 recorded two confirmed-wrong AI conference talk citations out of fifteen, and the note\nthat matters is that the MIXTURE is the problem: an all-wrong batch gets noticed, a mostly-right\none teaches people to trust the rest. A hymn number is that failure with a congregation singing\nthe result on Sunday morning.\n\nThe mitigation is built and unit-tested — the candidate list goes into the prompt so the model\nranks rather than recalls, and every number that comes back is checked against the hymns table\nbefore it reaches the screen (`tests/lib/hymnValidation.test.ts`, `tests/routes/hymn-suggest.test.ts`).\nWhat a test cannot do is open a physical hymnbook. **That is the reason this scenario is walked\nby a person rather than automated**: somebody has to look up three of the suggested numbers in a\nreal book and confirm the titles match.\n\nThe second thing it proves is a boundary rather than a behaviour: the coordinator sees what the\nSunday is ABOUT and nothing about who is speaking. `lib/music/sundayTopics.ts` makes that\nstructural rather than careful, and this is where somebody checks the screen agrees.\n\n> **⚠️ THE HYMNBOOK IS ONLY PARTLY VERIFIED.** 42 of the 341 rows carry\n> `source = 'authoritative'`; the other 299 are placeholders titled `[Placeholder] Hymn 43`\n> (migration 042). AI suggestions are drawn only from the 42, so a suggestion is always a real\n> hymn — but a SEARCH will surface placeholders, and they are marked \"Not a real hymn\". That is\n> the design, not a bug.",
+      "purpose": "The music coordinator's whole loop, and the ITER-016-shaped risk in the one place a person can\r\ncatch it.\r\n\r\nITER-016 recorded two confirmed-wrong AI conference talk citations out of fifteen, and the note\r\nthat matters is that the MIXTURE is the problem: an all-wrong batch gets noticed, a mostly-right\r\none teaches people to trust the rest. A hymn number is that failure with a congregation singing\r\nthe result on Sunday morning.\r\n\r\nThe mitigation is built and unit-tested — the candidate list goes into the prompt so the model\r\nranks rather than recalls, and every number that comes back is checked against the hymns table\r\nbefore it reaches the screen (`tests/lib/hymnValidation.test.ts`, `tests/routes/hymn-suggest.test.ts`).\r\nWhat a test cannot do is open a physical hymnbook. **That is the reason this scenario is walked\r\nby a person rather than automated**: somebody has to look up three of the suggested numbers in a\r\nreal book and confirm the titles match.\r\n\r\nThe second thing it proves is a boundary rather than a behaviour: the coordinator sees what the\r\nSunday is ABOUT and nothing about who is speaking. `lib/music/sundayTopics.ts` makes that\r\nstructural rather than careful, and this is where somebody checks the screen agrees.\r\n\r\n> **⚠️ THE HYMNBOOK IS ONLY PARTLY VERIFIED.** 42 of the 341 rows carry\r\n> `source = 'authoritative'`; the other 299 are placeholders titled `[Placeholder] Hymn 43`\r\n> (migration 042). AI suggestions are drawn only from the 42, so a suggestion is always a real\r\n> hymn — but a SEARCH will surface placeholders, and they are marked \"Not a real hymn\". That is\r\n> the design, not a bug.",
       "checklist": [
         "The Music link appears in the sidebar for the music coordinator",
         "Six Sundays or fewer are listed, and every one of them holds a sacrament meeting",
         "Sunday A's card shows the opening hymn as `19 — We Thank Thee, O God, for a Prophet` and the other two slots as \"Not chosen yet\"",
-        "Sunday A's card says \"Two hymns still to choose\" — not \"2 hymns\", and not a count of 3",
+        "Sunday A's card counts only the EMPTY slots — two, not three. With two empty it reads",
         "Sunday A lists exactly two topics: \"Gratitude in Every Season\" and \"Bearing One Another's Burdens\"",
         "**No speaker name appears anywhere on the Music screen** — not \"Sarah Whitfield\", not \"David Brooks\"",
         "No pipeline stage, contact state, or approval count appears anywhere on the Music screen",
@@ -1497,6 +1497,92 @@
         "No raw uuid appears anywhere on the board or the calendar"
       ],
       "seedCommand": "npm run seed -- talks/scenario-019-goals-on-the-calendar"
+    },
+    {
+      "id": "visits:scenario-038-the-shared-and-private-note-split",
+      "path": "visits/scenario-038-the-shared-and-private-note-split",
+      "name": "The shared and private note split",
+      "scope": "visits-a-goals-logs-and-notes",
+      "part": 1,
+      "tags": [
+        "visits",
+        "smoke",
+        "privacy"
+      ],
+      "prerequisites": "none",
+      "purpose": "CLAUDE.md rule 5 says a private note is readable by its author and by nobody else — not the\nbishop, not an admin, not a support query. That rule is already enforced four ways in code, and\nthree of the four are already tested: the policy by `tests/rls/private-notes.test.ts`, the module\nboundary by an import list, the route responses by `tests/routes/visits.test.ts`.\n\n**The fourth mechanism is a UI promise, and it is the only one a test cannot check.** A leader\nwriting a pastoral observation has to know, at the moment of typing, which box the bishop will\nread. Two textareas stacked one above the other with correct labels can still be indistinguishable\nat arm's length on a phone in a car park, which is where visits actually get logged.\n\nSo what a person is here to judge is: **can you tell the two boxes apart without reading them,\nand does the one that needs caution get it?**\n\nThe emphasis sits on the SHARED field, not the private one — its label, its helper text and the\ntext being typed into it are all in the attention colour. That reverses the first build, after the\n2026-08-25 walk: highlighting the private box said \"be careful\" about the only field that is\nalready safe, and a tinted panel with a heavy border read as a validation error. The field that\nearns a person's caution is the one other leaders will read.\n\nEverything else on this page — the counts, the permissions, the absence of the note from the\nbishop's screen — is machine-checkable and `/walk` will do it.\n\nBeing two people at once is the other thing a tester cannot do alone. The seed writes a private\nnote authored by the EQ president so that \"the bishop sees no trace of it\" is a real check rather\nthan the tester failing to find their own note.",
+      "checklist": [
+        "The **Visits** link appears in the sidebar for all three accounts",
+        "As the EQ president, **three** visits are listed, not four — the Relief Society visit is absent",
+        "The Okonkwo visit renders as an ordinary row with no shared notes, not as a broken one",
+        "**Ferreira does not appear in the household picker**; the other five households do. (This FAILED on the 2026-08-25 walk and was fixed — see the record.)",
+        "The visit date field will not accept tomorrow's date, and the server refuses one too",
+        "After step 7, `select count(*) from visit_logs where household_id = <Whitfield>` is 1",
+        "After step 7, exactly one row exists in `visit_private_notes` for that visit, `user_id` = the EQ president",
+        "The private note was sent in its OWN request to `/api/visits/<id>/private-note`, not as a field on `POST /api/visits` (check the network tab)",
+        "As the bishop, **four** visits are listed — the bishopric reads every organization",
+        "**Ctrl+F for `PRIVATE-NOTE-CANARY-038` on the bishop's page finds nothing**",
+        "Ctrl+F for the step-7 private phrase on the bishop's page finds nothing",
+        "The bishop DOES see the Brooks shared note (\"brought a meal round after the surgery\")",
+        "`curl`ing `/api/visits` as the bishop returns a body containing no `private` key anywhere",
+        "The EQ secretary sees the goal panel with **no Save control and no \"Set a goal\" button**, and the sentence \"View only — your role does not set goals.\"",
+        "The EQ secretary CAN log a visit — they hold `visits.create`",
+        "An audit row exists with action `visit_logged` and module `visits`",
+        "An audit row exists with action `visit_private_note_saved` whose detail names the visit id and **contains no note text**",
+        "No raw uuid appears anywhere on the Visits page",
+        "No horizontal overflow at 375px",
+        "Every button and both textareas are at least 44px tall",
+        "**The two note fields are visually distinct without reading the labels.** Glance at the form",
+        "**Typing into the shared field, your own words come out in the attention colour.** That is",
+        "The helper text on both fields is visible BEFORE typing and STAYS visible while typing —",
+        "\"Only you will ever see these — for your own recollection later\" reads as a promise being",
+        "Neither field reads as an ERROR state. The attention colour must say \"others read this\",",
+        "\"Notes\" with \"Shared\" and \"Private\" beneath it reads as two kinds of one thing, rather than",
+        "**Dark mode: the shared field is still the marked-out one and both remain legible**",
+        "The EQ secretary's read-only goal panel reads as a role boundary, not as a page that failed",
+        "At 375px, one-handed, the shared field is still obviously the shared one"
+      ],
+      "seedCommand": "npm run seed -- visits/scenario-038-the-shared-and-private-note-split"
+    },
+    {
+      "id": "visits:scenario-039-flagging-for-ward-council",
+      "path": "visits/scenario-039-flagging-for-ward-council",
+      "name": "Flagging for ward council",
+      "scope": "visits-a-goals-logs-and-notes",
+      "part": 1,
+      "tags": [
+        "visits",
+        "full",
+        "notifications"
+      ],
+      "prerequisites": "none",
+      "purpose": "Flagging a visit is the one action on the Visits page that sends something to somebody who cannot\nopen the visit. The executive secretary holds **no `visits.view` permission** — that is deliberate,\nand it is what makes \"the notification carries the one-liner only\" structurally true rather than a\nrule to remember. So the contents of that notification is the entire interface between the two\npeople, and it has to be exactly right.\n\nTwo things here are invisible in the UI and are why this needs a seed rather than a unit test:\n\n1. **`flag_sent_at` makes a re-flag idempotent.** Raising a visit that has already been raised\n   must send nothing. Reaching that state from an empty database means flagging, unflagging and\n   re-flagging first — the very sequence being tested. So the Halvorsen visit arrives already\n   flagged with a timestamp on it.\n2. **The body's emptiness.** `tests/routes/visits.test.ts` asserts the body equals the one-liner,\n   but only a person can judge whether that one line is enough for the executive secretary to act\n   on and still tells them nothing they should not know — and whether the confirm dialog warns\n   the leader before they send it rather than after.",
+      "checklist": [
+        "The Brooks visit shows no flag before step 4; the Halvorsen visit shows **Flagged for ward council** on arrival",
+        "After step 4, `select flagged_for_ward_council, flag_sent_at from visit_logs where household_id = <Brooks>` shows `true` and a **non-null** timestamp",
+        "After step 4, exactly **one** `notifications` row exists with `trigger_key = 'visit_flagged_for_ward_council'`, and its `recipient_user_id` is the **executive secretary**",
+        "That notification's body is exactly `Elders Quorum — Brooks — requested for ward council discussion`",
+        "The body contains **no** `SHARED-NOTE-CANARY-039`",
+        "The body contains **no** `PRIVATE-NOTE-CANARY-039`",
+        "**No notification row exists for the bishop's user id** — the trigger's recipients are the executive secretary alone (migration 045). Checked in the database, not the bell: there is no bell UI yet",
+        "The Halvorsen visit's control reads **\"Remove ward council flag\"**, not \"Flag for ward council\" — an already-flagged visit offers no way to re-flag it",
+        "`PATCH /api/visits/<Halvorsen> {\"flaggedForWardCouncil\": true}` creates **no** new notification and leaves `flag_sent_at` at `2026-03-23T18:00:00Z`. **This is an API-level check** — the UI cannot reach this state (see the correction note)",
+        "After step 10's unflag, the Brooks visit's `flag_sent_at` is null",
+        "After step 10's re-flag, a **second** notification exists for the executive secretary",
+        "The executive secretary opening `/visits` sees **Not permitted**, not the page",
+        "An audit row exists with action `visit_flagged`, and another with `visit_unflagged`, both module `visits`",
+        "No audit detail anywhere contains either canary string",
+        "No horizontal overflow at 375px on the visits list",
+        "Every flag control is at least 44×44",
+        "**The confirm dialog names who will be told, before the flag is set** — a leader deciding",
+        "The confirm also makes clear that the notes are NOT being sent",
+        "The notification body, read with no other context, is enough to find the visit at ward",
+        "\"Flagged for ward council\" on the visit row reads as a state, not as a warning or an error",
+        "Unflagging does not feel destructive — it is an ordinary correction, and the wording should",
+        "Unflag-then-reflag DOES send a second notification, and that is the right behaviour: a",
+        "Dark mode: the flagged state is still visible at a glance in the list"
+      ],
+      "seedCommand": "npm run seed -- visits/scenario-039-flagging-for-ward-council"
     }
   ]
 }

@@ -38,7 +38,10 @@ cross join (values
 
   -- Visits
   ('visit_overdue',                 array['org_president', 'org_counselor', 'org_secretary']),
-  ('visit_flagged_for_ward_council', array['bishop', 'counselor', 'ward_council_member']),
+  -- The executive secretary, and nobody else: FEATURES.md §Module 9 and 07-visits.md
+  -- §Step 3 both give the ward council agenda to that role, and the notification carries the
+  -- one-liner only. Nobody who cannot already see the visit learns anything from it.
+  ('visit_flagged_for_ward_council', array['executive_secretary']),
   ('new_household_added',           array['bishop', 'counselor', 'org_president', 'ward_secretary']),
 
   -- Youth activities

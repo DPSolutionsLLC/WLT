@@ -33,6 +33,7 @@ import type {
   TopicStatus,
   VisitCadence,
   VisitTargetType,
+  VisitType,
 } from "./types.ts";
 
 // ============================================================================
@@ -856,6 +857,10 @@ export async function createVisitGoal(options: {
   title: string;
   targetType?: VisitTargetType;
   cadence?: VisitCadence;
+  // Set it ONLY alongside `cadence: "custom"`. lib/validation/visit.ts refuses a month count
+  // beside a named cadence, so a fixture that carried both would be a state the app cannot
+  // create — the kind that makes a scenario prove something about nothing.
+  cadenceMonths?: number;
   goalPeriodStart?: string;
   goalPeriodEnd?: string;
   createdBy?: string;
@@ -866,6 +871,7 @@ export async function createVisitGoal(options: {
     title: options.title,
     target_type: options.targetType ?? "all_households",
     cadence: options.cadence ?? "annual",
+    cadence_months: options.cadenceMonths ?? null,
     goal_period_start: options.goalPeriodStart ?? null,
     goal_period_end: options.goalPeriodEnd ?? null,
     created_by: options.createdBy ?? null,
@@ -878,8 +884,13 @@ export async function createVisitLog(options: {
   householdId?: string;
   visitedBy?: string;
   visitDate: string;
+  visitType?: VisitType;
   sharedNotes?: string;
   flaggedForWardCouncil?: boolean;
+  // Seeding an ALREADY-SENT flag is the only way to reach the re-flag path in one sitting: the
+  // route notifies on false -> true only while flag_sent_at is null, so a fixture that left it
+  // null would make "flagging again sends nothing" untestable by hand (07-visits.md §Step 3).
+  flagSentAt?: string;
 }): Promise<string> {
   return insertRow("visit_logs", {
     id: options.id ?? testUuid(`visit:${options.org}:${options.visitDate}`),
@@ -888,8 +899,10 @@ export async function createVisitLog(options: {
     household_id: options.householdId ?? null,
     visited_by: options.visitedBy ?? null,
     visit_date: options.visitDate,
+    visit_type: options.visitType ?? "in_home",
     shared_notes: options.sharedNotes ?? null,
     flagged_for_ward_council: options.flaggedForWardCouncil ?? false,
+    flag_sent_at: options.flagSentAt ?? null,
   });
 }
 
@@ -1395,7 +1408,9 @@ export const NOTIFICATION_TRIGGERS: Array<{ key: string; defaultRoles: Role[] }>
     defaultRoles: ["org_president", "org_counselor", "org_secretary"],
   },
   { key: "visit_overdue", defaultRoles: ["org_president", "org_counselor", "org_secretary"] },
-  { key: "visit_flagged_for_ward_council", defaultRoles: ["bishop", "counselor", "ward_council_member"] },
+  // Must match supabase/seed/notification_triggers.sql exactly. A harness ward seeded from a
+  // stale copy of this list restores the old roles and quietly disagrees with production.
+  { key: "visit_flagged_for_ward_council", defaultRoles: ["executive_secretary"] },
   { key: "new_household_added", defaultRoles: ["bishop", "counselor", "org_president", "ward_secretary"] },
   { key: "youth_activity_added", defaultRoles: ["org_president", "org_counselor", "org_secretary"] },
   { key: "youth_event_uncovered", defaultRoles: ["org_president", "org_counselor"] },

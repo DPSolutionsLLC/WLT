@@ -376,6 +376,22 @@ export const MISSING_FIELD_LABELS: Record<MissingFieldKey, string> = {
   announcements: "No announcements have been written.",
 };
 
+// One value in v1. FEATURES.md §Module 9 names exactly one kind of visit, and migration 044's
+// CHECK constraint holds the same single value — so adding a second is a decision taken in two
+// places at once rather than a string that appeared in a form.
+export const VISIT_TYPES = ["in_home"] as const;
+export type VisitType = (typeof VISIT_TYPES)[number];
+
+// A Record rather than a lookup with a fallback, for the same reason ROLE_LABELS is one: a type
+// added to VISIT_TYPES must not silently render as its own raw column value.
+export const VISIT_TYPE_LABELS: Record<VisitType, string> = {
+  in_home: "In-home visit",
+};
+
+// `specific_households` and `custom` are readable but NOT creatable — no table stores which
+// households such a goal covers, so its progress denominator is undefined. Migration 008's CHECK
+// keeps all three so a row written by a future slice still reads back correctly;
+// lib/validation/visit.ts is where CREATION is narrowed to the one that resolves.
 export const VISIT_TARGET_TYPES = [
   "all_households",
   "specific_households",
@@ -385,6 +401,12 @@ export type VisitTargetType = (typeof VISIT_TARGET_TYPES)[number];
 
 export const VISIT_CADENCES = ["annual", "biannual", "custom"] as const;
 export type VisitCadence = (typeof VISIT_CADENCES)[number];
+
+export const VISIT_CADENCE_LABELS: Record<VisitCadence, string> = {
+  annual: "Once a year",
+  biannual: "Twice a year",
+  custom: "Every so many months",
+};
 
 export const REPORT_TYPES = ["visit_log", "youth_activity"] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];

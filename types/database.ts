@@ -2726,6 +2726,7 @@ export type Database = {
           org_id: string | null
           shared_notes: string | null
           visit_date: string
+          visit_type: string
           visited_by: string | null
           ward_id: string
         }
@@ -2738,6 +2739,7 @@ export type Database = {
           org_id?: string | null
           shared_notes?: string | null
           visit_date: string
+          visit_type?: string
           visited_by?: string | null
           ward_id: string
         }
@@ -2750,6 +2752,7 @@ export type Database = {
           org_id?: string | null
           shared_notes?: string | null
           visit_date?: string
+          visit_type?: string
           visited_by?: string | null
           ward_id?: string
         }
@@ -2789,6 +2792,7 @@ export type Database = {
           created_at: string
           id: string
           notes: string
+          updated_at: string
           user_id: string
           visit_log_id: string
           ward_id: string
@@ -2797,6 +2801,7 @@ export type Database = {
           created_at?: string
           id?: string
           notes: string
+          updated_at?: string
           user_id: string
           visit_log_id: string
           ward_id: string
@@ -2805,6 +2810,7 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string
+          updated_at?: string
           user_id?: string
           visit_log_id?: string
           ward_id?: string
