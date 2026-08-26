@@ -2,7 +2,7 @@
 id: visits-b-progress-dashboard
 type: feature
 iter: null
-commits: ["b6c79f6"]
+commits: ["d5695e7"]
 date: 2026-08-26
 files:
   - lib/visits/householdStatus.ts
