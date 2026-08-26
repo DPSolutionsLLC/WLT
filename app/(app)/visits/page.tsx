@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AppointmentPanel, type AppointmentRow } from "@/app/(app)/visits/AppointmentPanel";
 import { CollapsibleSection } from "@/app/(app)/visits/CollapsibleSection";
 import {
@@ -19,6 +20,7 @@ import { readAppointmentParam } from "@/lib/visits/appointmentLink";
 import { listAppointments } from "@/lib/visits/appointments";
 import { readVisitProgress, type VisitProgress } from "@/lib/visits/progress";
 import { listVisitGoals, listVisitLogs } from "@/lib/visits/queries";
+import { canManageVisitLog } from "@/lib/visits/visitOwnership";
 import {
   VISIT_ARRANGEMENT_LABELS,
   VISIT_CONDUCTED_PREFIX,
@@ -199,7 +201,18 @@ export default async function VisitsPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Visits</h1>
+        {/* A LINK, not a tab. This page is a dashboard with four collapsible panels stacked under
+            it; a tab bar would fight them for the same space at 375px, and the feed is a place
+            you go rather than a second view of what is already here. */}
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h1 className="text-xl font-semibold text-foreground">Visits</h1>
+          <Link
+            href="/visits/feed"
+            className="text-sm font-medium text-primary underline underline-offset-4"
+          >
+            Return and report
+          </Link>
+        </div>
         <p className="mt-1 text-sm text-muted">
           Every visit carries shared notes the other leaders read, and private notes only you can
           ever see.
@@ -342,7 +355,17 @@ export default async function VisitsPage({
                     </p>
                   ) : null}
 
-                  {canLog ? (
+                  {/* `visits.create` is not enough on its own. It says this leader may LOG
+                      visits; it says nothing about WHICH visits they may edit, and with
+                      cross-org visibility on this list carries other organizations' visits too.
+                      canManageVisitLog() mirrors visit_logs_update, so the button is absent
+                      exactly where the policy would refuse the write.
+
+                      Gating on canLog alone put a "Flag for ward council" button on every
+                      organization's visits the moment the ward turned visibility on. RLS refused
+                      them and nothing leaked — but the leader was offered a consequential action,
+                      confirmed it, and got a generic failure. Found walking scenario 042. */}
+                  {canLog && canManageVisitLog(user, visit.orgId) ? (
                     <div className="mt-3">
                       <VisitFlagButton
                         visitId={visit.id}

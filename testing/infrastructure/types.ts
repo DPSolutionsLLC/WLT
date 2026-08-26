@@ -23,6 +23,7 @@ export type {
   PrayerType,
   ProgramStatus,
   PublicPageType,
+  ReportType,
   RequestOutcome,
   Role,
   RotationCadence,

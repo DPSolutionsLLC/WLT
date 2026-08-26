@@ -21,6 +21,7 @@ import type {
   PrayerType,
   ProgramStatus,
   PublicPageType,
+  ReportType,
   RequestOutcome,
   Role,
   RotationCadence,
@@ -969,6 +970,38 @@ export async function createVisitAppointment(options: {
     made_by: options.madeBy ?? null,
     notes: options.notes ?? null,
   });
+}
+
+// Per-user read and bookmark state for the return-and-report feed.
+//
+// SEEDING IS THE ONLY WAY TO REACH THE STATE THIS SCENARIO NEEDS. Per-user read state is invisible
+// until two people have looked at the SAME feed, and arranging that by hand means signing in
+// twice, tapping a precise number of tiles, and signing back. `readAt` left undefined seeds a
+// bookmark on a report the user has not opened — a row with read_at null and flagged true, which
+// is exactly the case that proves isRead is a question about the timestamp rather than about the
+// row existing.
+//
+// `flagged` is the PRIVATE per-user bookmark, NOT `visit_logs.flagged_for_ward_council`. Same word
+// in the database, unrelated meanings (lib/reports/types.ts).
+export async function createReportReadStatus(options: {
+  userId: string;
+  reportType: ReportType;
+  reportId: string;
+  readAt?: string;
+  bookmarked?: boolean;
+}): Promise<string> {
+  return insertRow(
+    "report_read_status",
+    {
+      ward_id: TEST_WARD_ID,
+      user_id: options.userId,
+      report_type: options.reportType,
+      report_id: options.reportId,
+      read_at: options.readAt ?? null,
+      flagged: options.bookmarked ?? false,
+    },
+    "user_id,report_type,report_id",
+  );
 }
 
 // The author is the only person who will ever be able to read this back through the app

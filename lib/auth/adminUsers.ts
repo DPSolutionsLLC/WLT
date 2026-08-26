@@ -3,7 +3,13 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import type { UpdateUserInput } from "@/lib/validation/adminUser";
 import type { Database } from "@/types/database";
-import { ROLES, ROLE_LABELS, type Role } from "@/types/domain";
+import {
+  ORGANIZATION_TYPES,
+  ROLES,
+  ROLE_LABELS,
+  type OrganizationType,
+  type Role,
+} from "@/types/domain";
 
 export type WardUser = {
   id: string;
@@ -22,6 +28,11 @@ export type WardUser = {
 export type WardOrganization = {
   id: string;
   name: string;
+  // The TYPE, not only the name, because the type is what carries meaning a screen can act on:
+  // visits-c colours a report's organization chip from it (types/domain.ts §ORGANIZATION_TYPE_TONES)
+  // so the Relief Society is the same hue everywhere, rather than taking whatever colour the set
+  // on screen left free. A ward may rename an organization; it does not change its type.
+  type: OrganizationType;
 };
 
 export type UpdateWardUserParams = {
@@ -65,6 +76,16 @@ export function displayName(user: {
   return name || user.username || user.email || "this account";
 }
 
+function toOrganizationType(value: string): OrganizationType {
+  if (!(ORGANIZATION_TYPES as readonly string[]).includes(value)) {
+    throw new Error(
+      `organizations.type holds "${value}", which is not a known value. The CHECK constraint ` +
+        "and types/domain.ts have drifted.",
+    );
+  }
+  return value as OrganizationType;
+}
+
 export async function listWardOrganizations(
   wardId: string,
   client?: SupabaseClient<Database>,
@@ -73,7 +94,7 @@ export async function listWardOrganizations(
 
   const { data, error } = await supabase
     .from("organizations")
-    .select("id, name")
+    .select("id, name, type")
     .eq("ward_id", wardId)
     .eq("is_active", true)
     .order("name");
@@ -86,7 +107,14 @@ export async function listWardOrganizations(
     throw new Error(`Could not read the ward's organizations: ${error.message}`);
   }
 
-  return (data ?? []).map((row) => ({ id: row.id, name: row.name }));
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    // A value the CHECK constraint should have made impossible means it and types/domain.ts have
+    // drifted — worth a crash rather than a silent cast, the same reading toEnum() takes in
+    // lib/visits/queries.ts.
+    type: toOrganizationType(row.type),
+  }));
 }
 
 // Reads through the CALLER's session client, not the service client: the ward-scoped SELECT

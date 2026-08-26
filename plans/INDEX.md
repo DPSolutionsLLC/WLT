@@ -10,23 +10,32 @@ plan set — each file is written to be sufficient on its own.
 
 ## Phase Map
 
-| # | Phase | File | Depends on | Est. |
-|---|---|---|---|---|
-| 0 | Foundation — setup, schema, RLS, cross-cutting services | [00-foundation.md](00-foundation.md) | — | Large |
-| 1 | Auth & RBAC — login, invites, youth PIN, guards | [01-auth-rbac.md](01-auth-rbac.md) | 0 | Medium |
-| 2 | Roster — households, members, CSV import | [02-roster.md](02-roster.md) | 1 | Medium |
-| 3 | Sunday calendar & conducting rotation | [03-calendar.md](03-calendar.md) | 2 | Small |
-| 4 | Talk pipeline, prayers, topics, goals | [04-talks-pipeline.md](04-talks-pipeline.md) | 3 | Large |
-| 5 | AI platform — knowledge base, pgvector, settings | [05-ai-platform.md](05-ai-platform.md) | 4 | Large |
-| 6 | Program builder, music, PDF, public pages | [06-program-music.md](06-program-music.md) | 5 | Large |
-| 7 | Visit tracker & return-and-report feed | [07-visits.md](07-visits.md) | 2 | Medium |
-| 8 | Youth activity support | [08-youth-activities.md](08-youth-activities.md) | 7 | Medium |
-| 9 | Meeting agendas & tithing calculator | [09-meetings-tithing.md](09-meetings-tithing.md) | 1 | Medium |
-| 10 | Sacrament administration & public assignments | [10-sacrament-admin.md](10-sacrament-admin.md) | 3 | Medium |
-| 11 | Notification UI, admin pages, audit viewer, dashboards | [11-notifications-admin.md](11-notifications-admin.md) | all | Medium |
-| 12 | Theme polish, accessibility, multi-ward scaffolding | [12-polish-multiward.md](12-polish-multiward.md) | all | Small |
-| — | Deployment — Vercel, env vars, auth URLs, SMTP | [deployment.md](deployment.md) | 1 | Small |
-| — | Code conventions reference | [conventions.md](conventions.md) | — | — |
+**Status is sourced from [retros/INDEX.md](retros/INDEX.md)**, not from the checkboxes in each
+phase file — those are ticked inconsistently and are not the signal. A phase is shipped when every
+one of its slices has a retro entry with a commit.
+
+| # | Phase | File | Depends on | Est. | Status |
+|---|---|---|---|---|---|
+| 0 | Foundation — setup, schema, RLS, cross-cutting services | [00-foundation.md](00-foundation.md) | — | Large | Shipped |
+| 1 | Auth & RBAC — login, invites, youth PIN, guards | [01-auth-rbac.md](01-auth-rbac.md) | 0 | Medium | Shipped |
+| 2 | Roster — households, members, CSV import | [02-roster.md](02-roster.md) | 1 | Medium | Shipped |
+| 3 | Sunday calendar & conducting rotation | [03-calendar.md](03-calendar.md) | 2 | Small | Shipped |
+| 4 | Talk pipeline, prayers, topics, goals | [04-talks-pipeline.md](04-talks-pipeline.md) | 3 | Large | Shipped |
+| 5 | AI platform — knowledge base, pgvector, settings | [05-ai-platform.md](05-ai-platform.md) | 4 | Large | Shipped |
+| 6 | Program builder, music, PDF, public pages | [06-program-music.md](06-program-music.md) | 5 | Large | Shipped — M4 waits on a physical fold check (scenarios 034/035) |
+| 7 | Visit tracker & return-and-report feed | [07-visits.md](07-visits.md) | 2 | Medium | **Shipped 2026-08-26** — see the Definition of Done in the phase file for what it deliberately does not close |
+| 8 | Youth activity support | [08-youth-activities.md](08-youth-activities.md) | 7 | Medium | Next — **run ITER-018 first** |
+| 9 | Meeting agendas & tithing calculator | [09-meetings-tithing.md](09-meetings-tithing.md) | 1 | Medium | Started — tithing worksheet only |
+| 10 | Sacrament administration & public assignments | [10-sacrament-admin.md](10-sacrament-admin.md) | 3 | Medium | Not started |
+| 11 | Notification UI, admin pages, audit viewer, dashboards | [11-notifications-admin.md](11-notifications-admin.md) | all | Medium | Not started |
+| 12 | Theme polish, accessibility, multi-ward scaffolding | [12-polish-multiward.md](12-polish-multiward.md) | all | Small | Not started |
+| — | Deployment — Vercel, env vars, auth URLs, SMTP | [deployment.md](deployment.md) | 1 | Small | Shipped |
+| — | Code conventions reference | [conventions.md](conventions.md) | — | — | Living |
+
+**Phase 8 must not start before ITER-018.** The visit goal becomes a rolling cadence rather than a
+dated period, and Phase 8's youth-activity coverage is documented to reuse `householdVisitStatus`
+(`visits-b` §Integration Notes). Landing that redesign after Phase 8 leaves that module built on a
+model already known to be wrong.
 
 **Deployment is unnumbered on purpose.** It is not a phase after 12. It depends only on Phase 1
 and is *required* by Phase 6, whose public program pages are meaningless without a URL a ward

@@ -317,15 +317,54 @@ SELECT and on none of the six write policies. Neither has a bishopric override `
 
 ## Definition of Done
 
-- [ ] Each org sets and manages its own goals; org secretaries can view but not configure
-- [ ] Visit logs with visually unmistakable shared/private note separation
-- [ ] Private notes are unreachable by anyone but their author — proven by test
-- [ ] Flagging notifies the exec secretary with the one-liner only
-- [ ] Dashboard with correct statuses and a correct denominator
-- [ ] Report feed with per-user read/unread, next-unread, flag, mark-all
-- [ ] `ReportFeed` is generic enough for Phase 8 to reuse unchanged
-- [ ] Cross-org visibility toggles reads only; writes stay org-confined in both modes
-- [ ] All eight tests pass
+**Phase 7 closed 2026-08-26**, across four slices: `visits-a` (goals, logs, the notes boundary),
+`visits-d` (attempts, appointments, participants), `visits-b` (the progress dashboard) and
+`visits-c` (the report feed and the cross-org switch).
+
+- [x] Each org sets and manages its own goals; org secretaries can view but not configure
+      — `visits-a`
+- [x] Visit logs with visually unmistakable shared/private note separation — `visits-a`; the
+      walk moved the emphasis onto the SHARED field, where the caution actually belongs
+- [x] Private notes are unreachable by anyone but their author — proven by test — `visits-a`,
+      and re-proven at the feed: `tests/routes/crossOrgVisibility.test.ts` scans the serialized
+      feed body in BOTH visibility modes
+- [x] Flagging notifies the exec secretary with the one-liner only — `visits-a`
+- [x] Dashboard with correct statuses and a correct denominator — `visits-b`
+- [x] Report feed with per-user read/unread, next-unread, flag, mark-all — `visits-c`. "Flag"
+      here is the PRIVATE per-user bookmark (`report_read_status.flagged`), not the ward-council
+      flag; they share a word in the database and nothing else
+- [x] `ReportFeed` is generic enough for Phase 8 to reuse unchanged — `visits-c`. Verified by
+      grepping the finished component for `visit`, `household` and `org`: the only hit is the
+      import path this file specifies. The filter is generic too, so Phase 8 inherits it
+- [x] Cross-org visibility toggles reads only; writes stay org-confined in both modes —
+      `visits-a` proved the policy; `visits-c` shipped the switch **and fixed the UI half**: the
+      Recent visits panel was offering "Flag for ward council" on other organizations' visits,
+      which RLS refused safely but should never have been offered
+      (`lib/visits/visitOwnership.ts`)
+- [x] All eight tests pass — grouped differently from the filenames above, which named eight
+      files where the repo has eight concepts across six:
+
+      | Named test | Where it lives |
+      |---|---|
+      | `private-notes-absolute` | `tests/rls/private-notes.test.ts` |
+      | `private-notes-not-in-list` | `tests/routes/visits.test.ts` + `tests/routes/crossOrgVisibility.test.ts` |
+      | `cross-org-read` | `tests/rls/visit-cross-org.test.ts` |
+      | `cross-org-write` | `tests/rls/visit-cross-org.test.ts` (both modes) |
+      | `household-status` | `tests/lib/householdStatus.test.ts` |
+      | `progress-denominator` | `tests/lib/visitProgress.test.ts` |
+      | `flag-notification` | `tests/routes/visits.test.ts` |
+      | `read-state-per-user` | `tests/rls/report-read-status.test.ts` |
+
+### What Phase 7 does NOT close
+
+- **The map view** is unbuilt and still blocked on a geocoding provider (CLAUDE.md §9).
+  `households.latitude` / `longitude` exist and are null. FEATURES.md marks it optional.
+- **`visit_overdue` fires from nothing.** `visits-b` made overdue computable; no scheduler emits
+  it. See `plans/retros/visits-c-report-feed-and-cross-org.md`.
+- **`visit_goals_select` has no cross-org branch**, so a cross-org "X of Y" is not computable.
+  Deliberate, not forgotten — the feed carries no denominator. Do not add it speculatively.
+- **ITER-018 replaces the goal model** and should run before Phase 8, which is documented to
+  reuse `householdVisitStatus`.
 
 ---
 

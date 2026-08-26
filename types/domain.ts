@@ -46,6 +46,42 @@ export const ORGANIZATION_TYPES = [
 ] as const;
 export type OrganizationType = (typeof ORGANIZATION_TYPES)[number];
 
+// The tone scale behind the --tone-* tokens in app/globals.css, where the contrast ratios for both
+// themes are recorded. Named for the HUE rather than for a meaning, because the same scale labels
+// organizations here and will label activity kinds in Phase 8 — a tone carries no semantics of its
+// own, unlike --success or --warning.
+export const CONTEXT_TONES = [
+  "slate",
+  "blue",
+  "violet",
+  "magenta",
+  "teal",
+  "amber",
+  "rose",
+] as const;
+export type ContextTone = (typeof CONTEXT_TONES)[number];
+
+// Assigned by organization TYPE, so the Relief Society is the same colour on every screen in the
+// app rather than taking whatever hue the set on screen happened to leave free. A Record rather
+// than a lookup with a fallback, for the same reason ROLE_LABELS is one: an organization type
+// added later must be given a tone deliberately instead of silently rendering as the default.
+//
+// `bishopric` and `other` share slate, and that is deliberate: neither is an organization whose
+// work fills a report feed. A bishopric-authored visit carries `org_id = null` and reads
+// "Bishopric" (lib/visits/reportTiles.ts), and `other` is the catch-all. The chip always carries
+// the name, so two contexts sharing a hue is a smaller cost than a seventh hue nobody can tell
+// from the sixth.
+export const ORGANIZATION_TYPE_TONES: Record<OrganizationType, ContextTone> = {
+  bishopric: "slate",
+  elders_quorum: "blue",
+  relief_society: "violet",
+  young_men: "teal",
+  young_women: "magenta",
+  primary: "amber",
+  sunday_school: "rose",
+  other: "slate",
+};
+
 export const PIPELINE_STAGES = [
   "plan",
   "review",
@@ -517,6 +553,14 @@ export const HOUSEHOLD_VISIT_STATUS_LABELS: Record<HouseholdVisitStatus, string>
   not_yet_visited: "Not yet visited",
 };
 
+// The two kinds of report the return-and-report feed carries. Mirrors migration 008's CHECK on
+// `report_read_status.report_type`, which already allowed both before either feed existed —
+// adding a third is a decision taken in the migration and here at once, never a string that
+// appeared in a request body.
+//
+// `youth_activity` is Phase 8's, and visits-c builds against it on purpose: the read-status route
+// and the ReportFeed component are generic, so that phase adds a mapper and a page rather than a
+// second copy of both. lib/reports/types.ts re-exports this type for the client.
 export const REPORT_TYPES = ["visit_log", "youth_activity"] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];
 
@@ -829,4 +873,27 @@ export type SessionUser = {
   username: string | null;
   themePreference: ThemePreference;
   isActive: boolean;
+};
+
+// ---------------------------------------------------------------------------
+// Cross-org visit report visibility
+// ---------------------------------------------------------------------------
+//
+// The ward setting that decides whether one organization's leaders may READ another
+// organization's visit reports. `ward_allows_cross_org_visibility()` (migration 019) is what
+// enforces it; these are the words the app uses about it.
+//
+// ONE COPY OF THE SCOPE NOTE. The confirmation the bishopric reads before flipping the switch and
+// the notification the other two read afterwards say the same thing because they are the same
+// string. The line matters: 07-visits.md calls this "a significant setting" precisely because it
+// changes what several dozen people can see, and the fear it raises — "am I giving the Elders
+// Quorum the run of Relief Society records?" — is answered by the half of the sentence about
+// management, which is the half that never changes.
+export const CROSS_ORG_VISIBILITY_SCOPE_NOTE =
+  "Management stays inside each organization either way: turning this on lets other leaders READ " +
+  "these reports, and never edit, create or delete them.";
+
+export const CROSS_ORG_VISIBILITY_STATE_LABELS: Record<"on" | "off", string> = {
+  on: "Every organization's leaders can read every organization's visit reports.",
+  off: "Visit reports are visible to their own organization's leaders, and to the bishopric.",
 };

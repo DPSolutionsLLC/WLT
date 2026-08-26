@@ -355,9 +355,22 @@ export async function updateVisitGoal(
   return data === null ? null : mapVisitGoalRow(data);
 }
 
+// WHERE THE LAST PAGE STOPPED. Both halves are needed because the order is on two columns:
+// several visits share a `visit_date`, so a cursor holding the date alone would either repeat
+// them on the next page or skip them.
+export type VisitLogCursor = {
+  visitDate: string;
+  createdAt: string;
+};
+
+export type ListVisitLogsOptions = ListVisitsQuery & {
+  limit?: number;
+  before?: VisitLogCursor | null;
+};
+
 export async function listVisitLogs(
   wardId: string,
-  filter: ListVisitsQuery,
+  filter: ListVisitLogsOptions,
   client?: SupabaseClient<Database>,
 ): Promise<VisitLogWithContext[]> {
   const supabase = await resolveClient(client);
@@ -371,6 +384,22 @@ export async function listVisitLogs(
   if (filter.householdId !== undefined) query = query.eq("household_id", filter.householdId);
   if (filter.from !== undefined) query = query.gte("visit_date", filter.from);
   if (filter.to !== undefined) query = query.lte("visit_date", filter.to);
+
+  // The keyset the ORDER BY below implies, expressed as a filter: strictly earlier by date, or
+  // the same date and strictly earlier by creation. Keyset rather than `.range()` because an
+  // offset shifts under a feed that gains rows while somebody is reading it — the page after an
+  // insert would repeat a tile the reader already scrolled past.
+  //
+  // `created_at` is a timestamptz whose text form carries `+` and `:`, both of which PostgREST
+  // reads as syntax inside an `or()`. The double quotes are what make it a value.
+  if (filter.before) {
+    const { visitDate, createdAt } = filter.before;
+    query = query.or(
+      `visit_date.lt.${visitDate},and(visit_date.eq.${visitDate},created_at.lt."${createdAt}")`,
+    );
+  }
+
+  if (filter.limit !== undefined) query = query.limit(filter.limit);
 
   // Ordered explicitly, because these tables are shared by every suite running against the
   // hosted project and heap order shifts under them (plans/retros/route-tests-and-realtime.md).
@@ -394,6 +423,50 @@ export async function listVisitLogs(
   );
 
   return rows.map((row) => mapVisitLogJoinedRow(row, participants.get(row.id) ?? []));
+}
+
+export type VisitLogSummary = {
+  id: string;
+  orgId: string | null;
+};
+
+// EVERY visit log this caller can see, ordered like the feed and carrying only an id and an
+// organization.
+//
+// UNFILTERED, DELIBERATELY, and it answers two questions the paginated tile query cannot:
+//
+//   1. The unread badge counts over the whole feed rather than over the page on screen, so it
+//      cannot be derived from a page. The caller narrows this list in memory to match whatever
+//      filter is applied.
+//   2. WHICH organizations the filter should offer. Derived from the reports that exist rather
+//      than from the ward's organization list, so the dropdown never offers a Primary that has
+//      never logged a visit — and never loses an organization as the reader pages past its last
+//      report, because this list does not paginate.
+//
+// Two columns rather than a join: no participants query, no households, no notes. Three years of
+// a ward's visits is a few thousand rows of two uuids.
+//
+// RLS decides the scope here exactly as it does above, which is where cross-org visibility takes
+// effect for the count and the filter options as well as for the tiles.
+export async function listVisitLogSummaries(
+  wardId: string,
+  client?: SupabaseClient<Database>,
+): Promise<VisitLogSummary[]> {
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("visit_logs")
+    .select("id, org_id")
+    .eq("ward_id", wardId)
+    .order("visit_date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error(`Could not read visit log ids — ${error.message}`, { wardId });
+    throw new Error(`Could not load the visits: ${error.message}`);
+  }
+
+  return (data ?? []).map((row) => ({ id: row.id, orgId: row.org_id }));
 }
 
 export async function getVisitLog(

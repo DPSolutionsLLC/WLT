@@ -39,6 +39,38 @@
   --stage-speak: #c2410c;
   --stage-appreciate: #854d0e;
   --stage-complete: #15803d;
+
+  /* Context tones, for telling one context's work from another's at a glance.
+
+     Named for the HUE and not for a consumer: visits-c colours ORGANISATIONS with these, and
+     Phase 8 will colour activity kinds with the same scale. A token called --org-blue would have
+     had to be renamed or duplicated the moment the second consumer arrived.
+
+     Introduced by visits-c: with cross-org visibility on, a leader's return-and-report feed
+     carries every organization's reports interleaved by date, and "Elders Quorum" in the same
+     grey as the date beside it made them blur into one list.
+
+     NOT a progression, unlike the stage palette above — organizations have no order. Seven
+     distinguishable hues, assigned by organization TYPE so the Relief Society is the same colour
+     on every screen in the app, forever. A hash-to-palette scheme would have re-coloured an
+     organization whenever the set on screen changed.
+
+     COLOUR IS NEVER ALONE. The chip that uses these always carries the organization's name, for
+     the same reason the five household statuses each carry a mark as well as a colour: seven
+     hues separate seven things only for somebody who can see all seven.
+
+     MEASURED against both backgrounds a chip can sit on — --surface (#f8fafc) and
+     --surface-raised (#ffffff) — rather than checked by eye. Worst of the two ratios for each,
+     WCAG AA needing 4.5:1 for text this size:
+
+       slate 7.24 · blue 4.94 · violet 5.45 · magenta 6.04 · teal 5.23 · amber 6.55 · rose 6.01 */
+  --tone-slate: #475569;
+  --tone-blue: #2563eb;
+  --tone-violet: #7c3aed;
+  --tone-magenta: #a21caf;
+  --tone-teal: #0f766e;
+  --tone-amber: #854d0e;
+  --tone-rose: #be123c;
 }
 
 .dark {
@@ -73,6 +105,17 @@
   --stage-speak: #fb923c;
   --stage-appreciate: #fbbf24;
   --stage-complete: #4ade80;
+
+  /* Measured against --surface (#141414) and --surface-raised (#1c1c1c); worst of the two:
+
+       slate 6.65 · blue 6.70 · violet 6.26 · magenta 6.93 · teal 9.16 · amber 10.21 · rose 6.33 */
+  --tone-slate: #94a3b8;
+  --tone-blue: #60a5fa;
+  --tone-violet: #a78bfa;
+  --tone-magenta: #e879f9;
+  --tone-teal: #2dd4bf;
+  --tone-amber: #fbbf24;
+  --tone-rose: #fb7185;
 }
 
 @theme inline {
@@ -96,6 +139,13 @@
   --color-stage-speak: var(--stage-speak);
   --color-stage-appreciate: var(--stage-appreciate);
   --color-stage-complete: var(--stage-complete);
+  --color-tone-slate: var(--tone-slate);
+  --color-tone-blue: var(--tone-blue);
+  --color-tone-violet: var(--tone-violet);
+  --color-tone-magenta: var(--tone-magenta);
+  --color-tone-teal: var(--tone-teal);
+  --color-tone-amber: var(--tone-amber);
+  --color-tone-rose: var(--tone-rose);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

@@ -338,3 +338,17 @@ export const listVisitsQuerySchema = z.object({
   to: dateOnlySchema.optional(),
 });
 export type ListVisitsQuery = z.infer<typeof listVisitsQuerySchema>;
+
+// ---------------------------------------------------------------------------
+// The ward's cross-org visibility setting
+// ---------------------------------------------------------------------------
+// One boolean, and it belongs with the visit schemas because visit_logs_select is the only policy
+// that reads it (migration 019). It widens READS only — no write policy mentions the function —
+// so there is nothing here about management scope: that never changes.
+//
+// The name is the name app/(app)/admin/CrossOrgVisibilityToggle.tsx sends, checked against that
+// file rather than assumed (plans/retros/roster-b-picker-and-orgs.md).
+export const crossOrgVisibilitySchema = z.object({
+  crossOrgVisibility: z.boolean(),
+});
+export type CrossOrgVisibilityInput = z.infer<typeof crossOrgVisibilitySchema>;
