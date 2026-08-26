@@ -2,7 +2,7 @@
 id: visits-d-attempts-appointments-and-participants
 type: feature
 iter: null
-commits: ["f43d2de"]
+commits: ["842968d"]
 date: 2026-08-26
 files:
   - supabase/migrations/046_visit_attempts_appointments_participants.sql
