@@ -4,7 +4,14 @@
 **Type:** feature
 **Structure:** Sequential — plan 3 of 3 for Phase 7 ([07-visits.md](07-visits.md))
 **Depends on:** `visits-a` (the logs and the notes boundary) and `visits-b` (the dashboard
-`/visits` shell this adds a tab to). **Do not start before both are committed.**
+`/visits` shell this adds a link to). **Both committed 2026-08-26** — `visits-a` in `d6b8e6f`,
+`visits-b` in `d5695e7`.
+
+> **THE SHELL IS COLLAPSIBLE SECTIONS, NOT TABS.** This line used to say "a tab", written before
+> `visits-b` existed. That slice put the progress dashboard at the top of `/visits` with the goal,
+> appointments, log form and recent-visits panels **collapsed** beneath it — four stacked panels
+> was a four-screen scroll at 375px. A tab bar added now would fight those four collapsibles for
+> the same space. Task 5's own wording is already "a link/tab"; make it a **link**.
 
 > **WHEN THIS SLICE IS DONE, RUN ITER-018 BEFORE STARTING PHASE 8.**
 > [`.iterate/scopes/ITER-018.md`](../.iterate/scopes/ITER-018.md) — the visit goal becomes a
