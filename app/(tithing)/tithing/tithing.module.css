@@ -1,0 +1,733 @@
+/* The counting screen visual language, scoped to this module.
+
+   WHY A CSS MODULE AND NOT app/globals.css
+   Two reasons. The palette below is navy and gold and belongs to this one screen; putting it in
+   globals.css would mean either polluting the app-wide token set or shadowing tokens other pages
+   read. And the names collide: globals.css already defines --muted, --border and --radius with
+   different values, so an unprefixed --muted here would silently retune Tailwind text-muted for
+   anything rendered inside. Every custom property is prefixed --t-.
+
+   NO DARK VARIANT, DELIBERATELY. Dark mode is out of scope for v1 of this module, so every
+   surface here paints its own background and colour explicitly and the page reads identically
+   whichever theme the root script applied. Nothing inherits from the app tokens. */
+
+.root {
+  --t-navy: #1b3a6b;
+  --t-navy-mid: #2e5fa3;
+  --t-navy-light: #d6e4f7;
+  --t-navy-pale: #eef4fc;
+  --t-gold: #c8a951;
+  --t-gold-light: #fff8e7;
+  --t-red: #9b1c1c;
+  --t-red-bg: #fde8e8;
+  --t-red-line: #f5a3a3;
+  --t-white: #ffffff;
+  --t-grey-bg: #f2f4f8;
+  --t-grey-line: #e0e6f0;
+  --t-grey-border: #cbd5e8;
+  --t-text: #1a1a2e;
+  --t-muted: #5a6a8a;
+  --t-input-bg: #fffdf0;
+  --t-radius: 12px;
+  --t-shadow: 0 2px 10px rgba(27, 58, 107, 0.09);
+
+  /* The tab bar sticks directly below the header, so it needs the header height as a number.
+     Declaring the height rather than letting padding decide it is what makes that number true:
+     the prototype hardcoded top:50px against a padded header, and would have overlapped or
+     gapped the moment anything in it changed line height. This header has since gained a
+     Dashboard link. */
+  --t-header-height: 50px;
+
+  min-height: 100%;
+  background: var(--t-grey-bg);
+  color: var(--t-text);
+  font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Header */
+.hdr {
+  height: var(--t-header-height);
+  background: var(--t-navy);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.hdrLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.backLink {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+  text-decoration: none;
+  padding: 8px 8px 8px 0;
+  flex-shrink: 0;
+}
+.backLink:hover {
+  color: #ffffff;
+}
+.wlt {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--t-gold);
+  text-transform: uppercase;
+}
+.hdrTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hdrBadge {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  padding: 3px 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  background: var(--t-navy);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  position: sticky;
+  top: var(--t-header-height);
+  z-index: 99;
+}
+.tab {
+  flex: 1;
+  padding: 11px 8px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  border: none;
+  background: none;
+  border-bottom: 3px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+.tabActive {
+  color: #ffffff;
+  border-bottom-color: var(--t-gold);
+}
+
+/* Edit-mode banner */
+.editBanner {
+  background: var(--t-gold);
+  color: var(--t-navy);
+  text-align: center;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Page */
+.page {
+  padding: 16px 14px 80px;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+/* Card */
+.card {
+  background: var(--t-white);
+  border-radius: var(--t-radius);
+  box-shadow: var(--t-shadow);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.cardHdr {
+  background: var(--t-navy);
+  color: #ffffff;
+  padding: 11px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.badge {
+  background: var(--t-gold);
+  color: var(--t-navy);
+  font-size: 12px;
+  font-weight: 800;
+  border-radius: 20px;
+  padding: 2px 11px;
+}
+.cardBody {
+  padding: 14px;
+}
+
+/* Section label */
+.slbl {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--t-navy-mid);
+  padding: 10px 0 6px;
+  border-bottom: 2px solid var(--t-navy-light);
+  margin-bottom: 8px;
+}
+.slbl:first-child {
+  padding-top: 0;
+}
+
+/* Inputs */
+.textInput {
+  background: var(--t-input-bg);
+  border: 1.5px solid var(--t-grey-border);
+  border-radius: 7px;
+  padding: 9px 10px;
+  font-size: 14px;
+  color: var(--t-text);
+  font-family: inherit;
+  width: 100%;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.textInput:focus {
+  outline: none;
+  border-color: var(--t-navy-mid);
+  box-shadow: 0 0 0 3px rgba(46, 95, 163, 0.15);
+}
+
+/* Check rows */
+.checkHdrs {
+  display: grid;
+  grid-template-columns: 1fr 1fr 36px;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.checkHdrs span {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--t-muted);
+}
+.checkList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.checkRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 36px;
+  gap: 6px;
+  align-items: center;
+}
+.btnRemove {
+  width: 32px;
+  height: 36px;
+  background: none;
+  border: 1.5px solid var(--t-grey-border);
+  border-radius: 6px;
+  color: var(--t-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.btnRemove:hover {
+  color: var(--t-red);
+  border-color: var(--t-red-line);
+  background: var(--t-red-bg);
+}
+.btnAddCheck {
+  width: 100%;
+  padding: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t-navy-mid);
+  cursor: pointer;
+  font-family: inherit;
+  background: none;
+  border: 1.5px dashed var(--t-navy-light);
+  border-radius: 8px;
+  transition: all 0.15s;
+}
+.btnAddCheck:hover {
+  border-color: var(--t-navy-mid);
+  background: var(--t-navy-pale);
+}
+
+/* Denomination rows */
+.denomRow {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--t-grey-line);
+  gap: 10px;
+}
+.denomRow:last-child {
+  border-bottom: none;
+}
+.denomName {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--t-navy);
+}
+.denomSub {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--t-muted);
+  display: block;
+}
+.denomQty {
+  width: 72px;
+  text-align: center;
+  background: var(--t-input-bg);
+  border: 1.5px solid var(--t-grey-border);
+  border-radius: 7px;
+  padding: 8px 6px;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--t-text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.denomQty:focus {
+  outline: none;
+  border-color: var(--t-navy-mid);
+  box-shadow: 0 0 0 3px rgba(46, 95, 163, 0.15);
+}
+.denomVal {
+  min-width: 72px;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--t-navy-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Totals strip */
+.totalsStrip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+.totItem {
+  text-align: center;
+}
+.tl {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--t-muted);
+  margin-bottom: 2px;
+}
+.tv {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--t-navy);
+  font-variant-numeric: tabular-nums;
+}
+.grandBox {
+  background: var(--t-navy);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.gl {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.65);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.gv {
+  font-size: 30px;
+  font-weight: 800;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Action buttons */
+.actionRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+.btn {
+  padding: 13px 16px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  transition: all 0.15s;
+  text-align: center;
+}
+.btnPrimary {
+  background: var(--t-navy);
+  color: #ffffff;
+}
+.btnPrimary:hover {
+  background: var(--t-navy-mid);
+}
+.btnPrimary:active {
+  transform: scale(0.97);
+}
+.btnGhost {
+  background: none;
+  color: var(--t-muted);
+  border: 1.5px solid var(--t-grey-border);
+}
+.btnGhost:hover {
+  border-color: var(--t-navy-mid);
+  color: var(--t-navy-mid);
+  background: var(--t-navy-pale);
+}
+.btnDangerOutline {
+  width: 100%;
+  margin-top: 8px;
+  padding: 11px;
+  background: none;
+  border: 1.5px solid var(--t-red-line);
+  color: var(--t-red);
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.btnDangerOutline:hover {
+  background: var(--t-red-bg);
+}
+
+/* Summary totals */
+.sumTotals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 14px;
+}
+.sl {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--t-muted);
+  margin-bottom: 2px;
+}
+.sv {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--t-navy);
+  font-variant-numeric: tabular-nums;
+}
+.sumGrand {
+  grid-column: 1 / -1;
+  background: var(--t-gold-light);
+  border: 1.5px solid var(--t-gold);
+  border-radius: 9px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sgl {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--t-navy);
+}
+.sgv {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--t-navy);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Denomination summary */
+.denomSummarySection {
+  padding: 0 14px 14px;
+}
+.denomSummaryNote {
+  font-size: 11px;
+  color: var(--t-muted);
+  margin-bottom: 10px;
+}
+.denomSection {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1.5px solid var(--t-navy-light);
+  margin-bottom: 14px;
+}
+.denomSection:last-child {
+  margin-bottom: 0;
+}
+.denomSectionHdr {
+  background: var(--t-navy-mid);
+  color: var(--t-white);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 7px 10px;
+}
+/* Counted from the section header, which is child 1, so the first data row is even. That is the
+   prototype banding and it is kept: these rows are read by running a finger down a stack of cash,
+   and the alternation is what keeps the eye on one line. */
+.dsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 10px;
+  font-size: 13px;
+}
+.dsRow:nth-child(even) {
+  background: var(--t-navy-pale);
+}
+.dsRow:nth-child(odd) {
+  background: var(--t-white);
+}
+.dsName {
+  font-weight: 600;
+  color: var(--t-navy);
+}
+.dsFigures {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.dsQty {
+  font-weight: 700;
+  color: var(--t-navy-mid);
+}
+.dsVal {
+  font-size: 11px;
+  color: var(--t-muted);
+}
+.denomEmpty {
+  color: var(--t-muted);
+  font-size: 12px;
+  padding: 10px;
+  background: var(--t-white);
+}
+
+/* Checks submitted */
+.checkSummarySection {
+  padding: 4px 14px 14px;
+}
+.checkSummaryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--t-grey-line);
+  font-size: 13px;
+}
+.checkSummaryRow:last-child {
+  border-bottom: none;
+}
+.checkSummaryLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.checkEntryTag {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--t-navy);
+  background: var(--t-navy-light);
+  border-radius: 10px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.checkNum {
+  color: var(--t-muted);
+  font-size: 12px;
+}
+.checkAmt {
+  font-weight: 700;
+  color: var(--t-navy);
+  font-variant-numeric: tabular-nums;
+}
+.checksTotalRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--t-navy-pale);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 10px;
+}
+.ctl {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--t-navy);
+}
+.ctv {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--t-navy);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Entry log */
+.entryLog {
+  padding: 0 14px 14px;
+}
+.logEmpty {
+  text-align: center;
+  padding: 22px 0;
+  color: var(--t-muted);
+  font-size: 13px;
+}
+.logItem {
+  border: 1.5px solid var(--t-navy-light);
+  border-radius: 9px;
+  padding: 11px 12px;
+  margin-bottom: 8px;
+  background: var(--t-white);
+  position: relative;
+}
+.logItemEditing {
+  border-color: var(--t-gold);
+  background: var(--t-gold-light);
+}
+.logTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+.logNum {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--t-navy);
+  background: var(--t-navy-light);
+  border-radius: 12px;
+  padding: 2px 9px;
+}
+.logGrand {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--t-navy);
+}
+.logSubtotals {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 8px 0 6px;
+  background: var(--t-navy-pale);
+  border-radius: 7px;
+  padding: 8px 10px;
+}
+.logSubRow {
+  text-align: center;
+}
+.logSubLbl {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--t-muted);
+  margin-bottom: 2px;
+}
+.logSubVal {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--t-navy);
+  font-variant-numeric: tabular-nums;
+}
+.logActions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.logBtn {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  border: none;
+  transition: all 0.15s;
+}
+.logBtnEdit {
+  background: var(--t-navy-pale);
+  color: var(--t-navy-mid);
+}
+.logBtnEdit:hover {
+  background: var(--t-navy-light);
+}
+.logBtnDel {
+  background: none;
+  border: 1.5px solid var(--t-red-line);
+  color: var(--t-red);
+}
+.logBtnDel:hover {
+  background: var(--t-red-bg);
+}
+.clearAllRow {
+  padding: 0 14px 14px;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(70px);
+  background: var(--t-navy);
+  color: #ffffff;
+  padding: 11px 22px;
+  border-radius: 28px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 6px 24px rgba(27, 58, 107, 0.22);
+  opacity: 0;
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s;
+  z-index: 999;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.toastShow {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}

@@ -110,6 +110,43 @@ can always read the agenda in-app regardless of email preference.
 A counting worksheet for tithing settlement sessions. **Not a record-keeping tool** —
 official records live in the Church's system. Session-based, auto-cleared at midnight.
 
+## Step B0 — BUILT 2026-08-24, and narrower than the rest of Part B describes
+
+The tithing calculator shipped as `/tithing` on that date. **Read this before Steps B2 and B5 —
+both were deliberately not built.**
+
+The module writes NOTHING. No database row, no localStorage, no sessionStorage, no server request
+of any kind. A counting session lives in React state for as long as the tab is open and is gone
+the moment it is not. Consequences:
+
+- **Step B2 (session flow) does not apply.** There is no `tithing_sessions` row, no
+  `GET /api/tithing/session`, and no entry-number race to lock against — the numbering is a
+  counter in one browser held by one person. `tithing_sessions` and `tithing_entries` remain in
+  migration 011 with their RLS policies and `tests/rls/tithing-access.test.ts`; nothing touches
+  them.
+- **Step B5 (auto-clear) does not apply.** There is nothing to delete, so the ward-local-midnight
+  trap in §Pitfalls stops existing rather than being solved carefully.
+- **Steps B1, B3 and B4 apply in full** and are built: bishopric-only, no personal information,
+  integer cents throughout, three input sections with live subtotals, and every control with its
+  confirmation.
+
+**The cost, stated plainly:** a refresh, a phone sleeping and reloading its tab, or a stray
+back-swipe destroys an in-progress count with nothing to recover from. `/tithing` guards leaving
+with a `beforeunload` prompt and a confirm on its one link out; that guard is load-bearing. If a
+real count is ever lost, this is the decision to revisit — and persistence then belongs behind the
+tables above, never in browser storage.
+
+**Access is enforced in `app/(tithing)/layout.tsx`, not in middleware**, via
+`can(user, "tithing.view", roleAccess)`. `middleware.ts` holds no role checks by design (edge
+runtime, no cheap database access), and comparing role strings directly would go around the ward
+`role_access` override that `plans/retros/role-access-overrides.md` exists to protect.
+
+**Files:** `lib/tithing/{denominations,money,totals}.ts` (pure, integer cents) ·
+`app/(tithing)/layout.tsx` · `app/(tithing)/tithing/*` · `tests/lib/tithing{Money,Totals,NoFloat}.test.ts` ·
+`tests/components/tithing/TithingCounter.test.tsx`.
+
+---
+
 ## Step B1 — Absolute Constraints
 
 These are not preferences:
@@ -196,11 +233,13 @@ accordingly, or guard the delete on local date.
 
 | Test | Asserts |
 |---|---|
-| `tithing-totals.test.ts` | Every denomination combination totals exactly, in integer cents |
-| `tithing-no-float.test.ts` | No floating-point arithmetic in the money path |
-| `tithing-access.test.ts` | Secretary, org president, and youth accounts are refused |
-| `tithing-entry-numbers.test.ts` | Concurrent inserts get distinct sequential numbers |
-| `tithing-autoclear.test.ts` | Prior-day data deleted; today's untouched; runs on ward-local date |
+| `tithingTotals.test.ts` | Every denomination combination totals exactly, in integer cents — BUILT |
+| `tithingMoney.test.ts` | The fixed-decimal amount field parses and formats exactly — BUILT |
+| `tithingNoFloat.test.ts` | No floating-point arithmetic in the money path, asserted by reading the source — BUILT |
+| `TithingCounter.test.tsx` | Save, edit, delete, clear, and the leave-the-page guard — BUILT |
+| `tithing-access.test.ts` | Secretary, org president, and youth accounts are refused — already existed |
+| ~~`tithing-entry-numbers.test.ts`~~ | Not applicable — see Step B0. There is no insert to race |
+| ~~`tithing-autoclear.test.ts`~~ | Not applicable — see Step B0. There is nothing to clear |
 | `agenda-carry-forward.test.ts` | Open items carry; completed do not; the origin agenda is recorded |
 | `agenda-flagged-items.test.ts` | Flags populate as one-liners; no note text is included |
 | `agenda-email-idempotent.test.ts` | A cron re-run does not double-send |
@@ -222,13 +261,13 @@ accordingly, or guard the delete on local date.
 
 **Tithing**
 
-- [ ] Bishopric-only, verified by test
-- [ ] No personal information stored anywhere
-- [ ] Integer-cent arithmetic throughout; totals exactly correct
-- [ ] Entry numbers sequential and collision-free
-- [ ] All controls present with appropriate confirmations
-- [ ] Auto-clear runs on ward-local midnight and does not wipe an in-progress session
-- [ ] Usable one-handed on a phone while counting cash
+- [x] Bishopric-only, verified by test
+- [x] No personal information stored anywhere — nothing is stored anywhere at all (Step B0)
+- [x] Integer-cent arithmetic throughout; totals exactly correct
+- [x] Entry numbers sequential and collision-free — a single browser counter, no insert to race
+- [x] All controls present with appropriate confirmations
+- [x] ~~Auto-clear runs on ward-local midnight~~ — not applicable, nothing persists (Step B0)
+- [ ] Usable one-handed on a phone while counting cash — **needs a walk on a real phone**
 
 ---
 
