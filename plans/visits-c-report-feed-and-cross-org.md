@@ -62,9 +62,32 @@ Phase 8's table already exists. Compare:
 | `org_id` | *(absent)* | `contextLabel` — org name, or the activity name |
 | `household_id` → family name | `event_id` → event title | `subjectLabel` |
 | `visit_date` (date) | `created_at` (timestamptz), event has `event_date` | `occurredOn` (date-only string) |
-| `visited_by` | `logged_by` | `authorLabel` |
+| **conducted by** (`visit_participants`) | `logged_by` | `authorLabel` |
+| `recorded_by` | *(no equivalent)* | `recordedByLabel` — secondary, see below |
+| `outcome` (`completed` / `attempted`) | *(absent)* | `outcomeLabel` — see below |
 | `shared_notes` | `shared_notes` | `previewText` |
 | `flagged_for_ward_council` | `flagged_for_ward_council` | *(not a tile field — see below)* |
+
+**THE `authorLabel` ROW IS THE ONE THAT CHANGED, AND THE TWO TABLES NOW MEAN DIFFERENT THINGS
+BY IT.** `visits-d` split `visit_logs.visited_by` into `recorded_by` (who typed it in) and the
+`visit_participants` table (who actually went), and dropped the old column. So:
+
+- **`visit_logs`** has no single "author" column. `authorLabel` comes from
+  `VisitLogWithContext.conductedByLabel` — WHO WENT — and is **null when nobody is recorded as
+  having gone**, in which case the tile says so in words rather than falling back to the
+  recorder. `recorded_by` is a separate, quieter field on the tile.
+- **`activity_logs.logged_by` is the RECORDER**, not the person who went. Phase 8 has no
+  participants table and no equivalent split.
+
+Mapping both onto one `authorLabel` without noticing this would put "who went" on one kind of
+tile and "who typed it" on the other, under the same label, with nothing on screen to tell them
+apart. Either give the tile both fields (recommended) or name the field for what it actually is
+per module — but do not let the mapper hide the difference.
+
+**`outcome` has no `activity_logs` equivalent either.** An attempted visit must be visibly
+distinct in the feed: it counts towards no goal (`visits-b`) and a feed that renders it
+identically to a completed visit undoes that. Phase 8's activities have no such state, so the
+field is nullable on the tile rather than required.
 
 The shapes are close but **not identical**: `activity_logs` has no `org_id` and no date
 column of its own. So the component must not take rows — it takes an already-normalized
@@ -162,7 +185,9 @@ export type ReportTile = {
   contextLabel: string;      // "Elders Quorum"
   subjectLabel: string;      // "The Andersen Family"
   occurredOn: string;        // date-only
-  authorLabel: string;       // "Brother Hale"
+  authorLabel: string | null;// WHO WENT — null when nobody is recorded (visits-d)
+  recordedByLabel: string | null; // who typed it in. Quieter, and never a fallback for the above
+  outcomeLabel: string | null;// "Attempted" for a visit that did not happen; null for activities
   previewText: string | null;// one line from SHARED notes only
   isRead: boolean;
   bookmarked: boolean;
@@ -194,7 +219,13 @@ export type ReportTile = {
   chars with an ellipsis. **Null when there is no shared note** — render "No shared note"
   rather than an empty tile.
 - `occurredOn` ← `visit_date`. `contextLabel` ← organization name.
-  `subjectLabel` ← household family name. `authorLabel` ← the visitor's display name.
+  `subjectLabel` ← household family name.
+- **`authorLabel` ← `conductedByLabel`, NOT `recordedByName`.** It is null when the visit records
+  nobody as having gone, and the tile renders "Nobody recorded as visiting" rather than the
+  recorder's name — falling back would re-create the exact ambiguity `visits-d` removed.
+  `recordedByLabel` ← `recordedByName`, rendered secondary.
+- **`outcomeLabel` is set for `attempted` and null for `completed`.** A label on the exception
+  only; every tile saying "Visited" is noise, and the one saying "Attempted" is the point.
 - **This file must not import `lib/visits/privateNotes.ts`.** State it in the header, as
   `lib/visits/queries.ts` does.
 

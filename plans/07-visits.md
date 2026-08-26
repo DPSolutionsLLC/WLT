@@ -24,7 +24,7 @@ achieve; the sub-plans are what get executed.**
 | 1 | [visits-a-goals-logs-and-notes.md](visits-a-goals-logs-and-notes.md) | Steps 1–3 — goals, visit logs, the notes split, ward-council flagging | ✅ Built |
 | 2 | [visits-b-progress-dashboard.md](visits-b-progress-dashboard.md) | Step 4 — progress dashboard, `householdStatus.ts` | Ready |
 | 3 | [visits-c-report-feed-and-cross-org.md](visits-c-report-feed-and-cross-org.md) | Steps 5–6 — generic `ReportFeed`, per-user read state, cross-org admin toggle | Ready |
-| 4 | [visits-d-attempts-appointments-and-participants.md](visits-d-attempts-appointments-and-participants.md) | Step 7 — attempted visits, appointment vs drop-in, scheduled appointments, participants, `recorded_by` | Ready |
+| 4 | [visits-d-attempts-appointments-and-participants.md](visits-d-attempts-appointments-and-participants.md) | Step 7 — attempted visits, appointment vs drop-in, scheduled appointments, participants, `recorded_by` | ✅ Built |
 
 **The order is `a` → `d` → `b` → `c`, and `visits-d` moved ahead of `visits-b` deliberately.**
 Step 7 changes what a visit *is* — a row may record an attempt rather than a visit, and the person
@@ -201,11 +201,12 @@ several dozen people can see; treat it as a significant setting and confirm befo
 
 ## Step 7 — Attempts, Appointments and Who Actually Went
 
-**Added 2026-08-25, by the user, during the `visits-a` walkthrough.** Not built. The execution plan
-is [visits-d-attempts-appointments-and-participants.md](visits-d-attempts-appointments-and-participants.md),
-written 2026-08-25, and **all four decisions below were settled with the user before it was
-written** — see that plan's §Confirmed decisions for the answers and the reasoning. They are left
-here because the questions are what make the plan's answers legible.
+**Added 2026-08-25, by the user, during the `visits-a` walkthrough. Built 2026-08-25.** The
+execution plan is
+[visits-d-attempts-appointments-and-participants.md](visits-d-attempts-appointments-and-participants.md),
+and **all four decisions below were settled with the user before it was written** — see that
+plan's §Confirmed decisions for the answers and the reasoning. The questions are left here
+because they are what make the answers legible; §What shipped is what was actually built.
 
 ### What was asked for
 
@@ -244,24 +245,58 @@ None of these should be settled by whoever writes the migration.
   record most real companions. **Decide what a participant is** — user, member, or free text —
   before writing the foreign key, because it is painful to widen later.
 
-### Sketch, not a specification
+### What shipped
 
-| Thing | Shape | Note |
-|---|---|---|
-| `visit_logs.outcome` | `completed` / `attempted` | Drives whether it counts in `visits-b` |
-| `visit_logs.arrangement` | `appointment` / `drop_in` | Requirement 2 |
-| `visit_logs.recorded_by` | user id, from the session | Never from the request body |
-| `visit_appointments` | ward, org, household, scheduled date, made_by, status | Requirement 3; future dates ALLOWED here |
-| `visit_participants` | visit log id + participant | Max five companions; see the decision above |
+Built 2026-08-25. Migrations 046–048 applied; **049 is written and deliberately NOT applied** —
+it waits in `supabase/migrations-pending/` until the code deploys, because the live app still
+selects the column it drops. See that directory's README. The sketch that used to sit here has
+been replaced by what was actually built, because a sketch left beside a shipped feature is read
+as a specification the code failed to meet.
 
-**`visit_type` already carries a single-value CHECK** (`in_home`, migration 044). Whether
-`arrangement` is a second column or a widening of that CHECK is a design call — a single column
-mixing "in-home" with "drop-in" would conflate place and arrangement, which is why the sketch
-keeps them apart.
+| Thing | Shape as built |
+|---|---|
+| `visit_logs.outcome` | `completed` / `attempted`, default `completed`. `visits-b` counts `completed` ONLY |
+| `visit_logs.arrangement` | `appointment` / `drop_in`, default `drop_in` — the honest default for rows written before the column existed |
+| `visit_logs.recorded_by` | user id, stamped from the session. `visited_by` was backfilled from it; **migration 049 drops it after the deploy** |
+| `visit_appointments` | ward, org, household, `scheduled_for` **timestamptz**, `status`, `visit_log_id`, `made_by`, notes |
+| `visit_participants` | ward, org, visit log id, and **exactly one** of `user_id` / `member_id` / `label`, enforced by a CHECK |
+| The five-companion cap | **Route only.** A CHECK cannot count rows in another table and this repo has no triggers |
+| "Missed" | **Computed on read**, never stored. `lib/visits/appointmentStatus.ts`, `asOf` as a parameter |
 
-**RLS:** every new table is org-scoped exactly as `visit_logs` is (migration 019), and
-`visit_appointments` needs the same cross-org read branch. No new table gets a bishopric override
-that `visit_logs` does not have.
+**`arrangement` is a second column, not a widening of `visit_type`'s CHECK.** One column mixing
+"in-home" with "drop-in" would conflate place and arrangement.
+
+**A participant is a user OR a member OR a typed name.** `users` and `members` are unlinked in
+this schema — there is no `users.member_id` — so no single foreign key could name both a leader
+and their spouse. Linking the two tables would collapse this into one column and would help
+several other features; it affects Phases 1, 2 and 10 and remains an open decision.
+
+### What the build changed about this step's own plan
+
+Three things the plan did not anticipate, all of them found by tests rather than by review:
+
+- **Migration 047 exists** because a bare `on delete set null` on a COMPOSITE foreign key nulls
+  every referencing column — `ward_id` included, and it is `not null`. The effect was the exact
+  opposite of the intent: a visit with an appointment pointing at it became undeletable. Fixed
+  with Postgres 15's `on delete set null (visit_log_id)`.
+- **Migration 048 exists** because copying `visit_logs`' policy shape onto `visit_participants`
+  was not enough. A participant row has a PARENT, so its own denormalized `org_id` is only half
+  the question — an EQ leader could write a participant onto an RS visit by claiming their own
+  org. Writes now also check the parent visit; reads deliberately still use the cheap column.
+- **The `users` embed in `lib/visits/queries.ts` names its foreign key**, because between 046 and
+  049 `visit_logs` has two foreign keys to `users` and a bare embed is ambiguous. That window is
+  the whole point of expand-and-contract, so the query has to survive it.
+
+**RLS:** both new tables are org-scoped exactly as `visit_logs` is, with the cross-org branch on
+SELECT and on none of the six write policies. Neither has a bishopric override `visit_logs` lacks.
+
+### Still open after this step
+
+- **`visit_overdue` has nowhere to run**, and `missed` now joins it: two computed-on-read states,
+  neither emitting a notification, with no `supabase/functions/` and no `pg_cron`. Raise the
+  mechanism before `visits-c`.
+- **Whether `users` should link to `members`.** It would collapse `visit_participants` to one
+  column. Phases 1, 2 and 10 all touch it.
 
 ---
 

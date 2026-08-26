@@ -6,12 +6,18 @@ import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { notifyWardCouncilFlag } from "@/lib/visits/flagNotification";
+import { replaceParticipants } from "@/lib/visits/participants";
 import { getVisitLog, updateVisitLog } from "@/lib/visits/queries";
-import { updateVisitLogSchema } from "@/lib/validation/visit";
+import {
+  MAX_VISIT_PARTICIPANTS,
+  TOO_MANY_PARTICIPANTS_MESSAGE,
+  updateVisitLogSchema,
+} from "@/lib/validation/visit";
 import type { Database } from "@/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-// Editing a visit: the shared notes, and the ward-council flag.
+// Editing a visit: the outcome, the arrangement, the shared notes, who went, and the
+// ward-council flag.
 //
 // THIS FILE DOES NOT IMPORT lib/visits/privateNotes.ts, AND MUST NOT — see the header of
 // app/api/visits/route.ts. A private note is edited through its own endpoint, in its own
@@ -82,6 +88,15 @@ export async function PATCH(
       return NextResponse.json({ error: "That visit is not in your ward." }, { status: 404 });
     }
 
+    // The same limit POST /api/visits keeps, and for the same reason: nothing below this layer
+    // counts participant rows, so editing is the other way past it.
+    if (
+      input.participants !== undefined &&
+      input.participants.length > MAX_VISIT_PARTICIPANTS
+    ) {
+      return NextResponse.json({ error: TOO_MANY_PARTICIPANTS_MESSAGE }, { status: 400 });
+    }
+
     // ---------------------------------------------------------------------
     // THE FLAG TRANSITION — 07-visits.md §Step 3
     // ---------------------------------------------------------------------
@@ -119,6 +134,19 @@ export async function PATCH(
       return NextResponse.json({ error: WRITE_REFUSED }, { status: 404 });
     }
 
+    // Only once the visit itself is known to have been writable. `visit.orgId` rather than the
+    // request: a participant row's org is denormalized from its parent and is never something a
+    // body can name.
+    if (input.participants !== undefined) {
+      await replaceParticipants(
+        user.wardId,
+        visit.orgId,
+        visitLogId,
+        input.participants,
+        supabase,
+      );
+    }
+
     await writeAuditLog(
       {
         wardId: user.wardId,
@@ -131,6 +159,11 @@ export async function PATCH(
           // The KEYS that changed, never their values. `sharedNotes` in this list is a record
           // that the notes were edited; the notes themselves belong in the row, not in the log.
           changed: Object.keys(input),
+          outcome: visit.outcome,
+          arrangement: visit.arrangement,
+          // A COUNT, never names. A companion's name in an audit row is a person's movements in
+          // a log they cannot read.
+          participantCount: input.participants?.length ?? null,
           notified: shouldNotify,
         },
       },

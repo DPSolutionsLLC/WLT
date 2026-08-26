@@ -151,7 +151,7 @@ export async function seed(): Promise<void> {
   const brooksVisit = await createVisitLog({
     org: "eldersQuorum",
     householdId: households[0],
-    visitedBy: eqPresident.id,
+    recordedBy: eqPresident.id,
     visitDate: "2026-02-08",
     sharedNotes: CANARY_SHARED_NOTE,
   });
@@ -165,7 +165,7 @@ export async function seed(): Promise<void> {
   await createVisitLog({
     org: "eldersQuorum",
     householdId: households[1],
-    visitedBy: eqPresident.id,
+    recordedBy: eqPresident.id,
     visitDate: "2026-02-15",
     sharedNotes: "Shared: caught them on the way out, agreed to call back next month.",
   });
@@ -173,7 +173,7 @@ export async function seed(): Promise<void> {
   await createVisitLog({
     org: "eldersQuorum",
     householdId: households[2],
-    visitedBy: eqPresident.id,
+    recordedBy: eqPresident.id,
     visitDate: "2026-03-01",
   });
 
@@ -181,7 +181,7 @@ export async function seed(): Promise<void> {
   await createVisitLog({
     org: "eldersQuorum",
     householdId: households[3],
-    visitedBy: eqPresident.id,
+    recordedBy: eqPresident.id,
     visitDate: "2026-03-22",
     sharedNotes: "Shared: raised with the quorum presidency last week.",
     flaggedForWardCouncil: true,
@@ -191,7 +191,7 @@ export async function seed(): Promise<void> {
   await createVisitLog({
     org: "reliefSociety",
     householdId: households[4],
-    visitedBy: rsPresident.id,
+    recordedBy: rsPresident.id,
     visitDate: "2026-03-08",
     sharedNotes: "Shared: sister is recovering well and asked after the Relief Society lesson.",
   });

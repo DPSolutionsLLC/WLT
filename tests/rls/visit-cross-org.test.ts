@@ -112,7 +112,7 @@ describe("visit cross-org visibility", () => {
         {
           ward_id: wardId,
           org_id: fixtures.eldersQuorumId,
-          visited_by: fixtures.user("eqPresident").id,
+          recorded_by: fixtures.user("eqPresident").id,
           visit_date: "2026-04-05",
           visit_type: "in_home",
           shared_notes: EQ_SHARED,
@@ -120,7 +120,7 @@ describe("visit cross-org visibility", () => {
         {
           ward_id: wardId,
           org_id: fixtures.reliefSocietyId,
-          visited_by: fixtures.user("rsPresident").id,
+          recorded_by: fixtures.user("rsPresident").id,
           visit_date: "2026-04-12",
           visit_type: "in_home",
           shared_notes: RS_SHARED,

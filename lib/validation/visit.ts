@@ -1,6 +1,13 @@
 import { z } from "zod";
 import { formatDateOnly, isValidDateOnly } from "@/lib/calendar/dates";
-import { VISIT_CADENCES, VISIT_TYPES, type VisitCadence } from "@/types/domain";
+import {
+  APPOINTMENT_STATUSES,
+  VISIT_ARRANGEMENTS,
+  VISIT_CADENCES,
+  VISIT_OUTCOMES,
+  VISIT_TYPES,
+  type VisitCadence,
+} from "@/types/domain";
 
 // No wardId and no orgId on any schema here, ever. Both come from the session
 // (conventions.md §Validation). A request that could name its own organization could write a
@@ -150,18 +157,101 @@ const pastOrPresentDateSchema = dateOnlySchema.refine(
   "A visit cannot be logged for a date in the future.",
 );
 
+// ---------------------------------------------------------------------------
+// Who actually went
+// ---------------------------------------------------------------------------
+
+export const MAX_VISIT_COMPANIONS = 5;
+export const MAX_PARTICIPANT_LABEL = 120;
+
+// A discriminated union on `kind`, not one object with three optional identity fields. A union
+// by SHAPE makes a participant with two identities — or none — UNREPRESENTABLE at the boundary,
+// which is the same rule migration 046's `visit_participants_one_identity` CHECK enforces at the
+// database. Restating the CHECK as a refinement would leave two ways to express the invariant;
+// this leaves one.
+//
+// `users` and `members` are unlinked in this schema, so no single foreign key can name every
+// real companion: a leader is a `users` row, a spouse is a `members` row, and a neighbour who
+// came along is neither.
+export const visitParticipantSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("user"), userId: z.uuid("That leader is not valid.") }),
+  z.object({ kind: z.literal("member"), memberId: z.uuid("That member is not valid.") }),
+  z.object({
+    kind: z.literal("label"),
+    label: z
+      .string()
+      .trim()
+      .min(1, "Give the person a name, or remove them.")
+      .max(MAX_PARTICIPANT_LABEL, `Keep the name to ${MAX_PARTICIPANT_LABEL} characters.`),
+  }),
+]);
+export type VisitParticipantInput = z.infer<typeof visitParticipantSchema>;
+
+// THE CAP IS COMPANIONS PLUS THE RECORDER. MAX_VISIT_COMPANIONS is 5, so the list holds 6: a
+// leader who keeps themselves on it may still add five other people. Off-by-one here is the
+// obvious bug and tests/lib/visitParticipants.test.ts exists mostly to pin it.
+export const MAX_VISIT_PARTICIPANTS = MAX_VISIT_COMPANIONS + 1;
+
+export const TOO_MANY_PARTICIPANTS_MESSAGE =
+  `A visit records at most ${MAX_VISIT_COMPANIONS} companions besides the person recording it. ` +
+  "Remove somebody before adding another.";
+
+export const participantsSchema = z
+  .array(visitParticipantSchema)
+  .max(MAX_VISIT_PARTICIPANTS, TOO_MANY_PARTICIPANTS_MESSAGE)
+  .superRefine((participants, context) => {
+    // The same person twice is refused HERE as well as by migration 046's two partial unique
+    // indexes, because a constraint violation surfaces as a 500 reporting the server's own fault
+    // for the caller's duplicate. There is deliberately no duplicate check on `label`: two
+    // people can genuinely be "a neighbour".
+    const seen = new Set<string>();
+
+    participants.forEach((participant, index) => {
+      if (participant.kind === "label") return;
+
+      const key =
+        participant.kind === "user"
+          ? `user:${participant.userId}`
+          : `member:${participant.memberId}`;
+
+      if (seen.has(key)) {
+        context.addIssue({
+          code: "custom",
+          message: "That person is already on this visit.",
+          path: [index],
+        });
+      }
+
+      seen.add(key);
+    });
+  });
+
+// `participants` is OPTIONAL and that is load-bearing: absent means "the recorder went", which
+// is the default requirement 4 asks for, and an empty array means "nobody is recorded as having
+// gone". Those are different answers and the route must not conflate them, so this schema keeps
+// `undefined` distinguishable from `[]` rather than defaulting.
+//
+// There is NO `recordedBy` field, here or anywhere. The route stamps it from the session — a
+// request that could name its own recorder could put a visit in somebody else's name.
 export const createVisitLogSchema = z.object({
   householdId: z.uuid("That household is not valid."),
   visitDate: pastOrPresentDateSchema,
   visitType: z.enum(VISIT_TYPES),
+  outcome: z.enum(VISIT_OUTCOMES).default("completed"),
+  arrangement: z.enum(VISIT_ARRANGEMENTS).default("drop_in"),
   sharedNotes: sharedNotesSchema,
+  participants: participantsSchema.optional(),
+  appointmentId: z.uuid("That appointment is not valid.").optional(),
 });
 export type CreateVisitLogInput = z.infer<typeof createVisitLogSchema>;
 
 export const updateVisitLogSchema = z
   .object({
+    outcome: z.enum(VISIT_OUTCOMES).optional(),
+    arrangement: z.enum(VISIT_ARRANGEMENTS).optional(),
     sharedNotes: sharedNotesSchema,
     flaggedForWardCouncil: z.boolean().optional(),
+    participants: participantsSchema.optional(),
   })
   .superRefine((value, context) => {
     if (Object.keys(value).length === 0) {
@@ -169,6 +259,63 @@ export const updateVisitLogSchema = z
     }
   });
 export type UpdateVisitLogInput = z.infer<typeof updateVisitLogSchema>;
+
+// ---------------------------------------------------------------------------
+// Appointments
+// ---------------------------------------------------------------------------
+
+const scheduledForSchema = z
+  .string()
+  .refine(
+    (value) => !Number.isNaN(Date.parse(value)),
+    "Give the date and time as an ISO timestamp.",
+  );
+
+const appointmentNotesSchema = z
+  .string()
+  .trim()
+  .max(MAX_SHARED_NOTES, `Keep the note to ${MAX_SHARED_NOTES} characters.`)
+  .nullable()
+  .optional();
+
+// A PAST `scheduledFor` IS ALLOWED, unlike a visit log's date. An appointment recorded after the
+// fact is a real thing — a leader writes down on Wednesday the visit they arranged for Tuesday —
+// and refusing it would push that record back into a notes field where nothing can count it.
+// The past-and-still-scheduled row is also exactly what reads as "missed".
+export const createAppointmentSchema = z.object({
+  householdId: z.uuid("That household is not valid."),
+  scheduledFor: scheduledForSchema,
+  notes: appointmentNotesSchema,
+});
+export type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>;
+
+// Three different EVENTS, so a discriminated union on `action` rather than a patch of optional
+// fields — following updateGoalSchema. Each writes its own audit row, and "cancelled" is not
+// expressible as a side effect of rescheduling.
+export const updateAppointmentSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("keep"),
+    visitLogId: z.uuid("That visit is not valid."),
+  }),
+  z.object({ action: z.literal("cancel") }),
+  z.object({
+    action: z.literal("reschedule"),
+    scheduledFor: scheduledForSchema,
+  }),
+]);
+export type UpdateAppointmentInput = z.infer<typeof updateAppointmentSchema>;
+
+// Parsed with exactly the names the client sends, checked against the fetch in
+// app/(app)/visits/AppointmentPanel.tsx rather than assumed — a parameter this schema does not
+// carry gets no error, just a filter that is silently ignored
+// (plans/retros/roster-b-picker-and-orgs.md).
+export const listAppointmentsQuerySchema = z.object({
+  householdId: z.uuid("That household is not valid.").optional(),
+  from: scheduledForSchema.optional(),
+  to: scheduledForSchema.optional(),
+  status: z.enum(APPOINTMENT_STATUSES).optional(),
+});
+export type ListAppointmentsQuery = z.infer<typeof listAppointmentsQuerySchema>;
 
 // No `userId`. The author of a private note is always auth.uid(), so "write someone else's
 // note" is not expressible in this schema, in lib/visits/privateNotes.ts, or in the route.

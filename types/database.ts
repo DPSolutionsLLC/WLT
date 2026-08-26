@@ -2652,6 +2652,81 @@ export type Database = {
           },
         ]
       }
+      visit_appointments: {
+        Row: {
+          created_at: string
+          household_id: string | null
+          id: string
+          made_by: string | null
+          notes: string | null
+          org_id: string | null
+          scheduled_for: string
+          status: string
+          visit_log_id: string | null
+          ward_id: string
+        }
+        Insert: {
+          created_at?: string
+          household_id?: string | null
+          id?: string
+          made_by?: string | null
+          notes?: string | null
+          org_id?: string | null
+          scheduled_for: string
+          status?: string
+          visit_log_id?: string | null
+          ward_id: string
+        }
+        Update: {
+          created_at?: string
+          household_id?: string | null
+          id?: string
+          made_by?: string | null
+          notes?: string | null
+          org_id?: string | null
+          scheduled_for?: string
+          status?: string
+          visit_log_id?: string | null
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visit_appointments_household_id_ward_id_fkey"
+            columns: ["household_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "visit_appointments_made_by_ward_id_fkey"
+            columns: ["made_by", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "visit_appointments_org_id_ward_id_fkey"
+            columns: ["org_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "visit_appointments_visit_log_id_ward_id_fkey"
+            columns: ["visit_log_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "visit_logs"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "visit_appointments_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       visit_goals: {
         Row: {
           cadence: string | null
@@ -2718,12 +2793,15 @@ export type Database = {
       }
       visit_logs: {
         Row: {
+          arrangement: string
           created_at: string
           flag_sent_at: string | null
           flagged_for_ward_council: boolean
           household_id: string | null
           id: string
           org_id: string | null
+          outcome: string
+          recorded_by: string | null
           shared_notes: string | null
           visit_date: string
           visit_type: string
@@ -2731,12 +2809,15 @@ export type Database = {
           ward_id: string
         }
         Insert: {
+          arrangement?: string
           created_at?: string
           flag_sent_at?: string | null
           flagged_for_ward_council?: boolean
           household_id?: string | null
           id?: string
           org_id?: string | null
+          outcome?: string
+          recorded_by?: string | null
           shared_notes?: string | null
           visit_date: string
           visit_type?: string
@@ -2744,12 +2825,15 @@ export type Database = {
           ward_id: string
         }
         Update: {
+          arrangement?: string
           created_at?: string
           flag_sent_at?: string | null
           flagged_for_ward_council?: boolean
           household_id?: string | null
           id?: string
           org_id?: string | null
+          outcome?: string
+          recorded_by?: string | null
           shared_notes?: string | null
           visit_date?: string
           visit_type?: string
@@ -2772,6 +2856,13 @@ export type Database = {
             referencedColumns: ["id", "ward_id"]
           },
           {
+            foreignKeyName: "visit_logs_recorded_by_fkey"
+            columns: ["recorded_by", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
             foreignKeyName: "visit_logs_visited_by_ward_id_fkey"
             columns: ["visited_by", "ward_id"]
             isOneToOne: false
@@ -2780,6 +2871,75 @@ export type Database = {
           },
           {
             foreignKeyName: "visit_logs_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visit_participants: {
+        Row: {
+          created_at: string
+          id: string
+          label: string | null
+          member_id: string | null
+          org_id: string | null
+          user_id: string | null
+          visit_log_id: string
+          ward_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          member_id?: string | null
+          org_id?: string | null
+          user_id?: string | null
+          visit_log_id: string
+          ward_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          member_id?: string | null
+          org_id?: string | null
+          user_id?: string | null
+          visit_log_id?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visit_participants_member_id_ward_id_fkey"
+            columns: ["member_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "visit_participants_org_id_ward_id_fkey"
+            columns: ["org_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "visit_participants_user_id_ward_id_fkey"
+            columns: ["user_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "visit_participants_visit_log_id_ward_id_fkey"
+            columns: ["visit_log_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "visit_logs"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "visit_participants_ward_id_fkey"
             columns: ["ward_id"]
             isOneToOne: false
             referencedRelation: "wards"

@@ -20,8 +20,9 @@ Phase 7 §Step 4.
 ### Key requirements
 
 1. `lib/visits/householdStatus.ts` — a pure function returning `Visited`, `Due Soon`,
-   `Overdue` or `Not Yet Visited`.
-2. A sortable list: household name, last visited, visit count this period, status, logged by.
+   `Overdue`, `Attempted, Never Reached` or `Not Yet Visited`.
+2. A sortable list: household name, last visited, **last attempted**, visit count this period,
+   status, **conducted by**.
 3. A progress banner — "X of Y households visited — Z remaining" — where **Y excludes
    moved-out and do-not-contact households**.
 4. `GET /api/visits/progress` returns the dashboard summary.
@@ -29,7 +30,9 @@ Phase 7 §Step 4.
 
 ### Success criteria
 
-- All four statuses correct at their boundaries, proven by a table-driven test.
+- All five statuses correct at their boundaries, proven by a table-driven test.
+- An `attempted` visit is VISIBLE on its household's row and counts towards nothing, proven by
+  test.
 - A household whose members have all moved out is absent from the denominator, proven by
   test.
 - `npm run lint`, `typecheck`, `test` and `build` all pass.
@@ -67,6 +70,38 @@ status list here.
 
 §Pitfalls of the phase file: *"Counting moved-out households makes every org look behind and
 erodes trust in the number."*
+
+**`visits-a` already shipped this filter** in `app/(app)/visits/page.tsx`, found by walking
+scenario 038: the household picker filters on `members.length > 0` and carries the reasoning
+in a comment. **The dashboard denominator must match it exactly.** Two places computing "which
+households can this org visit" that disagree is worse than either being wrong on its own — a
+household offered in the picker but absent from the denominator, or the reverse, is a progress
+number nobody can reconcile against the list beside it.
+
+---
+
+## What `visits-d` changed underneath this plan
+
+`visits-d` shipped BEFORE this slice and changed what a visit is. Three consequences, all of
+them load-bearing here:
+
+1. **`visit_logs.outcome` is `completed` or `attempted`.** An attempt is a first-class record: a
+   leader knocked and got no answer. **It counts towards nothing.** `lastVisitedOn` and
+   `visitCountThisPeriod` must both filter `outcome = 'completed'`, or a ward that cannot catch a
+   family at home will read as having visited them.
+
+2. **An attempt must still be VISIBLE.** The whole reason attempts are recorded is that a
+   household nobody can catch at home should stop being invisible. So the dashboard row carries
+   `lastAttemptedOn` as its own column, and `householdStatus()` gains a fifth state —
+   *attempted, never reached* — for a household with attempts in the period and no completed
+   visit. Filtering attempts out of the numbers without surfacing them somewhere would make the
+   feature pointless.
+
+3. **`visit_logs.visited_by` is gone.** It was replaced by `recorded_by` (who typed it in) plus
+   the `visit_participants` table (who actually went). The dashboard's `loggedBy` column becomes
+   **`conductedBy`**, built from `VisitLogWithContext.conductedByLabel` — which is **null when
+   nobody is recorded as having gone**, and must render as words rather than falling back to the
+   recorder. Read `lib/visits/participants.ts` before building this column.
 
 ---
 
@@ -162,10 +197,17 @@ Rules, in evaluation order:
 
 | Status | Condition |
 |---|---|
-| `not_yet_visited` | No visit **within the current goal period** |
+| `attempted_never_reached` | No COMPLETED visit in the period, but at least one **attempt** |
+| `not_yet_visited` | No completed visit and no attempt **within the current goal period** |
 | `overdue` | `asOf >= addMonths(anchor, cadenceMonths)` |
 | `due_soon` | `elapsed / interval >= 0.8` |
 | `visited` | Otherwise — visited within the period and not yet due |
+
+- **`lastVisitedOn` and every count are `outcome = 'completed'` ONLY** (§What `visits-d`
+  changed). The signature therefore takes `lastAttemptedOn` as well, and
+  `attempted_never_reached` is evaluated FIRST — it is the more specific statement about a
+  household than "not yet visited", and it is the one that tells a leader to try something other
+  than knocking again.
 
 - **`goalPeriodStart` is the fourth parameter and it is not optional.** It is the anchor when
   `lastVisitedOn` is null. Without it, a goal that started last week and one that started two
@@ -194,8 +236,16 @@ Rules, in evaluation order:
   fetched data**, so `tests/lib/visitProgress.test.ts` needs no database. A thin
   `readVisitProgress(wardId, orgId, client)` does the fetching and calls it.
 - Denominator: `households.filter((h) => h.members.length > 0)` — §The denominator trap.
-- Per row: `householdId`, `familyName`, `lastVisitedOn`, `visitCountThisPeriod`, `status`,
-  `loggedBy` (the display name from the most recent visit in the period).
+- Per row: `householdId`, `familyName`, `lastVisitedOn`, `lastAttemptedOn`,
+  `visitCountThisPeriod`, `attemptCountThisPeriod`, `status`, `conductedBy` (the
+  `conductedByLabel` from the most recent COMPLETED visit in the period).
+- **Every visit number filters `outcome = 'completed'`.** `lastVisitedOn`, `visitCountThisPeriod`
+  and `visitedCount` all exclude attempts; `lastAttemptedOn` and `attemptCountThisPeriod` are
+  the only fields that see them. An attempt folded into a visit count is a ward being told it
+  reached a family it did not.
+- **`conductedBy` is NULL when nobody is recorded as having gone**, and the column renders
+  "Nobody recorded" rather than the recorder's name. `visits-d` split those two roles precisely
+  so this column cannot quietly credit the wrong person.
 - **`visitCountThisPeriod` counts only logs inside `[goalPeriodStart, goalPeriodEnd]`**, but
   `lastVisitedOn` is the most recent visit **of all time** — a leader wants to know a family
   was last seen fourteen months ago, not that the count is zero. The status uses the period;

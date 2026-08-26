@@ -2,7 +2,7 @@
 id: visits-a-goals-logs-and-notes
 type: feature
 iter: null
-commits: []
+commits: ["d6b8e6f"]
 date: 2026-08-25
 files:
   - supabase/migrations/044_visit_log_type_and_private_note_upsert.sql

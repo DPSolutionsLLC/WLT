@@ -135,7 +135,7 @@ describe("visit routes", () => {
         ward_id: wardId,
         org_id: fixtures.eldersQuorumId,
         household_id: householdId,
-        visited_by: fixtures.user("eqPresident").id,
+        recorded_by: fixtures.user("eqPresident").id,
         visit_date: "2026-04-05",
         visit_type: "in_home",
         shared_notes: EQ_SHARED,

@@ -5,6 +5,8 @@
 export type {
   ActivityType,
   AgendaStatus,
+  AppointmentStatus,
+  AppointmentViewState,
   AssignmentType,
   CommentLevel,
   GoalStatus,
@@ -32,7 +34,9 @@ export type {
   TopicCategory,
   TopicSource,
   TopicStatus,
+  VisitArrangement,
   VisitCadence,
+  VisitOutcome,
   VisitTargetType,
   VisitType,
 } from "../../types/domain.ts";

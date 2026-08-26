@@ -1,5 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  conductedByLabel,
+  listParticipantsForVisits,
+  type VisitParticipant,
+} from "@/lib/visits/participants";
 import type {
   CreateVisitGoalInput,
   CreateVisitLogInput,
@@ -9,10 +14,14 @@ import type {
 } from "@/lib/validation/visit";
 import type { Database } from "@/types/database";
 import {
+  VISIT_ARRANGEMENTS,
   VISIT_CADENCES,
+  VISIT_OUTCOMES,
   VISIT_TARGET_TYPES,
   VISIT_TYPES,
+  type VisitArrangement,
   type VisitCadence,
+  type VisitOutcome,
   type VisitTargetType,
   type VisitType,
 } from "@/types/domain";
@@ -56,9 +65,16 @@ export type VisitLog = {
   id: string;
   orgId: string | null;
   householdId: string | null;
-  visitedBy: string | null;
+  // WHO TYPED IT IN, not who went. Those are frequently different people — a secretary records
+  // the visits their presidency made — and visits-a had one column for both, which is what this
+  // slice split. Who WENT is `visit_participants`, read through lib/visits/participants.ts.
+  recordedBy: string | null;
   visitDate: string;
   visitType: VisitType;
+  // `completed` or `attempted`. visits-b counts `completed` only; an attempt is shown on the
+  // dashboard as its own state so a household nobody can catch at home stays visible.
+  outcome: VisitOutcome;
+  arrangement: VisitArrangement;
   sharedNotes: string | null;
   flaggedForWardCouncil: boolean;
   flagSentAt: string | null;
@@ -68,9 +84,15 @@ export type VisitLog = {
 // The display shape the list endpoint returns. Note what is NOT here and cannot be added by
 // accident: there is no private-note field on VisitLog, so a response built from this type
 // cannot carry one even if a future `select` widened.
+//
+// `conductedByLabel` is NULL when there are no participants, and the page says "Nobody recorded
+// as visiting" rather than falling back to the recorder. Falling back would re-create the exact
+// ambiguity this slice exists to remove.
 export type VisitLogWithContext = VisitLog & {
   householdName: string | null;
-  visitedByName: string | null;
+  recordedByName: string | null;
+  participants: VisitParticipant[];
+  conductedByLabel: string | null;
 };
 
 type VisitGoalRow = {
@@ -90,9 +112,11 @@ type VisitLogRow = {
   id: string;
   org_id: string | null;
   household_id: string | null;
-  visited_by: string | null;
+  recorded_by: string | null;
   visit_date: string;
   visit_type: string;
+  outcome: string;
+  arrangement: string;
   shared_notes: string | null;
   flagged_for_ward_council: boolean;
   flag_sent_at: string | null;
@@ -112,12 +136,24 @@ const VISIT_GOAL_COLUMNS =
   "id, org_id, title, target_type, cadence, cadence_months, goal_period_start, goal_period_end, created_by, created_at";
 
 const VISIT_LOG_COLUMNS =
-  "id, org_id, household_id, visited_by, visit_date, visit_type, shared_notes, flagged_for_ward_council, flag_sent_at, created_at";
+  "id, org_id, household_id, recorded_by, visit_date, visit_type, outcome, arrangement, shared_notes, flagged_for_ward_council, flag_sent_at, created_at";
 
-// Households and users, for the family/who-visited display. NOT private notes, and there is no
+// Households and users, for the family/who-recorded display. NOT private notes, and there is no
 // arrangement of this string that could reach them — visit_private_notes has no foreign key
 // from visit_logs pointing at it, so PostgREST cannot embed it here at all.
-const VISIT_LOG_JOINED_COLUMNS = `${VISIT_LOG_COLUMNS}, households (id, family_name), users (id, first_name, last_name)` as const;
+//
+// The `users` embed is the RECORDER now that visits-a's single `visited_by` column has split.
+// Who WENT is a separate table with its own policy, read through listParticipantsForVisits.
+//
+// THE FOREIGN KEY IS NAMED, NOT INFERRED. Between migration 046 and 049 this table has TWO
+// foreign keys to `users` — the new `recorded_by` and the outgoing `visited_by` — and a bare
+// `users (...)` is ambiguous while both exist: PostgREST answers "more than one relationship was
+// found" and every visit query 500s. That window is the whole point of expand-and-contract, so
+// the query has to survive it rather than only work at each end.
+//
+// It stays named after 049 drops the old column. An inferred embed is a query that silently
+// changes meaning the next time somebody adds a second foreign key to the same table.
+const VISIT_LOG_JOINED_COLUMNS = `${VISIT_LOG_COLUMNS}, households (id, family_name), users!visit_logs_recorded_by_fkey (id, first_name, last_name)` as const;
 
 // A value the CHECK constraint should have made impossible means the constraint and
 // types/domain.ts have drifted, and that is worth a crash rather than a silent cast — the same
@@ -166,9 +202,11 @@ export function mapVisitLogRow(row: VisitLogRow): VisitLog {
     id: row.id,
     orgId: row.org_id,
     householdId: row.household_id,
-    visitedBy: row.visited_by,
+    recordedBy: row.recorded_by,
     visitDate: row.visit_date,
     visitType: toEnum(row.visit_type, VISIT_TYPES, "visit_logs.visit_type"),
+    outcome: toEnum(row.outcome, VISIT_OUTCOMES, "visit_logs.outcome"),
+    arrangement: toEnum(row.arrangement, VISIT_ARRANGEMENTS, "visit_logs.arrangement"),
     sharedNotes: row.shared_notes,
     flaggedForWardCouncil: row.flagged_for_ward_council,
     flagSentAt: row.flag_sent_at,
@@ -176,17 +214,22 @@ export function mapVisitLogRow(row: VisitLogRow): VisitLog {
   };
 }
 
-function mapVisitLogJoinedRow(row: VisitLogJoinedRow): VisitLogWithContext {
-  const visitor = row.users;
-  const visitedByName =
-    visitor === null
+function mapVisitLogJoinedRow(
+  row: VisitLogJoinedRow,
+  participants: VisitParticipant[],
+): VisitLogWithContext {
+  const recorder = row.users;
+  const recordedByName =
+    recorder === null
       ? null
-      : `${visitor.first_name ?? ""} ${visitor.last_name ?? ""}`.trim() || null;
+      : `${recorder.first_name ?? ""} ${recorder.last_name ?? ""}`.trim() || null;
 
   return {
     ...mapVisitLogRow(row),
     householdName: row.households?.family_name ?? null,
-    visitedByName,
+    recordedByName,
+    participants,
+    conductedByLabel: conductedByLabel(participants),
   };
 }
 
@@ -339,7 +382,17 @@ export async function listVisitLogs(
     throw new Error(`Could not load the visits: ${error.message}`);
   }
 
-  return (data ?? []).map((row) => mapVisitLogJoinedRow(row as unknown as VisitLogJoinedRow));
+  const rows = (data ?? []) as unknown as VisitLogJoinedRow[];
+
+  // ONE query for every visit's participants, not one per visit. The list page renders every
+  // recent log, so an N+1 here is the whole page rather than one row of it.
+  const participants = await listParticipantsForVisits(
+    wardId,
+    rows.map((row) => row.id),
+    supabase,
+  );
+
+  return rows.map((row) => mapVisitLogJoinedRow(row, participants.get(row.id) ?? []));
 }
 
 export async function getVisitLog(
@@ -364,10 +417,13 @@ export async function getVisitLog(
   return data === null ? null : mapVisitLogRow(data);
 }
 
+// `recordedBy` is a parameter rather than a field on CreateVisitLogInput, and that is the point:
+// createVisitLogSchema has no such field, so a request cannot put a visit in somebody else's
+// name. Who WENT is written separately, through replaceParticipants.
 export async function createVisitLog(
   wardId: string,
   orgId: string | null,
-  userId: string,
+  recordedBy: string,
   input: CreateVisitLogInput,
   client?: SupabaseClient<Database>,
 ): Promise<VisitLog> {
@@ -379,9 +435,11 @@ export async function createVisitLog(
       ward_id: wardId,
       org_id: orgId,
       household_id: input.householdId,
-      visited_by: userId,
+      recorded_by: recordedBy,
       visit_date: input.visitDate,
       visit_type: input.visitType,
+      outcome: input.outcome,
+      arrangement: input.arrangement,
       shared_notes: input.sharedNotes ?? null,
     })
     .select(VISIT_LOG_COLUMNS)
@@ -407,12 +465,35 @@ export async function updateVisitLog(
 ): Promise<VisitLog | null> {
   const supabase = await resolveClient(client);
 
+  // `participants` is deliberately absent from this patch: it is not a column on this table.
+  // The route writes it through replaceParticipants, which is what keeps org_id on a participant
+  // row stamped from the VISIT rather than from a request.
   const patch: Database["public"]["Tables"]["visit_logs"]["Update"] = {};
   if (input.sharedNotes !== undefined) patch.shared_notes = input.sharedNotes;
+  if (input.outcome !== undefined) patch.outcome = input.outcome;
+  if (input.arrangement !== undefined) patch.arrangement = input.arrangement;
   if (input.flaggedForWardCouncil !== undefined) {
     patch.flagged_for_ward_council = input.flaggedForWardCouncil;
   }
   if (flagSentAt !== undefined) patch.flag_sent_at = flagSentAt;
+
+  // A PATCH that changes only the participants touches no column on THIS table, and an empty
+  // `update({})` is a request PostgREST rejects. The row is not simply re-read instead: with
+  // cross-org visibility on, an Elders Quorum leader can READ a Relief Society visit, so a read
+  // would answer 200 where visits-a answered 404 and the write would be refused a moment later
+  // by visit_participants' policy with nothing but a database error to show for it.
+  //
+  // So the no-op write is a write. `org_id` is set to the value it already holds, which changes
+  // nothing and still has to satisfy BOTH halves of visit_logs_update — its `using` clause and
+  // its `with check` — so the caller is judged by the policy rather than by a rule restated here
+  // (CLAUDE.md rule 2). A refused caller gets the same zero-row success, and the same 404, as
+  // any other refused update. `org_id` is never patchable from a request body, so this cannot be
+  // steered: the value comes from the row itself.
+  if (Object.keys(patch).length === 0) {
+    const existing = await getVisitLog(wardId, visitLogId, supabase);
+    if (existing === null) return null;
+    patch.org_id = existing.orgId;
+  }
 
   const { data, error } = await supabase
     .from("visit_logs")

@@ -388,6 +388,82 @@ export const VISIT_TYPE_LABELS: Record<VisitType, string> = {
   in_home: "In-home visit",
 };
 
+// What a visit log RECORDS. An attempt is a first-class outcome rather than a note somebody
+// typed into the shared field: a leader who knocked and got no answer changes one control, and
+// the household stops being invisible on the dashboard.
+//
+// visits-b counts `completed` only. An attempt is shown and never counted, which is the whole
+// distinction — see 07-visits.md and the Confirmed decisions in
+// plans/visits-d-attempts-appointments-and-participants.md.
+export const VISIT_OUTCOMES = ["completed", "attempted"] as const;
+export type VisitOutcome = (typeof VISIT_OUTCOMES)[number];
+
+export const VISIT_OUTCOME_LABELS: Record<VisitOutcome, string> = {
+  completed: "Visited",
+  attempted: "Attempted",
+};
+
+// How a visit names the people who went, and it MUST follow the outcome.
+//
+// The first build said "Visited by Miguel Cortez" on a row already labelled "Attempted" —
+// nobody was home, and the line directly under the word "Attempted" said they had visited.
+// Found by walking scenario 044. That is the same quiet untruth this whole slice exists to
+// remove, just relocated from a database column into the copy, so the prefix is a lookup on the
+// outcome rather than a hardcoded string.
+export const VISIT_CONDUCTED_PREFIX: Record<VisitOutcome, string> = {
+  completed: "Visited by",
+  attempted: "Attempted by",
+};
+
+// The empty case, which is a statement about the visit rather than an absence of data — a blank
+// where a name goes reads as a page that failed to load. Never a fallback to the RECORDER: the
+// person who typed a visit up is frequently not the person who went, and crediting them would
+// re-create the exact ambiguity `recorded_by` was split out to remove.
+export const VISIT_NOBODY_RECORDED: Record<VisitOutcome, string> = {
+  completed: "Nobody recorded as visiting",
+  attempted: "Nobody recorded as attempting",
+};
+
+// How the visit came about. Recorded on every visit because "we arranged it and they were
+// expecting us" and "we knocked on the way past" are different pastoral facts, and a ward
+// deciding how to reach a household it keeps missing needs to know which it has been doing.
+export const VISIT_ARRANGEMENTS = ["appointment", "drop_in"] as const;
+export type VisitArrangement = (typeof VISIT_ARRANGEMENTS)[number];
+
+export const VISIT_ARRANGEMENT_LABELS: Record<VisitArrangement, string> = {
+  appointment: "By appointment",
+  drop_in: "Dropped in",
+};
+
+// STORED statuses only — what a human did. `missed` is deliberately absent: it is a scheduled
+// appointment whose time has passed, and storing it would go stale the moment nobody wrote to
+// the row (this project has no pg_cron and no triggers).
+export const APPOINTMENT_STATUSES = ["scheduled", "kept", "cancelled"] as const;
+export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
+
+export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
+  scheduled: "Scheduled",
+  kept: "Kept",
+  cancelled: "Cancelled",
+};
+
+// The COMPUTED set, named apart from the stored set so nobody writes `missed` to the column.
+// lib/visits/appointments.ts is the one place that maps from one to the other.
+export const APPOINTMENT_VIEW_STATES = [
+  "scheduled",
+  "kept",
+  "cancelled",
+  "missed",
+] as const;
+export type AppointmentViewState = (typeof APPOINTMENT_VIEW_STATES)[number];
+
+export const APPOINTMENT_VIEW_STATE_LABELS: Record<AppointmentViewState, string> = {
+  scheduled: "Scheduled",
+  kept: "Kept",
+  cancelled: "Cancelled",
+  missed: "Missed",
+};
+
 // `specific_households` and `custom` are readable but NOT creatable — no table stores which
 // households such a goal covers, so its progress denominator is undefined. Migration 008's CHECK
 // keeps all three so a row written by a future slice still reads back correctly;

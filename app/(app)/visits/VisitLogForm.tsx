@@ -2,18 +2,50 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  recorderParticipant,
+  toParticipantPayload,
+  VisitParticipantsField,
+  type LeaderOption,
+  type ParticipantDraft,
+} from "@/app/(app)/visits/VisitParticipantsField";
+import { LOG_VISIT_ANCHOR } from "@/lib/visits/appointmentLink";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import { Input } from "@/components/ui/Input";
 import { MAX_PRIVATE_NOTES, MAX_SHARED_NOTES } from "@/lib/validation/visit";
-import { VISIT_TYPES, VISIT_TYPE_LABELS, type VisitType } from "@/types/domain";
+import {
+  VISIT_ARRANGEMENTS,
+  VISIT_ARRANGEMENT_LABELS,
+  VISIT_OUTCOMES,
+  VISIT_OUTCOME_LABELS,
+  VISIT_TYPES,
+  VISIT_TYPE_LABELS,
+  type SessionUser,
+  type VisitArrangement,
+  type VisitOutcome,
+  type VisitType,
+} from "@/types/domain";
 
 export type HouseholdOption = { id: string; label: string };
+
+// The appointment this visit is being logged against, resolved by page.tsx from `?appointment=`
+// and handed down. Absent for an ordinary visit.
+export type AppointmentPrefill = {
+  id: string;
+  householdId: string;
+  householdName: string;
+  scheduledFor: string;
+};
 
 export type VisitLogFormProps = {
   households: HouseholdOption[];
   today: string;
+  user: SessionUser;
+  leaders: LeaderOption[];
+  memberNames: Record<string, string>;
+  appointment?: AppointmentPrefill;
 };
 
 const SELECT_CLASSES =
@@ -32,6 +64,8 @@ type Draft = {
   householdId: string;
   visitDate: string;
   visitType: VisitType;
+  outcome: VisitOutcome;
+  arrangement: VisitArrangement;
   sharedNotes: string;
   privateNotes: string;
 };
@@ -74,18 +108,50 @@ function errorFrom(payload: Record<string, unknown>, fallback: string): string {
 // The helper text is ALWAYS VISIBLE — never a placeholder, never a tooltip. A placeholder
 // disappears the moment somebody starts typing, which is exactly when a leader writing a
 // pastoral observation most needs to know who will read it.
-export function VisitLogForm({ households, today }: VisitLogFormProps) {
+//
+// ---------------------------------------------------------------------------
+// THE OUTCOME CONTROL IS FIRST, AND IT IS TWO BUTTONS
+// ---------------------------------------------------------------------------
+// It comes before everything because it changes what the rest of the form MEANS: shared notes on
+// a visit are what happened, and shared notes on an attempt are usually what to try next. A
+// leader answers it before anything else, so it sits where they will answer it.
+//
+// Two buttons rather than a dropdown, because a binary in a select is a binary you have to open
+// to see. Requirement 1 asks for one action, and "change one control" is the difference between
+// recording an attempt and working around the form by typing "no answer" into the notes.
+//
+// CHOOSING "ATTEMPTED" HIDES NOTHING. A leader who got no answer often has something worth
+// recording — a car on the drive, a neighbour who said they had moved — and a form that
+// rearranges itself under a click is harder to trust than one that does not.
+export function VisitLogForm({
+  households,
+  today,
+  user,
+  leaders,
+  memberNames,
+  appointment,
+}: VisitLogFormProps) {
   const router = useRouter();
 
   const emptyDraft: Draft = {
-    householdId: "",
+    // Prefilled from the appointment when one is being kept, so "log the visit we arranged" does
+    // not ask which household twice. `arrangement` follows: it WAS an appointment, by definition.
+    householdId: appointment?.householdId ?? "",
     visitDate: today,
     visitType: "in_home",
+    outcome: "completed",
+    arrangement: appointment === undefined ? "drop_in" : "appointment",
     sharedNotes: "",
     privateNotes: "",
   };
 
   const [draft, setDraft] = useState<Draft>(emptyDraft);
+  // The recorder starts on the list and can be taken off. `undefined` is never sent — the form
+  // always states an answer, and it is the ROUTE that treats an absent key as "the recorder
+  // went" for callers that are not this form.
+  const [participants, setParticipants] = useState<ParticipantDraft[]>([
+    recorderParticipant(user),
+  ]);
   const [error, setError] = useState<string | undefined>(undefined);
   const [notice, setNotice] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
@@ -121,7 +187,14 @@ export function VisitLogForm({ households, today }: VisitLogFormProps) {
           householdId: draft.householdId,
           visitDate: draft.visitDate,
           visitType: draft.visitType,
+          outcome: draft.outcome,
+          arrangement: draft.arrangement,
           sharedNotes: draft.sharedNotes.trim() === "" ? null : draft.sharedNotes,
+          // Always sent, even when empty. An empty list means "nobody is recorded as having
+          // gone", which is a real answer this form can express — the route only defaults to the
+          // caller when the key is ABSENT.
+          participants: toParticipantPayload(participants),
+          ...(appointment === undefined ? {} : { appointmentId: appointment.id }),
         }),
       });
 
@@ -157,7 +230,16 @@ export function VisitLogForm({ households, today }: VisitLogFormProps) {
       }
 
       setDraft(emptyDraft);
-      setNotice("Visit logged.");
+      setParticipants([recorderParticipant(user)]);
+      setNotice(
+        draft.outcome === "attempted"
+          ? "Attempt recorded. It stays on the household's record and counts towards no goal."
+          : "Visit logged.",
+      );
+
+      // Clears `?appointment=` so a second visit logged straight afterwards is not silently
+      // attached to the appointment the first one kept.
+      if (appointment !== undefined) router.replace("/visits");
       router.refresh();
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
@@ -168,9 +250,59 @@ export function VisitLogForm({ households, today }: VisitLogFormProps) {
 
   return (
     <Card>
-      <h2 className="text-base font-semibold text-foreground">Log a visit</h2>
+      {/* The id the appointments panel links to. Taken from the module that BUILDS that link,
+          so a rename cannot leave "Log this visit" scrolling to nowhere. */}
+      <h2 id={LOG_VISIT_ANCHOR} className="text-base font-semibold text-foreground">
+        Log a visit
+      </h2>
+
+      {appointment === undefined ? null : (
+        <p className="mt-1 text-sm text-muted">
+          Logging the visit arranged with {appointment.householdName}. Saving this marks that
+          appointment as kept.
+        </p>
+      )}
 
       <div className="mt-4 flex flex-col gap-4">
+        {/* FIRST, because it changes what the rest of the form means. */}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium text-foreground">What happened</span>
+          <div className="flex flex-wrap gap-2">
+            {VISIT_OUTCOMES.map((outcome) => (
+              <Button
+                key={outcome}
+                variant={draft.outcome === outcome ? "primary" : "secondary"}
+                aria-pressed={draft.outcome === outcome}
+                onClick={() => update("outcome", outcome)}
+              >
+                {VISIT_OUTCOME_LABELS[outcome]}
+              </Button>
+            ))}
+          </div>
+          <p className="text-sm text-muted">
+            {draft.outcome === "attempted"
+              ? "Nobody was home, or the visit did not happen. It stays on the household's " +
+                "record and counts towards no goal."
+              : "The visit happened."}
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium text-foreground">How it was arranged</span>
+          <div className="flex flex-wrap gap-2">
+            {VISIT_ARRANGEMENTS.map((arrangement) => (
+              <Button
+                key={arrangement}
+                variant={draft.arrangement === arrangement ? "primary" : "secondary"}
+                aria-pressed={draft.arrangement === arrangement}
+                onClick={() => update("arrangement", arrangement)}
+              >
+                {VISIT_ARRANGEMENT_LABELS[arrangement]}
+              </Button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex flex-col gap-1.5">
           <label htmlFor="visit-household" className="text-sm font-medium text-foreground">
             Household
@@ -216,6 +348,16 @@ export function VisitLogForm({ households, today }: VisitLogFormProps) {
             ))}
           </select>
         </div>
+
+        <VisitParticipantsField
+          value={participants}
+          onChange={setParticipants}
+          user={user}
+          leaders={leaders}
+          memberNames={memberNames}
+          outcome={draft.outcome}
+          disabled={saving}
+        />
 
         <fieldset className="m-0 flex flex-col gap-4 border-0 p-0">
           {/* A legend does not participate in the fieldset's flex layout, so its spacing is set
@@ -266,7 +408,11 @@ export function VisitLogForm({ households, today }: VisitLogFormProps) {
 
         <div>
           <Button onClick={() => void submit()} disabled={saving}>
-            {saving ? "Saving…" : "Log visit"}
+            {saving
+              ? "Saving…"
+              : draft.outcome === "attempted"
+                ? "Record attempt"
+                : "Log visit"}
           </Button>
         </div>
       </div>

@@ -3,6 +3,7 @@ import { syntheticYouthEmail } from "../../lib/auth/syntheticYouthEmail.ts";
 import { getAdminClient } from "./adminClient.ts";
 import { loadEnvironment } from "./envLoader.ts";
 import type {
+  AppointmentStatus,
   ActivityType,
   AgendaStatus,
   AssignmentType,
@@ -33,6 +34,8 @@ import type {
   TopicStatus,
   VisitCadence,
   VisitTargetType,
+  VisitArrangement,
+  VisitOutcome,
   VisitType,
 } from "./types.ts";
 
@@ -878,13 +881,21 @@ export async function createVisitGoal(options: {
   });
 }
 
+// `recordedBy` is WHO TYPED IT IN, and it is deliberately not "who went". visits-d split the two
+// because they are frequently different people — a secretary records the visits their presidency
+// made. Who WENT is seeded separately with createVisitParticipant(), and a visit with NO
+// participants is a legitimate fixture that reads "Nobody recorded as visiting".
 export async function createVisitLog(options: {
   id?: string;
   org: TestOrgKey;
   householdId?: string;
-  visitedBy?: string;
+  recordedBy?: string;
   visitDate: string;
   visitType?: VisitType;
+  // Defaults to `completed`, matching migration 046. An `attempted` visit is shown on the record
+  // and counted towards no goal, so a scenario that needs the distinction must set it.
+  outcome?: VisitOutcome;
+  arrangement?: VisitArrangement;
   sharedNotes?: string;
   flaggedForWardCouncil?: boolean;
   // Seeding an ALREADY-SENT flag is the only way to reach the re-flag path in one sitting: the
@@ -897,12 +908,66 @@ export async function createVisitLog(options: {
     ward_id: TEST_WARD_ID,
     org_id: TEST_ORG_IDS[options.org],
     household_id: options.householdId ?? null,
-    visited_by: options.visitedBy ?? null,
+    recorded_by: options.recordedBy ?? null,
     visit_date: options.visitDate,
     visit_type: options.visitType ?? "in_home",
+    outcome: options.outcome ?? "completed",
+    arrangement: options.arrangement ?? "drop_in",
     shared_notes: options.sharedNotes ?? null,
     flagged_for_ward_council: options.flaggedForWardCouncil ?? false,
     flag_sent_at: options.flagSentAt ?? null,
+  });
+}
+
+// EXACTLY ONE of userId, memberId and label. Migration 046's `visit_participants_one_identity`
+// CHECK refuses anything else, so a fixture that set two would fail at the insert rather than
+// seed a state the app cannot produce.
+//
+// `org` must match the parent visit's organization: the column is denormalized from the visit so
+// the RLS policy can be the same shape as visit_logs', and a fixture that disagreed would seed a
+// participant an org leader could read on a visit they cannot.
+export async function createVisitParticipant(options: {
+  org: TestOrgKey;
+  visitLogId: string;
+  userId?: string;
+  memberId?: string;
+  label?: string;
+}): Promise<string> {
+  return insertRow("visit_participants", {
+    ward_id: TEST_WARD_ID,
+    org_id: TEST_ORG_IDS[options.org],
+    visit_log_id: options.visitLogId,
+    user_id: options.userId ?? null,
+    member_id: options.memberId ?? null,
+    label: options.label ?? null,
+  });
+}
+
+// `scheduledFor` is an ISO INSTANT, not a date-only string — an appointment is the one thing in
+// this app stored as a timestamptz, because "Tuesday at seven" is the point of arranging one.
+//
+// A PAST `scheduledFor` left at status `scheduled` is the MISSED fixture, and it is the only way
+// to reach that state: "missed" is computed on read and cannot be produced by clicking.
+export async function createVisitAppointment(options: {
+  id?: string;
+  org: TestOrgKey;
+  householdId?: string;
+  scheduledFor: string;
+  status?: AppointmentStatus;
+  visitLogId?: string;
+  madeBy?: string;
+  notes?: string;
+}): Promise<string> {
+  return insertRow("visit_appointments", {
+    id: options.id ?? testUuid(`appointment:${options.org}:${options.scheduledFor}`),
+    ward_id: TEST_WARD_ID,
+    org_id: TEST_ORG_IDS[options.org],
+    household_id: options.householdId ?? null,
+    scheduled_for: options.scheduledFor,
+    status: options.status ?? "scheduled",
+    visit_log_id: options.visitLogId ?? null,
+    made_by: options.madeBy ?? null,
+    notes: options.notes ?? null,
   });
 }
 

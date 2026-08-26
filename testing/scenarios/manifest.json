@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 39,
+  "scenarioCount": 41,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -1510,7 +1510,7 @@
         "privacy"
       ],
       "prerequisites": "none",
-      "purpose": "CLAUDE.md rule 5 says a private note is readable by its author and by nobody else — not the\nbishop, not an admin, not a support query. That rule is already enforced four ways in code, and\nthree of the four are already tested: the policy by `tests/rls/private-notes.test.ts`, the module\nboundary by an import list, the route responses by `tests/routes/visits.test.ts`.\n\n**The fourth mechanism is a UI promise, and it is the only one a test cannot check.** A leader\nwriting a pastoral observation has to know, at the moment of typing, which box the bishop will\nread. Two textareas stacked one above the other with correct labels can still be indistinguishable\nat arm's length on a phone in a car park, which is where visits actually get logged.\n\nSo what a person is here to judge is: **can you tell the two boxes apart without reading them,\nand does the one that needs caution get it?**\n\nThe emphasis sits on the SHARED field, not the private one — its label, its helper text and the\ntext being typed into it are all in the attention colour. That reverses the first build, after the\n2026-08-25 walk: highlighting the private box said \"be careful\" about the only field that is\nalready safe, and a tinted panel with a heavy border read as a validation error. The field that\nearns a person's caution is the one other leaders will read.\n\nEverything else on this page — the counts, the permissions, the absence of the note from the\nbishop's screen — is machine-checkable and `/walk` will do it.\n\nBeing two people at once is the other thing a tester cannot do alone. The seed writes a private\nnote authored by the EQ president so that \"the bishop sees no trace of it\" is a real check rather\nthan the tester failing to find their own note.",
+      "purpose": "CLAUDE.md rule 5 says a private note is readable by its author and by nobody else — not the\r\nbishop, not an admin, not a support query. That rule is already enforced four ways in code, and\r\nthree of the four are already tested: the policy by `tests/rls/private-notes.test.ts`, the module\r\nboundary by an import list, the route responses by `tests/routes/visits.test.ts`.\r\n\r\n**The fourth mechanism is a UI promise, and it is the only one a test cannot check.** A leader\r\nwriting a pastoral observation has to know, at the moment of typing, which box the bishop will\r\nread. Two textareas stacked one above the other with correct labels can still be indistinguishable\r\nat arm's length on a phone in a car park, which is where visits actually get logged.\r\n\r\nSo what a person is here to judge is: **can you tell the two boxes apart without reading them,\r\nand does the one that needs caution get it?**\r\n\r\nThe emphasis sits on the SHARED field, not the private one — its label, its helper text and the\r\ntext being typed into it are all in the attention colour. That reverses the first build, after the\r\n2026-08-25 walk: highlighting the private box said \"be careful\" about the only field that is\r\nalready safe, and a tinted panel with a heavy border read as a validation error. The field that\r\nearns a person's caution is the one other leaders will read.\r\n\r\nEverything else on this page — the counts, the permissions, the absence of the note from the\r\nbishop's screen — is machine-checkable and `/walk` will do it.\r\n\r\nBeing two people at once is the other thing a tester cannot do alone. The seed writes a private\r\nnote authored by the EQ president so that \"the bishop sees no trace of it\" is a real check rather\r\nthan the tester failing to find their own note.",
       "checklist": [
         "The **Visits** link appears in the sidebar for all three accounts",
         "As the EQ president, **three** visits are listed, not four — the Relief Society visit is absent",
@@ -1583,6 +1583,75 @@
         "Dark mode: the flagged state is still visible at a glance in the list"
       ],
       "seedCommand": "npm run seed -- visits/scenario-039-flagging-for-ward-council"
+    },
+    {
+      "id": "visits:scenario-043-who-actually-went",
+      "path": "visits/scenario-043-who-actually-went",
+      "name": "Who actually went",
+      "scope": "visits",
+      "part": 1,
+      "tags": [
+        "visits",
+        "full",
+        "participants"
+      ],
+      "prerequisites": "none",
+      "purpose": "Three kinds of participant, and the split between the person who **went** and the person who\r\n**typed it in**, are all invisible until somebody looks at a rendered visit. Until this slice a\r\nvisit had one column for both, so a secretary writing up their presidency's round was recorded as\r\nhaving made it.\r\n\r\nThe state that makes the distinction checkable is a visit the recorder did **not** attend, and it\r\nis tedious to reach by hand — you have to be two people. So it is seeded, and the walk is about\r\nwhat the screen says about it.\r\n\r\nThe other half is the empty case. A visit with no participants at all is a legitimate record, and\r\nit has to read **\"Nobody recorded as visiting\"** in words. A blank reads as a page that failed to\r\nload; the recorder's name would be an invention. Only a person looking at it can say which it\r\nreads as.",
+      "checklist": [
+        "The **Who went** field starts with the signed-in leader's own name on it",
+        "Removing yourself leaves the field reading \"Nobody recorded as visiting.\"",
+        "A member, a leader and a typed name can each be added, and each shows as a name — no raw",
+        "The **sixth** person is accepted (you plus five companions) and the **seventh** is refused",
+        "The refusal is **visible text on the page**, not a tooltip and not a `title` attribute",
+        "The Ferreira household is absent from the **Household** dropdown, and Joana Ferreira is",
+        "Visit 1 (Brooks) shows **Miguel Cortez and Ruth Brooks** as having visited, and",
+        "Visit 2 (Whitfield) shows **\"Nobody recorded as visiting\"** — not Peter Nakamura's name,",
+        "Visit 3 (Okonkwo) shows **Bill from next door** alongside Miguel Cortez",
+        "The Halvorsen (Relief Society) visit does not appear at all",
+        "No participant name appears in any `audit_log` row: run",
+        "No horizontal scrolling at 375px; every tap target including the chip **×** is ≥ 44×44",
+        "Does \"Nobody recorded as visiting\" read as a **deliberate statement about the visit**, or",
+        "Reading visit 1 cold, is it obvious that Peter did not go and Miguel did? Or do the two",
+        "When the seventh person is refused, does the sentence explain **why** and what to do about",
+        "Is the **×** on a chip obviously a remove control, or does it read as decoration?",
+        "At 375px in dark mode, is the chip list legible, and does the recorder's line stay",
+        "Does \"Who went\" sit in the right place in the form, or would you look for it somewhere else?"
+      ],
+      "seedCommand": "npm run seed -- visits/scenario-043-who-actually-went"
+    },
+    {
+      "id": "visits:scenario-044-appointments-and-attempts",
+      "path": "visits/scenario-044-appointments-and-attempts",
+      "name": "Appointments and attempts",
+      "scope": "visits",
+      "part": 1,
+      "tags": [
+        "visits",
+        "full",
+        "appointments"
+      ],
+      "prerequisites": "none",
+      "purpose": "Two things this slice added are only real on a screen.\r\n\r\n**\"Missed\" is computed, never stored.** A missed appointment is one that was scheduled and whose\r\ntime has passed — nothing writes that down, because a stored status that time invalidates goes\r\nstale the moment nobody refreshes it, and this project has no scheduler to refresh one. So the\r\nstate cannot be created by clicking: it only appears when a seeded past appointment is still\r\n`scheduled`. What a person has to judge is whether the four states read as four different things\r\non one screen, and whether \"missed\" reads as a fact rather than as an error.\r\n\r\n**An attempt is shown and never counted.** A leader who knocked and got no answer records that\r\nwith one control, in the same form. The pair seeded here — one attempt and one completed visit on\r\nthe *same* household — is what makes \"shown but not counted\" checkable at all.",
+      "checklist": [
+        "The Whitfield appointment reads **Missed**",
+        "Its stored status is still `scheduled`:",
+        "The four appointments read as **Scheduled**, **Kept**, **Cancelled** and **Missed** — four",
+        "Booking an appointment for a time already past is **accepted**, not refused",
+        "**Log this visit** opens the form with the household prefilled and **By appointment**",
+        "Saving that visit sets the appointment to `kept` and fills its `visit_log_id`:",
+        "Choosing **Attempted** does not hide or rearrange any field — the notes section is exactly",
+        "The attempted Brooks visit appears in **Recent visits** labelled **Attempted**",
+        "The completed Brooks visit appears labelled **Visited**",
+        "Cancelling asks for confirmation and, after it, the row is **still on the panel** marked",
+        "No horizontal scrolling at 375px; every button ≥ 44×44",
+        "Does **Missed** read as a fact about the appointment, or does it read like an error the",
+        "Are the four states distinguishable **at a glance** on a phone, in both themes — and are",
+        "Reading the two Brooks rows together, is it obvious that one counts towards the goal and",
+        "Is **What happened** in the right place — do you answer it before anything else, or do you",
+        "Does the cancel confirmation make clear the record is **kept** rather than deleted?",
+        "After logging an attempt, does the confirmation message say something a leader would find"
+      ],
+      "seedCommand": "npm run seed -- visits/scenario-044-appointments-and-attempts"
     }
   ]
 }

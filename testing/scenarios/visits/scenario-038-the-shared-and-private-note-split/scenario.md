@@ -173,6 +173,14 @@ the user's review.
   in all three.** No key matching `/private/i` appeared anywhere in the payload. The 12 keys
   returned were exactly `id, orgId, householdId, visitedBy, visitDate, visitType, sharedNotes,
   flaggedForWardCouncil, flagSentAt, createdAt, householdName, visitedByName`.
+
+  **Superseded by `visits-d` (2026-08-25), and left as recorded rather than rewritten** — a
+  walkthrough record is evidence of what was observed on a date, and editing it to match later
+  code turns the evidence into a claim. The response now carries 16 keys: `visitedBy` and
+  `visitedByName` became `recordedBy` and `recordedByName`, and `outcome`, `arrangement`,
+  `participants` and `conductedByLabel` were added. The assertion that mattered — no key matching
+  `/private/i`, and none of the four canaries anywhere in the payload — is unchanged and is
+  re-asserted by `tests/routes/visitParticipants.test.ts` over the new shape.
 - The bishop DID see the Brooks shared note, and saw 5 visits (the whole ward).
 - `GET /api/visits/<Brooks>/private-note` as the bishop returned `{ "note": null }` — the EQ
   president's note, invisible.

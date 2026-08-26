@@ -5,8 +5,16 @@ import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { getHousehold } from "@/lib/roster/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getAppointment, updateAppointment } from "@/lib/visits/appointments";
+import { replaceParticipants } from "@/lib/visits/participants";
 import { createVisitLog, listVisitLogs } from "@/lib/visits/queries";
-import { createVisitLogSchema, listVisitsQuerySchema } from "@/lib/validation/visit";
+import {
+  createVisitLogSchema,
+  listVisitsQuerySchema,
+  MAX_VISIT_PARTICIPANTS,
+  TOO_MANY_PARTICIPANTS_MESSAGE,
+  type VisitParticipantInput,
+} from "@/lib/validation/visit";
 import type { Role } from "@/types/domain";
 
 // Visit logs.
@@ -26,6 +34,27 @@ import type { Role } from "@/types/domain";
 
 function isBishopric(role: Role): boolean {
   return (BISHOPRIC_ROLES as readonly string[]).includes(role);
+}
+
+// ---------------------------------------------------------------------------
+// ABSENT AND EMPTY ARE DIFFERENT ANSWERS
+// ---------------------------------------------------------------------------
+// No `participants` key at all means "I went" — the recorder is a participant by default, which
+// is what a leader logging their own visit expects and what requirement 4 asks for.
+//
+// An EMPTY ARRAY means "nobody is recorded as having gone". That is a real state: a secretary
+// types up a visit and does not know, or has not asked, who from the presidency was there. The
+// visit then reads "Nobody recorded as visiting" rather than crediting the secretary with a visit
+// they did not make.
+//
+// Defaulting `[]` to the caller would collapse the two and quietly re-create the ambiguity this
+// slice exists to remove, so the parameter stays `undefined | []` all the way down.
+function resolveParticipants(
+  supplied: readonly VisitParticipantInput[] | undefined,
+  userId: string,
+): VisitParticipantInput[] {
+  if (supplied === undefined) return [{ kind: "user", userId }];
+  return [...supplied];
 }
 
 export async function GET(request: Request) {
@@ -89,7 +118,7 @@ export async function POST(request: Request) {
     }
 
     // Both stamped from the SESSION, never from the body. A request that could name its own
-    // `visited_by` could put a visit in somebody else's name, and one that could name its own
+    // `recorded_by` could put a visit in somebody else's name, and one that could name its own
     // `org_id` could write into an organization whose logs it may not even read.
     //
     // A bishopric member logging a visit writes org_id = null, which migration 019 makes
@@ -108,17 +137,67 @@ export async function POST(request: Request) {
       );
     }
 
-    const visit = await createVisitLog(
-      user.wardId,
-      bishopricAuthor ? null : user.orgId,
-      user.id,
-      input,
-      supabase,
-    );
+    const participants = resolveParticipants(input.participants, user.id);
+
+    // THE FIVE-COMPANION LIMIT LIVES HERE AND NOWHERE ELSE. A CHECK constraint cannot count rows
+    // in another table and this repo deliberately has no triggers, so the route is the only
+    // keeper of the rule — the same position `sunday_org_conducting` is in. The refusal is
+    // asserted AND proven by re-reading the table in tests/routes/visitParticipants.test.ts,
+    // because a limit nothing enforces below the route looks identical to one that works until
+    // somebody writes past it.
+    if (participants.length > MAX_VISIT_PARTICIPANTS) {
+      return NextResponse.json({ error: TOO_MANY_PARTICIPANTS_MESSAGE }, { status: 400 });
+    }
+
+    // An appointment this visit KEPT. Resolved before the write so a bad id is a sentence rather
+    // than a visit saved against nothing, and checked to be the same household — an appointment
+    // with the Andersens is not evidence of a visit to the Bryants.
+    const appointment =
+      input.appointmentId === undefined
+        ? null
+        : await getAppointment(user.wardId, input.appointmentId, supabase);
+
+    if (input.appointmentId !== undefined) {
+      if (appointment === null) {
+        return NextResponse.json(
+          { error: "That appointment is not in your ward." },
+          { status: 404 },
+        );
+      }
+
+      if (appointment.householdId !== input.householdId) {
+        return NextResponse.json(
+          { error: "That appointment was arranged with a different household." },
+          { status: 400 },
+        );
+      }
+    }
+
+    const orgId = bishopricAuthor ? null : user.orgId;
+
+    const visit = await createVisitLog(user.wardId, orgId, user.id, input, supabase);
+
+    // `org_id` on a participant row is denormalized from the VISIT, never from a request. That
+    // is what lets migration 046's policy be the same shape as visit_logs' instead of an EXISTS
+    // subquery per row.
+    await replaceParticipants(user.wardId, visit.orgId, visit.id, participants, supabase);
+
+    if (appointment !== null) {
+      await updateAppointment(
+        user.wardId,
+        appointment.id,
+        { status: "kept", visitLogId: visit.id },
+        supabase,
+      );
+    }
 
     // No note text in the audit detail — not the shared notes and certainly not the private
     // note, which this route cannot reach anyway. writeAuditLog runs redactSensitive() over
     // `detail`, but the rule here is simply never to pass it.
+    //
+    // COUNTS, NEVER NAMES. A companion's name in an audit row is a person's movements recorded
+    // in a log they cannot read — the audit trail is bishopric-readable and a participant is not
+    // its subject.
     await writeAuditLog(
       {
         wardId: user.wardId,
@@ -131,6 +210,10 @@ export async function POST(request: Request) {
           householdId: visit.householdId,
           visitDate: visit.visitDate,
           visitType: visit.visitType,
+          outcome: visit.outcome,
+          arrangement: visit.arrangement,
+          participantCount: participants.length,
+          appointmentId: appointment?.id ?? null,
         },
       },
       supabase,
