@@ -145,14 +145,15 @@ const VISIT_LOG_COLUMNS =
 // The `users` embed is the RECORDER now that visits-a's single `visited_by` column has split.
 // Who WENT is a separate table with its own policy, read through listParticipantsForVisits.
 //
-// THE FOREIGN KEY IS NAMED, NOT INFERRED. Between migration 046 and 049 this table has TWO
+// THE FOREIGN KEY IS NAMED, NOT INFERRED. Between migrations 046 and 049 this table had TWO
 // foreign keys to `users` — the new `recorded_by` and the outgoing `visited_by` — and a bare
-// `users (...)` is ambiguous while both exist: PostgREST answers "more than one relationship was
-// found" and every visit query 500s. That window is the whole point of expand-and-contract, so
-// the query has to survive it rather than only work at each end.
+// `users (...)` was ambiguous while both existed: PostgREST answers "more than one relationship
+// was found" and every visit query 500s. That window is the whole point of expand-and-contract,
+// so the query had to survive it rather than only work at each end.
 //
-// It stays named after 049 drops the old column. An inferred embed is a query that silently
-// changes meaning the next time somebody adds a second foreign key to the same table.
+// 049 has since dropped the old column, so the ambiguity is gone. The name STAYS anyway: an
+// inferred embed is a query that silently changes meaning the next time somebody adds a second
+// foreign key to this table, and the next person to do that will not be thinking about this line.
 const VISIT_LOG_JOINED_COLUMNS = `${VISIT_LOG_COLUMNS}, households (id, family_name), users!visit_logs_recorded_by_fkey (id, first_name, last_name)` as const;
 
 // A value the CHECK constraint should have made impossible means the constraint and

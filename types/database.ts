@@ -2805,7 +2805,6 @@ export type Database = {
           shared_notes: string | null
           visit_date: string
           visit_type: string
-          visited_by: string | null
           ward_id: string
         }
         Insert: {
@@ -2821,7 +2820,6 @@ export type Database = {
           shared_notes?: string | null
           visit_date: string
           visit_type?: string
-          visited_by?: string | null
           ward_id: string
         }
         Update: {
@@ -2837,7 +2835,6 @@ export type Database = {
           shared_notes?: string | null
           visit_date?: string
           visit_type?: string
-          visited_by?: string | null
           ward_id?: string
         }
         Relationships: [
@@ -2858,13 +2855,6 @@ export type Database = {
           {
             foreignKeyName: "visit_logs_recorded_by_fkey"
             columns: ["recorded_by", "ward_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
-          },
-          {
-            foreignKeyName: "visit_logs_visited_by_ward_id_fkey"
-            columns: ["visited_by", "ward_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id", "ward_id"]
@@ -3197,6 +3187,10 @@ export type Database = {
       }
       tithing_checks_are_integer_cents: {
         Args: { checks: Json }
+        Returns: boolean
+      }
+      visit_log_is_writable_by_caller: {
+        Args: { target_visit_log_id: string }
         Returns: boolean
       }
       ward_allows_cross_org_visibility: { Args: never; Returns: boolean }
