@@ -546,8 +546,16 @@ Running totals across all submissions:
 ### Controls
 - Save Entry, Edit Entry, Delete Entry
 - Clear Current Entry (with confirmation)
-- Clear All Entries (with confirmation and warning)
-- Auto-clear at midnight
+- Clear All Entries (with confirmation and warning) — this discards the shared worksheet,
+  including entries someone else typed
+- Auto-clear 48 hours after the first entry of a worksheet is saved. Later entries do not
+  extend the window
+
+### One Shared Worksheet
+The bishopric shares a single in-progress count per ward — there is no per-person worksheet.
+Entries appear live on every open device, so one person can enter submissions while a second
+verifies the totals on their own phone. The count survives a refresh, a logout, and a move to
+another device; it ends only when someone clears it or the 48 hours run out.
 
 ---
 

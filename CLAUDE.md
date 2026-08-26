@@ -109,7 +109,10 @@ These override convenience. Violating one is a bug, not a style preference.
     `wards.settings.role_access`; `admin.*` and `sacrament.*` are not overridable in either
     direction, and bishop/counselor always resolve to one identical list.
 11. **Tithing data never touches the members table.** No names, no member IDs, no
-    linkage. It is a counting worksheet, not a record. Auto-deleted at midnight.
+    linkage. It is a counting worksheet, not a record — one shared worksheet per ward,
+    auto-deleted 48 hours after its first entry. The window is elapsed time on a
+    `timestamptz`, never a local midnight, and the read path filters on it so an expired
+    worksheet stays invisible even if the sweep has not run.
 
 ---
 

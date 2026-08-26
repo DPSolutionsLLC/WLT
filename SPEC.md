@@ -521,7 +521,7 @@ id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
 ward_id         uuid REFERENCES wards(id)
 session_date    date NOT NULL
 created_by      uuid REFERENCES users(id)
-auto_clear_at   timestamptz  -- always set to midnight of session_date
+auto_clear_at   timestamptz  -- first entry's created_at + 48h; NULL until the first entry
 created_at      timestamptz DEFAULT now()
 ```
 
@@ -1101,16 +1101,17 @@ POST   /api/youth/logs           Log post-activity report
 
 ### Tithing
 
-**NONE OF THESE ROUTES EXIST, AND THAT IS THE DECISION — see §Tithing Auto-Clear.** A counting
-session lives in React state in the browser and is never sent anywhere. The routes below are the
-shape it would take if persistence is ever added; do not build them without revisiting that
-decision first.
+**These routes do not exist yet and are Phase 9 work — see §Tithing Auto-Clear.** They were
+cancelled on 2026-08-24, when the calculator shipped as a browser-only worksheet, and
+reinstated on 2026-08-25 when that decision was reversed. `GET /api/tithing/session` returns
+the **ward's** active worksheet — one per ward, shared by the bishopric, not one per user and
+not one per date.
 ```
-GET    /api/tithing/session      Get or create today's session   (not built)
-POST   /api/tithing/entries      Create entry                    (not built)
-PATCH  /api/tithing/entries/[id] Update entry                    (not built)
-DELETE /api/tithing/entries/[id] Delete entry                    (not built)
-DELETE /api/tithing/session      Clear all entries               (not built)
+GET    /api/tithing/session      Get or create the ward's active worksheet
+POST   /api/tithing/entries      Create entry
+PATCH  /api/tithing/entries/[id] Update entry
+DELETE /api/tithing/entries/[id] Delete entry
+DELETE /api/tithing/session      Clear all entries — shared, discards others' too
 ```
 
 ### Knowledge Base
@@ -1575,35 +1576,54 @@ The `notification_settings` table is the source of truth. Adding a new trigger r
 
 ## Tithing Auto-Clear
 
-**DECIDED (2026-08-24): there is nothing to clear.** The tithing calculator writes NOTHING — no
-database row, no localStorage, no sessionStorage, no server request of any kind. A counting
-session lives in React state for as long as the tab is open and is gone the moment it is not.
+**SUPERSEDED (2026-08-24) and REVERSED (2026-08-25). Entries persist; the window is 48 hours.**
 
-`tithing_sessions` and `tithing_entries` exist in migration 011 with their RLS policies and
-`tests/rls/tithing-access.test.ts`, and the module does not touch either table. Keep them: they
-are the shape persistence would take, and the RLS suite is what proves the tables are refused to
-everyone outside the bishopric if they ever are used.
+The calculator shipped on 2026-08-24 writing NOTHING — no database row, no localStorage, no
+server request — with the count living in React state and dying with the tab. That design named
+its own cost, that a refresh destroys an in-progress count, and said the decision was to be
+revisited if a count was ever lost, with persistence behind the migration 011 tables and never
+in browser storage. **It is revisited.** Losing a count is unacceptable and a `beforeunload`
+prompt is not a sufficient guard against it.
 
-Two consequences:
+The rules now:
 
-- The cron below is **not built and not needed**. The ward-local-midnight problem
-  (plans/09-meetings-tithing.md §Pitfalls — a UTC-midnight job wiping an in-progress Sunday
-  evening count) stops existing rather than being solved carefully.
-- **A refresh or a navigation away destroys an in-progress count with nothing to recover from.**
-  `/tithing` guards both with a confirm; that guard is load-bearing, not a nicety. If a real count
-  is ever lost, this is the decision to revisit — and persistence then belongs behind the tables
-  below, never in browser storage, which would put dollar amounts on a shared or borrowed phone.
+- **Server-side only**, in `tithing_sessions` and `tithing_entries`, which already carry their
+  RLS policies and `tests/rls/tithing-access.test.ts`. **Never browser storage** — that would
+  leave dollar amounts on a shared or borrowed phone. Refused twice; the reason has not changed.
+- **One shared worksheet per ward.** Not per user, not per date. Any bishopric member opening
+  `/tithing` sees the same in-progress count, and entries sync live so one person can enter
+  while a second verifies the totals. A partial unique index over unexpired sessions is what
+  makes "one" true — nothing in migration 011 prevents a second active session by itself.
+- **It clears exactly two ways:** the manual "Clear All Entries" control, or automatically 48
+  hours after the **first** entry was saved. Later entries do NOT extend the window: a window
+  that can be renewed can be kept alive forever, and a worksheet kept alive forever is the
+  permanent record this module exists in order not to be.
+- **48 hours is a fixed constant, not a ward setting.** Every knob is a way for the retention
+  promise to be weakened by accident.
+- **The read path filters on expiry and does not trust the sweep.** An expired worksheet reads
+  as empty even if the job below is late or dead. The sweep reclaims rows; the filter is what
+  keeps the promise.
+- **The `beforeunload` guard on `/tithing` comes off.** It warns that leaving destroys the
+  count, which stops being true, and a warning that is not true trains people to dismiss the
+  ones that are.
 
-If it is ever revisited, the cron was to be a Supabase Edge Function running at ward-local
-midnight:
+`auto_clear_at` is set when the first entry is saved — that entry's `created_at` plus 48 hours —
+and is never updated afterwards. It is `NULL` on a session with no entries, which the second arm
+of the sweep collects on age so an abandoned empty worksheet cannot hold the unique index
+forever.
+
+**The ward-local-midnight problem is gone rather than deferred.** An elapsed-time window on a
+`timestamptz` involves no local date and no timezone, so the UTC-midnight job that would have
+wiped an in-progress Sunday-evening count cannot be written by mistake. Do not reintroduce
+`session_date` or `CURRENT_DATE` here — `session_date` is display only and a 48-hour worksheet
+can span two dates.
+
+The sweep is `pg_cron` or a scheduled Edge Function, run hourly:
 ```sql
--- NOT BUILT. Retained as the shape persistence would take.
-DELETE FROM tithing_entries
-WHERE session_id IN (
-  SELECT id FROM tithing_sessions
-  WHERE session_date < CURRENT_DATE
-);
-DELETE FROM tithing_sessions WHERE session_date < CURRENT_DATE;
+-- Entries cascade from the session via migration 011's FK, so one delete is enough.
+DELETE FROM tithing_sessions
+WHERE (auto_clear_at IS NOT NULL AND auto_clear_at <= now())
+   OR (auto_clear_at IS NULL AND created_at <= now() - interval '48 hours');
 ```
 
 ---
