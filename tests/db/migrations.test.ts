@@ -31,13 +31,10 @@ const MIGRATIONS_DIRECTORY = path.resolve(process.cwd(), "supabase/migrations");
 //
 // A version left here after step 3 makes this test blind to that migration for ever, so an entry
 // that has outlived its deploy is itself the bug. Every entry names its pair and its reason.
-const HELD_BACK_UNTIL_DEPLOYED: Record<string, string> = {
-  // 051_drop_visit_goal_period.sql — the contract half of 050_visit_cadence_scale.sql (ITER-018).
-  // It drops visit_goals.cadence, cadence_months, goal_period_start and goal_period_end, which the
-  // build shipped before ITER-018 names explicitly in its select list. Remove this entry when the
-  // new build is live and 051 has been applied.
-  "051": "Contract half of migration 050 (ITER-018). Apply after the new build deploys.",
-};
+// Empty is the normal state. ITER-018's 051 was the first entry and was removed on 2026-08-27,
+// once the new build was live and the migration applied — which is the entry doing its job rather
+// than being forgotten.
+const HELD_BACK_UNTIL_DEPLOYED: Record<string, string> = {};
 
 function localMigrationVersions(): string[] {
   return readdirSync(MIGRATIONS_DIRECTORY)

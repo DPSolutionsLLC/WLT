@@ -2797,15 +2797,11 @@ export type Database = {
       }
       visit_goals: {
         Row: {
-          cadence: string | null
           cadence_amount: number | null
-          cadence_months: number | null
           cadence_unit: string | null
           created_at: string
           created_by: string | null
           deadline: string | null
-          goal_period_end: string | null
-          goal_period_start: string | null
           id: string
           notice_amount: number | null
           notice_unit: string | null
@@ -2815,15 +2811,11 @@ export type Database = {
           ward_id: string
         }
         Insert: {
-          cadence?: string | null
           cadence_amount?: number | null
-          cadence_months?: number | null
           cadence_unit?: string | null
           created_at?: string
           created_by?: string | null
           deadline?: string | null
-          goal_period_end?: string | null
-          goal_period_start?: string | null
           id?: string
           notice_amount?: number | null
           notice_unit?: string | null
@@ -2833,15 +2825,11 @@ export type Database = {
           ward_id: string
         }
         Update: {
-          cadence?: string | null
           cadence_amount?: number | null
-          cadence_months?: number | null
           cadence_unit?: string | null
           created_at?: string
           created_by?: string | null
           deadline?: string | null
-          goal_period_end?: string | null
-          goal_period_start?: string | null
           id?: string
           notice_amount?: number | null
           notice_unit?: string | null
