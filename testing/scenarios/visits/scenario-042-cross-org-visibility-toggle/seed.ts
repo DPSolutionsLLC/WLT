@@ -147,18 +147,20 @@ export async function seed(): Promise<void> {
   await createVisitGoal({
     org: "eldersQuorum",
     title: "Every household this year",
-    cadence: "annual",
-    goalPeriodStart: "2026-01-01",
-    goalPeriodEnd: "2026-12-31",
+    cadenceAmount: 1,
+    cadenceUnit: "year",
+    noticeAmount: 2,
+    noticeUnit: "month",
     createdBy: eqPresident.id,
   });
 
   await createVisitGoal({
     org: "reliefSociety",
     title: "Every sister twice this year",
-    cadence: "biannual",
-    goalPeriodStart: "2026-01-01",
-    goalPeriodEnd: "2026-12-31",
+    cadenceAmount: 6,
+    cadenceUnit: "month",
+    noticeAmount: 5,
+    noticeUnit: "week",
     createdBy: rsPresident.id,
   });
 

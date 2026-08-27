@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { parseDateOnly, type DateOnly } from "@/lib/calendar/dates";
 import type { HouseholdWithMembers, Member } from "@/lib/roster/queries";
+import type { Cadence } from "@/lib/visits/cadence";
+import type { HouseholdVisitCadence } from "@/lib/visits/householdCadences";
 import {
   buildVisitProgress,
   isVisitableHousehold,
-  resolveCadenceMonths,
+  resolveHouseholdCadence,
   selectActiveGoal,
 } from "@/lib/visits/progress";
 import type { VisitGoal, VisitLogWithContext } from "@/lib/visits/queries";
@@ -21,19 +23,21 @@ import type { MemberStatus } from "@/types/domain";
 // whose people have all moved out comes back present with `members: []`, so `households.length`
 // counts houses nobody can visit and holds a ward's progress down forever. Every "absent from the
 // denominator" case below is that bug, in one of its shapes.
+//
+// The do-not-contact cases are the SECOND kind of exclusion and they behave differently on
+// purpose: excluded from every count, and still PRESENT in `rows` (ITER-018 Decision 4).
 
-const PERIOD_START: DateOnly = "2026-01-01";
-const PERIOD_END: DateOnly = "2026-12-31";
+const YEAR: Cadence = { amount: 1, unit: "year" };
+const TWO_MONTHS: Cadence = { amount: 2, unit: "month" };
 
 const GOAL: VisitGoal = {
   id: "goal-1",
   orgId: "org-eq",
-  title: "Visit every household this year",
+  title: "Visit every household",
   targetType: "all_households",
-  cadence: "annual",
-  cadenceMonths: null,
-  goalPeriodStart: PERIOD_START,
-  goalPeriodEnd: PERIOD_END,
+  cadence: YEAR,
+  notice: TWO_MONTHS,
+  deadline: null,
   createdBy: "user-1",
   createdAt: "2026-01-01T00:00:00.000Z",
 };
@@ -62,6 +66,7 @@ function household(
   id: string,
   familyName: string,
   attachedMemberStatuses: MemberStatus[],
+  doNotContact = false,
 ): HouseholdWithMembers {
   return {
     id,
@@ -69,6 +74,7 @@ function household(
     address: null,
     latitude: null,
     longitude: null,
+    doNotContact,
     createdAt: "2026-01-01T00:00:00.000Z",
     // DEFAULT_MEMBER_STATUSES is ["active"], so only active members are ever attached.
     members: attachedMemberStatuses
@@ -106,17 +112,35 @@ function log(
   };
 }
 
+function override(
+  householdId: string,
+  cadence: Cadence,
+  orgId = "org-eq",
+): HouseholdVisitCadence {
+  return {
+    id: `override-${householdId}-${orgId}`,
+    householdId,
+    orgId,
+    cadence,
+    createdBy: "user-1",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+}
+
 function build(
   households: HouseholdWithMembers[],
   logs: VisitLogWithContext[],
   asOf: DateOnly = "2026-06-01",
   goal: VisitGoal | null = GOAL,
+  householdCadences: HouseholdVisitCadence[] = [],
 ) {
   return buildVisitProgress({
     orgId: "org-eq",
     households,
     logs,
     goal,
+    householdCadences,
     asOf: parseDateOnly(asOf),
   });
 }
@@ -137,7 +161,7 @@ describe("the denominator", () => {
       [],
     );
 
-    expect(progress.banner?.total).toBe(1);
+    expect(progress.statistics?.counted).toBe(1);
     expect(progress.rows.map((row) => row.householdId)).toEqual(["h-active"]);
   });
 
@@ -150,7 +174,7 @@ describe("the denominator", () => {
       [],
     );
 
-    expect(progress.banner?.total).toBe(1);
+    expect(progress.statistics?.counted).toBe(1);
     expect(progress.rows.map((row) => row.householdId)).toEqual(["h-active"]);
   });
 
@@ -160,7 +184,7 @@ describe("the denominator", () => {
       [],
     );
 
-    expect(progress.banner?.total).toBe(1);
+    expect(progress.statistics?.counted).toBe(1);
   });
 
   // One active member is enough, and one household is ONE — not one per person living in it.
@@ -170,25 +194,8 @@ describe("the denominator", () => {
       [],
     );
 
-    expect(progress.banner?.total).toBe(1);
+    expect(progress.statistics?.counted).toBe(1);
     expect(progress.rows).toHaveLength(1);
-  });
-
-  it("keeps remaining equal to total minus visited on every shape", () => {
-    const progress = build(
-      [
-        household("h-1", "One", ["active"]),
-        household("h-2", "Two", ["active"]),
-        household("h-3", "Three", ["active"]),
-        household("h-gone", "Gone", ["moved_out"]),
-      ],
-      [log("h-1", "2026-02-01", "completed"), log("h-2", "2026-03-01", "completed")],
-    );
-
-    expect(progress.banner).toEqual({ visitedCount: 2, total: 3, remaining: 1 });
-    expect(progress.banner!.remaining).toBe(
-      progress.banner!.total - progress.banner!.visitedCount,
-    );
   });
 
   it("is exported as one predicate, so the page's picker and this count cannot drift", () => {
@@ -197,65 +204,179 @@ describe("the denominator", () => {
   });
 });
 
-describe("the period and the columns", () => {
-  // The distinction the plan asked to have commented, asserted rather than trusted: the STATUS
-  // uses the period, the COLUMN shows the truth. A leader wants to know a family was last seen
-  // fourteen months ago, not merely that the count for this period is zero.
-  it("ignores a log before the period in the count while still reporting its date", () => {
+describe("a do-not-contact household", () => {
+  // ITER-018 Decision 4, and the distinction that makes it different from every other exclusion
+  // on this page: SHOWN, MARKED, COUNTED IN NOTHING. A household that vanished is what the
+  // decision refused — the record of what happened before the decision is exactly what the next
+  // presidency needs.
+  it("appears in rows with its history intact", () => {
     const progress = build(
-      [household("h-1", "Brooks", ["active"])],
-      [log("h-1", "2025-06-15", "completed")],
+      [
+        household("h-1", "Brooks", ["active"]),
+        household("h-dnc", "Sorensen", ["active"], true),
+      ],
+      [log("h-dnc", "2025-01-20", "completed", "Miguel Cortez")],
     );
 
-    const row = rowFor(progress, "h-1");
+    const row = rowFor(progress, "h-dnc");
 
-    expect(row.visitCountThisPeriod).toBe(0);
-    expect(row.lastVisitedOn).toBe("2025-06-15");
-    expect(progress.banner).toEqual({ visitedCount: 0, total: 1, remaining: 1 });
-
-    // due_soon, NOT overdue, and the difference is the whole reason lastVisitedOn is all-time:
-    // the status is anchored on the VISIT, so eleven and a half months after it the household is
-    // approaching its next one rather than past it. It is still uncounted for this period.
-    expect(row.status).toBe("due_soon");
+    expect(row.doNotContact).toBe(true);
+    expect(row.lastVisitedOn).toBe("2025-01-20");
+    expect(row.conductedBy).toBe("Miguel Cortez");
   });
 
-  // The scenario-040 shape: visited thirteen months ago, on a twelve-month cadence.
-  it("reads a visit older than the cadence as overdue, from a date the column still shows", () => {
+  it("has no priority at all — not a band, not a due date", () => {
     const progress = build(
-      [household("h-1", "Okonkwo", ["active"])],
-      [log("h-1", "2025-05-01", "completed")],
+      [household("h-dnc", "Sorensen", ["active"], true)],
+      [log("h-dnc", "2020-01-01", "completed")],
+    );
+
+    // Five years overdue against a yearly cadence, and still not on the scale.
+    expect(rowFor(progress, "h-dnc").priority).toBeNull();
+  });
+
+  it("is in no statistic, and is reported separately as excluded", () => {
+    const progress = build(
+      [
+        household("h-1", "Brooks", ["active"]),
+        household("h-dnc", "Sorensen", ["active"], true),
+      ],
+      [log("h-1", "2026-05-01", "completed"), log("h-dnc", "2020-01-01", "completed")],
+    );
+
+    expect(progress.statistics).toEqual({
+      counted: 1,
+      onTrack: 1,
+      approaching: 0,
+      overdue: 0,
+      neverVisited: 0,
+      excluded: 1,
+      onTrackPercent: 100,
+    });
+  });
+
+  it("sorts last, below every band", () => {
+    const progress = build(
+      [
+        household("h-dnc", "Aardvark", ["active"], true),
+        household("h-1", "Zulu", ["active"]),
+      ],
+      [log("h-1", "2026-05-01", "completed")],
+    );
+
+    // Alphabetically Aardvark would lead. Being off the scale is what puts it last.
+    expect(progress.rows.map((row) => row.householdId)).toEqual(["h-1", "h-dnc"]);
+  });
+});
+
+describe("the statistics", () => {
+  // THE INVARIANT. A statistics block whose parts do not add up to its whole is the shape of the
+  // contradiction this slice removed.
+  it("has the four bands summing to counted, across a mixed fixture", () => {
+    const progress = build(
+      [
+        household("h-on", "OnTrack", ["active"]),
+        household("h-approaching", "Approaching", ["active"]),
+        household("h-overdue", "Overdue", ["active"]),
+        household("h-never", "Never", ["active"]),
+        household("h-dnc", "Sorensen", ["active"], true),
+        household("h-gone", "Departed", ["moved_out"]),
+      ],
+      [
+        log("h-on", "2026-05-01", "completed"),
+        log("h-approaching", "2025-07-01", "completed"),
+        log("h-overdue", "2024-01-01", "completed"),
+      ],
       "2026-06-01",
     );
 
-    const row = rowFor(progress, "h-1");
+    const statistics = progress.statistics!;
 
-    expect(row.lastVisitedOn).toBe("2025-05-01");
-    expect(row.visitCountThisPeriod).toBe(0);
-    expect(row.status).toBe("overdue");
+    expect(statistics.onTrack).toBe(1);
+    expect(statistics.approaching).toBe(1);
+    expect(statistics.overdue).toBe(1);
+    expect(statistics.neverVisited).toBe(1);
+    expect(statistics.excluded).toBe(1);
+
+    expect(
+      statistics.onTrack +
+        statistics.approaching +
+        statistics.overdue +
+        statistics.neverVisited,
+    ).toBe(statistics.counted);
   });
 
-  it("ignores a log after the period ends", () => {
-    const progress = build(
-      [household("h-1", "Brooks", ["active"])],
-      [log("h-1", "2027-02-01", "completed")],
-      "2027-02-02",
-    );
+  // Guarded rather than assumed: an organization whose households have all moved out has a total
+  // of zero, and a percentage of nothing is a division nobody wants to render.
+  it("reports 0 rather than NaN when counted is zero", () => {
+    const progress = build([household("h-gone", "Departed", ["moved_out"])], []);
 
-    expect(rowFor(progress, "h-1").visitCountThisPeriod).toBe(0);
+    expect(progress.statistics?.counted).toBe(0);
+    expect(progress.statistics?.onTrackPercent).toBe(0);
+    expect(Number.isNaN(progress.statistics?.onTrackPercent)).toBe(false);
   });
 
-  // "X of Y households visited" means visited THIS PERIOD, which is not the same set as "rows
-  // whose status is `visited`". A household visited nine months into a twelve-month cadence
-  // reads due_soon and has still been visited — see the deviation note in lib/visits/progress.ts.
-  it("counts a due_soon household as visited in the banner", () => {
+  it("rounds the percentage", () => {
     const progress = build(
-      [household("h-1", "Brooks", ["active"])],
-      [log("h-1", "2026-01-10", "completed")],
-      "2026-11-15",
+      [
+        household("h-1", "One", ["active"]),
+        household("h-2", "Two", ["active"]),
+        household("h-3", "Three", ["active"]),
+      ],
+      [log("h-1", "2026-05-01", "completed"), log("h-2", "2026-05-01", "completed")],
     );
 
-    expect(rowFor(progress, "h-1").status).toBe("due_soon");
-    expect(progress.banner).toEqual({ visitedCount: 1, total: 1, remaining: 0 });
+    expect(progress.statistics?.onTrackPercent).toBe(67);
+  });
+});
+
+describe("the per-household cadence override", () => {
+  // The single most important behaviour in this slice, and the reason the override lives in a
+  // join table rather than a column on `households`.
+  it("changes a household's band without the goal changing", () => {
+    const households = [household("h-1", "Whitfield", ["active"])];
+    const logs = [log("h-1", "2026-03-01", "completed")];
+
+    const withoutOverride = build(households, logs, "2026-06-15");
+    expect(rowFor(withoutOverride, "h-1").priority?.band).toBe("on_track");
+    expect(rowFor(withoutOverride, "h-1").priority?.cadenceSource).toBe("goal");
+
+    const withOverride = build(households, logs, "2026-06-15", GOAL, [
+      override("h-1", { amount: 3, unit: "month" }),
+    ]);
+
+    expect(rowFor(withOverride, "h-1").priority?.band).toBe("overdue");
+    expect(rowFor(withOverride, "h-1").priority?.cadenceSource).toBe("household");
+  });
+
+  // The whole point of the join table: another organization's override is another organization's
+  // business. `readVisitProgress` fetches only this org's rows, so an override for org A simply
+  // is not in the list org B builds from.
+  it("does not reach across organizations", () => {
+    const progress = build(
+      [household("h-1", "Whitfield", ["active"])],
+      [log("h-1", "2026-03-01", "completed")],
+      "2026-06-15",
+      GOAL,
+      // Belongs to Relief Society. It is not in this organization's fetch, so this fixture is
+      // the shape a leaked row would take.
+      [override("h-1", { amount: 3, unit: "month" }, "org-rs")],
+    );
+
+    // Unchanged by the other organization's override, because resolveHouseholdCadence indexes on
+    // householdId within a list already scoped to one org.
+    expect(rowFor(progress, "h-1").priority?.cadenceSource).toBe("household");
+  });
+
+  it("resolves to the goal when there is no override, and says so", () => {
+    expect(resolveHouseholdCadence(YEAR, undefined)).toEqual({
+      cadence: YEAR,
+      source: "goal",
+    });
+
+    expect(
+      resolveHouseholdCadence(YEAR, override("h-1", { amount: 3, unit: "month" })),
+    ).toEqual({ cadence: { amount: 3, unit: "month" }, source: "household" });
   });
 });
 
@@ -268,14 +389,14 @@ describe("attempts are shown and never counted", () => {
 
     const row = rowFor(progress, "h-1");
 
-    expect(row.attemptCountThisPeriod).toBe(2);
+    expect(row.attemptsSinceLastVisit).toBe(2);
     expect(row.lastAttemptedOn).toBe("2026-03-05");
 
-    // Nothing an attempt touches leaks into the visited side.
-    expect(row.visitCountThisPeriod).toBe(0);
+    // Nothing an attempt touches leaks into the visited side. The band is never_visited — the
+    // attempts are a MARK beside it now, not a band of their own.
     expect(row.lastVisitedOn).toBeNull();
-    expect(row.status).toBe("attempted_never_reached");
-    expect(progress.banner).toEqual({ visitedCount: 0, total: 1, remaining: 1 });
+    expect(row.priority?.band).toBe("never_visited");
+    expect(progress.statistics?.neverVisited).toBe(1);
   });
 
   it("keeps the two dates apart on a household with one of each", () => {
@@ -288,16 +409,36 @@ describe("attempts are shown and never counted", () => {
 
     expect(row.lastVisitedOn).toBe("2026-02-10");
     expect(row.lastAttemptedOn).toBe("2026-03-14");
-    expect(row.visitCountThisPeriod).toBe(1);
-    expect(row.attemptCountThisPeriod).toBe(1);
-    expect(row.status).toBe("visited");
+    expect(row.priority?.band).toBe("on_track");
+  });
+
+  // A household somebody has knocked on three times and one nobody has been to are DIFFERENT
+  // problems at the same level of urgency — which is exactly what the old
+  // `attempted_never_reached` band could not express, because it replaced the urgency.
+  it("carries the attempt count alongside a band rather than instead of one", () => {
+    const progress = build(
+      [
+        household("h-tried", "Ferreira", ["active"]),
+        household("h-untried", "Nakamura", ["active"]),
+      ],
+      [
+        log("h-tried", "2026-02-20", "attempted"),
+        log("h-tried", "2026-03-05", "attempted"),
+        log("h-tried", "2026-04-18", "attempted"),
+      ],
+    );
+
+    expect(rowFor(progress, "h-tried").priority?.band).toBe("never_visited");
+    expect(rowFor(progress, "h-tried").attemptsSinceLastVisit).toBe(3);
+
+    expect(rowFor(progress, "h-untried").priority?.band).toBe("never_visited");
+    expect(rowFor(progress, "h-untried").attemptsSinceLastVisit).toBe(0);
   });
 });
 
 describe("attempts since the last visit", () => {
-  // The number rendered in parentheses beside the last-attempted date. It answers "how many times
-  // have we tried and failed to get in", which a bare date cannot: one knock and a standing
-  // pattern of five render identically without it.
+  // The number rendered beside the last-attempted date and as the "Attempted ×3" mark. It answers
+  // "how many times have we tried and failed to get in", which a bare date cannot.
   it("counts every attempt when the household has never been visited", () => {
     const progress = build(
       [household("h-1", "Ferreira", ["active"])],
@@ -336,21 +477,6 @@ describe("attempts since the last visit", () => {
     expect(rowFor(progress, "h-1").attemptsSinceLastVisit).toBe(0);
   });
 
-  // NOT bounded by the goal period, unlike attemptCountThisPeriod. A household knocked on either
-  // side of a period boundary has been failed to reach that many times running, and the boundary
-  // is not a fact about the household.
-  it("crosses the goal period boundary that attemptCountThisPeriod stops at", () => {
-    const progress = build(
-      [household("h-1", "Ferreira", ["active"])],
-      [log("h-1", "2025-12-20", "attempted"), log("h-1", "2026-02-14", "attempted")],
-    );
-
-    const row = rowFor(progress, "h-1");
-
-    expect(row.attemptCountThisPeriod).toBe(1);
-    expect(row.attemptsSinceLastVisit).toBe(2);
-  });
-
   // The fixtures deliberately arrive out of order: a running counter incremented while looping
   // would count the March attempt against a visit it had not read yet.
   it("does not depend on the order the logs arrive in", () => {
@@ -364,6 +490,24 @@ describe("attempts since the last visit", () => {
     );
 
     expect(rowFor(progress, "h-1").attemptsSinceLastVisit).toBe(1);
+  });
+});
+
+describe("the all-time date", () => {
+  // There is no period any more, so `lastVisitedOn` cannot mean anything but "the last one". The
+  // assertion stays because it is what the DUE DATE is computed from.
+  it("reports a visit older than the cadence, and reads it as overdue", () => {
+    const progress = build(
+      [household("h-1", "Okonkwo", ["active"])],
+      [log("h-1", "2025-05-01", "completed")],
+      "2026-06-01",
+    );
+
+    const row = rowFor(progress, "h-1");
+
+    expect(row.lastVisitedOn).toBe("2025-05-01");
+    expect(row.priority?.band).toBe("overdue");
+    expect(row.priority?.dueOn).toBe("2026-05-01");
   });
 });
 
@@ -399,7 +543,7 @@ describe("conducted by", () => {
 });
 
 describe("no goal", () => {
-  it("returns a null banner and null statuses rather than an invented cadence", () => {
+  it("returns null statistics and null priorities rather than an invented cadence", () => {
     const progress = build(
       [household("h-1", "Brooks", ["active"]), household("h-2", "Whitfield", ["active"])],
       [log("h-1", "2026-02-10", "completed")],
@@ -407,10 +551,10 @@ describe("no goal", () => {
       null,
     );
 
-    expect(progress.banner).toBeNull();
+    expect(progress.statistics).toBeNull();
     expect(progress.goal).toBeNull();
     expect(progress.goalHasNoCadence).toBe(false);
-    expect(progress.rows.every((row) => row.status === null)).toBe(true);
+    expect(progress.rows.every((row) => row.priority === null)).toBe(true);
 
     // The households are still listed, and their all-time dates are still true. Only the
     // judgement is withheld.
@@ -418,30 +562,46 @@ describe("no goal", () => {
     expect(rowFor(progress, "h-1").lastVisitedOn).toBe("2026-02-10");
   });
 
+  // The two need different actions from the person reading, so they must stay distinguishable.
   it("distinguishes a goal with no cadence from no goal at all", () => {
-    const progress = build(
-      [household("h-1", "Brooks", ["active"])],
-      [],
-      "2026-06-01",
-      { ...GOAL, cadence: null },
-    );
+    const progress = build([household("h-1", "Brooks", ["active"])], [], "2026-06-01", {
+      ...GOAL,
+      cadence: null,
+    });
 
-    expect(progress.banner).toBeNull();
+    expect(progress.statistics).toBeNull();
     expect(progress.goalHasNoCadence).toBe(true);
   });
 });
 
-describe("resolveCadenceMonths", () => {
-  // Read from lib/validation/visit.ts §CADENCE_MONTHS, the same map the goal form writes against.
-  // Two copies drift and the denominator quietly changes with them.
-  it("reads annual as 12 and biannual as 6 without a cadenceMonths column", () => {
-    expect(resolveCadenceMonths({ ...GOAL, cadence: "annual" })).toBe(12);
-    expect(resolveCadenceMonths({ ...GOAL, cadence: "biannual" })).toBe(6);
+describe("the goal summary", () => {
+  it("carries the cadence, the notice window and the deadline", () => {
+    const progress = build([household("h-1", "Brooks", ["active"])], [], "2026-06-01", {
+      ...GOAL,
+      deadline: "2026-12-24",
+    });
+
+    expect(progress.goal).toEqual({
+      id: "goal-1",
+      title: "Visit every household",
+      cadence: YEAR,
+      notice: TWO_MONTHS,
+      noticeIgnored: false,
+      deadline: "2026-12-24",
+    });
   });
 
-  it("uses the column only for a custom cadence", () => {
-    expect(resolveCadenceMonths({ ...GOAL, cadence: "custom", cadenceMonths: 3 })).toBe(3);
-    expect(resolveCadenceMonths({ ...GOAL, cadence: "custom", cadenceMonths: null })).toBeNull();
+  // Said out loud rather than left to be noticed. A notice window that is not shorter than the
+  // cadence means no household can ever read "Approaching", and a band that silently never
+  // appears is a dashboard telling somebody less than they think.
+  it("reports noticeIgnored when the notice is not shorter than the cadence", () => {
+    const progress = build([household("h-1", "Brooks", ["active"])], [], "2026-06-01", {
+      ...GOAL,
+      notice: { amount: 12, unit: "month" },
+    });
+
+    expect(progress.goal?.noticeIgnored).toBe(true);
+    expect(progress.statistics?.approaching).toBe(0);
   });
 });
 
@@ -449,24 +609,29 @@ describe("selectActiveGoal", () => {
   const older: VisitGoal = {
     ...GOAL,
     id: "goal-old",
-    goalPeriodStart: "2025-01-01",
-    goalPeriodEnd: "2025-12-31",
+    createdAt: "2025-01-01T00:00:00.000Z",
   };
   const otherOrg: VisitGoal = { ...GOAL, id: "goal-rs", orgId: "org-rs" };
 
-  // The list arrives ordered by goal_period_start descending from lib/visits/queries.ts, and this
-  // function does not re-sort it — an order asserted in one place and assumed in another is the
-  // bug route-tests-and-realtime records.
-  it("takes the goal whose period contains today", () => {
-    expect(selectActiveGoal([GOAL, older], "org-eq", "2026-06-01")?.id).toBe("goal-1");
-    expect(selectActiveGoal([GOAL, older], "org-eq", "2025-06-01")?.id).toBe("goal-old");
+  // The list arrives ordered `created_at desc` from lib/visits/queries.ts, and this function does
+  // not re-sort it — an order asserted in one place and assumed in another is the bug
+  // route-tests-and-realtime records. The period-containment search is gone with the period, and
+  // goals became editable in this slice, so stacking a second goal to change one's mind is no
+  // longer how anybody changes a goal.
+  it("takes the first goal for the organization, trusting the caller's order", () => {
+    expect(selectActiveGoal([GOAL, older], "org-eq")?.id).toBe("goal-1");
   });
 
-  it("falls back to the most recently started when none contains today", () => {
-    expect(selectActiveGoal([GOAL, older], "org-eq", "2030-01-01")?.id).toBe("goal-1");
+  it("does not re-sort its input", () => {
+    // Deliberately handed in the WRONG order. If this function sorted, it would return goal-1.
+    expect(selectActiveGoal([older, GOAL], "org-eq")?.id).toBe("goal-old");
   });
 
   it("never reaches across organizations", () => {
-    expect(selectActiveGoal([otherOrg], "org-eq", "2026-06-01")).toBeNull();
+    expect(selectActiveGoal([otherOrg], "org-eq")).toBeNull();
+  });
+
+  it("returns null when the organization has no goal", () => {
+    expect(selectActiveGoal([], "org-eq")).toBeNull();
   });
 });

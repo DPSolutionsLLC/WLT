@@ -55,11 +55,26 @@ and fires from nothing. Raise the mechanism before `visits-c`.
 Each org configures its own. Bishopric can configure any; an org president or counselor
 configures their own only.
 
+> **SUPERSEDED BY ITER-018** (`plans/visits-e-cadence-and-priority.md`). The dated-period model
+> below is gone. A goal has a rolling **cadence** — an amount plus a unit — and progress is measured
+> from each household's own last completed visit. Kept for the routes and the permission split,
+> which are unchanged.
+
 | Field | Notes |
 |---|---|
 | `target_type` | `all_households` / `specific_households` / `custom` |
-| `cadence` | `annual` / `biannual` / `custom` + `cadence_months` |
-| `goal_period_start` / `_end` | The window this goal covers |
+| `cadence_amount` + `cadence_unit` | How often. `day` / `week` / `month` / `year`. Inseparable — a CHECK makes half a cadence unrepresentable |
+| `notice_amount` + `notice_unit` | How far ahead of due a household reads *Approaching*. Must be strictly shorter than the cadence |
+| `deadline` | Optional. Presentation only — it drives no arithmetic |
+| ~~`cadence` / `cadence_months`~~ | Dropped by migration 051 |
+| ~~`goal_period_start` / `_end`~~ | Dropped by migration 051. There is no period |
+
+**Goals are editable in place** (ITER-018 part 3). Until then there was no edit path anywhere in
+the app, and a ward that changed its mind had to stack a second goal on the first.
+
+**A household can be given its own cadence, per organization**, in `household_visit_cadences` —
+written under `visits.manage_goals` on its own route, because an org president owns that decision
+and does not hold `roster.manage`.
 
 | Route | Method | Auth |
 |---|---|---|
@@ -129,21 +144,48 @@ Set `flag_sent_at` so a re-flag does not re-notify. Unflagging is allowed and cl
 
 ## Step 4 — Progress Dashboard
 
+> **SUPERSEDED BY ITER-018** (`plans/visits-e-cadence-and-priority.md`). The five buckets and the
+> "X of Y visited" banner below were built, walked, and found to contradict each other: a row read
+> **✓ Visited** directly above a banner counting it as unvisited, which happened at the start of
+> every goal period. Both notions are gone. What follows is what shipped.
+
 `/visits` — sortable list per organization.
 
-Columns: household name, last visited, visit count this period, status, logged by.
+Columns: household name, last visited, last attempted, **due**, **priority**, conducted by.
 
-`lib/visits/householdStatus.ts` — pure function:
+`lib/visits/householdStatus.ts` — `householdVisitPriority()`, pure, taking `asOf` as a parameter.
+It returns a **band plus a fraction**, measured from that household's own last completed visit
+against its own resolved cadence:
 
-| Status | Condition |
+| Band | Condition |
 |---|---|
-| `Visited` | Visited within the current goal period |
-| `Due Soon` | 80% of the cadence interval elapsed since last visit |
-| `Overdue` | Past the cadence interval |
-| `Not Yet Visited` | No visit in this goal period |
+| `Never visited` | No completed visit, ever. **Evaluated first, and it outranks Overdue** — there is no anchor to measure a fraction from, and a family nobody has been to is a different problem |
+| `Overdue` | `today >= lastVisit + cadence` |
+| `Approaching` | Inside the goal's warning window and not yet due |
+| `On track` | Everything else |
 
-Progress banner: "X of Y households visited — Z remaining". **Y excludes moved-out and
-do-not-contact households** — getting the denominator wrong makes the number meaningless.
+`elapsedFraction` is **not clamped above 1** — 1.4 means 40% past due, and both the badge and the
+sort read it. That is the point of the redesign: a household at 95% and one at 10% no longer render
+identically.
+
+**Attempts are a mark beside the band, not a band.** The old `attempted_never_reached` was a
+*reason* occupying a *position*, so a household somebody had knocked on three times could not also
+read overdue. `attemptsSinceLastVisit >= 1` now renders alongside any band.
+
+**If the warning window is not shorter than the cadence it is ignored entirely** — no household
+reads `Approaching` rather than every household reading it. Validation refuses to save such a goal,
+so this is only reachable from a row written outside the app, and the banner says so when it
+happens.
+
+The banner is **statistics plus the goal in words**: the sentence first ("Every household, every
+year. Warning 2 months ahead."), then Overdue / Never visited / Approaching / On track, then the
+percentage on track. `onTrack + approaching + overdue + neverVisited === counted` is an invariant
+with a test.
+
+**The denominator excludes households with no active members** — getting it wrong makes the number
+meaningless. It **also** excludes households marked `do_not_contact`, which are still shown, still
+marked, and named in a line saying they are not counted. Uncounted and unhidden is the decision;
+a number that silently shrank is what it refused.
 
 Emit `visit_overdue` when a household crosses into overdue, from the nightly Edge Function.
 Emit once per household per period, not nightly — track with a flag or check the last

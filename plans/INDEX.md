@@ -24,7 +24,8 @@ one of its slices has a retro entry with a commit.
 | 5 | AI platform — knowledge base, pgvector, settings | [05-ai-platform.md](05-ai-platform.md) | 4 | Large | Shipped |
 | 6 | Program builder, music, PDF, public pages | [06-program-music.md](06-program-music.md) | 5 | Large | Shipped — M4 waits on a physical fold check (scenarios 034/035) |
 | 7 | Visit tracker & return-and-report feed | [07-visits.md](07-visits.md) | 2 | Medium | **Shipped 2026-08-26** — see the Definition of Done in the phase file for what it deliberately does not close |
-| 8 | Youth activity support | [08-youth-activities.md](08-youth-activities.md) | 7 | Medium | Next — **run ITER-018 first** |
+| 8 | Youth activity support | [08-youth-activities.md](08-youth-activities.md) | 7 | Medium | Next — ITER-018 is done, so the blocker is cleared |
+| — | ITER-018 — visit cadence and the priority scale | [visits-e-cadence-and-priority.md](visits-e-cadence-and-priority.md) | 7 | Medium | **Built 2026-08-26** — migration 051 waits for the deploy |
 | 9 | Meeting agendas & tithing calculator | [09-meetings-tithing.md](09-meetings-tithing.md) | 1 | Medium | Started — tithing worksheet only |
 | 10 | Sacrament administration & public assignments | [10-sacrament-admin.md](10-sacrament-admin.md) | 3 | Medium | Not started |
 | 11 | Notification UI, admin pages, audit viewer, dashboards | [11-notifications-admin.md](11-notifications-admin.md) | all | Medium | Not started |
@@ -32,10 +33,16 @@ one of its slices has a retro entry with a commit.
 | — | Deployment — Vercel, env vars, auth URLs, SMTP | [deployment.md](deployment.md) | 1 | Small | Shipped |
 | — | Code conventions reference | [conventions.md](conventions.md) | — | — | Living |
 
-**Phase 8 must not start before ITER-018.** The visit goal becomes a rolling cadence rather than a
-dated period, and Phase 8's youth-activity coverage is documented to reuse `householdVisitStatus`
-(`visits-b` §Integration Notes). Landing that redesign after Phase 8 leaves that module built on a
-model already known to be wrong.
+**Phase 8 was blocked on ITER-018, and no longer is.** The visit goal is now a rolling cadence
+rather than a dated period, and Phase 8's youth-activity coverage was documented to reuse
+`householdVisitStatus` (`visits-b` §Integration Notes) — landing that redesign after Phase 8 would
+have left that module built on a model already known to be wrong.
+
+What Phase 8 should import rather than re-derive: `lib/visits/cadence.ts` (`addCadence`,
+`subtractCadence`, `compareCadences`, `describeCadence`) and `householdVisitPriority()`. Neither
+names anything visit-specific in its parameters — `lastCompletedOn`, not `lastVisitedOn` — for
+exactly this reason. If a third module wants them, that is the moment to lift `cadence.ts` out of
+`lib/visits/`; not before.
 
 **Deployment is unnumbered on purpose.** It is not a phase after 12. It depends only on Phase 1
 and is *required* by Phase 6, whose public program pages are meaningless without a URL a ward

@@ -30,6 +30,12 @@ export type Household = {
   address: string | null;
   latitude: number | null;
   longitude: number | null;
+  // "May we call on this family at all." A SEPARATE AXIS from member status: a do-not-contact
+  // household stays on the roster, stays visible on the visit dashboard, and is counted in no
+  // visit statistic (ITER-018 Decision 4). It is never folded into the moved-out rule
+  // DEFAULT_MEMBER_STATUSES drives — that would make the household disappear, which is what the
+  // decision refused. Written under `roster.manage`.
+  doNotContact: boolean;
   createdAt: string;
 };
 
@@ -54,6 +60,7 @@ export type HouseholdRow = {
   address: string | null;
   latitude: number | null;
   longitude: number | null;
+  do_not_contact: boolean;
   created_at: string;
 };
 
@@ -69,7 +76,8 @@ export type MemberRow = {
   created_at: string;
 };
 
-const HOUSEHOLD_COLUMNS = "id, family_name, address, latitude, longitude, created_at";
+const HOUSEHOLD_COLUMNS =
+  "id, family_name, address, latitude, longitude, do_not_contact, created_at";
 const MEMBER_COLUMNS =
   "id, household_id, first_name, last_name, category, gender, status, phone, created_at";
 
@@ -137,6 +145,7 @@ export function mapHouseholdRow(row: HouseholdRow): Household {
     address: row.address,
     latitude: row.latitude,
     longitude: row.longitude,
+    doNotContact: row.do_not_contact,
     createdAt: row.created_at,
   };
 }
@@ -519,6 +528,7 @@ export async function createHousehold(
       ward_id: wardId,
       family_name: input.familyName,
       address: input.address ?? null,
+      do_not_contact: input.doNotContact ?? false,
     })
     .select(HOUSEHOLD_COLUMNS)
     .single();
@@ -548,6 +558,7 @@ export async function updateHousehold(
     .update({
       ...(input.familyName !== undefined ? { family_name: input.familyName } : {}),
       ...(input.address !== undefined ? { address: input.address ?? null } : {}),
+      ...(input.doNotContact !== undefined ? { do_not_contact: input.doNotContact } : {}),
     })
     .eq("ward_id", wardId)
     .eq("id", householdId)

@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.17"
   }
   graphql_public: {
     Tables: {
@@ -1105,10 +1105,76 @@ export type Database = {
           },
         ]
       }
+      household_visit_cadences: {
+        Row: {
+          cadence_amount: number
+          cadence_unit: string
+          created_at: string
+          created_by: string | null
+          household_id: string
+          id: string
+          org_id: string
+          updated_at: string
+          ward_id: string
+        }
+        Insert: {
+          cadence_amount: number
+          cadence_unit: string
+          created_at?: string
+          created_by?: string | null
+          household_id: string
+          id?: string
+          org_id: string
+          updated_at?: string
+          ward_id: string
+        }
+        Update: {
+          cadence_amount?: number
+          cadence_unit?: string
+          created_at?: string
+          created_by?: string | null
+          household_id?: string
+          id?: string
+          org_id?: string
+          updated_at?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "household_visit_cadences_created_by_ward_id_fkey"
+            columns: ["created_by", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "household_visit_cadences_household_id_ward_id_fkey"
+            columns: ["household_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "household_visit_cadences_org_id_ward_id_fkey"
+            columns: ["org_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "household_visit_cadences_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       households: {
         Row: {
           address: string | null
           created_at: string
+          do_not_contact: boolean
           family_name: string
           id: string
           latitude: number | null
@@ -1118,6 +1184,7 @@ export type Database = {
         Insert: {
           address?: string | null
           created_at?: string
+          do_not_contact?: boolean
           family_name: string
           id?: string
           latitude?: number | null
@@ -1127,6 +1194,7 @@ export type Database = {
         Update: {
           address?: string | null
           created_at?: string
+          do_not_contact?: boolean
           family_name?: string
           id?: string
           latitude?: number | null
@@ -2730,12 +2798,17 @@ export type Database = {
       visit_goals: {
         Row: {
           cadence: string | null
+          cadence_amount: number | null
           cadence_months: number | null
+          cadence_unit: string | null
           created_at: string
           created_by: string | null
+          deadline: string | null
           goal_period_end: string | null
           goal_period_start: string | null
           id: string
+          notice_amount: number | null
+          notice_unit: string | null
           org_id: string | null
           target_type: string | null
           title: string | null
@@ -2743,12 +2816,17 @@ export type Database = {
         }
         Insert: {
           cadence?: string | null
+          cadence_amount?: number | null
           cadence_months?: number | null
+          cadence_unit?: string | null
           created_at?: string
           created_by?: string | null
+          deadline?: string | null
           goal_period_end?: string | null
           goal_period_start?: string | null
           id?: string
+          notice_amount?: number | null
+          notice_unit?: string | null
           org_id?: string | null
           target_type?: string | null
           title?: string | null
@@ -2756,12 +2834,17 @@ export type Database = {
         }
         Update: {
           cadence?: string | null
+          cadence_amount?: number | null
           cadence_months?: number | null
+          cadence_unit?: string | null
           created_at?: string
           created_by?: string | null
+          deadline?: string | null
           goal_period_end?: string | null
           goal_period_start?: string | null
           id?: string
+          notice_amount?: number | null
+          notice_unit?: string | null
           org_id?: string | null
           target_type?: string | null
           title?: string | null

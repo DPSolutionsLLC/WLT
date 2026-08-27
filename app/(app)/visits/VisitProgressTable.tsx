@@ -2,19 +2,21 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { HouseholdCadenceControl } from "@/app/(app)/visits/HouseholdCadenceControl";
 import { VisitProgressBanner } from "@/app/(app)/visits/VisitProgressBanner";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
-import { statusRank } from "@/lib/visits/householdStatus";
+import { compareByPriority } from "@/lib/visits/householdStatus";
 // Type-only, so nothing from the server-only module survives the build (roster-b).
 import type { VisitProgress, VisitProgressRow } from "@/lib/visits/progress";
-import { formatVisitDate } from "@/lib/visits/visitDates";
-import {
-  HOUSEHOLD_VISIT_STATUS_LABELS,
-  type HouseholdVisitStatus,
-} from "@/types/domain";
+import { formatOverdueFor, formatVisitDate } from "@/lib/visits/visitDates";
+import { VISIT_PRIORITY_BAND_LABELS, type VisitPriorityBand } from "@/types/domain";
 
 // The progress dashboard: one organization's households, and where each one stands.
+//
+// EVERY ROW READS A POSITION, A DUE DATE, OR "NEVER VISITED". No cell anywhere on this page reads
+// "Visited" any more — that word was one half of visits-b's contradiction, where a row could say
+// "✓ Visited" directly beneath a banner counting the same household as unvisited.
 //
 // SORTING IS CLIENT-SIDE over the already-fetched rows. This is one organization's households,
 // not a paginated set, so a round trip per column click would be latency bought for nothing —
@@ -28,18 +30,19 @@ export const VISIT_PROGRESS_QUERY_KEY = "visit-progress";
 export type VisitProgressTableProps = {
   initialProgress: VisitProgress | null;
   organizations: { id: string; label: string }[];
-  // Resolved ONCE on the server and passed down. A client component never re-derives a
+  // Both resolved ONCE on the server and passed down. A client component never re-derives a
   // permission — it has no role access to resolve against, and a second answer that disagreed
   // with the route's would be a UI offering a control the API refuses.
   canSwitchOrganizations: boolean;
+  canManageGoals: boolean;
 };
 
 type SortColumn =
   | "familyName"
   | "lastVisitedOn"
   | "lastAttemptedOn"
-  | "visitCountThisPeriod"
-  | "status"
+  | "dueOn"
+  | "priority"
   | "conductedBy";
 
 type Sort = { column: SortColumn; ascending: boolean };
@@ -48,39 +51,76 @@ const SELECT_CLASSES =
   "min-h-11 rounded-md border border-border bg-surface-raised px-3 text-base text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
 // ---------------------------------------------------------------------------
-// THE STATUS CARRIES A MARK AS WELL AS A COLOUR
+// THE BAND CARRIES A MARK, A WORD, AND A FILL
 // ---------------------------------------------------------------------------
 // Following AppointmentPanel's state badges, which followed components/assignments/StageBadge.tsx
 // — the colour is the TEXT and BORDER on the surrounding surface rather than white on a filled
 // pill, because every token in app/globals.css was measured against --surface and
-// --surface-raised in both themes and a fill would need its own second measurement per state.
+// --surface-raised in both themes and a SOLID fill would need its own second measurement per
+// state in both themes.
 //
-// Colour alone separates five states only for somebody who can see all five colours. Five
+// THE FILL BELOW IS A TINT, NOT A SOLID, for exactly that reason. It is the state colour at low
+// opacity behind unchanged text, so the measured text-on-surface contrast still holds and no
+// second measurement is owed. A solid fill with inverted text is the version that would owe one.
+//
+// Colour alone separates four states only for somebody who can see all four colours. Four
 // different SHAPES separate them in greyscale too, and the word is always present so the badge
-// never depends on the mark either.
+// never depends on the mark or the fill either.
 //
 // Text glyphs rather than emoji, deliberately: an emoji renders in its own colour on most
 // platforms, which would fight the state colour and defeat the pill.
-const STATUS_CLASSES: Record<HouseholdVisitStatus, string> = {
-  visited: "border-success text-success",
-  due_soon: "border-warning text-warning",
+const BAND_CLASSES: Record<VisitPriorityBand, string> = {
+  never_visited: "border-danger text-danger",
   overdue: "border-danger text-danger",
-  attempted_never_reached: "border-warning text-warning",
-  not_yet_visited: "border-border text-muted",
+  approaching: "border-warning text-warning",
+  on_track: "border-success text-success",
 };
 
-// aria-hidden: the word beside it already says the status, so a screen reader announcing
-// "check mark Visited" would just be reading the same fact twice.
-const STATUS_MARKS: Record<HouseholdVisitStatus, string> = {
-  visited: "✓",
-  due_soon: "◑",
+// The tint that fills the pill. Separate from BAND_CLASSES because Tailwind needs the whole class
+// name present in the source to emit it — a template string like `bg-${tone}/15` produces nothing.
+const BAND_FILL: Record<VisitPriorityBand, string> = {
+  never_visited: "bg-danger/15",
+  overdue: "bg-danger/25",
+  approaching: "bg-warning/20",
+  on_track: "bg-success/20",
+};
+
+// aria-hidden: the word beside it already says the band, so a screen reader announcing "check
+// mark On track" would just be reading the same fact twice.
+const BAND_MARKS: Record<VisitPriorityBand, string> = {
+  never_visited: "○",
   overdue: "!",
-  attempted_never_reached: "✕",
-  not_yet_visited: "○",
+  approaching: "◑",
+  on_track: "✓",
 };
 
-function StatusBadge({ status }: { status: HouseholdVisitStatus | null }) {
-  if (status === null) {
+// THE PILL IS THE GAUGE. It fills left to right with how much of this household's interval has
+// elapsed, so the badge shows the same thing at a glance that the percentage used to spell out —
+// and, unlike the percentage, it can be read without doing arithmetic.
+//
+// An OVERDUE pill is filled all the way and says HOW LONG overdue in words. That is the swap the
+// percentage was removed for: "110%" and "109%" are a month apart on a yearly cadence and a day
+// apart on a monthly one, and a reader cannot tell which. "3 weeks overdue" is the same fact in
+// the unit somebody acts in.
+//
+// `never_visited` gets no fill: there is no completed visit to measure from, which is the whole
+// reason that band exists. An empty pill is the honest rendering of "no anchor".
+//
+// The fill is aria-hidden and carries no information the text does not — the band word is always
+// there, and an overdue row states its duration. `asOf` comes from the row rather than a clock
+// read here, so every row of one render is judged against the same instant.
+function PriorityBadge({ row, asOf }: { row: VisitProgressRow; asOf: Date }) {
+  // Do-not-contact gets its OWN neutral badge rather than a band. It is not on the scale at all:
+  // shown, marked, and in no numerator and no denominator (Decision 4).
+  if (row.doNotContact) {
+    return (
+      <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs text-muted">
+        Do not contact
+      </span>
+    );
+  }
+
+  if (row.priority === null) {
     return (
       <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs text-muted">
         No goal set
@@ -88,12 +128,43 @@ function StatusBadge({ status }: { status: HouseholdVisitStatus | null }) {
     );
   }
 
+  const { band, elapsedFraction, dueOn } = row.priority;
+
+  // Clamped for the FILL only. The sort still reads the unclamped fraction, so a household at
+  // 140% still leads one at 110% even though both pills are full.
+  const fillPercent =
+    elapsedFraction === null ? 0 : Math.min(100, Math.max(0, elapsedFraction * 100));
+
+  const label =
+    band === "overdue" && dueOn !== null
+      ? formatOverdueFor(dueOn, asOf)
+      : VISIT_PRIORITY_BAND_LABELS[band];
+
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_CLASSES[status]}`}
+      className={`relative inline-flex items-center gap-1.5 overflow-hidden rounded-full border px-2 py-0.5 text-xs font-medium ${BAND_CLASSES[band]}`}
     >
-      <span aria-hidden="true">{STATUS_MARKS[status]}</span>
-      {HOUSEHOLD_VISIT_STATUS_LABELS[status]}
+      <span
+        aria-hidden="true"
+        className={`absolute inset-y-0 left-0 ${BAND_FILL[band]}`}
+        style={{ width: `${fillPercent}%` }}
+      />
+      <span aria-hidden="true" className="relative">{BAND_MARKS[band]}</span>
+      <span className="relative">{label}</span>
+    </span>
+  );
+}
+
+// A SEPARATE MARK FROM THE BAND (ITER-018 part 5). `attempted_never_reached` used to be a band,
+// which meant a household somebody had knocked on three times could not ALSO read "overdue" —
+// the reason displaced the urgency. It is a reason, not a position, so it sits beside the badge
+// at every level of urgency instead of replacing one.
+function AttemptsMark({ row }: { row: VisitProgressRow }) {
+  if (row.attemptsSinceLastVisit < 1) return null;
+
+  return (
+    <span className="ml-1.5 whitespace-nowrap text-xs text-warning">
+      Attempted ×{row.attemptsSinceLastVisit}
     </span>
   );
 }
@@ -148,15 +219,22 @@ function sortRows(rows: readonly VisitProgressRow[], sort: Sort): VisitProgressR
   sorted.sort((left, right) => {
     let order = 0;
 
-    if (sort.column === "status") {
-      // By RANK, not by label. Sorting five statuses alphabetically would put "Due soon" above
-      // "Not yet visited" above "Overdue" — a scramble that reads as a broken button rather than
-      // as an ordering anybody asked for.
-      const delta = statusRank(left.status) - statusRank(right.status);
+    if (sort.column === "priority") {
+      // compareByPriority is the SERVER'S default order, imported rather than approximated, so
+      // clicking the column back to ascending returns the list to exactly what arrived. It reads
+      // rank first and then the elapsed fraction, so the most-overdue household leads the
+      // overdue group instead of the alphabetically-first one.
+      const delta = compareByPriority(left, right);
       order = sort.ascending ? delta : -delta;
     } else if (sort.column === "familyName") {
       const delta = left.familyName.localeCompare(right.familyName);
       order = sort.ascending ? delta : -delta;
+    } else if (sort.column === "dueOn") {
+      order = compareNullable(
+        left.priority?.dueOn ?? null,
+        right.priority?.dueOn ?? null,
+        sort.ascending,
+      );
     } else {
       order = compareNullable(left[sort.column], right[sort.column], sort.ascending);
     }
@@ -169,12 +247,15 @@ function sortRows(rows: readonly VisitProgressRow[], sort: Sort): VisitProgressR
   return sorted;
 }
 
-const COLUMNS: { key: SortColumn; label: string; numeric?: boolean }[] = [
+// `Visits this period` is gone with the period. `Due` takes its place and is far more
+// actionable: a date somebody can put in a diary, rather than a count against a boundary that
+// moved underneath them.
+const COLUMNS: { key: SortColumn; label: string }[] = [
   { key: "familyName", label: "Household" },
   { key: "lastVisitedOn", label: "Last visited" },
   { key: "lastAttemptedOn", label: "Last attempted" },
-  { key: "visitCountThisPeriod", label: "Visits this period", numeric: true },
-  { key: "status", label: "Status" },
+  { key: "dueOn", label: "Due" },
+  { key: "priority", label: "Priority" },
   { key: "conductedBy", label: "Conducted by" },
 ];
 
@@ -192,13 +273,25 @@ function attemptedLabel(row: VisitProgressRow): string {
 // `visit_participants` precisely so this column cannot quietly credit the wrong person.
 const NOBODY_RECORDED = "Nobody recorded";
 
+function dueLabel(row: VisitProgressRow): string {
+  if (row.doNotContact) return "—";
+  return formatVisitDate(row.priority?.dueOn ?? null);
+}
+
+// The muted treatment for a do-not-contact row. It stays in the list, stays sorted last, and
+// reads as set aside rather than as missing.
+function rowTone(row: VisitProgressRow): string {
+  return row.doNotContact ? "opacity-70" : "";
+}
+
 export function VisitProgressTable({
   initialProgress,
   organizations,
   canSwitchOrganizations,
+  canManageGoals,
 }: VisitProgressTableProps) {
   const [orgId, setOrgId] = useState<string | null>(initialProgress?.orgId ?? null);
-  const [sort, setSort] = useState<Sort>({ column: "status", ascending: true });
+  const [sort, setSort] = useState<Sort>({ column: "priority", ascending: true });
 
   // Not memoised: TanStack Query hashes the key structurally, so a fresh object each render is
   // the same key (roster-b).
@@ -235,6 +328,27 @@ export function VisitProgressTable({
 
   const progress = progressQuery.data;
   const rows = progress === undefined ? [] : sortRows(progress.rows, sort);
+
+  // Parsed ONCE per render from the server's own instant, never `new Date()` — see the comment on
+  // VisitProgress.asOf. Every badge below is judged against the same moment the bands were.
+  const asOf = progress === undefined ? new Date(0) : new Date(progress.asOf);
+
+  // The cadence control needs an organization to write against, and the row's own resolved
+  // cadence to show. A do-not-contact household has no priority and therefore no cadence to
+  // offer — it is not on the scale at all.
+  function cadenceControl(row: VisitProgressRow) {
+    if (row.priority === null) return null;
+
+    return (
+      <HouseholdCadenceControl
+        householdId={row.householdId}
+        orgId={orgId!}
+        cadence={row.priority.cadence}
+        source={row.priority.cadenceSource}
+        canManage={canManageGoals}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -274,8 +388,8 @@ export function VisitProgressTable({
       ) : (
         <>
           <VisitProgressBanner
-            banner={progress.banner}
-            goalTitle={progress.goal?.title ?? null}
+            statistics={progress.statistics}
+            goal={progress.goal}
             goalHasNoCadence={progress.goalHasNoCadence}
           />
 
@@ -321,19 +435,24 @@ export function VisitProgressTable({
                     </thead>
                     <tbody>
                       {rows.map((row) => (
-                        <tr key={row.householdId} className="border-b border-border">
+                        <tr
+                          key={row.householdId}
+                          className={`border-b border-border ${rowTone(row)}`}
+                        >
                           <td className="py-2 pr-3 font-medium text-foreground">
                             {row.familyName}
                           </td>
                           <td className="py-2 pr-3 text-muted">
                             {formatVisitDate(row.lastVisitedOn)}
                           </td>
-                          <td className="py-2 pr-3 text-muted">
-                            {attemptedLabel(row)}
-                          </td>
-                          <td className="py-2 pr-3 text-muted">{row.visitCountThisPeriod}</td>
+                          <td className="py-2 pr-3 text-muted">{attemptedLabel(row)}</td>
+                          <td className="py-2 pr-3 text-muted">{dueLabel(row)}</td>
                           <td className="py-2 pr-3">
-                            <StatusBadge status={row.status} />
+                            <div className="flex flex-wrap items-center">
+                              <PriorityBadge row={row} asOf={asOf} />
+                              <AttemptsMark row={row} />
+                            </div>
+                            {cadenceControl(row)}
                           </td>
                           <td className="py-2 pr-3 text-muted">
                             {row.conductedBy ?? NOBODY_RECORDED}
@@ -374,11 +493,14 @@ export function VisitProgressTable({
                   {rows.map((row) => (
                     <div
                       key={row.householdId}
-                      className="rounded-md border border-border bg-surface p-3 shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                      className={`rounded-md border border-border bg-surface p-3 shadow-sm ring-1 ring-black/5 dark:ring-white/10 ${rowTone(row)}`}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-medium text-foreground">{row.familyName}</p>
-                        <StatusBadge status={row.status} />
+                        <div className="flex flex-wrap items-center">
+                          <PriorityBadge row={row} asOf={asOf} />
+                          <AttemptsMark row={row} />
+                        </div>
                       </div>
 
                       <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
@@ -388,14 +510,16 @@ export function VisitProgressTable({
                         <dt className="text-muted">Last attempted</dt>
                         <dd className="text-foreground">{attemptedLabel(row)}</dd>
 
-                        <dt className="text-muted">Visits this period</dt>
-                        <dd className="text-foreground">{row.visitCountThisPeriod}</dd>
+                        <dt className="text-muted">Due</dt>
+                        <dd className="text-foreground">{dueLabel(row)}</dd>
 
                         <dt className="text-muted">Conducted by</dt>
                         <dd className="text-foreground">
                           {row.conductedBy ?? NOBODY_RECORDED}
                         </dd>
                       </dl>
+
+                      {cadenceControl(row)}
                     </div>
                   ))}
                 </div>

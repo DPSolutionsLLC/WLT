@@ -1,22 +1,30 @@
+import { describeCadence } from "@/lib/visits/cadence";
 // Type-only, so nothing from the server-only module survives the build (roster-b).
-import type { VisitProgressBannerTotals } from "@/lib/visits/progress";
+import type {
+  VisitProgressGoalSummary,
+  VisitProgressStatistics,
+} from "@/lib/visits/progress";
 
-// "X of Y households visited — Z remaining".
+// The statistics, and the goal they are statistics OF.
+//
+// "X of Y households visited" is gone. It only ever meant something inside a period, and it went
+// with the period — it was also the half of visits-b's contradiction that disagreed with the
+// badges directly beneath it.
 //
 // NO "use client" DIRECTIVE, and none is needed: this renders no state and handles no events.
 // VisitProgressTable imports it, so it compiles into that client bundle and refreshes with the
 // numbers beside it — a banner rendered by the server while the table refetched would show one
-// organization's count above another organization's rows.
+// organization's counts above another organization's rows.
 //
-// Y IS NOT THE WARD'S HOUSEHOLD COUNT. It excludes every household with no active members, which
-// is the one number on this page a reader has to be able to trust — see §THE DENOMINATOR in
+// THE DENOMINATOR IS NOT THE WARD'S HOUSEHOLD COUNT. It excludes every household with no active
+// members, and every household marked do-not-contact — see §THE DENOMINATOR in
 // lib/visits/progress.ts.
 
 export type VisitProgressBannerProps = {
   // Null when the organization has no goal. There is no default denominator: a made-up number is
   // worse than an absent one.
-  banner: VisitProgressBannerTotals | null;
-  goalTitle: string | null;
+  statistics: VisitProgressStatistics | null;
+  goal: VisitProgressGoalSummary | null;
   goalHasNoCadence: boolean;
 };
 
@@ -24,12 +32,52 @@ function plural(count: number, word: string): string {
   return count === 1 ? word : `${word}s`;
 }
 
+// "Every household, every year. Warning 2 months ahead."
+//
+// describeCadence() returns "Every year", so the lead-in is stripped where the sentence supplies
+// its own. One function owning the phrase means the goal panel's summary line and this sentence
+// cannot start describing the same cadence differently.
+function goalSentence(goal: VisitProgressGoalSummary): string {
+  const cadence = describeCadence(goal.cadence).replace(/^Every /, "");
+  const notice = describeCadence(goal.notice).replace(/^Every /, "");
+
+  return `Every household, every ${cadence}. Warning ${notice} ahead.`;
+}
+
+// Number over label, in PRIORITY ORDER rather than alphabetical or numeric: the dashboard opens
+// on what a president has to act on.
+//
+// The colour is the TEXT on the surrounding surface rather than white on a filled pill, reusing
+// the tokens visits-b already measured against --surface-raised in both themes. A fill would
+// need its own second measurement per state, and the word beneath the number carries the meaning
+// on its own anyway.
+function Statistic({
+  value,
+  label,
+  tone,
+}: {
+  value: number;
+  label: string;
+  tone: string;
+}) {
+  return (
+    <div className="min-w-20">
+      <p className={`text-2xl font-semibold ${tone}`}>{value}</p>
+      <p className="text-sm text-muted">{label}</p>
+    </div>
+  );
+}
+
 export function VisitProgressBanner({
-  banner,
-  goalTitle,
+  statistics,
+  goal,
   goalHasNoCadence,
 }: VisitProgressBannerProps) {
-  if (banner === null) {
+  // BOTH NULL-STATE MESSAGES SURVIVE, and so does the distinction between them. "No goal has
+  // been set" and "the goal that is set cannot be counted" need different actions from the
+  // person reading, and collapsing them into one sentence would send half of those readers to
+  // the wrong control.
+  if (statistics === null || goal === null) {
     return (
       <div className="rounded-lg border border-border bg-surface-raised p-4">
         <p className="text-sm font-medium text-foreground">
@@ -48,37 +96,70 @@ export function VisitProgressBanner({
     );
   }
 
-  const { visitedCount, total, remaining } = banner;
-
-  // Guarded rather than assumed: an organization whose households have all moved out has a total
-  // of zero, and a percentage of nothing is a division nobody wants to render.
-  const percent = total === 0 ? 0 : Math.round((visitedCount / total) * 100);
+  const { counted, onTrack, approaching, overdue, neverVisited, excluded, onTrackPercent } =
+    statistics;
 
   return (
     <div className="rounded-lg border border-border bg-surface-raised p-4">
-      <p className="text-base font-semibold text-foreground">
-        {total === 0
-          ? "No households to visit yet"
-          : `${visitedCount} of ${total} ${plural(total, "household")} visited — ${remaining} remaining`}
-      </p>
+      {/* THE GOAL COMES FIRST, ABOVE THE NUMBERS. ITER-018 part 6 asks for it explicitly, "so
+          the numbers are read against their own definition rather than against an assumption" —
+          a count of overdue households means nothing until you know overdue against what. */}
+      <p className="text-base font-semibold text-foreground">{goalSentence(goal)}</p>
 
-      <p className="mt-1 text-sm text-muted">
-        {total === 0
-          ? "Every household in this ward has no active members, so there is nothing to count."
-          : goalTitle ?? "This organization's visit goal"}
-      </p>
+      {goal.deadline !== null ? (
+        <p className="mt-1 text-sm text-muted">Aiming to finish by {goal.deadline}.</p>
+      ) : null}
 
-      {/* The bar is decoration on top of the sentence above, never the only way to read the
-          number — aria-hidden for exactly that reason, so a screen reader hears the count once
-          rather than hearing a progress bar recite it again. */}
-      {total === 0 ? null : (
-        <div
-          aria-hidden="true"
-          className="mt-3 h-2 w-full overflow-hidden rounded-full bg-surface"
-        >
-          <div className="h-full rounded-full bg-success" style={{ width: `${percent}%` }} />
-        </div>
+      {/* A band that can never appear is said out loud rather than left to be noticed. */}
+      {goal.noticeIgnored ? (
+        <p className="mt-1 text-sm text-warning">
+          The warning window is not shorter than the cadence, so no household will read
+          &ldquo;Approaching&rdquo;. Edit the goal below to shorten it.
+        </p>
+      ) : null}
+
+      {counted === 0 ? (
+        <p className="mt-3 text-sm text-muted">
+          There are no households to count for this organization yet.
+        </p>
+      ) : (
+        <>
+          {/* Wraps at 375px rather than scrolling — four numbers are the whole summary, and a
+              summary a phone reader has to swipe sideways through is not one. */}
+          <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3">
+            <Statistic value={overdue} label="Overdue" tone="text-danger" />
+            <Statistic value={neverVisited} label="Never visited" tone="text-danger" />
+            <Statistic value={approaching} label="Approaching" tone="text-warning" />
+            <Statistic value={onTrack} label="On track" tone="text-success" />
+          </div>
+
+          <p className="mt-3 text-sm text-muted">
+            {onTrackPercent}% of {counted} counted {plural(counted, "household")} on track.
+          </p>
+
+          {/* The bar is decoration on top of the sentence above, never the only way to read the
+              number — aria-hidden for exactly that reason, so a screen reader hears the
+              percentage once rather than hearing a progress bar recite it again. */}
+          <div
+            aria-hidden="true"
+            className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface"
+          >
+            <div
+              className="h-full rounded-full bg-success"
+              style={{ width: `${onTrackPercent}%` }}
+            />
+          </div>
+        </>
       )}
+
+      {/* UNCOUNTED AND UNHIDDEN. A number that silently shrank is what ITER-018 Decision 4
+          refused; the households are still in the list below, marked. */}
+      {excluded > 0 ? (
+        <p className="mt-3 text-sm text-muted">
+          {excluded} {plural(excluded, "household")} marked do not contact{" "}
+          {excluded === 1 ? "is" : "are"} not counted.
+        </p>
+      ) : null}
     </div>
   );
 }

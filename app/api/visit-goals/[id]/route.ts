@@ -4,6 +4,7 @@ import { writeAuditLog } from "@/lib/audit/writeAuditLog";
 import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
+import { compareCadences } from "@/lib/visits/cadence";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getVisitGoal, updateVisitGoal } from "@/lib/visits/queries";
 import { updateVisitGoalSchema } from "@/lib/validation/visit";
@@ -42,36 +43,38 @@ export async function PATCH(
       return NextResponse.json({ error: "That visit goal is not in your ward." }, { status: 404 });
     }
 
-    // A partial patch can make a period incoherent even though every field in the body is
-    // valid on its own — sending only `goalPeriodEnd` cannot be checked against a start the
-    // request never mentioned. Merged with the stored row and re-checked here.
-    const mergedStart = input.goalPeriodStart ?? existing.goalPeriodStart;
-    const mergedEnd = input.goalPeriodEnd ?? existing.goalPeriodEnd;
+    // ONE merged check, replacing the two the period model needed.
+    //
+    // A partial patch can make a goal incoherent even when every field in the body is valid on
+    // its own — sending only `noticeAmount` cannot be checked against a cadence the request
+    // never mentioned. So the merged cadence and merged notice are built from `input ?? stored`
+    // and the same comparison the schema runs is re-run here.
+    //
+    // compareCadences() rather than a day conversion, for the same reason lib/validation/visit.ts
+    // uses it: 2 months and 60 days are not the same length, and this must be the comparison
+    // householdVisitPriority() will make.
+    const mergedCadenceAmount = input.cadenceAmount ?? existing.cadence?.amount;
+    const mergedCadenceUnit = input.cadenceUnit ?? existing.cadence?.unit;
+    const mergedNoticeAmount = input.noticeAmount ?? existing.notice?.amount;
+    const mergedNoticeUnit = input.noticeUnit ?? existing.notice?.unit;
 
-    if (mergedStart !== null && mergedEnd !== null && mergedEnd <= mergedStart) {
+    if (
+      mergedCadenceAmount !== undefined &&
+      mergedCadenceUnit !== undefined &&
+      mergedNoticeAmount !== undefined &&
+      mergedNoticeUnit !== undefined &&
+      compareCadences(
+        { amount: mergedNoticeAmount, unit: mergedNoticeUnit },
+        { amount: mergedCadenceAmount, unit: mergedCadenceUnit },
+      ) >= 0
+    ) {
       return NextResponse.json(
-        { error: "The goal period has to end after it starts." },
-        { status: 400 },
-      );
-    }
-
-    // Same reasoning for the cadence: switching an annual goal to `custom` without sending
-    // months, or back to annual while a stale month count sits in the column, would leave two
-    // sources of truth for one interval.
-    const mergedCadence = input.cadence ?? existing.cadence;
-    const mergedMonths =
-      input.cadenceMonths !== undefined ? input.cadenceMonths : existing.cadenceMonths;
-
-    if (mergedCadence === "custom" && mergedMonths === null) {
-      return NextResponse.json(
-        { error: "A custom cadence needs a number of months." },
-        { status: 400 },
-      );
-    }
-
-    if (mergedCadence !== "custom" && mergedCadence !== null && mergedMonths !== null) {
-      return NextResponse.json(
-        { error: `A ${mergedCadence} cadence already sets its own interval.` },
+        {
+          error:
+            "The warning has to start inside the interval, so it must be shorter than the " +
+            "cadence. A warning as long as the cadence would mark every household as " +
+            "approaching.",
+        },
         { status: 400 },
       );
     }

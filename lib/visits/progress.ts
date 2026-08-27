@@ -1,12 +1,24 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DateOnly } from "@/lib/calendar/dates";
-import { formatDateOnly } from "@/lib/calendar/dates";
 import { listHouseholds, type HouseholdWithMembers } from "@/lib/roster/queries";
-import { compareByStatus, householdVisitStatus } from "@/lib/visits/householdStatus";
-import { listVisitGoals, listVisitLogs, type VisitGoal, type VisitLogWithContext } from "@/lib/visits/queries";
-import { CADENCE_MONTHS } from "@/lib/validation/visit";
+import type { Cadence } from "@/lib/visits/cadence";
+import { compareCadences } from "@/lib/visits/cadence";
+import {
+  listHouseholdVisitCadences,
+  type HouseholdVisitCadence,
+} from "@/lib/visits/householdCadences";
+import {
+  compareByPriority,
+  householdVisitPriority,
+  type VisitPriority,
+} from "@/lib/visits/householdStatus";
+import {
+  listVisitGoals,
+  listVisitLogs,
+  type VisitGoal,
+  type VisitLogWithContext,
+} from "@/lib/visits/queries";
 import type { Database } from "@/types/database";
-import type { HouseholdVisitStatus } from "@/types/domain";
 
 // The progress dashboard's numbers.
 //
@@ -17,6 +29,17 @@ import type { HouseholdVisitStatus } from "@/types/domain";
 // buildVisitProgress() is PURE and takes already-fetched data, so tests/lib/visitProgress.test.ts
 // needs no database at all. readVisitProgress() below is the thin fetching half — it is the only
 // part of this file that is server-only.
+//
+// ---------------------------------------------------------------------------
+// THERE IS NO PERIOD, AND THAT IS THE WHOLE POINT
+// ---------------------------------------------------------------------------
+// The first build measured progress between two dates. A household visited last December read
+// "✓ Visited" in its row while the banner above counted it as unvisited for the period that
+// began in January — two correct numbers, disagreeing, an inch apart on the screen.
+//
+// Progress is now measured from EACH household's own last completed visit against its own
+// cadence. `*ThisPeriod` is gone from every shape in this file, and `banner` is renamed to
+// `statistics`: two names for one number is how the last contradiction started.
 
 // ---------------------------------------------------------------------------------------------
 // THE DENOMINATOR
@@ -32,13 +55,18 @@ import type { HouseholdVisitStatus } from "@/types/domain";
 //
 // DEFAULT_MEMBER_STATUSES is ["active"], and its header in lib/roster/queries.ts names exactly
 // this denominator as its reason for existing — so `members` has already excluded both moved_out
-// and do_not_contact by the time it reaches here. The status list is REUSED (readVisitProgress
-// passes no `statuses` option) rather than re-derived, and what is added here is only the
-// household-level consequence of it.
+// and do_not_contact MEMBERS by the time it reaches here. The status list is REUSED
+// (readVisitProgress passes no `statuses` option) rather than re-derived, and what is added here
+// is only the household-level consequence of it.
 //
 // THIS RULE IS ALSO IN app/(app)/visits/page.tsx, on the household picker, and the two must not
 // drift. A household offered in the picker but absent from the denominator — or the reverse — is
 // a progress number nobody can reconcile against the list beside it.
+//
+// `households.do_not_contact` IS A SEPARATE AXIS AND IS NOT CHECKED HERE. This function answers
+// "does anybody live here"; do-not-contact answers "may we call". Conflating them would make a
+// do-not-contact household VANISH, which ITER-018 Decision 4 explicitly refused — it is shown,
+// marked, and counted in nothing.
 export function isVisitableHousehold(household: { members: readonly unknown[] }): boolean {
   return household.members.length > 0;
 }
@@ -46,96 +74,117 @@ export function isVisitableHousehold(household: { members: readonly unknown[] })
 export type VisitProgressRow = {
   householdId: string;
   familyName: string;
-  // ALL TIME, not the period. A leader wants to know a family was last seen fourteen months ago,
-  // not merely that the count for this period is zero. The STATUS uses the period; the column
-  // shows the truth.
+  // ALL TIME. A leader wants to know a family was last seen fourteen months ago, and now that
+  // there is no period there is nothing else this could have meant.
   lastVisitedOn: DateOnly | null;
   lastAttemptedOn: DateOnly | null;
   // Attempts made SINCE the last completed visit — every attempt ever, when there has been no
-  // visit. This is the "we have tried three times" number, and it is deliberately not
-  // `attemptCountThisPeriod`: a household knocked on twice in December and twice in January has
-  // been failed to reach four times running, and a period boundary is not a fact about that
-  // household. Rendered beside `lastAttemptedOn` so a single attempt and a standing pattern of
-  // them do not read the same.
+  // visit. This is the "we have tried three times" number. It is deliberately not a period
+  // count: a household knocked on twice in December and twice in January has been failed to
+  // reach four times running, and a period boundary is not a fact about that household.
+  //
+  // It sits BESIDE the band rather than replacing it (the old `attempted_never_reached`), because
+  // somebody having knocked four times is a different problem from nobody having been, at every
+  // level of urgency.
   attemptsSinceLastVisit: number;
-  // These two are bounded by [goalPeriodStart, goalPeriodEnd], and they are what the banner and
-  // the status are built from.
-  visitCountThisPeriod: number;
-  attemptCountThisPeriod: number;
-  // Null when the organization has no goal — see §NO GOAL below. Never a guessed bucket.
-  status: HouseholdVisitStatus | null;
+  // Shown and marked, counted in nothing (ITER-018 Decision 4).
+  doNotContact: boolean;
+  // Null for THREE reasons: the organization has no goal, the goal carries no usable cadence, or
+  // the household is do-not-contact. The table tells them apart from `doNotContact` and the
+  // progress-level `goal`/`goalHasNoCadence`, never by guessing which one it was.
+  priority: VisitPriority | null;
   // Who WENT on the visit named by `lastVisitedOn`, never who typed it in. Null reads as
   // "Nobody recorded" rather than falling back to the recorder.
   conductedBy: string | null;
 };
 
-export type VisitProgressBannerTotals = {
-  visitedCount: number;
-  total: number;
-  remaining: number;
+// THE COUNTS, and the invariant they hold:
+//
+//   onTrack + approaching + overdue + neverVisited === counted
+//
+// worth a test, and tests/lib/visitProgress.test.ts has one. A statistics block whose parts do
+// not add up to its whole is the shape of the contradiction this slice removed.
+export type VisitProgressStatistics = {
+  // Visitable AND not do-not-contact. THE DENOMINATOR.
+  counted: number;
+  onTrack: number;
+  approaching: number;
+  overdue: number;
+  neverVisited: number;
+  // Do-not-contact households. Shown on the page, counted in nothing. Reported so the page can
+  // say so out loud — a number that silently shrank is what Decision 4 refused.
+  excluded: number;
+  onTrackPercent: number;
 };
 
 export type VisitProgressGoalSummary = {
   id: string;
   title: string | null;
-  cadenceMonths: number;
-  goalPeriodStart: DateOnly;
-  goalPeriodEnd: DateOnly | null;
+  cadence: Cadence;
+  notice: Cadence;
+  // TRUE when the notice window is not shorter than the cadence, so nothing can ever read
+  // "Approaching" (see §THE CLAMP in lib/visits/householdStatus.ts). Reported so the banner can
+  // say it plainly rather than letting a band silently never appear.
+  noticeIgnored: boolean;
+  deadline: DateOnly | null;
 };
 
 export type VisitProgress = {
   orgId: string;
+  // THE INSTANT EVERY ROW WAS JUDGED AGAINST, as an ISO string so it survives the JSON boundary.
+  //
+  // The table needs it to render "3 weeks overdue" without reading its own clock. A `new Date()`
+  // in the badge would judge the top of the list against a different instant from the bottom on a
+  // slow render, and — worse — would disagree with the band the server already computed, so a row
+  // could read "Overdue" beside "due today". One instant, computed once, passed down.
+  asOf: string;
   rows: VisitProgressRow[];
   // Null when there is no goal to measure against. A made-up denominator is worse than an absent
   // one, so nothing here invents a cadence.
-  banner: VisitProgressBannerTotals | null;
+  statistics: VisitProgressStatistics | null;
   goal: VisitProgressGoalSummary | null;
-  // TRUE when a goal row exists but carries no usable interval — a goal written outside
+  // TRUE when a goal row exists but carries no usable cadence — a goal written outside
   // lib/validation/visit.ts, which requires one. The page says something different for "no goal
   // has been set" and "the goal that is set cannot be counted", because they need different
   // actions from the person reading.
   goalHasNoCadence: boolean;
 };
 
-// `annual` and `biannual` carry their interval in lib/validation/visit.ts §CADENCE_MONTHS — the
-// SAME map the goal form writes against, imported rather than restated, because two copies drift
-// and the denominator quietly changes with them.
-export function resolveCadenceMonths(goal: VisitGoal): number | null {
-  if (goal.cadence === null) return null;
-  if (goal.cadence === "custom") return goal.cadenceMonths;
-  return CADENCE_MONTHS[goal.cadence];
-}
-
-// WHICH goal a dashboard measures against, when an organization has several. The one whose
-// period contains today, and otherwise the most recently started — never a silent merge of two.
+// WHICH goal a dashboard measures against, when an organization has several: the most recently
+// created one.
 //
-// `goals` arrives ordered by goal_period_start descending (lib/visits/queries.ts), and this
-// function does not re-sort it: an order asserted in one place and assumed in another is the
-// bug route-tests-and-realtime records.
+// The old version searched for the goal whose PERIOD contained today. There is no period to
+// contain anything now, and — more to the point — visit goals became editable in this same
+// slice, so stacking a second goal to change one's mind is no longer how anybody changes a goal.
+// The disambiguation this function existed for has stopped arising.
+//
+// `goals` arrives ordered `created_at desc` from listVisitGoals(), and this function does not
+// re-sort it: an order asserted in one place and assumed in another is the bug
+// plans/retros/route-tests-and-realtime.md records.
 export function selectActiveGoal(
   goals: readonly VisitGoal[],
   orgId: string,
-  today: DateOnly,
 ): VisitGoal | null {
-  const forOrg = goals.filter((goal) => goal.orgId === orgId && goal.goalPeriodStart !== null);
-  if (forOrg.length === 0) return null;
+  return goals.find((goal) => goal.orgId === orgId) ?? null;
+}
 
-  const current = forOrg.find(
-    (goal) =>
-      goal.goalPeriodStart !== null &&
-      goal.goalPeriodStart <= today &&
-      (goal.goalPeriodEnd === null || today <= goal.goalPeriodEnd),
-  );
-
-  return current ?? forOrg[0]!;
+// Which cadence one household is actually judged against, and where it came from.
+//
+// EXPORTED because the assembler and anything rendering the control have to agree. Absent means
+// "use the organization's goal" — there is no sentinel row meaning "default", so this is a
+// lookup with a fallback rather than a three-way branch.
+export function resolveHouseholdCadence(
+  goalCadence: Cadence,
+  override: HouseholdVisitCadence | undefined,
+): { cadence: Cadence; source: "household" | "goal" } {
+  return override === undefined
+    ? { cadence: goalCadence, source: "goal" }
+    : { cadence: override.cadence, source: "household" };
 }
 
 type LogTally = {
   lastCompletedOn: DateOnly | null;
   lastAttemptedOn: DateOnly | null;
-  lastAttemptedInPeriodOn: DateOnly | null;
-  visitCountThisPeriod: number;
-  attemptCountThisPeriod: number;
   // Every attempt date, kept so `attemptsSinceLastVisit` can be counted once the last completed
   // visit is known. Logs arrive in no guaranteed order relative to each other, so this cannot be
   // a running counter — an attempt read before the visit that supersedes it would be counted.
@@ -147,68 +196,39 @@ function emptyTally(): LogTally {
   return {
     lastCompletedOn: null,
     lastAttemptedOn: null,
-    lastAttemptedInPeriodOn: null,
-    visitCountThisPeriod: 0,
-    attemptCountThisPeriod: 0,
     attemptDates: [],
     conductedBy: null,
   };
 }
 
-function withinPeriod(
-  visitDate: DateOnly,
-  periodStart: DateOnly,
-  periodEnd: DateOnly | null,
-): boolean {
-  if (visitDate < periodStart) return false;
-  return periodEnd === null || visitDate <= periodEnd;
-}
-
 // ---------------------------------------------------------------------------------------------
 // EVERY VISIT NUMBER FILTERS `outcome = 'completed'`
 // ---------------------------------------------------------------------------------------------
-// `lastVisitedOn`, `visitCountThisPeriod` and the banner's `visitedCount` all exclude attempts.
-// `lastAttemptedOn` and `attemptCountThisPeriod` are the ONLY fields that see them. An attempt
-// folded into a visit count is a ward being told it reached a family it did not.
-function tallyLogs(
-  logs: readonly VisitLogWithContext[],
-  periodStart: DateOnly | null,
-  periodEnd: DateOnly | null,
-): Map<string, LogTally> {
+// `lastVisitedOn` — and therefore every band, every due date and every count built on it —
+// excludes attempts. `lastAttemptedOn` and `attemptsSinceLastVisit` are the ONLY fields that see
+// them. An attempt folded into a visit count is a ward being told it reached a family it did not.
+function tallyLogs(logs: readonly VisitLogWithContext[]): Map<string, LogTally> {
   const byHousehold = new Map<string, LogTally>();
 
   for (const log of logs) {
     if (log.householdId === null) continue;
 
     const tally = byHousehold.get(log.householdId) ?? emptyTally();
-    const inPeriod =
-      periodStart !== null && withinPeriod(log.visitDate, periodStart, periodEnd);
 
     if (log.outcome === "completed") {
-      // `conductedBy` is taken from the visit `lastVisitedOn` NAMES, not from the most recent
-      // one inside the period. A row reading "last visited May 2025 · conducted by nobody"
-      // contradicts itself, and a "conducted by" beside a date has to describe THAT visit —
-      // the same untruth visits-d removed when "Visited by Miguel Cortez" appeared under a row
-      // labelled "Attempted".
+      // `conductedBy` is taken from the visit `lastVisitedOn` NAMES. A row reading "last visited
+      // May 2025 · conducted by nobody" contradicts itself, and a "conducted by" beside a date
+      // has to describe THAT visit — the same untruth visits-d removed when "Visited by Miguel
+      // Cortez" appeared under a row labelled "Attempted".
       if (tally.lastCompletedOn === null || log.visitDate > tally.lastCompletedOn) {
         tally.lastCompletedOn = log.visitDate;
         tally.conductedBy = log.conductedByLabel;
       }
-      if (inPeriod) tally.visitCountThisPeriod += 1;
     } else {
       tally.attemptDates.push(log.visitDate);
 
       if (tally.lastAttemptedOn === null || log.visitDate > tally.lastAttemptedOn) {
         tally.lastAttemptedOn = log.visitDate;
-      }
-      if (inPeriod) {
-        tally.attemptCountThisPeriod += 1;
-        if (
-          tally.lastAttemptedInPeriodOn === null ||
-          log.visitDate > tally.lastAttemptedInPeriodOn
-        ) {
-          tally.lastAttemptedInPeriodOn = log.visitDate;
-        }
       }
     }
 
@@ -233,6 +253,9 @@ export type BuildVisitProgressInput = {
   households: readonly HouseholdWithMembers[];
   logs: readonly VisitLogWithContext[];
   goal: VisitGoal | null;
+  // This organization's per-household overrides. Indexed into a Map once rather than searched
+  // per row.
+  householdCadences: readonly HouseholdVisitCadence[];
   asOf: Date;
 };
 
@@ -241,23 +264,54 @@ export function buildVisitProgress({
   households,
   logs,
   goal,
+  householdCadences,
   asOf,
 }: BuildVisitProgressInput): VisitProgress {
   const visitable = households.filter(isVisitableHousehold);
+  const tallies = tallyLogs(logs);
 
-  const cadenceMonths = goal === null ? null : resolveCadenceMonths(goal);
-  const periodStart = goal?.goalPeriodStart ?? null;
-  const periodEnd = goal?.goalPeriodEnd ?? null;
+  const goalCadence = goal?.cadence ?? null;
+  const goalNotice = goal?.notice ?? null;
 
-  // A goal with no interval, or with no period start, cannot produce a status or a denominator.
-  // Both are nullable in migration 008 and neither is nullable in lib/validation/visit.ts, so
-  // this is a row written outside this app rather than something a user can reach.
-  const countable = goal !== null && cadenceMonths !== null && periodStart !== null;
+  // A goal with no cadence cannot produce a band or a denominator. `cadence_amount` and
+  // `cadence_unit` are nullable in migration 050 and neither is optional in
+  // lib/validation/visit.ts, so this is a row written outside this app rather than something a
+  // user can reach — but it is representable, so it is reported rather than assumed away.
+  //
+  // A goal with a cadence and NO notice window is countable: the window only decides whether a
+  // household reads "Approaching", and a zero-length one simply means it never does. Defaulted
+  // to one day so the comparison below has something to make, which the clamp then ignores only
+  // if the cadence is itself a day.
+  const countable = goal !== null && goalCadence !== null;
+  const notice: Cadence = goalNotice ?? { amount: 1, unit: "day" };
 
-  const tallies = tallyLogs(logs, countable ? periodStart : null, periodEnd);
+  const overridesByHousehold = new Map(
+    householdCadences.map((override) => [override.householdId, override]),
+  );
 
   const rows: VisitProgressRow[] = visitable.map((household) => {
     const tally = tallies.get(household.id) ?? emptyTally();
+
+    // A do-not-contact household gets NO priority at all — not a band, not a due date. It stays
+    // in `rows` with its history intact (ITER-018 Decision 4): the record of what happened
+    // before the decision is exactly what the next presidency needs.
+    const priority =
+      countable && goalCadence !== null && !household.doNotContact
+        ? (() => {
+            const resolved = resolveHouseholdCadence(
+              goalCadence,
+              overridesByHousehold.get(household.id),
+            );
+
+            return householdVisitPriority({
+              lastCompletedOn: tally.lastCompletedOn,
+              cadence: resolved.cadence,
+              cadenceSource: resolved.source,
+              notice,
+              asOf,
+            });
+          })()
+        : null;
 
     return {
       householdId: household.id,
@@ -265,57 +319,67 @@ export function buildVisitProgress({
       lastVisitedOn: tally.lastCompletedOn,
       lastAttemptedOn: tally.lastAttemptedOn,
       attemptsSinceLastVisit: countAttemptsSince(tally),
-      visitCountThisPeriod: tally.visitCountThisPeriod,
-      attemptCountThisPeriod: tally.attemptCountThisPeriod,
-      status: countable
-        ? householdVisitStatus(
-            tally.lastCompletedOn,
-            tally.lastAttemptedInPeriodOn,
-            cadenceMonths,
-            asOf,
-            periodStart,
-          )
-        : null,
+      doNotContact: household.doNotContact,
+      priority,
       conductedBy: tally.conductedBy,
     };
   });
 
-  rows.sort(compareByStatus);
+  rows.sort(compareByPriority);
 
   // ---------------------------------------------------------------------------
-  // "X OF Y HOUSEHOLDS VISITED" MEANS VISITED THIS PERIOD
+  // THE STATISTICS
   // ---------------------------------------------------------------------------
-  // DEVIATION from the plan, which said `visitedCount` is "rows with status `visited`". Those
-  // are different numbers and the plan's own scenario 040 asks for this one: a household visited
-  // nine months into a twelve-month cadence reads `due_soon`, and it has still been visited.
-  // Counting statuses would report "2 of 5" for a ward that has reached three of them, and the
-  // banner sits directly above a table where that household plainly shows a date.
-  //
-  // An attempt is not a visit here either — visitCountThisPeriod is completed-only.
-  const visitedCount = rows.filter((row) => row.visitCountThisPeriod > 0).length;
-  const total = rows.length;
+  // Counted from `priority`, which is null for exactly the households that must not be counted:
+  // a do-not-contact family, and every household when there is no cadence. So the four band
+  // counts and `counted` are read from ONE source and cannot disagree.
+  const excluded = rows.filter((row) => row.doNotContact).length;
+  const banded = rows.filter((row) => row.priority !== null);
+
+  const countBand = (band: VisitPriority["band"]): number =>
+    banded.filter((row) => row.priority!.band === band).length;
+
+  const counted = banded.length;
+  const onTrack = countBand("on_track");
+
+  // Guarded rather than assumed: an organization whose households have all moved out has a
+  // total of zero, and a percentage of nothing is a division nobody wants to render.
+  const onTrackPercent = counted === 0 ? 0 : Math.round((onTrack / counted) * 100);
 
   return {
     orgId,
+    asOf: asOf.toISOString(),
     rows,
-    banner: countable ? { visitedCount, total, remaining: total - visitedCount } : null,
+    statistics: countable
+      ? {
+          counted,
+          onTrack,
+          approaching: countBand("approaching"),
+          overdue: countBand("overdue"),
+          neverVisited: countBand("never_visited"),
+          excluded,
+          onTrackPercent,
+        }
+      : null,
     goal:
-      countable && goal !== null && cadenceMonths !== null && periodStart !== null
+      countable && goal !== null && goalCadence !== null
         ? {
             id: goal.id,
             title: goal.title,
-            cadenceMonths,
-            goalPeriodStart: periodStart,
-            goalPeriodEnd: periodEnd,
+            cadence: goalCadence,
+            notice,
+            noticeIgnored: compareCadences(notice, goalCadence) >= 0,
+            deadline: goal.deadline,
           }
         : null,
     goalHasNoCadence: goal !== null && !countable,
   };
 }
 
-// SERVER-ONLY below this line — listHouseholds and listVisitLogs both reach Supabase.
+// SERVER-ONLY below this line — listHouseholds, listVisitLogs, listVisitGoals and
+// listHouseholdVisitCadences all reach Supabase.
 //
-// The caller's session client is passed straight through, so RLS decides which logs are visible.
+// The caller's session client is passed straight through, so RLS decides which rows are visible.
 // There is deliberately no belt-and-braces org filter beyond the one the caller asked for: a
 // redundant filter would mask a policy regression by hiding rows the policy had started letting
 // through.
@@ -330,21 +394,21 @@ export async function readVisitProgress(
   asOf: Date,
   client?: SupabaseClient<Database>,
 ): Promise<VisitProgress> {
-  const today = formatDateOnly(asOf);
-
-  const [households, logs, goals] = await Promise.all([
+  const [households, logs, goals, householdCadences] = await Promise.all([
     // NO `statuses` option, on purpose. The ["active"] default is what excludes moved_out and
     // do_not_contact members — see §THE DENOMINATOR above.
     listHouseholds(wardId, undefined, client),
     listVisitLogs(wardId, { orgId }, client),
     listVisitGoals(wardId, client),
+    listHouseholdVisitCadences(wardId, orgId, client),
   ]);
 
   return buildVisitProgress({
     orgId,
     households,
     logs,
-    goal: selectActiveGoal(goals, orgId, today),
+    goal: selectActiveGoal(goals, orgId),
+    householdCadences,
     asOf,
   });
 }

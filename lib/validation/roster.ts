@@ -4,9 +4,20 @@ import { MEMBER_CATEGORIES, MEMBER_GENDERS, MEMBER_STATUSES } from "@/types/doma
 // No wardId on any schema here, ever — it comes from the session (conventions.md §Validation).
 // A schema that accepts a wardId is a schema someone will eventually trust.
 
+// `doNotContact` is on the CREATE schema even though nothing creates a do-not-contact
+// household. updateHouseholdSchema is createHouseholdSchema.partial(), and HouseholdForm
+// validates BOTH paths with the create schema — so adding it only to the update schema would
+// leave the form unable to send the field it renders a checkbox for.
+//
+// This is a HOUSEHOLD-level flag and a separate axis from `members.status = 'do_not_contact'`.
+// The member status answers "may we call this person"; this answers "may we call on this family
+// at all". It is deliberately not folded into the moved-out rule that DEFAULT_MEMBER_STATUSES
+// drives: a do-not-contact household stays VISIBLE and marked on the visit dashboard and is
+// counted in no statistic (ITER-018 Decision 4). Conflating the two would make it vanish.
 export const createHouseholdSchema = z.object({
   familyName: z.string().trim().min(1, "Enter a family name.").max(120),
   address: z.string().trim().max(300).optional().nullable(),
+  doNotContact: z.boolean().optional(),
 });
 export type CreateHouseholdInput = z.infer<typeof createHouseholdSchema>;
 

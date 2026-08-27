@@ -38,6 +38,8 @@ describe("visit cross-org visibility", () => {
   let rsLogId: string;
   let eqGoalId: string;
   let rsGoalId: string;
+  let eqCadenceId: string;
+  let rsCadenceId: string;
 
   // Flipped with the service client between phases rather than reseeded, so both halves assert
   // against the SAME rows — which is what makes "the same query, one setting apart" a real
@@ -62,6 +64,18 @@ describe("visit cross-org visibility", () => {
 
     if (error) throw new Error(error.message);
     return (data ?? []).map((row) => row.id);
+  };
+
+  // Ward-wide, with NO org filter — the same discipline as readGoalIds below. A filtered read
+  // would pass even if the setting had started widening this table.
+  const readCadenceIds = async (client: SupabaseClient<Database>): Promise<string[]> => {
+    const { data, error } = await client
+      .from("household_visit_cadences")
+      .select("id")
+      .eq("ward_id", wardId);
+
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((row) => row.id).sort();
   };
 
   const readGoalIds = async (client: SupabaseClient<Database>): Promise<string[]> => {
@@ -158,18 +172,20 @@ describe("visit cross-org visibility", () => {
           org_id: fixtures.eldersQuorumId,
           title: "EQ goal",
           target_type: "all_households",
-          cadence: "annual",
-          goal_period_start: "2026-01-01",
-          goal_period_end: "2026-12-31",
+          cadence_amount: 1,
+          cadence_unit: "year",
+          notice_amount: 2,
+          notice_unit: "month",
         },
         {
           ward_id: wardId,
           org_id: fixtures.reliefSocietyId,
           title: "RS goal",
           target_type: "all_households",
-          cadence: "annual",
-          goal_period_start: "2026-01-01",
-          goal_period_end: "2026-12-31",
+          cadence_amount: 1,
+          cadence_unit: "year",
+          notice_amount: 2,
+          notice_unit: "month",
         },
       ])
       .select("id, org_id");
@@ -177,6 +193,40 @@ describe("visit cross-org visibility", () => {
 
     eqGoalId = goals.find((row) => row.org_id === fixtures.eldersQuorumId)!.id;
     rsGoalId = goals.find((row) => row.org_id === fixtures.reliefSocietyId)!.id;
+
+    // ONE household, with a per-organization cadence override from EACH organization. A new
+    // table quietly riding along on a widened read is exactly the kind of thing that goes
+    // unnoticed, so it is seeded into the suite that owns the widening.
+    const { data: household, error: householdError } = await fixtures.service
+      .from("households")
+      .insert({ ward_id: wardId, family_name: `Cross-org cadence ${fixtures.runId}` })
+      .select("id")
+      .single();
+    if (householdError) throw new Error(householdError.message);
+
+    const { data: cadences, error: cadenceError } = await fixtures.service
+      .from("household_visit_cadences")
+      .insert([
+        {
+          ward_id: wardId,
+          household_id: household.id,
+          org_id: fixtures.eldersQuorumId,
+          cadence_amount: 3,
+          cadence_unit: "month",
+        },
+        {
+          ward_id: wardId,
+          household_id: household.id,
+          org_id: fixtures.reliefSocietyId,
+          cadence_amount: 12,
+          cadence_unit: "month",
+        },
+      ])
+      .select("id, org_id");
+    if (cadenceError) throw new Error(cadenceError.message);
+
+    eqCadenceId = cadences.find((row) => row.org_id === fixtures.eldersQuorumId)!.id;
+    rsCadenceId = cadences.find((row) => row.org_id === fixtures.reliefSocietyId)!.id;
   }, 60_000);
 
   afterAll(async () => {
@@ -190,6 +240,10 @@ describe("visit cross-org visibility", () => {
 
     it("shows the EQ president exactly one visit log across the whole ward", async () => {
       expect(await readLogIds(eqPresident)).toEqual([eqLogId]);
+    });
+
+    it("shows the EQ president only their own household cadence", async () => {
+      expect(await readCadenceIds(eqPresident)).toEqual([eqCadenceId]);
     });
 
     it("shows the EQ president exactly one visit goal across the whole ward", async () => {
@@ -238,6 +292,24 @@ describe("visit cross-org visibility", () => {
     // denominator. Asserted here so the answer is recorded rather than discovered.
     it("still shows the EQ president only their own visit goal", async () => {
       expect(await readGoalIds(eqPresident)).toEqual([eqGoalId]);
+    });
+
+    // THE NEW TABLE MUST NOT HAVE RIDDEN ALONG. `ward_allows_cross_org_visibility()` appears in
+    // visit_logs_select and nowhere else, and migration 050 deliberately did not add it to
+    // household_visit_cadences_select: the setting widens reads of visit REPORTS so a ward
+    // council can read what happened. A cadence is a CONFIGURATION, not a report — the Relief
+    // Society reading the Elders Quorum's private judgement about a family is not what that
+    // setting offered. Asserted rather than assumed, because a new table quietly inheriting a
+    // widened read is precisely what nobody would notice.
+    it("still shows the EQ president only their own household cadence", async () => {
+      const visible = await readCadenceIds(eqPresident);
+
+      expect(visible).toEqual([eqCadenceId]);
+      expect(visible).not.toContain(rsCadenceId);
+    });
+
+    it("still shows the RS president only their own household cadence", async () => {
+      expect(await readCadenceIds(rsPresident)).toEqual([rsCadenceId]);
     });
 
     // The line this whole slice exists to hold. Wider reads on shared work do not widen private
@@ -294,9 +366,10 @@ describe("visit cross-org visibility", () => {
         org_id: fixtures.reliefSocietyId,
         title: "should never exist",
         target_type: "all_households",
-        cadence: "annual",
-        goal_period_start: "2026-01-01",
-        goal_period_end: "2026-12-31",
+        cadence_amount: 1,
+        cadence_unit: "year",
+        notice_amount: 2,
+        notice_unit: "month",
       });
 
       expect(error).not.toBeNull();

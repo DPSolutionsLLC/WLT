@@ -32,6 +32,7 @@ function householdRow(overrides: Partial<HouseholdRow> = {}): HouseholdRow {
     address: "12 Oak Street",
     latitude: null,
     longitude: null,
+    do_not_contact: false,
     created_at: "2026-08-01T00:00:00.000Z",
     ...overrides,
   };
@@ -91,6 +92,17 @@ describe("mapHouseholdRow", () => {
     expect(household.familyName).toBe("Ruiz");
     expect(household.createdAt).toBe("2026-08-01T00:00:00.000Z");
     expect((household as unknown as Record<string, unknown>).family_name).toBeUndefined();
+  });
+
+  // A new column that the mapper does not know about is SILENTLY DROPPED — no error, just
+  // `undefined` everywhere downstream (CLAUDE.md rule 9). This is the assertion for the one
+  // ITER-018 added.
+  it("maps do_not_contact to doNotContact", () => {
+    expect(mapHouseholdRow(householdRow()).doNotContact).toBe(false);
+    expect(mapHouseholdRow(householdRow({ do_not_contact: true })).doNotContact).toBe(true);
+    expect(
+      (mapHouseholdRow(householdRow()) as unknown as Record<string, unknown>).do_not_contact,
+    ).toBeUndefined();
   });
 
   it("keeps a missing address as null", () => {

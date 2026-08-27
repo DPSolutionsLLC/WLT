@@ -1,7 +1,8 @@
 # ITER-018: Visit Goals Should Be a Cadence, Not a Dated Period
 
 **Type:** Feature / redesign
-**Status:** Backlogged
+**Status:** In Progress
+**Plan:** plans/visits-e-cadence-and-priority.md
 **Created:** 2026-08-26
 
 ## Summary
@@ -123,8 +124,8 @@ constraint.
   Phase 8 ships, either Phase 8 is built on a model already known to be wrong, or the two
   diverge permanently and the app carries two meanings of "overdue".
 
-**Answer the four open questions below before planning.** They are product decisions, not
-implementation ones, and `/planning` cannot start without them.
+**The four product decisions below were answered on 2026-08-26**; see §Decisions. Planning is
+unblocked.
 
 ## Why not now
 
@@ -146,19 +147,60 @@ Most of it, which is why deferring costs little:
 - The `asOf`-as-a-parameter discipline, which is what will make a priority scale testable at its
   boundaries the same way the buckets were.
 
-## Open questions
+## Decisions (answered 2026-08-26)
 
-1. **Do dated periods survive at all?** The user wants to keep them ("to be able to give yourself
-   a deadline"), but a deadline may be better modelled as an attribute of a rolling goal than as a
-   different kind of goal. Two goal shapes is two code paths through every statistic.
-2. **Per-household cadence: column on `households`, or a per-org join table?** See part 4.
-3. **What does the priority scale look like when a household has never been visited at all?**
-   With no period start to anchor on (part 1 removes it), there is no elapsed fraction to compute.
-   Probably its own top-priority state — but it needs deciding, and it is exactly the hole
-   `talks-d` found in `goalStatus()` and `visits-b` closed with `goalPeriodStart`.
-4. **Does a do-not-contact household disappear from the list, or appear marked and uncounted?**
-   Disappearing loses the record that a decision was made; appearing greyed keeps it visible to
-   the next presidency.
+These were the four open questions. All are now settled; `/planning` may proceed.
+
+1. **Dated periods do not survive as a separate goal shape.** Every goal is rolling — *once every
+   X* — and a deadline becomes a **nullable attribute on that rolling goal**, not a second kind of
+   goal. One code path through every statistic. `goal_period_start` goes away entirely; what was
+   `goal_period_end` becomes an optional `deadline`, which affects presentation only and never the
+   elapsed-fraction arithmetic.
+2. **Per-household cadence is a per-org join table, `household_visit_cadences`.**
+   *(Answered "column on `households`" first, then REVERSED the same day on question 5 below —
+   "each quorum should be able to set it for their own quorum" is not expressible in one shared
+   column.)* A row is `(household_id, org_id, cadence)`, unique on that pair; no row means "use
+   this organization's baseline". Elders Quorum may hold the Smiths at every 3 months while
+   Relief Society keeps them annual, and both are true at once. `org_id` is NOT NULL here, unlike
+   `visit_goals.org_id` — a cadence is always some organization's relationship to a household, so
+   the `null = null` hole `visits-a` fell into cannot open.
+3. **Never-visited is its own top-priority state**, above every position on the elapsed-fraction
+   scale, with no fraction computed for it. It is not "infinitely overdue" and it does not anchor
+   on the goal's creation date — a family nobody has ever visited is a different problem from one
+   visited 13 months ago, and the scale should say so. This closes explicitly the hole `talks-d`
+   found in `goalStatus()`.
+4. **A do-not-contact household stays on the list, visibly marked, and counts toward nothing.**
+   It is excluded from the denominator and from every banner statistic, but it is not hidden and
+   there is no toggle. Hiding it would lose the record that a decision was made; the next
+   presidency needs to see the mark rather than re-discover the family.
+
+5. **Who may set a per-household cadence: the organization, and the bishopric for anyone.**
+   > each quorum should be able to set it for their own quorum. however. bishopric as admin,
+   > should be able to set it for anyone.
+
+   `visits.manage_goals` is the permission — org president, org counselor, and the bishopric hold
+   it; an org secretary does not. It is written through a visits-owned route rather than the
+   roster's, because an org president has `roster.view` and NOT `roster.manage` and must not gain
+   the whole roster to set one family's cadence. RLS scopes it exactly as `visit_goals` is scoped:
+   `ward_id = current_ward_id() and (is_bishopric() or org_id = current_org_id())`.
+
+   **Household-level do-not-contact is the other half and goes the other way** — it is a fact
+   about the ward's relationship to a family, not one organization's, so it stays on `households`
+   under `roster.manage`, edited on the roster household page beside the member statuses it
+   mirrors.
+
+6. **The "approaching due" window is adjustable, and lives on the goal.**
+   > it should be an adjustable variable. admin should be able to say what they want to show. if
+   > they want to just show 1 month away or 6 months away. whatever feels useful to them.
+
+   Each goal carries a **notice window** in the same amount-plus-unit shape as its cadence, so an
+   annual goal can warn two months ahead and a three-week goal five days ahead. The bishopric can
+   already edit any organization's goal, so "admin sets it for anyone" needs no separate control.
+   This REPLACES the fixed `DUE_SOON_FRACTION = 0.8`.
+
+   Validation refuses a notice window equal to or longer than the cadence — otherwise every
+   household is permanently "approaching" — and the read path clamps a stored row that violates
+   it anyway, the same way an interval of zero is clamped to "overdue" today.
 
 ## Related
 

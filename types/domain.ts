@@ -511,46 +511,68 @@ export const VISIT_TARGET_TYPES = [
 ] as const;
 export type VisitTargetType = (typeof VISIT_TARGET_TYPES)[number];
 
-export const VISIT_CADENCES = ["annual", "biannual", "custom"] as const;
-export type VisitCadence = (typeof VISIT_CADENCES)[number];
+// ---------------------------------------------------------------------------
+// HOW OFTEN — AN AMOUNT AND A UNIT
+// ---------------------------------------------------------------------------
+// A visit goal has no period. It has a cadence, and progress is measured from each household's
+// OWN last completed visit rather than from a shared period boundary. That is what dissolves the
+// contradiction visits-b shipped, where a row could read "✓ Visited" above a banner counting it
+// as unvisited (ITER-018 §Decisions).
+//
+// The unit list is read in THREE places and they must agree: migration 050's CHECK constraints
+// on `visit_goals` and `household_visit_cadences`, the Zod enum in lib/validation/visit.ts, and
+// the arithmetic in lib/visits/cadence.ts. Adding a fifth unit is a decision taken in the
+// migration and here at once, never a string that appeared in a form.
+export const CADENCE_UNITS = ["day", "week", "month", "year"] as const;
+export type CadenceUnit = (typeof CADENCE_UNITS)[number];
 
-export const VISIT_CADENCE_LABELS: Record<VisitCadence, string> = {
-  annual: "Once a year",
-  biannual: "Twice a year",
-  custom: "Every so many months",
+// Both forms, because describeCadence() reads the singular for an amount of 1 and the plural for
+// everything else. A single label plus a pasted "s" is how "every 2 days" becomes "every 2 days"
+// and "every 3 months" becomes "every 3 months" right up until a unit whose plural is irregular.
+export const CADENCE_UNIT_LABELS: Record<CadenceUnit, { one: string; many: string }> = {
+  day: { one: "day", many: "days" },
+  week: { one: "week", many: "weeks" },
+  month: { one: "month", many: "months" },
+  year: { one: "year", many: "years" },
 };
 
 // ---------------------------------------------------------------------------
-// WHERE ONE HOUSEHOLD STANDS AGAINST ITS ORGANIZATION'S VISIT GOAL
+// WHERE ONE HOUSEHOLD STANDS AGAINST ITS ORGANIZATION'S CADENCE
 // ---------------------------------------------------------------------------
-// COMPUTED, never stored. There is no status column on visit_logs and none should be added: a
-// household crosses into `overdue` because the clock moved, and a column recording that would be
-// a snapshot of whenever somebody last wrote to the row. lib/visits/householdStatus.ts is the
-// one place that decides, and it takes `asOf` as a parameter so the answer is a statement about
-// a moment rather than about whenever the function happened to run.
+// COMPUTED, never stored. There is no band column and none should be added: a household crosses
+// into `overdue` because the clock moved, and a column recording that would be a snapshot of
+// whenever somebody last wrote to the row. lib/visits/householdStatus.ts is the one place that
+// decides, and it takes `asOf` as a parameter so the answer is a statement about a moment rather
+// than about whenever the function happened to run.
 //
-// `attempted_never_reached` IS THE ONE THAT EARNS ITS PLACE. An attempt counts towards nothing —
-// a leader knocked and nobody answered, and the family has not been visited — so without a state
-// of its own a household the ward keeps trying to reach would sit in `not_yet_visited` looking
-// exactly like one nobody has thought about. That is the invisibility visits-d's `attempted`
-// outcome exists to end, and hiding it again in the dashboard's numbers would waste it.
-export const HOUSEHOLD_VISIT_STATUSES = [
-  "visited",
-  "due_soon",
+// HIGHEST PRIORITY FIRST, AND THE ORDER IS THE RANK. priorityRank() reads the index of a band in
+// this array rather than carrying a second map that could disagree with it.
+//
+// `never_visited` OUTRANKS `overdue`, deliberately (ITER-018 Decision 3). A family nobody has
+// ever been to is a different problem from one visited thirteen months ago, and it has no anchor
+// to measure a fraction from at all — so it is its own top state rather than an overdue row with
+// a missing number.
+//
+// `attempted_never_reached` is NOT here, and its absence is the point. It was a REASON, not a
+// position on the scale, and it is now expressible from data the row already carries:
+// `attemptsSinceLastVisit >= 1` alongside ANY band. A household somebody has knocked on four
+// times is a different problem from one nobody has been to at every level of urgency, so it
+// renders as a mark beside the badge instead of replacing it.
+export const VISIT_PRIORITY_BANDS = [
+  "never_visited",
   "overdue",
-  "attempted_never_reached",
-  "not_yet_visited",
+  "approaching",
+  "on_track",
 ] as const;
-export type HouseholdVisitStatus = (typeof HOUSEHOLD_VISIT_STATUSES)[number];
+export type VisitPriorityBand = (typeof VISIT_PRIORITY_BANDS)[number];
 
 // A Record rather than a lookup with a fallback, for the same reason VISIT_TYPE_LABELS is one: a
-// status added later must not render as its own snake_case key.
-export const HOUSEHOLD_VISIT_STATUS_LABELS: Record<HouseholdVisitStatus, string> = {
-  visited: "Visited",
-  due_soon: "Due soon",
+// band added later must not render as its own snake_case key.
+export const VISIT_PRIORITY_BAND_LABELS: Record<VisitPriorityBand, string> = {
+  never_visited: "Never visited",
   overdue: "Overdue",
-  attempted_never_reached: "Attempted, never reached",
-  not_yet_visited: "Not yet visited",
+  approaching: "Approaching",
+  on_track: "On track",
 };
 
 // The two kinds of report the return-and-report feed carries. Mirrors migration 008's CHECK on

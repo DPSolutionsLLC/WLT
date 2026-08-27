@@ -23,28 +23,44 @@ vi.mock("@/lib/supabase/server", async () => {
   return serverClientMock();
 });
 
-// PINNED, not computed from today. A fixture whose period is relative to the clock changes
-// meaning as the suite ages, and every status below depends on a precise distance from it.
-const PERIOD_START = "2026-01-01";
-const PERIOD_END = "2026-12-31";
-const VISIT_IN_PERIOD = "2026-02-10";
-const ATTEMPT_IN_PERIOD = "2026-03-14";
+// PINNED RELATIVE TO TODAY, not to a fixed calendar date.
+//
+// The goal has no period any more, so "in the period" has stopped meaning anything — but a band
+// is a distance from `asOf`, so a hardcoded visit date would drift out of `on_track` and into
+// `overdue` as this suite aged. A visit thirty days ago against a one-year cadence is on track
+// today and will still be on track whenever this runs.
+const DAY_MS = 86_400_000;
+
+function daysAgo(days: number): string {
+  return new Date(Date.now() - days * DAY_MS).toISOString().slice(0, 10);
+}
+
+const RECENT_VISIT = daysAgo(30);
+const RECENT_ATTEMPT = daysAgo(20);
 
 type ProgressRow = {
   householdId: string;
   familyName: string;
   lastVisitedOn: string | null;
   lastAttemptedOn: string | null;
-  visitCountThisPeriod: number;
-  attemptCountThisPeriod: number;
-  status: string | null;
+  attemptsSinceLastVisit: number;
+  doNotContact: boolean;
+  priority: { band: string; elapsedFraction: number | null; dueOn: string | null } | null;
   conductedBy: string | null;
 };
 
 type ProgressBody = {
   orgId: string;
   rows: ProgressRow[];
-  banner: { visitedCount: number; total: number; remaining: number } | null;
+  statistics: {
+    counted: number;
+    onTrack: number;
+    approaching: number;
+    overdue: number;
+    neverVisited: number;
+    excluded: number;
+    onTrackPercent: number;
+  } | null;
   goal: { id: string } | null;
   goalHasNoCadence: boolean;
 };
@@ -137,9 +153,10 @@ describe("GET /api/visits/progress", () => {
       org_id: fixtures.eldersQuorumId,
       title: "Visit every household this year",
       target_type: "all_households",
-      cadence: "annual",
-      goal_period_start: PERIOD_START,
-      goal_period_end: PERIOD_END,
+      cadence_amount: 1,
+      cadence_unit: "year",
+      notice_amount: 2,
+      notice_unit: "month",
       created_by: fixtures.user("eqPresident").id,
     });
     if (goalError) throw new Error(goalError.message);
@@ -152,7 +169,7 @@ describe("GET /api/visits/progress", () => {
           org_id: fixtures.eldersQuorumId,
           household_id: visitedHouseholdId,
           recorded_by: fixtures.user("eqSecretary").id,
-          visit_date: VISIT_IN_PERIOD,
+          visit_date: RECENT_VISIT,
           visit_type: "in_home",
           outcome: "completed",
           arrangement: "appointment",
@@ -162,7 +179,7 @@ describe("GET /api/visits/progress", () => {
           org_id: fixtures.eldersQuorumId,
           household_id: attemptedHouseholdId,
           recorded_by: fixtures.user("eqSecretary").id,
-          visit_date: ATTEMPT_IN_PERIOD,
+          visit_date: RECENT_ATTEMPT,
           visit_type: "in_home",
           outcome: "attempted",
           arrangement: "drop_in",
@@ -201,7 +218,7 @@ describe("GET /api/visits/progress", () => {
       expect(status).toBe(200);
       expect(progress.orgId).toBe(fixtures.eldersQuorumId);
       expect(progress.goal).not.toBeNull();
-      expect(rowFor(progress, visitedHouseholdId)?.status).toBe("visited");
+      expect(rowFor(progress, visitedHouseholdId)?.priority?.band).toBe("on_track");
     });
 
     // The assertion this suite exists for. Naming the Relief Society does not produce the Relief
@@ -227,7 +244,7 @@ describe("GET /api/visits/progress", () => {
 
       expect(status).toBe(200);
       expect(progressFrom(body).orgId).toBe(fixtures.eldersQuorumId);
-      expect(progressFrom(body).banner).not.toBeNull();
+      expect(progressFrom(body).statistics).not.toBeNull();
     });
 
     // There is no ward-wide visit goal — migration 019 makes an `org_id = null` goal
@@ -244,7 +261,7 @@ describe("GET /api/visits/progress", () => {
 
     // The Relief Society has no goal in this fixture, so the bishop reading it gets an honest
     // absence rather than a zero denominator.
-    it("returns a null banner for an organization with no goal", async () => {
+    it("returns null statistics for an organization with no goal", async () => {
       await actAs(fixtures, "bishop");
 
       const { status, body } = await callProgress(
@@ -253,10 +270,10 @@ describe("GET /api/visits/progress", () => {
       const progress = progressFrom(body);
 
       expect(status).toBe(200);
-      expect(progress.banner).toBeNull();
+      expect(progress.statistics).toBeNull();
       expect(progress.goal).toBeNull();
       expect(progress.goalHasNoCadence).toBe(false);
-      expect(progress.rows.every((row) => row.status === null)).toBe(true);
+      expect(progress.rows.every((row) => row.priority === null)).toBe(true);
     });
   });
 
@@ -284,13 +301,16 @@ describe("GET /api/visits/progress", () => {
       const { body } = await callProgress(PROGRESS_URL);
       const row = rowFor(progressFrom(body), attemptedHouseholdId);
 
-      expect(row?.status).toBe("attempted_never_reached");
-      expect(row?.lastAttemptedOn).toBe(ATTEMPT_IN_PERIOD);
-      expect(row?.attemptCountThisPeriod).toBe(1);
+      // The attempt count is a MARK BESIDE the band now, not a band of its own. A household
+      // somebody has knocked on is still `never_visited` — the attempt tells you why nobody has
+      // got in, not how urgent it is (ITER-018 part 5).
+      expect(row?.priority?.band).toBe("never_visited");
+      expect(row?.lastAttemptedOn).toBe(RECENT_ATTEMPT);
+      expect(row?.attemptsSinceLastVisit).toBe(1);
 
       // Nothing an attempt touches leaks into the visited side.
       expect(row?.lastVisitedOn).toBeNull();
-      expect(row?.visitCountThisPeriod).toBe(0);
+      expect(row?.priority?.dueOn).toBeNull();
     });
 
     // The recorder is the SECRETARY and the participant is the PRESIDENT. A fallback from one to

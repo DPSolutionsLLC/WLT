@@ -1,4 +1,10 @@
-import { parseDateOnly, type DateOnly } from "@/lib/calendar/dates";
+import {
+  countMonthsBetween,
+  formatDateOnly,
+  MS_PER_DAY,
+  parseDateOnly,
+  type DateOnly,
+} from "@/lib/calendar/dates";
 
 // How the visits module renders a day to a human. CLIENT-IMPORTABLE — types and Intl only.
 //
@@ -56,4 +62,65 @@ export function formatAppointmentInstant(value: string): string {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+// ---------------------------------------------------------------------------
+// HOW LONG OVERDUE, IN WORDS
+// ---------------------------------------------------------------------------
+// This replaces the percentage the badge used to carry for an overdue household. A percentage
+// answers "how far past due, as a fraction of the interval", which is the right thing to SORT on
+// and the wrong thing to read: 109% and 110% are a month apart on a yearly cadence and a day
+// apart on a monthly one, and the reader cannot tell which without doing the arithmetic
+// themselves. "3 weeks overdue" is the same fact in the unit a person acts in.
+//
+// `elapsedFraction` is unchanged and still drives the sort and the pill's fill — this is a
+// display decision, not a change to the scale.
+//
+// The unit steps up as the gap grows, because precision stops helping: a household 14 months
+// past due does not need "426 days". Months are counted with countMonthsBetween() rather than
+// by dividing days, so "1 month overdue" means the calendar month actually turned.
+//
+// `asOf` is a PARAMETER, never a `new Date()` inside — the same discipline
+// householdVisitPriority() keeps, and what makes the boundaries testable.
+export function formatOverdueFor(dueOn: DateOnly, asOf: Date): string {
+  const today = formatDateOnly(asOf);
+  const days = Math.floor(
+    (parseDateOnly(today).getTime() - parseDateOnly(dueOn).getTime()) / MS_PER_DAY,
+  );
+
+  // Not overdue at all, or due exactly today. The caller only asks about overdue rows, so this
+  // is a guard against a caller that has drifted rather than a state a user reaches.
+  if (days <= 0) return "due today";
+
+  if (days < 14) {
+    return `${days} ${days === 1 ? "day" : "days"} overdue`;
+  }
+
+  // ELAPSED months, not month BOUNDARIES crossed. countMonthsBetween() answers "how many times
+  // did the month number change", so 15 June to 14 August is 2 by its reckoning — which would
+  // report a household as "2 months overdue" when it is one day short of two months. Backing off
+  // by one when the day of the month has not come round yet is how a person counts an age, and it
+  // is the difference between a badge that is true and one that flatters the urgency.
+  const dueDayOfMonth = Number(dueOn.slice(8, 10));
+  const todayDayOfMonth = Number(today.slice(8, 10));
+  const months =
+    countMonthsBetween(dueOn, today) - (todayDayOfMonth < dueDayOfMonth ? 1 : 0);
+
+  if (months < 2) {
+    const weeks = Math.floor(days / 7);
+    return `${weeks} ${weeks === 1 ? "week" : "weeks"} overdue`;
+  }
+
+  if (months < 12) {
+    return `${months} months overdue`;
+  }
+
+  const years = Math.floor(months / 12);
+  const remainingMonths = months % 12;
+
+  if (remainingMonths === 0) {
+    return `${years} ${years === 1 ? "year" : "years"} overdue`;
+  }
+
+  return `${years}y ${remainingMonths}m overdue`;
 }

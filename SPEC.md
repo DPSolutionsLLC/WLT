@@ -105,8 +105,16 @@ family_name     text NOT NULL
 address         text
 latitude        numeric
 longitude       numeric
+do_not_contact  boolean NOT NULL DEFAULT false
 created_at      timestamptz DEFAULT now()
 ```
+
+`do_not_contact` is a HOUSEHOLD-level flag and a **separate axis** from `members.status =
+'do_not_contact'`. The member status answers "may we call this person"; this answers "may we call
+on this family at all". A do-not-contact household stays on the roster, stays **visible and marked**
+on the visit dashboard, and is counted in **no** visit statistic (migration 050, ITER-018
+Decision 4). It is deliberately not folded into the moved-out rule, which would make the household
+disappear.
 
 ### `members`
 ```sql
@@ -373,19 +381,56 @@ created_at      timestamptz DEFAULT now()
 ```
 
 ### `visit_goals`
+
+A goal has **no period**. It has a rolling cadence, and progress is measured from each household's
+OWN last completed visit rather than from a shared period boundary. `deadline` is presentation
+only — it drives no arithmetic (migration 050, ITER-018).
+
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
 ward_id         uuid REFERENCES wards(id)
 org_id          uuid REFERENCES organizations(id)
 title           text
 target_type     text  -- 'all_households' | 'specific_households' | 'custom'
-cadence         text  -- 'annual' | 'biannual' | 'custom'
-cadence_months  integer  -- if custom
-goal_period_start   date
-goal_period_end     date
+cadence_amount  integer  -- >= 1; null together with cadence_unit
+cadence_unit    text     -- 'day' | 'week' | 'month' | 'year'
+notice_amount   integer  -- how far ahead of due a household reads "Approaching"
+notice_unit     text     -- 'day' | 'week' | 'month' | 'year'
+deadline        date     -- optional, presentation only
 created_by      uuid REFERENCES users(id)
 created_at      timestamptz DEFAULT now()
 ```
+
+CHECK constraints make amount and unit **inseparable** (`(amount is null) = (unit is null)`), so
+half a cadence is unrepresentable. Migration 051 drops the outgoing `cadence`, `cadence_months`,
+`goal_period_start` and `goal_period_end`, and is applied AFTER the new code deploys.
+
+### `household_visit_cadences`
+
+One organization's cadence for one household, overriding that organization's goal. **Absent means
+"use the goal"** — there is no sentinel row meaning "default", so clearing an override is a DELETE.
+
+A join table rather than a column on `households`, because the same family can be on a 3-month
+cadence for the Elders Quorum and a 12-month one for the Relief Society at the same time
+(ITER-018 Decision 2).
+
+```sql
+id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid REFERENCES wards(id)
+household_id    uuid NOT NULL
+org_id          uuid NOT NULL  -- NOT NULL, unlike visit_goals.org_id: a null-org row would be
+                               -- invisible to its own author under `org_id = current_org_id()`
+cadence_amount  integer NOT NULL  -- >= 1
+cadence_unit    text NOT NULL     -- 'day' | 'week' | 'month' | 'year'
+created_by      uuid REFERENCES users(id)
+created_at      timestamptz DEFAULT now()
+updated_at      timestamptz DEFAULT now()
+UNIQUE (household_id, org_id)
+```
+
+RLS mirrors `visit_goals` exactly — four policies, the same predicate on each. The select is
+deliberately **not** widened by cross-org visibility: that setting widens reads of visit *logs*
+only. A cadence is a configuration, not a report.
 
 ### `visit_logs`
 ```sql

@@ -22,6 +22,7 @@ export function HouseholdForm({ household, onSaved }: HouseholdFormProps) {
 
   const [familyName, setFamilyName] = useState(household?.familyName ?? "");
   const [address, setAddress] = useState(household?.address ?? "");
+  const [doNotContact, setDoNotContact] = useState(household?.doNotContact ?? false);
   const [familyNameError, setFamilyNameError] = useState<string>();
   const [addressError, setAddressError] = useState<string>();
   const [formError, setFormError] = useState<string>();
@@ -38,6 +39,7 @@ export function HouseholdForm({ household, onSaved }: HouseholdFormProps) {
     const parsed = createHouseholdSchema.safeParse({
       familyName,
       address: address.trim() === "" ? null : address,
+      doNotContact,
     });
 
     if (!parsed.success) {
@@ -74,6 +76,7 @@ export function HouseholdForm({ household, onSaved }: HouseholdFormProps) {
       if (!isEditing) {
         setFamilyName("");
         setAddress("");
+        setDoNotContact(false);
       }
 
       onSaved?.(body.household);
@@ -106,6 +109,31 @@ export function HouseholdForm({ household, onSaved }: HouseholdFormProps) {
         error={addressError}
         autoComplete="off"
       />
+
+      {/* A HOUSEHOLD-LEVEL flag, and a separate axis from a member's `do_not_contact` status.
+          The helper text names the CONSEQUENCE rather than restating the label, because the
+          consequence is the surprising half: the family does not disappear. It stays on the
+          roster and stays on the visit dashboard, marked — a household that vanished from a
+          president's list is one nobody can hand on to the next presidency (ITER-018 Decision 4).
+
+          Written under `roster.manage`, which is what PATCH /api/households/[id] already
+          asserts — no permission change. A household's visit CADENCE is a different decision
+          under a different permission, and has its own route. */}
+      <div className="flex flex-col gap-1.5">
+        <label className="flex items-start gap-2 text-sm text-foreground">
+          <input
+            type="checkbox"
+            className="mt-1 h-4 w-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            checked={doNotContact}
+            onChange={(event) => setDoNotContact(event.target.checked)}
+          />
+          Do not contact this household
+        </label>
+        <p className="text-sm text-muted">
+          The family stays on the roster and stays visible on the visit dashboard. It is left out
+          of every visit statistic.
+        </p>
+      </div>
 
       <FormError message={formError} />
 

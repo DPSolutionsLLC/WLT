@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { formatDateOnly, isValidDateOnly } from "@/lib/calendar/dates";
+import { compareCadences, type Cadence } from "@/lib/visits/cadence";
 import {
   APPOINTMENT_STATUSES,
+  CADENCE_UNITS,
   VISIT_ARRANGEMENTS,
-  VISIT_CADENCES,
   VISIT_OUTCOMES,
   VISIT_TYPES,
-  type VisitCadence,
+  type CadenceUnit,
 } from "@/types/domain";
 
 // No wardId and no orgId on any schema here, ever. Both come from the session
@@ -16,13 +17,15 @@ import {
 export const MAX_VISIT_GOAL_TITLE = 160;
 export const MAX_SHARED_NOTES = 4000;
 export const MAX_PRIVATE_NOTES = 4000;
-export const MAX_CADENCE_MONTHS = 120;
 
-// One map, exported, because visits-b's progress dashboard has to read the SAME numbers to work
-// out how many visits a period expects. Two copies drift and the denominator quietly changes.
-export const CADENCE_MONTHS: Record<Exclude<VisitCadence, "custom">, number> = {
-  annual: 12,
-  biannual: 6,
+// A ceiling per unit, so a typo cannot produce an interval nobody will live to see. Each is
+// roughly ten years, expressed in its OWN unit rather than converted — "keep the cadence to 520
+// weeks" is a sentence somebody typing weeks can act on; "keep it to 3650 days" is not.
+export const MAX_CADENCE_BY_UNIT: Record<CadenceUnit, number> = {
+  day: 3650,
+  week: 520,
+  month: 120,
+  year: 10,
 };
 
 // `specific_households` and `custom` are deliberately not creatable, on the precedent
@@ -42,58 +45,98 @@ const titleSchema = z
   .min(1, "Give the goal a title.")
   .max(MAX_VISIT_GOAL_TITLE, `Keep the title to ${MAX_VISIT_GOAL_TITLE} characters.`);
 
-// At least one month for the same reason lib/validation/goal.ts sets that floor: a zero-month
-// cadence is overdue the moment it is saved. The ceiling stops a typo producing an interval
-// nobody will live to see.
-const cadenceMonthsSchema = z
+// At least one, for the same reason lib/validation/goal.ts sets that floor: a zero-length
+// interval is overdue the moment it is saved and cannot divide. The per-unit ceiling is checked
+// in the refinement below, where the unit is actually known.
+const cadenceAmountSchema = z
   .number()
-  .int("Give the cadence in whole months.")
-  .min(1, "A cadence repeats at least once a month.")
-  .max(MAX_CADENCE_MONTHS, `Keep the cadence to ${MAX_CADENCE_MONTHS} months.`);
+  .int("Give the interval as a whole number.")
+  .min(1, "An interval is at least one.");
 
-// `cadenceMonths` is the number of months only when the cadence is `custom`. For `annual` and
-// `biannual` the number is already known (CADENCE_MONTHS above), so accepting one would let a
-// goal claim to be annual while counting every three months — two sources of truth for one
-// interval, disagreeing.
-function requireCoherentCadence(
-  value: { cadence?: VisitCadence; cadenceMonths?: number | null },
+const cadenceUnitSchema = z.enum(CADENCE_UNITS);
+
+// The ceiling depends on the unit, so it cannot live on the amount's own schema. Applied by
+// every superRefine below, to both the cadence and the notice window, with a message naming the
+// unit the person is actually typing in.
+function requireAmountWithinCeiling(
+  amount: number | undefined,
+  unit: CadenceUnit | undefined,
+  path: string,
   context: z.RefinementCtx,
 ): void {
-  if (value.cadence === undefined) return;
+  if (amount === undefined || unit === undefined) return;
 
-  const hasMonths = value.cadenceMonths !== null && value.cadenceMonths !== undefined;
+  const ceiling = MAX_CADENCE_BY_UNIT[unit];
 
-  if (value.cadence === "custom" && !hasMonths) {
+  if (amount > ceiling) {
     context.addIssue({
       code: "custom",
-      message: "A custom cadence needs a number of months.",
-      path: ["cadenceMonths"],
-    });
-  }
-
-  if (value.cadence !== "custom" && hasMonths) {
-    context.addIssue({
-      code: "custom",
-      message: `A ${value.cadence} cadence already sets its own interval.`,
-      path: ["cadenceMonths"],
+      message: `Keep it to ${ceiling} ${unit}s.`,
+      path: [path],
     });
   }
 }
 
-function requireForwardPeriod(
-  value: { goalPeriodStart?: string; goalPeriodEnd?: string },
+// THE NOTICE WINDOW MUST BE STRICTLY SHORTER THAN THE CADENCE.
+//
+// A notice window as long as the cadence makes EVERY household permanently "approaching", which
+// is a dashboard that has stopped saying anything. lib/visits/householdStatus.ts ignores such a
+// window rather than flagging the whole ward, but a goal that reaches that state is a goal
+// somebody mis-typed, so it is refused here rather than silently degraded.
+//
+// Compared with compareCadences() rather than by converting both to days, because 2 months and
+// 60 days are not the same length and this has to be the SAME comparison
+// householdVisitPriority() will make. Two approximations of one question disagree at the edges,
+// and the edges are exactly where a validation message matters.
+//
+// Guarded on all four fields being present: a partial patch cannot be checked here, and is
+// re-checked against the merged stored row in app/api/visit-goals/[id]/route.ts.
+function requireNoticeShorterThanCadence(
+  value: {
+    cadenceAmount?: number;
+    cadenceUnit?: CadenceUnit;
+    noticeAmount?: number;
+    noticeUnit?: CadenceUnit;
+  },
   context: z.RefinementCtx,
 ): void {
-  const { goalPeriodStart, goalPeriodEnd } = value;
-  if (goalPeriodStart === undefined || goalPeriodEnd === undefined) return;
+  const { cadenceAmount, cadenceUnit, noticeAmount, noticeUnit } = value;
 
-  if (goalPeriodEnd <= goalPeriodStart) {
+  if (
+    cadenceAmount === undefined ||
+    cadenceUnit === undefined ||
+    noticeAmount === undefined ||
+    noticeUnit === undefined
+  ) {
+    return;
+  }
+
+  const cadence: Cadence = { amount: cadenceAmount, unit: cadenceUnit };
+  const notice: Cadence = { amount: noticeAmount, unit: noticeUnit };
+
+  if (compareCadences(notice, cadence) >= 0) {
     context.addIssue({
       code: "custom",
-      message: "The goal period has to end after it starts.",
-      path: ["goalPeriodEnd"],
+      message:
+        "The warning has to start inside the interval, so it must be shorter than the cadence. " +
+        "A warning as long as the cadence would mark every household as approaching.",
+      path: ["noticeAmount"],
     });
   }
+}
+
+function refineGoalIntervals(
+  value: {
+    cadenceAmount?: number;
+    cadenceUnit?: CadenceUnit;
+    noticeAmount?: number;
+    noticeUnit?: CadenceUnit;
+  },
+  context: z.RefinementCtx,
+): void {
+  requireAmountWithinCeiling(value.cadenceAmount, value.cadenceUnit, "cadenceAmount", context);
+  requireAmountWithinCeiling(value.noticeAmount, value.noticeUnit, "noticeAmount", context);
+  requireNoticeShorterThanCadence(value, context);
 }
 
 // The ONE place a request may name an organization, and it is honoured only for a bishopric
@@ -105,38 +148,73 @@ function requireForwardPeriod(
 // `org_id = null` lands in the hole migration 019's `org_id = current_org_id()` creates: null is
 // never equal to null in SQL, so no org leader could ever read the goal they are meant to act on.
 // A ward-level visit goal is not a thing FEATURES.md §Module 9 describes.
+//
+// THERE IS NO `goalPeriodStart` AND NO `goalPeriodEnd`. A goal has a rolling cadence measured
+// from each household's own last visit, and `deadline` is a nullable, presentation-only
+// attribute that drives no arithmetic (ITER-018 Decision 1). A deadline in the PAST parses on
+// purpose: it is a record of one that passed, not a bound on anything.
 export const createVisitGoalSchema = z
   .object({
     title: titleSchema,
     orgId: z.uuid("That organization is not valid.").optional(),
     targetType: z.literal("all_households"),
-    cadence: z.enum(VISIT_CADENCES),
-    cadenceMonths: cadenceMonthsSchema.nullable().optional(),
-    goalPeriodStart: dateOnlySchema,
-    goalPeriodEnd: dateOnlySchema,
+    cadenceAmount: cadenceAmountSchema,
+    cadenceUnit: cadenceUnitSchema,
+    noticeAmount: cadenceAmountSchema,
+    noticeUnit: cadenceUnitSchema,
+    deadline: dateOnlySchema.nullable().optional(),
   })
-  .superRefine((value, context) => {
-    requireCoherentCadence(value, context);
-    requireForwardPeriod(value, context);
-  });
+  .superRefine(refineGoalIntervals);
 export type CreateVisitGoalInput = z.infer<typeof createVisitGoalSchema>;
 
 export const updateVisitGoalSchema = z
   .object({
     title: titleSchema.optional(),
-    cadence: z.enum(VISIT_CADENCES).optional(),
-    cadenceMonths: cadenceMonthsSchema.nullable().optional(),
-    goalPeriodStart: dateOnlySchema.optional(),
-    goalPeriodEnd: dateOnlySchema.optional(),
+    cadenceAmount: cadenceAmountSchema.optional(),
+    cadenceUnit: cadenceUnitSchema.optional(),
+    noticeAmount: cadenceAmountSchema.optional(),
+    noticeUnit: cadenceUnitSchema.optional(),
+    deadline: dateOnlySchema.nullable().optional(),
   })
   .superRefine((value, context) => {
     if (Object.keys(value).length === 0) {
       context.addIssue({ code: "custom", message: "Nothing was changed." });
     }
-    requireCoherentCadence(value, context);
-    requireForwardPeriod(value, context);
+    refineGoalIntervals(value, context);
   });
 export type UpdateVisitGoalInput = z.infer<typeof updateVisitGoalSchema>;
+
+// ---------------------------------------------------------------------------
+// A household's own cadence, overriding its organization's goal
+// ---------------------------------------------------------------------------
+// No `householdId` — it is the route's path parameter. No `wardId`. `orgId` is here for the
+// same single reason it is on createVisitGoalSchema: a bishopric member configuring somebody
+// else's organization has to say which one, and the route refuses it from anybody else.
+//
+// There is NO notice window here. The warning lead time is the ORGANIZATION's judgement about
+// how it wants to be told, not a fact about one family, and a second place to set it would be a
+// second thing to keep in step.
+export const setHouseholdVisitCadenceSchema = z
+  .object({
+    orgId: z.uuid("That organization is not valid.").optional(),
+    cadenceAmount: cadenceAmountSchema,
+    cadenceUnit: cadenceUnitSchema,
+  })
+  .superRefine((value, context) => {
+    requireAmountWithinCeiling(value.cadenceAmount, value.cadenceUnit, "cadenceAmount", context);
+  });
+export type SetHouseholdVisitCadenceInput = z.infer<typeof setHouseholdVisitCadenceSchema>;
+
+// The name here is the name the DELETE fetch in app/(app)/visits/HouseholdCadenceControl.tsx
+// sends, checked against that file rather than assumed. A parameter this schema does not carry
+// gets no error, just a filter that is silently ignored
+// (plans/retros/roster-b-picker-and-orgs.md).
+export const clearHouseholdVisitCadenceQuerySchema = z.object({
+  orgId: z.uuid("That organization is not valid.").optional(),
+});
+export type ClearHouseholdVisitCadenceQuery = z.infer<
+  typeof clearHouseholdVisitCadenceQuerySchema
+>;
 
 const sharedNotesSchema = z
   .string()

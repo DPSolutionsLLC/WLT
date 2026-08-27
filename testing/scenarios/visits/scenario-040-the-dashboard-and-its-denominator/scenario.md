@@ -14,12 +14,17 @@ Two things on this page are only real on a screen.
 not the households it *returns*, so a household whose people have all moved out comes back present
 with an empty member list. Counting it makes every organization look permanently behind, and a
 progress number a ward stops trusting is worse than no number. Two households here are emptied —
-one by `moved_out`, one by `do_not_contact` — and neither may appear in the count or the list.
+one by `moved_out`, one by a member's `do_not_contact` **status** — and neither may appear in the
+count or the list.
 
-**Every status boundary needs a household at a precise distance from a precise goal start.** That
-is unreasonable to arrange by hand and it is exactly what the numbers on this page depend on. Six
-visitable households sit at six known distances, one per status, so the page can be read against
-what it should say rather than against what it does say.
+> Not to be confused with the household-level `do_not_contact` **flag** ITER-018 added, whose
+> behaviour is the opposite: that household stays visible and marked and is counted in nothing.
+> Scenario 045 owns it. One removes a household from the page; the other deliberately does not.
+
+**Every band boundary needs a household at a precise distance from a precise cadence.** That is
+unreasonable to arrange by hand and it is exactly what the numbers on this page depend on. Six
+visitable households sit at six known distances, so the page can be read against what it should
+say rather than against what it does say.
 
 ## Seed Data
 
@@ -27,14 +32,14 @@ what it should say rather than against what it does say.
 |---|---|
 | Ward | Harness Test Ward, cross-org visibility OFF |
 | Users | bishop (Mark Andersen), EQ president (Miguel Cortez), EQ secretary (Peter Nakamura), RS president (Ruth Delacroix) |
-| Goal | **Elders Quorum only** — every household, annual, period started 10 months ago |
+| Goal | **Elders Quorum only** — every household, **every 1 year, warning 2 months ahead**, and **no period dates at all**. A deadline 120 days out, which changes no number |
 | Goal | **Relief Society — none.** Switching to it must say so |
-| Brooks | visited 30 days ago, two people went → **Visited** |
-| Whitfield | visited 95 days ago, **nobody recorded as going** → **Visited** |
-| Okonkwo | visited 300 days ago — 82% of the cadence → **Due soon**, and still counted as visited |
-| Halvorsen | visited 396 days ago — 13 months, **before the period** → **Overdue** |
-| Ferreira | two attempts, no completed visit ever → **Attempted, never reached** |
-| Nakamura | no visit of any kind → **Not yet visited** |
+| Brooks | visited 30 days ago, two people went → **On track ~8%** |
+| Whitfield | visited 95 days ago, **nobody recorded as going** → **On track ~26%** |
+| Okonkwo | visited 320 days ago — inside the two-month window → **Approaching ~88%** |
+| Halvorsen | visited 396 days ago — thirteen months → **Overdue ~108%** |
+| Ferreira | two attempts, no completed visit ever → **Never visited**, marked *Attempted ×2* |
+| Nakamura | no visit of any kind → **Never visited**, **no** attempts mark |
 | Delgado | both members `moved_out` → **must not appear** |
 | Sorensen | its only member `do_not_contact` → **must not appear** |
 
@@ -48,40 +53,56 @@ Every visit is recorded by the **secretary** and none of them was made by the se
 
 1. `npm run seed -- visits/scenario-040-the-dashboard-and-its-denominator`
 2. `npm run dev`, then open http://localhost:3000
-3. Sign in as the EQ president and go to **Visits**. Read the banner before anything else.
-4. Read down the household list. Six rows, six statuses.
+3. Sign in as the EQ president and go to **Visits**. Read the banner's first line — the goal in
+   words — before any number.
+4. Read down the household list. Six rows, four bands, and two of those rows share a band.
 5. Sort by **each** column in turn, both directions.
 6. Narrow the window to 375px and read the same six households again.
-7. Switch the theme to dark and look at the status pills.
-8. Open **Visit goal** and press **Set a goal**. Add a second Elders Quorum goal — cadence
-   *Twice a year*, period `2026-08-01` to `2027-07-31` — and save. Watch the banner and the
-   statuses above it. (There is no way to EDIT an existing goal; visits-a only built a create
-   form. Adding a goal whose period contains today is how the dashboard is made to recompute.)
-9. Sign out, sign in as the **bishop**, and switch the organization to Relief Society.
-10. Sign out, sign in as the **RS president** (`rs-president@harness.wardleadershiptools.test`).
+7. Switch the theme to dark and look at the priority badges.
+8. Open **Visit goal** and press **Edit** on the Elders Quorum goal. Change the cadence from
+   *every 1 year* to *every 6 months* and save. Watch the bands and the statistics above it move.
+9. Press **Edit** again and try to set the warning window to *1 year* against that 6-month
+   cadence. It must be refused with a message naming the field.
+10. Sign out, sign in as the **bishop**, and switch the organization to Relief Society.
+11. Sign out, sign in as the **RS president** (`rs-president@harness.wardleadershiptools.test`).
 
 ## Verification Checklist
 
 ### Machine-checkable
 
-- [ ] The banner reads **"3 of 6 households visited — 3 remaining"** — not 8, and not 6 of 8
+- [ ] The banner's **first line states the goal in words** — "Every household, every year.
+      Warning 2 months ahead." — above any number
+- [ ] The four counts read **Overdue 1 · Never visited 2 · Approaching 1 · On track 2**, and they
+      sum to the counted total of **6** — not 8
 - [ ] Delgado and Sorensen appear **nowhere** on the page: not in the list, not in the count
 - [ ] `select count(*) from households where ward_id = '111…111'` returns **8**, so the two
       missing ones are being excluded rather than absent
-- [ ] All five statuses are on screen: Brooks and Whitfield **Visited**, Okonkwo **Due soon**,
-      Halvorsen **Overdue**, Ferreira **Attempted, never reached**, Nakamura **Not yet visited**
-- [ ] Okonkwo reads **Due soon** and is still one of the three counted as visited
-- [ ] Ferreira's **Visits this period** is **0** and its **Last attempted** shows a date
-- [ ] Ferreira is counted in the **remaining**, not in the visited
+- [ ] **No cell anywhere on the page reads "Visited."** Every household reads a band, a due date,
+      or "Never visited"
+- [ ] **The badge fills as a gauge** with how much of the interval has elapsed — Brooks (~8%)
+      barely any, Okonkwo (~88%) nearly full — so the two do **not** render identically
+- [ ] **No badge shows a percentage.** Halvorsen, being overdue, is filled completely and reads a
+      duration in words such as *"5 weeks overdue"*
+- [ ] **Ferreira and Nakamura both read "Never visited"**, and only Ferreira carries
+      **Attempted ×2**
+- [ ] Every row with a completed visit shows a **Due** date; Ferreira's and Nakamura's Due is
+      blank or a dash, because there is nothing to compute it from
 - [ ] Halvorsen's **Last visited** shows a **year**, and it is a different year from the others
+- [ ] The banner names the deadline — "Aiming to finish by …" — and no count changes when it
+      passes
 - [ ] Whitfield's **Conducted by** reads **"Nobody recorded"** — never "Peter Nakamura"
 - [ ] Brooks' **Conducted by** names Miguel Cortez **and** Sister Alvarez
-- [ ] Sorting by **Status** groups the statuses rather than scrambling them, and opens on Overdue
+- [ ] Sorting by **Priority** groups the bands rather than scrambling them, and opens on
+      Never visited then Overdue
 - [ ] Sorting by **Last visited** puts Nakamura (never visited) at the **same end** in both
       directions
-- [ ] Saving the new *Twice a year* goal moves the statuses **and** the banner without a page
-      reload
-- [ ] Logging a visit from **Log a visit** moves the banner and that household's row without a
+- [ ] Editing the goal to *every 6 months* **edits it in place** — no second goal appears in the
+      list — and moves the bands **and** the counts without a page reload (allow the full ~3.7 s
+      round trip before judging it stale)
+- [ ] A warning window equal to or longer than the cadence is **refused**, with a message naming
+      the field
+- [ ] The organization select is **disabled** while editing
+- [ ] Logging a visit from **Log a visit** moves the counts and that household's row without a
       page reload
 - [ ] Signed in as the bishop, the **organization switcher is present**; as the EQ president it
       is **absent**
@@ -93,18 +114,21 @@ Every visit is recorded by the **secretary** and none of them was made by the se
 
 ### Needs a human eye
 
-- [ ] Is the banner the first thing you read, and does "3 of 6" land as a fact rather than as
-      something you have to reconstruct from the table under it?
-- [ ] Would a leader looking at Okonkwo understand that it is **both** visited and due again? Or
-      does "Due soon" beside a count of 1 read as a contradiction?
-- [ ] **Attempted, never reached** — does it read as a household somebody is failing to catch at
-      home, or does it read as an error? Is it obviously different from **Not yet visited**?
-- [ ] In dark mode, are the five pills distinguishable — and are they still distinguishable with
-      colour ignored entirely? (Cover the colour: `✓ ◑ ! ✕ ○` plus the words.)
+- [ ] Does the goal sentence land **before** the numbers, so the counts are read against their own
+      definition rather than against an assumption?
+- [ ] Do Brooks (~8%) and Okonkwo (~88%) read as **genuinely different situations**? That
+      difference is the whole reason this redesign happened — the old page rendered both as
+      "Visited".
+- [ ] Do Ferreira and Nakamura read as different problems while sharing a band? Is
+      **Attempted ×2** obviously "somebody has been trying" rather than an error?
+- [ ] Is **Never visited** ranked above **Overdue** in a way that feels right, or does an overdue
+      family read as more urgent than one nobody has ever been to?
+- [ ] In dark mode, are the four badges distinguishable — and still distinguishable with colour
+      ignored entirely? (Cover the colour: `○ ! ◑ ✓` plus the words.)
+- [ ] Does the gauge fill read as progress towards a due date, or as decoration?
 - [ ] At 375px, is the stacked card readable, or is it a wall of labels? Is the sort control
       findable without the table header?
-- [ ] The four action panels are collapsed under the dashboard. Does that read as "the page is
-      the progress and the rest is available", or does it read as things being hidden from you?
+- [ ] Does the **Due** column read as more actionable than a count of visits would have?
 - [ ] Does "Nobody recorded" read as a fact about the visit, or as data that failed to load?
 
 ## Failure Behavior
@@ -115,11 +139,25 @@ Every visit is recorded by the **secretary** and none of them was made by the se
       than an empty one, the bishopric with no `orgId` is **asked which**, and a role without
       `visits.view` gets 403
 - [ ] Covered by `tests/lib/visitProgress.test.ts`: the moved-out and do-not-contact exclusions,
-      and `remaining === total - visitedCount` on every shape
-- [ ] Covered by `tests/lib/householdStatus.test.ts`: every status boundary, built from the
+      the statistics invariant, and `onTrackPercent` guarded against a zero denominator
+- [ ] Covered by `tests/lib/householdStatus.test.ts`: every band boundary, built from the
       arithmetic rather than guessed at
+- [ ] Covered by `tests/lib/visitCadence.test.ts`: the cadence arithmetic every boundary above
+      is derived from
 
 ## Walkthrough record
+
+### Current shape — NOT YET WALKED
+
+This scenario was **rewritten for ITER-018**: four priority bands instead of five buckets, a
+statistics banner instead of "X of Y visited", a Due column, an attempts mark beside the badge
+rather than in place of it, and a real **Edit** path for the goal. The record below describes the
+PREVIOUS page and is kept because it is what produced ITER-018 — it is history, not evidence about
+the current build. Nothing above has been walked since the rewrite.
+
+---
+
+### Historical — the pre-ITER-018 page
 
 **2026-08-26 — driven by Claude in a real browser (Playwright), signed in as the EQ president,
 the bishop and the RS president in turn.** Screenshots reviewed by the user separately. This is
@@ -232,15 +270,15 @@ D1 and D2 fixed and proven in the browser again. D3 was NOT patched — see belo
   `organizationOptions[0]`. **Re-walked:** the bishop opens `/visits` on **Elders Quorum** with
   `3 of 6 households visited — 3 remaining`, instead of on Bishopric with "No visit goal is set".
 
-- **D3 was not patched, deliberately.** Reviewing it, the user's conclusion was that the
+- **D3 was not patched here, and has since been dissolved by ITER-018.** Reviewing it, the user's conclusion was that the
   `Visited` badge should not exist at all — *"visited doesn't really provide any real value. what
   is most valuable is knowing how close to being due it is"* — which makes this a redesign of the
   goal model rather than a choice between the banner and the badge. Captured as **ITER-018**
   (`.iterate/scopes/ITER-018.md`): rolling cadences with no dates, cadence in days/weeks/months/
   years, editable goals, a per-household cadence override, a priority scale in place of the five
-  buckets, a statistics banner, and household-level do-not-contact. **The contradiction this
-  scenario found is still present in the shipped code** and is expected to be dissolved by that
-  work rather than fixed here.
+  buckets, a statistics banner, and household-level do-not-contact. **That work has now shipped**: there is no
+  period, so there is no period boundary for a badge and a banner to disagree across, and the
+  word "Visited" is gone from the page entirely. The checklist above is what proves it.
 
 - **Attempt counts added** from the same review: the last-attempted column now renders
   `Aug 14, 2026 (2)` — the number of attempts since anyone last got in, so one knock and a

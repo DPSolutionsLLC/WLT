@@ -1,6 +1,6 @@
 # Backlog
 
-_Last updated: 2026-08-26_
+_Last updated: 2026-08-27_
 
 ---
 
@@ -22,7 +22,22 @@ is what the grouping asked for._
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
 
-- [ ] ITER-018 — Visit goals should be a cadence, not a dated period → [scope](.iterate/scopes/ITER-018.md)
+- [ ] ITER-019 — Stewardship: which households are even ours → [scope](.iterate/scopes/ITER-019.md)
+  **Depends on ITER-018 (shipped).** Every organization is currently measured against every
+  visitable household in the ward, which is wrong for most of them and plainly wrong for the
+  Primary — they will only ever visit families with a child in Primary, so their dashboard reads
+  "3 of 200" for ever. Two parts: a **per-organization stewardship** marking, kept strictly
+  separate from do-not-contact; and an **all-organizations view** when the ward's cross-org
+  visibility is on, one row per household summarising where each organization stands.
+  _Raised 2026-08-27 by the user reviewing the scenario-045 walkthrough. Seeing the Whitfields
+  read overdue for the Elders Quorum and On track for the Relief Society at the same moment —
+  which they judged correct and intentional — is what surfaced what was missing beside it._
+  **Six questions in the scope need answering before `/planning`**, and Q6 is the sharp one:
+  cross-org visibility widens visit-LOG reads only, and ITER-018 deliberately refused to widen
+  cadence reads, with an RLS test now asserting it. An all-orgs view either revisits that or is
+  assembled bishopric-side only.
+
+- [ ] ITER-018 — Visit goals should be a cadence, not a dated period → [scope](.iterate/scopes/ITER-018.md) | [plan](plans/visits-e-cadence-and-priority.md)
   **⏱ RUN AFTER `visits-c`, BEFORE PHASE 8.** Phase 8's youth-activity coverage is documented
   to reuse `householdVisitStatus`, so if this lands after Phase 8 that module inherits the
   five-bucket model this replaces. `visits-c` itself is unaffected — its feed is over logs,

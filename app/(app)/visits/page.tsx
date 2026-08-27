@@ -124,11 +124,18 @@ export default async function VisitsPage({
   // against the list beside it.
   const households = canLog ? await listHouseholds(user.wardId, undefined, supabase) : [];
 
+  // A DO-NOT-CONTACT HOUSEHOLD IS LABELLED, NOT REMOVED. Removing it would make this picker and
+  // the dashboard's row list disagree — the dashboard SHOWS such a household, marked — and both
+  // this comment and the one in lib/visits/progress.ts insist the two must not drift. Marking
+  // keeps one predicate and one list, and a leader who has to record an unavoidable contact can
+  // still do it.
   const householdOptions = households
     .filter((household) => household.members.length > 0)
     .map((household) => ({
       id: household.id,
-      label: household.familyName,
+      label: household.doNotContact
+        ? `${household.familyName} (do not contact)`
+        : household.familyName,
     }));
 
   // A plain id -> name lookup for the chip a MemberPicker selection produces. The picker hands
@@ -223,6 +230,7 @@ export default async function VisitsPage({
         initialProgress={initialProgress}
         organizations={organizationOptions}
         canSwitchOrganizations={isBishopric}
+        canManageGoals={canManageGoals}
       />
 
       {/* The cadence driving the numbers sits directly under them, so changing it and seeing the

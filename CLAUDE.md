@@ -296,6 +296,32 @@ Flag these when they become relevant; do not silently pick a side.
   **Phase 10's `public_sacrament_assignments` view still shortens to a last initial**
   (`left(last_name, 1)` in migration 019) — it was not touched here, and whether the two public
   pages should agree is Phase 10's question to settle.
+- **Visit goals — DECIDED: a rolling cadence, no period.** A goal is "visit every household once
+  every X", where X is an amount plus a unit (`day`/`week`/`month`/`year`), and progress is measured
+  from **each household's own last completed visit**. There is no `goal_period_start`/`_end`; the
+  optional `deadline` is presentation only and drives no arithmetic. This replaced a dated-period
+  model that produced a row reading "✓ Visited" directly above a banner counting it as unvisited —
+  both numbers correct, disagreeing, at the start of every period. Do not re-propose a period.
+  The five status buckets are gone with it: four bands (`never_visited` > `overdue` > `approaching`
+  > `on_track`) plus a fraction-of-interval-elapsed, and `attempted_never_reached` is expressed as
+  a mark beside the band rather than as a band, because it was a *reason* occupying a *position*.
+  `lib/visits/cadence.ts` and `householdVisitPriority()` are deliberately not visit-specific in
+  their parameters — Phase 8's youth-activity coverage should import them. Migration 051 (the
+  column drops) is applied **after** the deploy, never before.
+- **A household's cadence override is a join table, not a column — DECIDED, after a reversal.**
+  `household_visit_cadences (household_id, org_id)` unique. The same family can be on a 3-month
+  cadence for the Elders Quorum and a 12-month one for the Relief Society at the same time, which a
+  `households` column could not express — the second organization would silently overwrite the
+  first. `org_id` is `NOT NULL` there, unlike `visit_goals.org_id`: a null-org row would be
+  invisible to its own author under `org_id = current_org_id()`. Written under
+  `visits.manage_goals` on its own route, **not** under `roster.manage` — an org president owns
+  that decision and does not own the roster.
+- **`households.do_not_contact` is a separate axis from `members.status`.** The member status
+  answers "may we call this person"; the household flag answers "may we call on this family at
+  all". A do-not-contact household stays on the roster, stays **visible and marked** on the visit
+  dashboard, and is counted in **nothing**. Do not fold it into `isVisitableHousehold()` — that
+  would make the household vanish, which is exactly what the decision refused, and the record of
+  what happened before the decision is what the next presidency needs.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

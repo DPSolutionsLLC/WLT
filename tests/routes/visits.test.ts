@@ -384,9 +384,10 @@ describe("visit routes", () => {
       const { status, body } = await callPostVisitGoal({
         title: "Should not be created",
         targetType: "all_households",
-        cadence: "annual",
-        goalPeriodStart: "2026-01-01",
-        goalPeriodEnd: "2026-12-31",
+        cadenceAmount: 1,
+        cadenceUnit: "year",
+        noticeAmount: 2,
+        noticeUnit: "month",
       });
 
       expect(status).toBe(403);
@@ -418,9 +419,10 @@ describe("visit routes", () => {
       const { status, body } = await callPostVisitGoal({
         title: "EQ visits this year",
         targetType: "all_households",
-        cadence: "annual",
-        goalPeriodStart: "2026-01-01",
-        goalPeriodEnd: "2026-12-31",
+        cadenceAmount: 1,
+        cadenceUnit: "year",
+        noticeAmount: 2,
+        noticeUnit: "month",
       });
 
       expect(status).toBe(201);
@@ -435,9 +437,10 @@ describe("visit routes", () => {
         title: "RS visits, written by EQ",
         orgId: fixtures.reliefSocietyId,
         targetType: "all_households",
-        cadence: "annual",
-        goalPeriodStart: "2026-01-01",
-        goalPeriodEnd: "2026-12-31",
+        cadenceAmount: 1,
+        cadenceUnit: "year",
+        noticeAmount: 2,
+        noticeUnit: "month",
       });
 
       expect(status).toBe(403);
@@ -448,9 +451,10 @@ describe("visit routes", () => {
       const { status, body } = await callPostVisitGoal({
         title: "Ward-level goal with no owner",
         targetType: "all_households",
-        cadence: "annual",
-        goalPeriodStart: "2026-01-01",
-        goalPeriodEnd: "2026-12-31",
+        cadenceAmount: 1,
+        cadenceUnit: "year",
+        noticeAmount: 2,
+        noticeUnit: "month",
       });
 
       expect(status).toBe(400);
@@ -463,9 +467,10 @@ describe("visit routes", () => {
         title: "RS visits this year",
         orgId: fixtures.reliefSocietyId,
         targetType: "all_households",
-        cadence: "annual",
-        goalPeriodStart: "2026-01-01",
-        goalPeriodEnd: "2026-12-31",
+        cadenceAmount: 1,
+        cadenceUnit: "year",
+        noticeAmount: 2,
+        noticeUnit: "month",
       });
 
       expect(status).toBe(201);
@@ -478,9 +483,10 @@ describe("visit routes", () => {
         title: "Cross-ward goal",
         orgId: fixtures.wardBOrgId,
         targetType: "all_households",
-        cadence: "annual",
-        goalPeriodStart: "2026-01-01",
-        goalPeriodEnd: "2026-12-31",
+        cadenceAmount: 1,
+        cadenceUnit: "year",
+        noticeAmount: 2,
+        noticeUnit: "month",
       });
 
       expect(status).toBe(404);

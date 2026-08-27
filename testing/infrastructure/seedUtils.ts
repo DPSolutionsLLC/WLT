@@ -33,7 +33,7 @@ import type {
   TopicCategory,
   TopicSource,
   TopicStatus,
-  VisitCadence,
+  CadenceUnit,
   VisitTargetType,
   VisitArrangement,
   VisitOutcome,
@@ -406,6 +406,11 @@ export async function createHousehold(options: {
   id?: string;
   familyName: string;
   address?: string;
+  // "May we call on this family at all." A do-not-contact household stays on the roster, stays
+  // VISIBLE and marked on the visit dashboard, and is counted in no statistic (ITER-018
+  // Decision 4). It is a separate axis from a member's `do_not_contact` STATUS, which removes
+  // the member from the active list and can empty a household out of the dashboard entirely.
+  doNotContact?: boolean;
 }): Promise<string> {
   return insertRow("households", {
     id:
@@ -414,6 +419,7 @@ export async function createHousehold(options: {
     ward_id: TEST_WARD_ID,
     family_name: options.familyName,
     address: options.address ?? null,
+    do_not_contact: options.doNotContact ?? false,
   });
 }
 
@@ -856,17 +862,24 @@ export async function createPublicPage(options: {
 // Visits
 // ============================================================================
 
+// A goal has NO PERIOD. It has a rolling cadence measured from each household's own last
+// completed visit, plus a warning window and an optional, presentation-only deadline (ITER-018).
+//
+// A FIXTURE MUST NOT BE ABLE TO EXPRESS A STATE THE APP CANNOT CREATE. lib/validation/visit.ts
+// requires the notice window to be strictly SHORTER than the cadence — a window as long as the
+// cadence marks every household "approaching" forever — so the defaults here are a pair that
+// satisfies it, and a scenario overriding one should think about the other.
 export async function createVisitGoal(options: {
   org: TestOrgKey;
   title: string;
   targetType?: VisitTargetType;
-  cadence?: VisitCadence;
-  // Set it ONLY alongside `cadence: "custom"`. lib/validation/visit.ts refuses a month count
-  // beside a named cadence, so a fixture that carried both would be a state the app cannot
-  // create — the kind that makes a scenario prove something about nothing.
-  cadenceMonths?: number;
-  goalPeriodStart?: string;
-  goalPeriodEnd?: string;
+  cadenceAmount?: number;
+  cadenceUnit?: CadenceUnit;
+  noticeAmount?: number;
+  noticeUnit?: CadenceUnit;
+  // Presentation only. It drives no arithmetic, and one in the past is a legitimate record of a
+  // deadline that passed.
+  deadline?: string;
   createdBy?: string;
 }): Promise<string> {
   return insertRow("visit_goals", {
@@ -874,10 +887,33 @@ export async function createVisitGoal(options: {
     org_id: TEST_ORG_IDS[options.org],
     title: options.title,
     target_type: options.targetType ?? "all_households",
-    cadence: options.cadence ?? "annual",
-    cadence_months: options.cadenceMonths ?? null,
-    goal_period_start: options.goalPeriodStart ?? null,
-    goal_period_end: options.goalPeriodEnd ?? null,
+    cadence_amount: options.cadenceAmount ?? 1,
+    cadence_unit: options.cadenceUnit ?? "year",
+    notice_amount: options.noticeAmount ?? 2,
+    notice_unit: options.noticeUnit ?? "month",
+    deadline: options.deadline ?? null,
+    created_by: options.createdBy ?? null,
+  });
+}
+
+// This organization's cadence for this household, overriding its goal. ABSENT means "use the
+// goal" — there is no sentinel row meaning "default" — so a scenario that wants the default
+// simply does not call this.
+//
+// `unique (household_id, org_id)` means one per pair. Two calls with the same pair collide.
+export async function createHouseholdVisitCadence(options: {
+  householdId: string;
+  org: TestOrgKey;
+  cadenceAmount: number;
+  cadenceUnit: CadenceUnit;
+  createdBy?: string;
+}): Promise<string> {
+  return insertRow("household_visit_cadences", {
+    ward_id: TEST_WARD_ID,
+    household_id: options.householdId,
+    org_id: TEST_ORG_IDS[options.org],
+    cadence_amount: options.cadenceAmount,
+    cadence_unit: options.cadenceUnit,
     created_by: options.createdBy ?? null,
   });
 }

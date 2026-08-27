@@ -407,10 +407,23 @@ Based on the standard bifold format (Buffalo Ward template):
 Available to all organizations. Each org manages its own visit goals and logs independently. The bishopric can see all orgs' data; org members see only their own (and shared summaries if cross-org visibility is enabled).
 
 ### Visit Goal Configuration
-- Each org sets its own visit goals (e.g. "visit every family once per year")
-- Bishopric: bishop or either counselor can configure
-- Other orgs: org president or counselors can configure
-- Goals reset on a cadence set by the org (annually or as configured)
+- Each org sets its own visit goal: **"visit every household once every X"**, where X is an amount
+  and a unit — days, weeks, months or years
+- **A goal has no start and end date.** Progress is measured from *each household's own last
+  completed visit*, not from a shared period. There is no period boundary, so a household never
+  reads "visited" above a count that says otherwise
+- A **warning window** says how far ahead of a household's due date it starts reading
+  *Approaching*. It must be shorter than the cadence
+- An optional **deadline** — "we would like to have got round everybody by Christmas" — is shown
+  on the dashboard and changes no number
+- **Goals are editable in place.** Changing your mind is an edit, not a second goal stacked on the
+  first
+- **A particular family can be given its own cadence**, per organization. The same household can be
+  on a 3-month cadence for the Elders Quorum and a 12-month one for the Relief Society at the same
+  time. Set from the dashboard row, under the same permission as the goal itself
+- Bishopric: bishop or either counselor can configure any organization's
+- Other orgs: org president or counselors can configure their own. An org **secretary** can see the
+  goal and cannot change it
 
 ### Household Visit Records
 - Date, visit type (`In-Home Visit`), conducted by, shared notes, private notes
@@ -423,9 +436,28 @@ Available to all organizations. Each org manages its own visit goals and logs in
 - Executive secretary adds it to the next ward council agenda
 
 ### Progress Dashboard
-- Sortable list: household name, last visited, visit count, status (`Visited`, `Due Soon`, `Overdue`, `Not Yet Visited`), logged by
-- Map view (optional toggle): households plotted with color-coded pins by status
-- Progress summary banner: "X of Y households visited — Z remaining"
+- Sortable list: household name, last visited, last attempted, **due date**, **priority**,
+  conducted by
+- **A priority scale, not a set of buckets.** Every household reads one of four bands — `Never
+  visited`, `Overdue`, `Approaching`, `On track` — together with how far through its own interval
+  it is, so a family at 95% and one at 10% no longer look the same. No cell reads "Visited"
+- `Never visited` outranks `Overdue`: a family nobody has ever been to is a different problem from
+  one visited thirteen months ago
+- **Attempts are a mark beside the band, not a band.** A household somebody has knocked on three
+  times reads *Attempted ×3* alongside whatever its urgency is — the reason no longer displaces
+  the position
+- Map view (optional toggle): households plotted with color-coded pins by band
+- The banner states the goal **in words** first — "Every household, every year. Warning 2 months
+  ahead." — then the four counts, then the percentage on track. The numbers are read against their
+  own definition rather than against an assumption
+
+### Households a Ward Has Been Asked Not to Contact
+- A household can be marked **do not contact** from the roster
+- It stays on the roster and stays **visible on the visit dashboard**, plainly marked, with its
+  visit history intact — the record of what happened before the decision is what the next
+  presidency needs
+- It is counted in **nothing**: no numerator, no denominator. The dashboard says so out loud rather
+  than letting the total quietly shrink
 
 ### Cross-Org Visibility
 - Configurable by bishopric admin (on/off)

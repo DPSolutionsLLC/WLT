@@ -5,6 +5,7 @@ import {
   listParticipantsForVisits,
   type VisitParticipant,
 } from "@/lib/visits/participants";
+import type { Cadence } from "@/lib/visits/cadence";
 import type {
   CreateVisitGoalInput,
   CreateVisitLogInput,
@@ -14,13 +15,13 @@ import type {
 } from "@/lib/validation/visit";
 import type { Database } from "@/types/database";
 import {
+  CADENCE_UNITS,
   VISIT_ARRANGEMENTS,
-  VISIT_CADENCES,
   VISIT_OUTCOMES,
   VISIT_TARGET_TYPES,
   VISIT_TYPES,
+  type CadenceUnit,
   type VisitArrangement,
-  type VisitCadence,
   type VisitOutcome,
   type VisitTargetType,
   type VisitType,
@@ -53,10 +54,22 @@ export type VisitGoal = {
   orgId: string | null;
   title: string | null;
   targetType: VisitTargetType | null;
-  cadence: VisitCadence | null;
-  cadenceMonths: number | null;
-  goalPeriodStart: string | null;
-  goalPeriodEnd: string | null;
+  // TWO NESTED OBJECTS RATHER THAN FOUR FLAT COLUMNS, so half a cadence — an amount with no
+  // unit — cannot be passed to addCadence(). Migration 050's `visit_goals_cadence_complete`
+  // CHECK guarantees the amount and the unit are null together, so mapVisitGoalRow needs one
+  // test rather than two.
+  //
+  // Null is the `goalHasNoCadence` state: a goal row carrying no usable interval. It survives
+  // because lib/visits/progress.ts reports it and the page says something honest and specific
+  // about it, rather than inventing a denominator.
+  cadence: Cadence | null;
+  // How far ahead of the due date a household starts reading "Approaching". Per-goal and
+  // adjustable — it replaces the hardcoded DUE_SOON_FRACTION = 0.8 (ITER-018 Decision 6).
+  notice: Cadence | null;
+  // PRESENTATION ONLY (ITER-018 Decision 1). "We would like to have got round everybody by
+  // Christmas" — it drives no arithmetic, and a deadline in the past is a legitimate record of
+  // one that passed rather than an error.
+  deadline: string | null;
   createdBy: string | null;
   createdAt: string;
 };
@@ -100,10 +113,11 @@ type VisitGoalRow = {
   org_id: string | null;
   title: string | null;
   target_type: string | null;
-  cadence: string | null;
-  cadence_months: number | null;
-  goal_period_start: string | null;
-  goal_period_end: string | null;
+  cadence_amount: number | null;
+  cadence_unit: string | null;
+  notice_amount: number | null;
+  notice_unit: string | null;
+  deadline: string | null;
   created_by: string | null;
   created_at: string;
 };
@@ -133,7 +147,7 @@ type VisitLogJoinedRow = VisitLogRow & {
 // (plans/retros/calendar-a-rules-and-api.md). And never `select("*")`: an explicit list is what
 // stops a column added later riding into a response nobody reviewed.
 const VISIT_GOAL_COLUMNS =
-  "id, org_id, title, target_type, cadence, cadence_months, goal_period_start, goal_period_end, created_by, created_at";
+  "id, org_id, title, target_type, cadence_amount, cadence_unit, notice_amount, notice_unit, deadline, created_by, created_at";
 
 const VISIT_LOG_COLUMNS =
   "id, org_id, household_id, recorded_by, visit_date, visit_type, outcome, arrangement, shared_notes, flagged_for_ward_council, flag_sent_at, created_at";
@@ -183,16 +197,30 @@ function toOptionalEnum<T extends string>(
 
 // Builds an explicit object rather than spreading the row, for the same reason mapGoalRow does:
 // a column added to `visit_goals` later cannot ride along into a response nobody reviewed.
+// Assembles the pair into ONE object, or null when there is no interval at all.
+//
+// Migration 050's `visit_goals_cadence_complete` CHECK makes the amount and the unit null
+// together, so testing the amount answers for both — and a unit the CHECK should have made
+// impossible still goes through toEnum(), because a value that should be unreachable means the
+// constraint and types/domain.ts have drifted and that is worth a crash rather than a cast.
+function toCadence(
+  amount: number | null,
+  unit: string | null,
+  column: string,
+): Cadence | null {
+  if (amount === null || unit === null) return null;
+  return { amount, unit: toEnum<CadenceUnit>(unit, CADENCE_UNITS, column) };
+}
+
 export function mapVisitGoalRow(row: VisitGoalRow): VisitGoal {
   return {
     id: row.id,
     orgId: row.org_id,
     title: row.title,
     targetType: toOptionalEnum(row.target_type, VISIT_TARGET_TYPES, "visit_goals.target_type"),
-    cadence: toOptionalEnum(row.cadence, VISIT_CADENCES, "visit_goals.cadence"),
-    cadenceMonths: row.cadence_months,
-    goalPeriodStart: row.goal_period_start,
-    goalPeriodEnd: row.goal_period_end,
+    cadence: toCadence(row.cadence_amount, row.cadence_unit, "visit_goals.cadence_unit"),
+    notice: toCadence(row.notice_amount, row.notice_unit, "visit_goals.notice_unit"),
+    deadline: row.deadline,
     createdBy: row.created_by,
     createdAt: row.created_at,
   };
@@ -245,6 +273,13 @@ async function resolveClient(
 // policy regression by hiding rows the policy had started letting through, which is exactly the
 // leak the RLS tests exist to catch.
 
+// ORDERED `created_at desc`, AND selectActiveGoal() DEPENDS ON THAT ORDER. It picks the most
+// recently created goal for an organization and does not re-sort its input, so this is the one
+// place the order is decided — an order asserted in one place and assumed in another is the bug
+// plans/retros/route-tests-and-realtime.md records.
+//
+// The old secondary sort on `goal_period_start` is gone with the column. There is no period any
+// more, so there is nothing for a period start to order.
 export async function listVisitGoals(
   wardId: string,
   client?: SupabaseClient<Database>,
@@ -255,7 +290,6 @@ export async function listVisitGoals(
     .from("visit_goals")
     .select(VISIT_GOAL_COLUMNS)
     .eq("ward_id", wardId)
-    .order("goal_period_start", { ascending: false })
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -304,10 +338,11 @@ export async function createVisitGoal(
       org_id: orgId,
       title: input.title,
       target_type: input.targetType,
-      cadence: input.cadence,
-      cadence_months: input.cadenceMonths ?? null,
-      goal_period_start: input.goalPeriodStart,
-      goal_period_end: input.goalPeriodEnd,
+      cadence_amount: input.cadenceAmount,
+      cadence_unit: input.cadenceUnit,
+      notice_amount: input.noticeAmount,
+      notice_unit: input.noticeUnit,
+      deadline: input.deadline ?? null,
       created_by: userId,
     })
     .select(VISIT_GOAL_COLUMNS)
@@ -334,10 +369,11 @@ export async function updateVisitGoal(
 
   const patch: Database["public"]["Tables"]["visit_goals"]["Update"] = {};
   if (input.title !== undefined) patch.title = input.title;
-  if (input.cadence !== undefined) patch.cadence = input.cadence;
-  if (input.cadenceMonths !== undefined) patch.cadence_months = input.cadenceMonths;
-  if (input.goalPeriodStart !== undefined) patch.goal_period_start = input.goalPeriodStart;
-  if (input.goalPeriodEnd !== undefined) patch.goal_period_end = input.goalPeriodEnd;
+  if (input.cadenceAmount !== undefined) patch.cadence_amount = input.cadenceAmount;
+  if (input.cadenceUnit !== undefined) patch.cadence_unit = input.cadenceUnit;
+  if (input.noticeAmount !== undefined) patch.notice_amount = input.noticeAmount;
+  if (input.noticeUnit !== undefined) patch.notice_unit = input.noticeUnit;
+  if (input.deadline !== undefined) patch.deadline = input.deadline;
 
   const { data, error } = await supabase
     .from("visit_goals")

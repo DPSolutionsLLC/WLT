@@ -20,29 +20,39 @@ import {
 // Both shapes of that bug are here: one household emptied by `moved_out` and one by
 // `do_not_contact`. DEFAULT_MEMBER_STATUSES is ["active"], so both attach nothing.
 //
+// NOTE THE OTHER do-not-contact, WHICH IS NOT HERE. ITER-018 added a HOUSEHOLD-level
+// `do_not_contact` flag whose behaviour is the opposite of the member status above: that
+// household stays VISIBLE, marked, and counted in nothing. Scenario 045 owns it. This scenario
+// keeps the member-status shape it was written for, and the two must not be confused — one
+// removes a household from the page, the other deliberately does not.
+//
 // ---------------------------------------------------------------------------------------------
 // WHY THE DATES ARE RELATIVE AND NOT PINNED
 // ---------------------------------------------------------------------------------------------
 // Scenario 044 pins every timestamp, and was right to: "missed" is a MONOTONE property — a date
 // that is past stays past, so a pinned fixture keeps its meaning as it ages.
 //
-// A visit status is a WINDOW, not a threshold. "Due soon" means between 80% and 100% of the way
-// through a cadence, and a household pinned into that window in August walks out of it by
-// November. Pinning here would produce a scenario that quietly stops demonstrating the thing it
-// was written for, which is worse than one whose dates move.
+// A priority band is a WINDOW, not a threshold. "Approaching" means inside the warning window and
+// not yet due, and a household pinned into that window in August walks out of it by November.
+// Pinning here would produce a scenario that quietly stops demonstrating the thing it was written
+// for, which is worse than one whose dates move.
 //
 // So every date below is derived from ONE `TODAY`, read once at seed time, and each household is
-// placed at a precise distance from it. The checklist names statuses rather than dates for the
-// same reason.
+// placed at a precise distance from it. The checklist names bands rather than dates for the same
+// reason.
 //
 // ---------------------------------------------------------------------------------------------
-// ALL FIVE STATUSES, ON ONE SCREEN
+// FOUR BANDS, NOT FIVE BUCKETS
 // ---------------------------------------------------------------------------------------------
-// The plan's household list predates the fifth state. `attempted_never_reached` is the state
-// visits-d's `attempted` outcome exists to make visible — a household somebody keeps failing to
-// catch at home — so a dashboard scenario that could not show it would be walking past the newest
-// thing on the page. It gets its own household here, which is why the banner reads 3 of 6 rather
-// than the 3 of 5 the plan wrote. The assertion is unchanged in substance: SIX, not eight.
+// This scenario used to seed five statuses, one of which was `attempted_never_reached`. That was
+// a REASON wearing a position's clothes: a household somebody had knocked on three times could
+// not ALSO read "overdue", because the reason displaced the urgency.
+//
+// ITER-018 splits them. There are four bands — never visited, overdue, approaching, on track —
+// and the attempt count is a MARK BESIDE the badge at any level of urgency. So Ferreira below
+// reads **Never visited** *and* carries "Attempted ×2", while Nakamura reads **Never visited**
+// with no mark: the same band, visibly different problems. That pairing is the single most
+// important thing to look at on this page now.
 
 const MS_PER_DAY = 86_400_000;
 
@@ -58,19 +68,24 @@ function daysAgo(days: number): string {
   return dateOnly(new Date(TODAY.getTime() - days * MS_PER_DAY));
 }
 
-// The goal period started ten months ago and runs a further two, so "this period" is a window
-// today sits near the end of.
-const PERIOD_START = daysAgo(304);
-const PERIOD_END = dateOnly(new Date(TODAY.getTime() + 61 * MS_PER_DAY));
-
-// An annual cadence is 365 days (lib/validation/visit.ts §CADENCE_MONTHS), so:
-const VISITED_RECENTLY = daysAgo(30); //  8% of the cadence  -> Visited
-const VISITED_EARLIER = daysAgo(95); //  26% of the cadence  -> Visited
-const VISITED_AT_82_PERCENT = daysAgo(300); //  82%          -> Due soon, and still in the period
-const VISITED_13_MONTHS_AGO = daysAgo(396); // 108%          -> Overdue, and BEFORE the period
+// The goal is EVERY 1 YEAR with a 2-MONTH warning window, and it has no dates at all. Progress is
+// measured from each household's own last completed visit, so the distances below are distances
+// from that visit rather than from a shared period boundary:
+//
+//   due       = lastVisit + 1 year   (365 days)
+//   warns from= due - 2 months       (~61 days before due, so from about day 304)
+//
+const VISITED_RECENTLY = daysAgo(30); //   8% of the interval  -> On track
+const VISITED_EARLIER = daysAgo(95); //   26%                  -> On track
+const VISITED_INSIDE_NOTICE = daysAgo(320); // 88%, past day 304 -> Approaching
+const VISITED_13_MONTHS_AGO = daysAgo(396); // 108%             -> Overdue
 
 const ATTEMPTED_EARLY = daysAgo(120);
 const ATTEMPTED_RECENTLY = daysAgo(12);
+
+// A deadline, purely so the banner has one to show. It drives NO arithmetic (ITER-018
+// Decision 1) — it is the ward saying "we would like to have got round everybody by then".
+const DEADLINE = dateOnly(new Date(TODAY.getTime() + 120 * MS_PER_DAY));
 
 export async function seed(): Promise<void> {
   await ensureTestWard({ name: "Harness Test Ward" });
@@ -112,6 +127,10 @@ export async function seed(): Promise<void> {
     lastName: "Delacroix",
   });
 
+  // EXPLICIT IDS. createHousehold keys its id on the family name plus address, so two households
+  // sharing both would collide on the primary key
+  // (plans/retros/seed-household-id-collision.md). These differ, but naming them explicitly is
+  // what keeps that true when somebody edits the list.
   const [brooks, whitfield, okonkwo, halvorsen, ferreira, nakamura, departed, quiet] =
     await Promise.all(
       [
@@ -149,8 +168,10 @@ export async function seed(): Promise<void> {
       status: "moved_out",
     }),
 
-    // The other shape of the same bug. A do-not-contact household is still in the ward and still
-    // on the roster browse page; it is not a household this organization can be measured against.
+    // The other shape of the same bug, and note that it is the MEMBER status rather than the
+    // household flag: this household attaches no active member, so it is absent from the page
+    // entirely. A household-level do-not-contact would behave in the opposite way — present and
+    // marked — which is scenario 045's job to show.
     createMember({
       firstName: "Greta",
       lastName: "Sorensen",
@@ -161,15 +182,17 @@ export async function seed(): Promise<void> {
 
   await createVisitGoal({
     org: "eldersQuorum",
-    title: "Visit every household this year",
-    cadence: "annual",
-    goalPeriodStart: PERIOD_START,
-    goalPeriodEnd: PERIOD_END,
+    title: "Visit every household",
+    cadenceAmount: 1,
+    cadenceUnit: "year",
+    noticeAmount: 2,
+    noticeUnit: "month",
+    deadline: DEADLINE,
     createdBy: eqPresident.id,
   });
 
   // -------------------------------------------------------------------------------------------
-  // VISITED — two of them, well inside the cadence
+  // ON TRACK — two of them, well inside the interval
   // -------------------------------------------------------------------------------------------
   const brooksVisit = await createVisitLog({
     org: "eldersQuorum",
@@ -207,16 +230,16 @@ export async function seed(): Promise<void> {
   });
 
   // -------------------------------------------------------------------------------------------
-  // DUE SOON — 82% of the way through the cadence, and still inside the goal period
+  // APPROACHING — 88% of the way through the interval, inside the two-month warning window
   // -------------------------------------------------------------------------------------------
-  // It counts towards the banner, because it HAS been visited this period. That is the difference
-  // between "how many have we reached" and "how many are settled", and the banner answers the
-  // first one.
+  // The badge carries the fraction, and this is the row that proves it earns its place: Brooks at
+  // 8% and Okonkwo at 88% are both "visited" in any ordinary sense of the word, and the old
+  // dashboard rendered them identically.
   const okonkwoVisit = await createVisitLog({
     org: "eldersQuorum",
     householdId: okonkwo,
     recordedBy: eqSecretary.id,
-    visitDate: VISITED_AT_82_PERCENT,
+    visitDate: VISITED_INSIDE_NOTICE,
     outcome: "completed",
     arrangement: "appointment",
   });
@@ -228,7 +251,7 @@ export async function seed(): Promise<void> {
   });
 
   // -------------------------------------------------------------------------------------------
-  // OVERDUE — thirteen months ago, which is BEFORE the period started
+  // OVERDUE — thirteen months ago, so about 108% of a one-year interval
   // -------------------------------------------------------------------------------------------
   // The row that proves the "Last visited" column shows a year: this date is in a different
   // calendar year from every other visit here, and without a year it reads like last month's.
@@ -248,11 +271,13 @@ export async function seed(): Promise<void> {
   });
 
   // -------------------------------------------------------------------------------------------
-  // ATTEMPTED, NEVER REACHED — two knocks, nobody home, no completed visit ever
+  // NEVER VISITED, WITH AN ATTEMPTS MARK — two knocks, nobody home, no completed visit ever
   // -------------------------------------------------------------------------------------------
-  // The state visits-d's `attempted` outcome exists to make visible. It counts towards NOTHING —
-  // this household is part of the "remaining" — and it must still be plainly on the page, or
-  // recording an attempt would have bought the ward nothing.
+  // Half of the pairing this scenario now exists to show. Ferreira and Nakamura below are in the
+  // SAME band, and the page has to make them look like the different problems they are: somebody
+  // has been trying here and the answer is to try something other than knocking.
+  //
+  // An attempt still counts towards nothing. It is shown, and it is not a visit.
   await createVisitLog({
     org: "eldersQuorum",
     householdId: ferreira,
@@ -280,6 +305,7 @@ export async function seed(): Promise<void> {
   });
 
   // -------------------------------------------------------------------------------------------
-  // NOT YET VISITED — the Nakamura household gets no log at all, deliberately.
+  // NEVER VISITED, WITH NO MARK — the Nakamura household gets no log at all, deliberately.
   // -------------------------------------------------------------------------------------------
+  // The other half of the pairing. Same band as Ferreira, no attempts mark.
 }
