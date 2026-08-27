@@ -54,11 +54,22 @@ import {
 // absence from the page IS the assertion.
 //
 // ---------------------------------------------------------------------------------------------
-// THE READER'S TIER (ITER-019 D6) NEEDS THE SAME DATA READ BY TWO PEOPLE
+// THE SAME PAGE READ BY TWO PEOPLE, AND NOTHING DIFFERS
 // ---------------------------------------------------------------------------------------------
-// The bishop sees every chip banded. The RS president sees only the Relief Society chip banded —
-// the other two name the organization with an honest sentence instead. That is not a branch in the
-// app; it is `visit_goals_select` refusing the goal, and it is only observable by signing in twice.
+// The bishop and the RS president see the SAME standings, row for row and pill for pill. Migration
+// 053 widened `visit_goals_select` and `household_visit_cadences_select` with the same ward setting
+// that gates this page, so an org leader reads every organization's band and not only their own.
+//
+// That is not a branch in the app; it is four SELECT policies, and it is only observable by signing
+// in twice. The sharpest proof is Whitfield's Elders Quorum pill: it reads `Due Jan 31, 2026`, a
+// date reachable ONLY through the EQ's private 3-month override below. The EQ's plain 1-year goal
+// would put it at Oct 31, 2026. If the RS president can see Jan 31, the cadence widened too — which
+// is why the goal could not travel alone.
+//
+// THIS REVERSES ITER-018 AND ITER-019 D6, by a product decision on 2026-08-27. An earlier version
+// of this comment said the RS president saw only the Relief Society chip banded and the other two
+// carrying "an honest sentence". Both halves are now wrong: the sentence was removed as a defect,
+// and the bands are shared. Re-walked and confirmed 2026-08-27.
 //
 // ---------------------------------------------------------------------------------------------
 // WHY THE DATES ARE RELATIVE AND NOT PINNED
@@ -284,9 +295,13 @@ export async function seed(): Promise<void> {
   // months. So the same household reads a different band for the Elders Quorum than the cadence in
   // their goal alone would produce — and a DIFFERENT band again for the Relief Society.
   //
-  // household_visit_cadences is NOT widened by cross-org visibility (ITER-018, left standing by
-  // ITER-019 D6), so the RS president cannot read this row at all. Its EFFECT is invisible to
-  // them too: they see the EQ chip with no band.
+  // household_visit_cadences IS widened by cross-org visibility (migration 053, reversing
+  // ITER-018 and ITER-019 D6), so the RS president reads this row and sees its EFFECT: the EQ
+  // chip on Whitfield reads `Due Jan 31, 2026` for them, which is this override and not the EQ's
+  // 1-year goal. Walking that one date is what proves the cadence widened alongside the goal —
+  // had only the goal travelled, the pill would have said Oct 31, 2026 and been quietly wrong.
+  //
+  // An earlier version of this comment said the opposite. Re-walked 2026-08-27; it is wrong now.
   await createHouseholdVisitCadence({
     householdId: HOUSEHOLD_IDS.whitfield,
     org: "eldersQuorum",

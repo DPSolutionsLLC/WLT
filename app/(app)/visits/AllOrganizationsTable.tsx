@@ -39,9 +39,11 @@ import { VISIT_CONDUCTED_PREFIX, VISIT_NOBODY_RECORDED } from "@/types/domain";
 // start of its interval, and those are opposite situations. GaugePill owns that exception so the
 // two callers cannot disagree about it.
 //
-// THE DUE DATE IS ON HOVER, for any band that has one, and is a convenience rather than the only
-// carrier — a `title` is unreachable by touch and by keyboard, and the per-organization table has
-// the due date as a column.
+// THE DUE DATE IS ON HOVER ON THE DESKTOP TABLE, AND IN TEXT ON THE PHONE CARDS. A `title` is
+// unreachable by touch, so on the layout a phone actually gets it carries nothing — which walking
+// this page on 2026-08-27 confirmed, and the reader asked for the date to be reachable there. The
+// two layouts therefore differ on purpose: `StewardChips` for the table, `StewardLines` below it
+// for the cards. See StewardLines for why the table did not simply gain the same text.
 //
 // THERE IS NO LONGER ANY EXPLANATORY WORDING ON A CHIP, and its absence is the fix rather than an
 // omission. Chips used to carry "Only this organization can see how it is doing." for any missing
@@ -102,6 +104,41 @@ function StewardChips({ row, asOf }: { row: AllOrgHouseholdRow; asOf: Date }) {
         <StewardChip key={steward.orgId} steward={steward} asOf={asOf} />
       ))}
     </div>
+  );
+}
+
+// THE SAME CHIPS, ONE PER LINE, WITH THE DUE DATE WRITTEN OUT — the phone layout only.
+//
+// A `title` is unreachable by touch, so on the layout a phone actually gets, the hover tooltip is
+// not a second carrier of the due date: it is no carrier at all. Walking this page on 2026-08-27
+// the reader asked to be able to reach the date by phone, and this is that date, in text, next to
+// the pill it belongs to.
+//
+// The DESKTOP table deliberately keeps the compact wrap and the tooltip. Three organizations'
+// dates spelled out in a table cell wrap to three lines per row and cost the scan that the
+// wordless pills were introduced to buy — and on a pointer device the hover works.
+//
+// A `never_visited` pill has NO due date, and gets no text here rather than an invented one. That
+// is the same rule GaugePill applies to its tooltip, so the two cannot disagree about which pills
+// have a date.
+function StewardLines({ row, asOf }: { row: AllOrgHouseholdRow; asOf: Date }) {
+  if (row.unclaimed) {
+    return <span className="text-xs font-medium text-danger">{UNCLAIMED_MESSAGE}</span>;
+  }
+
+  return (
+    <ul className="flex flex-col gap-1.5">
+      {row.stewards.map((steward) => (
+        <li key={steward.orgId} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <StewardChip steward={steward} asOf={asOf} />
+          {steward.priority === null || steward.priority.dueOn === null ? null : (
+            <span className="text-xs text-muted">
+              Due {formatVisitDate(steward.priority.dueOn)}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -222,10 +259,13 @@ export function AllOrganizationsTable({ progress }: AllOrganizationsTableProps) 
             say which of two tiers the reader was in, and an org leader saw plain organization
             names beside their own banded one. Migration 053 removed the second tier: everyone who
             can reach this page reads every organization's standing. */}
+        {/* The last sentence names BOTH layouts, because they carry the due date differently and
+            a phone cannot hover. Saying only "hover" was true of the table and false of the cards,
+            which is the half of the page a phone actually gets. */}
         <p className="mt-1 text-sm text-muted">
           Each pill is one organization&rsquo;s standing with that family, filled to show how far
           through its interval they are &mdash; the same pills as your own board. Hover a pill for
-          the date the next visit is due.
+          the date the next visit is due; on a narrow screen that date is written beside it.
         </p>
       </div>
 
@@ -338,7 +378,7 @@ export function AllOrganizationsTable({ progress }: AllOrganizationsTableProps) 
                   </p>
 
                   <div className="mt-2">
-                    <StewardChips row={row} asOf={asOf} />
+                    <StewardLines row={row} asOf={asOf} />
                   </div>
                 </div>
               ))}
