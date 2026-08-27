@@ -37,31 +37,6 @@ Each of these is large or complex enough to tackle on its own.
   cadence reads, with an RLS test now asserting it. An all-orgs view either revisits that or is
   assembled bishopric-side only.
 
-- [ ] ITER-018 — Visit goals should be a cadence, not a dated period → [scope](.iterate/scopes/ITER-018.md) | [plan](plans/visits-e-cadence-and-priority.md)
-  **⏱ RUN AFTER `visits-c`, BEFORE PHASE 8.** Phase 8's youth-activity coverage is documented
-  to reuse `householdVisitStatus`, so if this lands after Phase 8 that module inherits the
-  five-bucket model this replaces. `visits-c` itself is unaffected — its feed is over logs,
-  not goals. Four product questions in the scope need answering before `/planning`.
-  _Raised 2026-08-26 by the user reviewing the scenario-040 walkthrough, out of that walk's
-  Defect 3 (a row reading **✓ Visited** above a banner counting it as not visited, which happens
-  at the start of every goal period). Chasing which half to change was the wrong question: the
-  user's answer was that **"Visited" is not worth a badge at all** — "what is most valuable is
-  knowing how close to being due it is". Seven parts, and the first dissolves D3 rather than
-  patching it: **a goal may have no dates**, measured from each household's own last visit, with
-  the dated period kept as the deadline case rather than the frame. Then cadence in
-  days/weeks/months/years; **goals become editable** (there is no edit path for a visit goal
-  anywhere in the app — found walking 040, where the checklist assumed one that has never
-  existed); **a per-household cadence override** so one family can be seen quarterly while the
-  quorum's baseline is annual; the status column becomes a **priority scale** rather than five
-  buckets, with `attempted_never_reached` kept beside it as a REASON rather than folded into it;
-  the banner becomes **several statistics** plus a reminder of the goal itself; and
-  **household-level do-not-contact**, which is a genuine schema gap — `do_not_contact` is a MEMBER
-  status today, so marking a family means editing every member one at a time. **Deferred rather
-  than folded into `visits-b`** because four of the seven parts need migrations and that slice
-  shipped with none; most of `visits-b` survives it, including the denominator rule, the read
-  path, the table and the status arithmetic. **Open:** do dated periods survive at all, or become
-  an attribute of a rolling goal? Column on `households` or a per-org join table for the override?
-  What does the scale say about a household never visited, with no period start left to anchor on?_
 
 - [ ] ITER-017 — Token counts are redacted out of every AI audit row → [scope](.iterate/scopes/ITER-017.md)
   _Found 2026-08-24 walking scenario 027 for `ai-d`. Every AI route logs `outputTokens` so spend is
@@ -222,6 +197,7 @@ _None._
 
 ## Completed
 
+- [x] ITER-018 — Visit goals should be a cadence, not a dated period _(completed 2026-08-27, 8f71f90)_
 - [x] ITER-004 — Speakers who are not members of the ward _(completed 2026-08-25, be4ea6e)_
 - [x] ITER-011 — Choose which conference talks count as reference _(completed 2026-08-24, d96b83d)_
 - [x] ITER-002 — No conductor on Sundays with no meeting, and skip them in the rotation _(completed 2026-08-22)_

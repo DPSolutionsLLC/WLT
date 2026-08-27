@@ -1,9 +1,16 @@
 # ITER-018: Visit Goals Should Be a Cadence, Not a Dated Period
 
 **Type:** Feature / redesign
-**Status:** In Progress
+**Status:** Completed
 **Plan:** plans/visits-e-cadence-and-priority.md
 **Created:** 2026-08-26
+**Completed:** 2026-08-27
+**Commit:** 8f71f90
+**Retro:** plans/retros/visits-e-cadence-and-priority.md
+
+> **Migration 051 is written and DELIBERATELY NOT APPLIED.** It drops the columns the deployed
+> build still names in its select list. Apply it only after the new build is live, then remove
+> `051` from `HELD_BACK_UNTIL_DEPLOYED` in `tests/db/migrations.test.ts`.
 
 ## Summary
 
