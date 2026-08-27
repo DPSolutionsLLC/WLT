@@ -2,7 +2,7 @@
 id: visits-f-stewardship-and-all-orgs
 type: feature
 iter: ITER-019
-commits: ["c455730"]
+commits: ["10197b3"]
 date: 2026-08-27
 files:
   - supabase/migrations/052_household_stewardships.sql

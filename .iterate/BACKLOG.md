@@ -7,21 +7,7 @@ _Last updated: 2026-08-27_
 ## In Progress
 Items currently being planned or actively worked.
 
-- [ ] ITER-019 — Stewardship: which households are even ours → [scope](.iterate/scopes/ITER-019.md) | [plan](plans/visit-stewardship-and-all-orgs.md)
-  **Depends on ITER-018 (shipped).** Every organization is currently measured against every
-  visitable household in the ward, which is wrong for most of them and plainly wrong for the
-  Primary — they will only ever visit families with a child in Primary, so their dashboard reads
-  "3 of 200" for ever. Two parts: a **per-organization stewardship** marking, kept strictly
-  separate from do-not-contact; and an **all-organizations view** when the ward's cross-org
-  visibility is on, one row per household summarising where each organization stands.
-  _Raised 2026-08-27 by the user reviewing the scenario-045 walkthrough. Seeing the Whitfields
-  read overdue for the Elders Quorum and On track for the Relief Society at the same moment —
-  which they judged correct and intentional — is what surfaced what was missing beside it._
-  **All six questions answered 2026-08-27 and planned.** Q6 resolved as "cross-org visibility
-  shares FACTS, never JUDGEMENTS": the new `household_stewardships_select` IS widened by the
-  setting, while `household_visit_cadences_select` and `visit_goals_select` stay narrow and their
-  RLS test passes unchanged — ITER-018 extended, not reversed.
-
+_None. ITER-019 shipped 2026-08-27; the Phase 6 program plans are done through `program-d`, and `program-e` is BLOCKED on an authoritative hymn source._
 
 ---
 
@@ -195,6 +181,7 @@ _None._
 
 ## Completed
 
+- [x] ITER-019 — Stewardship: which households are even ours _(completed 2026-08-27, 10197b3)_
 - [x] ITER-018 — Visit goals should be a cadence, not a dated period _(completed 2026-08-27, 8f71f90)_
 - [x] ITER-004 — Speakers who are not members of the ward _(completed 2026-08-25, be4ea6e)_
 - [x] ITER-011 — Choose which conference talks count as reference _(completed 2026-08-24, d96b83d)_

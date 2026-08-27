@@ -1,9 +1,12 @@
 # ITER-019: Stewardship — Which Households Are Even Ours
 
 **Type:** Feature
-**Status:** In Progress
+**Status:** Completed
 **Plan:** plans/visit-stewardship-and-all-orgs.md
 **Created:** 2026-08-27
+**Completed:** 2026-08-27
+**Commit:** 10197b3
+**Retro:** plans/retros/visits-f-stewardship-and-all-orgs.md
 **Depends on:** ITER-018 (shipped) — the cadence model, `household_visit_cadences`, and the
 priority scale are all assumed here.
 
