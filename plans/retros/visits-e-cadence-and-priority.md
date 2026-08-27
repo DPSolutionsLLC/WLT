@@ -2,7 +2,7 @@
 id: visits-e-cadence-and-priority
 type: feature
 iter: ITER-018
-commits: ["1838974"]
+commits: ["8f71f90"]
 date: 2026-08-27
 files:
   - supabase/migrations/050_visit_cadence_scale.sql
