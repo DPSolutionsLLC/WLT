@@ -216,6 +216,67 @@ export type ClearHouseholdVisitCadenceQuery = z.infer<
   typeof clearHouseholdVisitCadenceQuerySchema
 >;
 
+// ---------------------------------------------------------------------------
+// Which households are an organization's to visit at all
+// ---------------------------------------------------------------------------
+// No `householdId` on the single-household schemas — it is the route's path parameter. No
+// `wardId` anywhere. `orgId` is here for the same single reason it is on
+// setHouseholdVisitCadenceSchema: a bishopric member configuring somebody else's organization has
+// to say which one, and the route refuses it from anybody else.
+//
+// EVERY FIELD NAME BELOW IS CHECKED AGAINST THE EXACT STRING THE FETCH SENDS in
+// app/(app)/visits/StewardshipPanel.tsx, not assumed. A parameter a handler does not read is
+// silently IGNORED, not refused (plans/retros/roster-b-picker-and-orgs.md) — which is a bug that
+// looks like a working control.
+
+// A ward with more households than this has bigger problems than a stewardship screen. The cap
+// exists so a malformed body cannot ask the route to validate ten thousand ids against the
+// roster before writing.
+export const MAX_STEWARDSHIP_HOUSEHOLDS = 1000;
+
+// ---------------------------------------------------------------------------
+// THE ONE SEAM IN THE SINGLE-TABLE MODEL, DOCUMENTED WHERE A READER HITS IT
+// ---------------------------------------------------------------------------
+// Zero rows for an organization means THE WHOLE WARD (migration 052). So "narrowed to nothing"
+// and "not narrowed at all" would be the same rows, and an empty replace is genuinely ambiguous.
+//
+// It is REFUSED with a sentence naming the alternative, rather than silently flipping an
+// organization back to measuring itself against two hundred households it had just finished
+// excluding. If a ward ever genuinely needs an empty stewardship, the fix is an org-level flag
+// column — a real migration, not a workaround, and not to be added speculatively now.
+export const EMPTY_STEWARDSHIP_MESSAGE =
+  "That would leave your stewardship with no households at all. Keep at least one, or choose " +
+  '"Measure against the whole ward" to stop narrowing.';
+
+const stewardshipOrgIdSchema = z.uuid("That organization is not valid.").optional();
+
+// PUT /api/households/[id]/stewardship
+export const setHouseholdStewardshipSchema = z.object({ orgId: stewardshipOrgIdSchema });
+export type SetHouseholdStewardshipInput = z.infer<typeof setHouseholdStewardshipSchema>;
+
+// DELETE /api/households/[id]/stewardship?orgId=
+export const clearHouseholdStewardshipQuerySchema = z.object({ orgId: stewardshipOrgIdSchema });
+export type ClearHouseholdStewardshipQuery = z.infer<
+  typeof clearHouseholdStewardshipQuerySchema
+>;
+
+// PUT /api/visits/stewardship — replaces the whole set.
+export const replaceStewardshipSchema = z.object({
+  orgId: stewardshipOrgIdSchema,
+  householdIds: z
+    .array(z.uuid("That household is not valid."))
+    .min(1, EMPTY_STEWARDSHIP_MESSAGE)
+    .max(
+      MAX_STEWARDSHIP_HOUSEHOLDS,
+      `A stewardship holds at most ${MAX_STEWARDSHIP_HOUSEHOLDS} households.`,
+    ),
+});
+export type ReplaceStewardshipInput = z.infer<typeof replaceStewardshipSchema>;
+
+// GET and DELETE /api/visits/stewardship?orgId=
+export const stewardshipQuerySchema = z.object({ orgId: stewardshipOrgIdSchema });
+export type StewardshipQuery = z.infer<typeof stewardshipQuerySchema>;
+
 const sharedNotesSchema = z
   .string()
   .trim()

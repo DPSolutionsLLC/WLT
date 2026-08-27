@@ -428,9 +428,48 @@ updated_at      timestamptz DEFAULT now()
 UNIQUE (household_id, org_id)
 ```
 
-RLS mirrors `visit_goals` exactly — four policies, the same predicate on each. The select is
-deliberately **not** widened by cross-org visibility: that setting widens reads of visit *logs*
-only. A cadence is a configuration, not a report.
+RLS mirrors `visit_goals` exactly — four policies. **Migration 053 widened the SELECT** on this
+table and on `visit_goals` for cross-org visibility, reversing ITER-018's "a cadence is a
+configuration, not a report". The setting now widens an organization's whole progress; see
+`household_stewardships` below for the full list. The cadence had to follow the goal because a band
+prefers the per-household override, so widening the goal alone would render a band computed from
+the wrong interval.
+
+### `household_stewardships`
+
+Which households are an organization's to visit **at all**. The cadence beside it says *how often*;
+this says *whether*. **Zero rows for an organization means the whole ward** — the same
+absent-means-default idiom — so no ward's numbers moved when migration 052 was applied, and an
+empty table is the correct post-migration state.
+
+```sql
+id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid REFERENCES wards(id)
+household_id    uuid NOT NULL
+org_id          uuid NOT NULL  -- NOT NULL for the same reason as above
+created_by      uuid REFERENCES users(id)
+created_at      timestamptz DEFAULT now()
+UNIQUE (household_id, org_id)
+```
+
+**Three policies, not four. There is no UPDATE policy and its absence is a decision** — membership
+is presence or absence, and the row carries no payload to update.
+
+**The SELECT is widened by cross-org visibility; the writes are not.** Reading who has claimed a
+family is a fact anybody on the ward council may need; claiming one on another organization's
+behalf is not, and no write policy on any of these tables mentions the setting.
+
+`ward_allows_cross_org_visibility()` appears in exactly **four** SELECT policies:
+
+| Policy | Migration | What it shares |
+|---|---|---|
+| `visit_logs_select` | 019 | what happened |
+| `household_stewardships_select` | 052 | whose family it is |
+| `visit_goals_select` | 053 | what interval they hold it to |
+| `household_visit_cadences_select` | 053 | the override on that interval |
+
+Together they are one object — an organization's **progress** — and migration 053 stopped handing
+readers three quarters of it. `visit_private_notes` is untouched and always will be (rule 5).
 
 ### `visit_logs`
 ```sql
@@ -1129,7 +1168,23 @@ POST   /api/visits               Create visit log
 PATCH  /api/visits/[id]          Update shared notes, flag
 POST   /api/visits/[id]/private-note  Add/update private note
 GET    /api/visits/progress      Dashboard summary by org
+
+PUT    /api/households/[id]/visit-cadence    Set this org's cadence for one household
+DELETE /api/households/[id]/visit-cadence    Clear it, back to the org's goal
+
+GET    /api/visits/stewardship               This org's stewardship, plus its live drift
+PUT    /api/visits/stewardship               Replace the whole set (empty list is REFUSED)
+DELETE /api/visits/stewardship               Stop narrowing — back to the whole ward
+PUT    /api/households/[id]/stewardship      Add one household (409 if not already narrowed)
+DELETE /api/households/[id]/stewardship      Remove one household
 ```
+
+The four stewardship and cadence routes assert **`visits.manage_goals`, not `roster.manage`** — an
+org president owns these decisions and does not own the roster. `GET /api/visits/stewardship` needs
+only `visits.view`, so an org secretary can read what their organization is measured against.
+
+There is **no** route behind `/visits/all-organizations`: the page reads server-side and passes
+rows to a client component that only sorts, so there is no second read path to keep in step.
 
 ### Youth Activities
 ```
@@ -1307,6 +1362,9 @@ PATCH  /api/admin/ward-settings  Update ward settings (with bishopric notificati
     /page.tsx                  Visit tracker dashboard
     /[household_id]/page.tsx   Household visit history
     /feed/page.tsx             Return & report feed
+    /all-organizations/page.tsx  One row per household, every org's standing beside it. Gated on
+                               visits.view AND (bishopric OR cross-org visibility) — the link on
+                               /visits is ABSENT rather than present-and-refusing (ITER-007).
   /youth/
     /page.tsx                  Youth activity dashboard
     /profiles/page.tsx         Activity profiles

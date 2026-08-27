@@ -6,6 +6,7 @@ import {
   VisitLogForm,
   type AppointmentPrefill,
 } from "@/app/(app)/visits/VisitLogForm";
+import { StewardshipPanel } from "@/app/(app)/visits/StewardshipPanel";
 import { VisitGoalPanel } from "@/app/(app)/visits/VisitGoalPanel";
 import { VisitProgressTable } from "@/app/(app)/visits/VisitProgressTable";
 import { Card } from "@/components/ui/Card";
@@ -18,9 +19,16 @@ import { listHouseholds } from "@/lib/roster/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { readAppointmentParam } from "@/lib/visits/appointmentLink";
 import { listAppointments } from "@/lib/visits/appointments";
-import { readVisitProgress, type VisitProgress } from "@/lib/visits/progress";
+import {
+  describeHouseholdForVisits,
+  readVisitProgress,
+  type VisitProgress,
+} from "@/lib/visits/progress";
 import { listVisitGoals, listVisitLogs } from "@/lib/visits/queries";
+import { readStewardshipScope } from "@/lib/visits/stewardship";
+import { compareStewardshipDrift, toStewardshipScope } from "@/lib/visits/stewardshipScope";
 import { canManageVisitLog } from "@/lib/visits/visitOwnership";
+import { readCrossOrgVisibility } from "@/lib/ward/crossOrgVisibility";
 import {
   VISIT_ARRANGEMENT_LABELS,
   VISIT_CONDUCTED_PREFIX,
@@ -74,11 +82,12 @@ export default async function VisitsPage({
   // render is judged against the same instant rather than against a fresh `new Date()` per row.
   const asOf = new Date();
 
-  const [visits, goals, organizations, appointments] = await Promise.all([
+  const [visits, goals, organizations, appointments, crossOrgVisibility] = await Promise.all([
     listVisitLogs(user.wardId, {}, supabase),
     listVisitGoals(user.wardId, supabase),
     listWardOrganizations(user.wardId, supabase),
     listAppointments(user.wardId, {}, asOf, supabase),
+    readCrossOrgVisibility(user.wardId, supabase),
   ]);
 
   const organizationOptions = organizations.map((organization) => ({
@@ -110,33 +119,76 @@ export default async function VisitsPage({
       ? null
       : await readVisitProgress(user.wardId, initialOrgId, asOf, supabase);
 
-  // listHouseholds() filters the members it ATTACHES, not the households it RETURNS, so a
-  // household whose people have all moved out comes back present with `members: []`. Offering it
-  // here would invite a leader to log a visit to an empty house.
-  //
-  // DEFAULT_MEMBER_STATUSES is ["active"] and its header in lib/roster/queries.ts names a visit
-  // goal's denominator as its reason for existing. The status filter is reused rather than
-  // re-derived; what is added here is the household-level consequence of it.
-  //
-  // THE DASHBOARD'S DENOMINATOR APPLIES THE SAME RULE, in isVisitableHousehold() in
-  // lib/visits/progress.ts. The two must not drift: a household offered in this picker but
-  // absent from the count above it — or the reverse — is a progress number nobody can reconcile
-  // against the list beside it.
-  const households = canLog ? await listHouseholds(user.wardId, undefined, supabase) : [];
+  // Read whether or not the dashboard rendered: the PICKER needs it too, so a household outside
+  // the stewardship can be offered and marked rather than silently missing. Zero rows resolves to
+  // "the whole ward" (lib/visits/stewardshipScope.ts).
+  const stewardshipScope =
+    initialOrgId === null
+      ? toStewardshipScope([])
+      : await readStewardshipScope(user.wardId, initialOrgId, supabase);
 
-  // A DO-NOT-CONTACT HOUSEHOLD IS LABELLED, NOT REMOVED. Removing it would make this picker and
-  // the dashboard's row list disagree — the dashboard SHOWS such a household, marked — and both
-  // this comment and the one in lib/visits/progress.ts insist the two must not drift. Marking
-  // keeps one predicate and one list, and a leader who has to record an unavoidable contact can
-  // still do it.
-  const householdOptions = households
+  // The whole ward's households, for both the picker and the stewardship panel's list. Not
+  // narrowed by an `organizationId` filter — the derivation is the ROUTE's job, and adding a
+  // fourth axis to listHouseholds() would move the household count underneath somebody applying
+  // a category filter (plans/retros/roster-b-picker-and-orgs.md, Decision 4).
+  const households = await listHouseholds(user.wardId, undefined, supabase);
+
+  // ONE FUNCTION DECIDES BOTH what this picker offers and what the dashboard counts, so the two
+  // can no longer drift — the pair of long "these must not drift" comments that used to sit here
+  // and in lib/visits/progress.ts is replaced by describeHouseholdForVisits() being the only
+  // place the rule exists.
+  //
+  // The picker is a SUPERSET of the denominator and marks the difference: a do-not-contact
+  // household and a household outside this organization's stewardship are both offered, labelled,
+  // and counted in nothing. A leader who visited such a family anyway must be able to record it.
+  const householdOptions = households.flatMap((household) => {
+    const disposition = describeHouseholdForVisits(household, stewardshipScope);
+    if (disposition === null) return [];
+    return [{ id: household.id, label: disposition.pickerLabel }];
+  });
+
+  // The stewardship panel lists every VISITABLE household with its plain name — the marks above
+  // are the picker's business, and a checkbox row reading "Okonkwo (not in your stewardship)" in
+  // the very control that decides that would be circular.
+  const stewardshipHouseholds = households
     .filter((household) => household.members.length > 0)
-    .map((household) => ({
-      id: household.id,
-      label: household.doNotContact
-        ? `${household.familyName} (do not contact)`
-        : household.familyName,
-    }));
+    .map((household) => ({ id: household.id, label: household.familyName }));
+
+  const initialStewardship =
+    initialOrgId === null
+      ? null
+      : {
+          orgId: initialOrgId,
+          narrowed: stewardshipScope.hasNarrowed,
+          householdIds: [...stewardshipScope.subjectIds].sort(),
+          // The live derivation, matching GET /api/visits/stewardship exactly: listHouseholds()
+          // narrows the members it ATTACHES, not the households it RETURNS, so a non-empty
+          // `members` array under an organization filter means an active member of that
+          // organization lives here.
+          matchingHouseholdIds: (
+            await listHouseholds(user.wardId, { organizationId: initialOrgId }, supabase)
+          )
+            .filter((household) => household.members.length > 0)
+            .map((household) => household.id)
+            .sort(),
+        };
+
+  const initialStewardshipPayload =
+    initialStewardship === null
+      ? null
+      : {
+          ...initialStewardship,
+          drift: compareStewardshipDrift(
+            stewardshipScope,
+            initialStewardship.matchingHouseholdIds,
+          ),
+        };
+
+  // The all-organizations view is readable by the bishopric always, and by an org leader only
+  // when the ward has cross-org visibility on — because that is what migration 052's SELECT
+  // policy says. A link nobody may follow is the dead-permission failure ITER-007 records, so it
+  // is not rendered when the page would refuse.
+  const canSeeAllOrganizations = isBishopric || crossOrgVisibility;
 
   // A plain id -> name lookup for the chip a MemberPicker selection produces. The picker hands
   // back ids only, and re-deriving its member list inside the field is the documented bug in
@@ -213,12 +265,25 @@ export default async function VisitsPage({
             you go rather than a second view of what is already here. */}
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h1 className="text-xl font-semibold text-foreground">Visits</h1>
-          <Link
-            href="/visits/feed"
-            className="text-sm font-medium text-primary underline underline-offset-4"
-          >
-            Return and report
-          </Link>
+          <div className="flex flex-wrap items-baseline gap-4">
+            {/* ABSENT rather than present-and-refusing. A permission whose only UI sits behind a
+                link the holder cannot follow is a dead permission (ITER-007); a link that leads
+                to "Not permitted" is the same failure with an extra click. */}
+            {canSeeAllOrganizations ? (
+              <Link
+                href="/visits/all-organizations"
+                className="text-sm font-medium text-primary underline underline-offset-4"
+              >
+                All organizations
+              </Link>
+            ) : null}
+            <Link
+              href="/visits/feed"
+              className="text-sm font-medium text-primary underline underline-offset-4"
+            >
+              Return and report
+            </Link>
+          </div>
         </div>
         <p className="mt-1 text-sm text-muted">
           Every visit carries shared notes the other leaders read, and private notes only you can
@@ -232,6 +297,32 @@ export default async function VisitsPage({
         canSwitchOrganizations={isBishopric}
         canManageGoals={canManageGoals}
       />
+
+      {/* WHAT YOU ARE MEASURED AGAINST COMES BEFORE HOW OFTEN. The stewardship decides the
+          denominator; the goal decides the interval. Reading them the other way round means
+          reading a cadence for a population you have not been told about yet. */}
+      <CollapsibleSection
+        id="visits-stewardship-section"
+        title="Which households are ours"
+        summary={
+          initialStewardshipPayload === null
+            ? "No organization set"
+            : initialStewardshipPayload.narrowed
+              ? `${initialStewardshipPayload.householdIds.length} chosen`
+              : "The whole ward"
+        }
+      >
+        <StewardshipPanel
+          orgId={initialOrgId}
+          orgName={
+            organizationOptions.find((organization) => organization.id === initialOrgId)?.label ??
+            null
+          }
+          canManageGoals={canManageGoals}
+          households={stewardshipHouseholds}
+          initialStewardship={initialStewardshipPayload}
+        />
+      </CollapsibleSection>
 
       {/* The cadence driving the numbers sits directly under them, so changing it and seeing the
           statuses move is one scroll rather than two pages. */}

@@ -5,11 +5,16 @@ import type { Cadence } from "@/lib/visits/cadence";
 import type { HouseholdVisitCadence } from "@/lib/visits/householdCadences";
 import {
   buildVisitProgress,
+  describeHouseholdForVisits,
   isVisitableHousehold,
   resolveHouseholdCadence,
   selectActiveGoal,
 } from "@/lib/visits/progress";
 import type { VisitGoal, VisitLogWithContext } from "@/lib/visits/queries";
+import {
+  toStewardshipScope,
+  type StewardshipScope,
+} from "@/lib/visits/stewardshipScope";
 import type { MemberStatus } from "@/types/domain";
 
 // PURE, against hand-built fixtures. buildVisitProgress() takes already-fetched data precisely so
@@ -128,12 +133,19 @@ function override(
   };
 }
 
+// THE DEFAULT IS AN UN-NARROWED SCOPE, AND THAT IS SUCCESS CRITERION 2 IN ONE LINE.
+//
+// `toStewardshipScope([])` means "this organization has narrowed nothing", which is every
+// organization's state on the day ITER-019 ships. Every expectation in this file below was
+// written before the stewardship axis existed and is UNCHANGED — so the whole suite passing is
+// the proof that the Elders Quorum's dashboard did not move.
 function build(
   households: HouseholdWithMembers[],
   logs: VisitLogWithContext[],
   asOf: DateOnly = "2026-06-01",
   goal: VisitGoal | null = GOAL,
   householdCadences: HouseholdVisitCadence[] = [],
+  stewardship: StewardshipScope = toStewardshipScope([]),
 ) {
   return buildVisitProgress({
     orgId: "org-eq",
@@ -141,6 +153,7 @@ function build(
     logs,
     goal,
     householdCadences,
+    stewardship,
     asOf: parseDateOnly(asOf),
   });
 }
@@ -633,5 +646,218 @@ describe("selectActiveGoal", () => {
 
   it("returns null when the organization has no goal", () => {
     expect(selectActiveGoal([], "org-eq")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// THE THIRD AXIS: WHETHER THIS FAMILY IS OURS AT ALL
+// ---------------------------------------------------------------------------------------------
+// Three reasons a household is not counted, and they must stay distinct:
+//
+//   No active members       -> ABSENT from the page (a ward-wide fact)
+//   Do not contact          -> SHOWN, MARKED, counted in nothing (a ward-wide pastoral fact)
+//   Outside the stewardship -> ABSENT from this org's page (a PER-ORGANIZATION fact)
+//
+// The do-not-contact and out-of-stewardship cases below are deliberately asserted against each
+// other, because collapsing them is the failure this suite exists to catch: one is "we may not
+// call on them", the other is "they were never ours", and they look different on screen on
+// purpose.
+describe("a narrowed stewardship", () => {
+  // SUCCESS CRITERION 2, stated as its own test rather than left implicit in the build() default.
+  it("changes nothing at all when the organization has narrowed nothing", () => {
+    const households = [
+      household("h-1", "Brooks", ["active"]),
+      household("h-2", "Okonkwo", ["active"]),
+      household("h-3", "Nakamura", ["active"]),
+    ];
+    const logs = [log("h-1", "2026-05-01", "completed")];
+
+    const unNarrowed = build(households, logs, "2026-06-01");
+    const explicitlyEmpty = build(
+      households,
+      logs,
+      "2026-06-01",
+      GOAL,
+      [],
+      toStewardshipScope([]),
+    );
+
+    expect(explicitlyEmpty).toEqual(unNarrowed);
+    expect(unNarrowed.statistics?.counted).toBe(3);
+    expect(unNarrowed.stewardship).toEqual({
+      narrowed: false,
+      inScope: 3,
+      outOfScope: 0,
+    });
+  });
+
+  it("drops an out-of-stewardship household from rows, the bands and the count", () => {
+    const progress = build(
+      [
+        household("h-1", "Brooks", ["active"]),
+        household("h-2", "Okonkwo", ["active"]),
+        household("h-out", "Nakamura", ["active"]),
+      ],
+      [log("h-1", "2026-05-01", "completed")],
+      "2026-06-01",
+      GOAL,
+      [],
+      toStewardshipScope(["h-1", "h-2"]),
+    );
+
+    expect(progress.rows.map((row) => row.householdId).sort()).toEqual(["h-1", "h-2"]);
+    expect(progress.statistics?.counted).toBe(2);
+    expect(progress.stewardship).toEqual({ narrowed: true, inScope: 2, outOfScope: 1 });
+  });
+
+  // THE INVARIANT STILL HOLDS. A denominator that narrowed must not break the sum the whole
+  // dashboard is read against.
+  it("keeps the four bands summing to counted", () => {
+    const progress = build(
+      [
+        household("h-on", "OnTrack", ["active"]),
+        household("h-never", "Never", ["active"]),
+        household("h-out", "NotOurs", ["active"]),
+      ],
+      [log("h-on", "2026-05-01", "completed")],
+      "2026-06-01",
+      GOAL,
+      [],
+      toStewardshipScope(["h-on", "h-never"]),
+    );
+
+    const { counted, onTrack, approaching, overdue, neverVisited } = progress.statistics!;
+
+    expect(onTrack + approaching + overdue + neverVisited).toBe(counted);
+    expect(counted).toBe(2);
+  });
+
+  // THE TWO AXES ARE NOT COLLAPSED, part one. Inside the stewardship, a do-not-contact household
+  // behaves exactly as ITER-018 Decision 4 requires: present, marked, no band.
+  it("still shows a do-not-contact household that is INSIDE the stewardship", () => {
+    const progress = build(
+      [
+        household("h-1", "Brooks", ["active"]),
+        household("h-dnc", "Sorensen", ["active"], true),
+      ],
+      [log("h-dnc", "2020-01-01", "completed")],
+      "2026-06-01",
+      GOAL,
+      [],
+      toStewardshipScope(["h-1", "h-dnc"]),
+    );
+
+    const row = rowFor(progress, "h-dnc");
+
+    expect(row.doNotContact).toBe(true);
+    expect(row.priority).toBeNull();
+    expect(row.lastVisitedOn).toBe("2020-01-01");
+    expect(progress.statistics?.excluded).toBe(1);
+  });
+
+  // THE TWO AXES ARE NOT COLLAPSED, part two, and this is the one that would catch a
+  // double-count. A household that is BOTH do-not-contact and out of stewardship is gone
+  // entirely, and must appear in `outOfScope` alone — counting it in `excluded` as well would
+  // report one household as two separate exclusions.
+  it("counts a do-not-contact household OUTSIDE the stewardship once, not twice", () => {
+    const progress = build(
+      [
+        household("h-1", "Brooks", ["active"]),
+        household("h-both", "Sorensen", ["active"], true),
+      ],
+      [],
+      "2026-06-01",
+      GOAL,
+      [],
+      toStewardshipScope(["h-1"]),
+    );
+
+    expect(progress.rows.map((row) => row.householdId)).toEqual(["h-1"]);
+    expect(progress.statistics?.excluded).toBe(0);
+    expect(progress.stewardship).toEqual({ narrowed: true, inScope: 1, outOfScope: 1 });
+  });
+
+  // `outOfScope` counts VISITABLE households only. A moved-out household was never in any
+  // denominator, and reporting it here would tell a presidency it had narrowed away a family it
+  // had not.
+  it("does not count a moved-out household as narrowed away", () => {
+    const progress = build(
+      [
+        household("h-1", "Brooks", ["active"]),
+        household("h-gone", "Departed", ["moved_out"]),
+        household("h-out", "NotOurs", ["active"]),
+      ],
+      [],
+      "2026-06-01",
+      GOAL,
+      [],
+      toStewardshipScope(["h-1"]),
+    );
+
+    expect(progress.stewardship).toEqual({ narrowed: true, inScope: 1, outOfScope: 1 });
+  });
+});
+
+// ONE FUNCTION DECIDES WHAT THE PICKER OFFERS AND WHAT THE DENOMINATOR COUNTS. It replaced a pair
+// of "these two must not drift" comments, one in progress.ts and one on the visits page — the
+// reason they can no longer drift is that there is one function, and this is where its rule is
+// pinned.
+describe("describeHouseholdForVisits", () => {
+  const open = toStewardshipScope([]);
+  const narrowed = toStewardshipScope(["h-ours"]);
+
+  const subject = (id: string, familyName: string, doNotContact = false, members = 1) => ({
+    id,
+    familyName,
+    members: Array.from({ length: members }, (_, index) => `member-${index}`),
+    doNotContact,
+  });
+
+  it("offers nothing at all for a household nobody lives in", () => {
+    expect(
+      describeHouseholdForVisits(subject("h-empty", "Departed", false, 0), open),
+    ).toBeNull();
+  });
+
+  it("counts an ordinary household and labels it plainly", () => {
+    expect(describeHouseholdForVisits(subject("h-ours", "Brooks"), narrowed)).toEqual({
+      inDenominator: true,
+      pickerLabel: "Brooks",
+    });
+  });
+
+  it("offers a do-not-contact household, marked, and does not count it", () => {
+    expect(describeHouseholdForVisits(subject("h-ours", "Sorensen", true), narrowed)).toEqual({
+      inDenominator: false,
+      pickerLabel: "Sorensen (do not contact)",
+    });
+  });
+
+  // THE ASYMMETRY, PINNED. The picker is a SUPERSET of the denominator: a leader who visited a
+  // family outside their stewardship anyway must be able to record it, so the household is
+  // offered and marked rather than removed.
+  it("offers an out-of-stewardship household, marked, and does not count it", () => {
+    expect(describeHouseholdForVisits(subject("h-theirs", "Okonkwo"), narrowed)).toEqual({
+      inDenominator: false,
+      pickerLabel: "Okonkwo (not in your stewardship)",
+    });
+  });
+
+  // DO-NOT-CONTACT WINS THE LABEL when a household is both. "May we call on them" is the more
+  // urgent thing to put in front of somebody about to log a visit; "not in your stewardship" is
+  // a bookkeeping fact by comparison.
+  it("names do-not-contact first when a household is both", () => {
+    expect(
+      describeHouseholdForVisits(subject("h-theirs", "Sorensen", true), narrowed)?.pickerLabel,
+    ).toBe("Sorensen (do not contact)");
+  });
+
+  // AN UN-NARROWED ORGANIZATION MARKS NOTHING. Every household reads plainly, which is what
+  // keeps the picker byte-identical on ship day.
+  it("labels every household plainly when nothing has been narrowed", () => {
+    expect(describeHouseholdForVisits(subject("h-anything", "Brooks"), open)).toEqual({
+      inDenominator: true,
+      pickerLabel: "Brooks",
+    });
   });
 });

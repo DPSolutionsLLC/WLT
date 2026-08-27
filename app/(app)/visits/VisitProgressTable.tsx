@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { GaugePill, NeutralPill } from "@/app/(app)/visits/GaugePill";
 import { HouseholdCadenceControl } from "@/app/(app)/visits/HouseholdCadenceControl";
 import { VisitProgressBanner } from "@/app/(app)/visits/VisitProgressBanner";
 import { Card } from "@/components/ui/Card";
@@ -9,8 +10,7 @@ import { FormError } from "@/components/ui/FormError";
 import { compareByPriority } from "@/lib/visits/householdStatus";
 // Type-only, so nothing from the server-only module survives the build (roster-b).
 import type { VisitProgress, VisitProgressRow } from "@/lib/visits/progress";
-import { formatOverdueFor, formatVisitDate } from "@/lib/visits/visitDates";
-import { VISIT_PRIORITY_BAND_LABELS, type VisitPriorityBand } from "@/types/domain";
+import { formatVisitDate } from "@/lib/visits/visitDates";
 
 // The progress dashboard: one organization's households, and where each one stands.
 //
@@ -50,109 +50,32 @@ type Sort = { column: SortColumn; ascending: boolean };
 const SELECT_CLASSES =
   "min-h-11 rounded-md border border-border bg-surface-raised px-3 text-base text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
-// ---------------------------------------------------------------------------
-// THE BAND CARRIES A MARK, A WORD, AND A FILL
-// ---------------------------------------------------------------------------
-// Following AppointmentPanel's state badges, which followed components/assignments/StageBadge.tsx
-// — the colour is the TEXT and BORDER on the surrounding surface rather than white on a filled
-// pill, because every token in app/globals.css was measured against --surface and
-// --surface-raised in both themes and a SOLID fill would need its own second measurement per
-// state in both themes.
+// THE BAND CLASSES, FILLS AND MARKS LIVE IN app/(app)/visits/bandStyles.ts, not here.
 //
-// THE FILL BELOW IS A TINT, NOT A SOLID, for exactly that reason. It is the state colour at low
-// opacity behind unchanged text, so the measured text-on-surface contrast still holds and no
-// second measurement is owed. A solid fill with inverted text is the version that would owe one.
+// They were lifted out when AllOrganizationsTable arrived rather than copied into it: two tables
+// rendering the same four states from two literals would drift on the next colour change. That
+// file carries the full reasoning about why the colour is text-and-border rather than a solid
+// fill, and why the fill is a tint.
 //
-// Colour alone separates four states only for somebody who can see all four colours. Four
-// different SHAPES separate them in greyscale too, and the word is always present so the badge
-// never depends on the mark or the fill either.
+// THE PILL IS THE GAUGE, and it lives in app/(app)/visits/GaugePill.tsx — shared with the
+// all-organizations table rather than implemented twice. That file carries the reasoning about
+// the fill, the overdue wording and the greyscale-safe marks.
 //
-// Text glyphs rather than emoji, deliberately: an emoji renders in its own colour on most
-// platforms, which would fight the state colour and defeat the pill.
-const BAND_CLASSES: Record<VisitPriorityBand, string> = {
-  never_visited: "border-danger text-danger",
-  overdue: "border-danger text-danger",
-  approaching: "border-warning text-warning",
-  on_track: "border-success text-success",
-};
-
-// The tint that fills the pill. Separate from BAND_CLASSES because Tailwind needs the whole class
-// name present in the source to emit it — a template string like `bg-${tone}/15` produces nothing.
-const BAND_FILL: Record<VisitPriorityBand, string> = {
-  never_visited: "bg-danger/15",
-  overdue: "bg-danger/25",
-  approaching: "bg-warning/20",
-  on_track: "bg-success/20",
-};
-
-// aria-hidden: the word beside it already says the band, so a screen reader announcing "check
-// mark On track" would just be reading the same fact twice.
-const BAND_MARKS: Record<VisitPriorityBand, string> = {
-  never_visited: "○",
-  overdue: "!",
-  approaching: "◑",
-  on_track: "✓",
-};
-
-// THE PILL IS THE GAUGE. It fills left to right with how much of this household's interval has
-// elapsed, so the badge shows the same thing at a glance that the percentage used to spell out —
-// and, unlike the percentage, it can be read without doing arithmetic.
-//
-// An OVERDUE pill is filled all the way and says HOW LONG overdue in words. That is the swap the
-// percentage was removed for: "110%" and "109%" are a month apart on a yearly cadence and a day
-// apart on a monthly one, and a reader cannot tell which. "3 weeks overdue" is the same fact in
-// the unit somebody acts in.
-//
-// `never_visited` gets no fill: there is no completed visit to measure from, which is the whole
-// reason that band exists. An empty pill is the honest rendering of "no anchor".
-//
-// The fill is aria-hidden and carries no information the text does not — the band word is always
-// there, and an overdue row states its duration. `asOf` comes from the row rather than a clock
-// read here, so every row of one render is judged against the same instant.
+// THIS TABLE ALWAYS SHOWS THE BAND WORD. Dropping it is a choice the all-organizations view makes
+// because a reader there has three or four pills on one row and has already learned the colours
+// here. This is where they learn them, so the word stays.
 function PriorityBadge({ row, asOf }: { row: VisitProgressRow; asOf: Date }) {
   // Do-not-contact gets its OWN neutral badge rather than a band. It is not on the scale at all:
   // shown, marked, and in no numerator and no denominator (Decision 4).
   if (row.doNotContact) {
-    return (
-      <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-        Do not contact
-      </span>
-    );
+    return <NeutralPill>Do not contact</NeutralPill>;
   }
 
   if (row.priority === null) {
-    return (
-      <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-        No goal set
-      </span>
-    );
+    return <NeutralPill>No goal set</NeutralPill>;
   }
 
-  const { band, elapsedFraction, dueOn } = row.priority;
-
-  // Clamped for the FILL only. The sort still reads the unclamped fraction, so a household at
-  // 140% still leads one at 110% even though both pills are full.
-  const fillPercent =
-    elapsedFraction === null ? 0 : Math.min(100, Math.max(0, elapsedFraction * 100));
-
-  const label =
-    band === "overdue" && dueOn !== null
-      ? formatOverdueFor(dueOn, asOf)
-      : VISIT_PRIORITY_BAND_LABELS[band];
-
-  return (
-    <span
-      className={`relative inline-flex items-center gap-1.5 overflow-hidden rounded-full border px-2 py-0.5 text-xs font-medium ${BAND_CLASSES[band]}`}
-    >
-      <span
-        aria-hidden="true"
-        className={`absolute inset-y-0 left-0 ${BAND_FILL[band]}`}
-        style={{ width: `${fillPercent}%` }}
-      />
-      <span aria-hidden="true" className="relative">{BAND_MARKS[band]}</span>
-      <span className="relative">{label}</span>
-    </span>
-  );
+  return <GaugePill priority={row.priority} asOf={asOf} />;
 }
 
 // A SEPARATE MARK FROM THE BAND (ITER-018 part 5). `attempted_never_reached` used to be a band,
@@ -391,6 +314,7 @@ export function VisitProgressTable({
             statistics={progress.statistics}
             goal={progress.goal}
             goalHasNoCadence={progress.goalHasNoCadence}
+            stewardship={progress.stewardship}
           />
 
           <Card>

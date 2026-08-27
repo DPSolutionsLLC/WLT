@@ -187,6 +187,26 @@ meaningless. It **also** excludes households marked `do_not_contact`, which are 
 marked, and named in a line saying they are not counted. Uncounted and unhidden is the decision;
 a number that silently shrank is what it refused.
 
+**Since ITER-019 it excludes a third group: households outside the organization's stewardship.**
+`household_stewardships (household_id, org_id)` records which families are an organization's to
+visit — the Primary visits families with a child in Primary, not all two hundred. **Zero rows means
+the whole ward**, so an organization that has narrowed nothing has exactly the denominator
+described above and nothing moved when this shipped.
+
+The three exclusions are **not** interchangeable and the page must keep them apart:
+
+| Reason | Scope | On the dashboard |
+|---|---|---|
+| No active members | ward-wide fact | absent |
+| `do_not_contact` | ward-wide pastoral fact | **shown and marked**, counted in nothing |
+| Outside the stewardship | **per organization** | **absent entirely** |
+
+`describeHouseholdForVisits()` in `lib/visits/progress.ts` is the single place that rule lives, and
+the household picker consumes it too — so the picker is a **superset** of the denominator and marks
+the difference rather than the two being kept in step by comment. `VisitProgress.stewardship`
+reports `narrowed`, `inScope` and `outOfScope` so the banner says the denominator is narrowed and
+by how much, for the same reason the do-not-contact line exists.
+
 Emit `visit_overdue` when a household crosses into overdue, from the nightly Edge Function.
 Emit once per household per period, not nightly — track with a flag or check the last
 notification date.

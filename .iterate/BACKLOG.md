@@ -7,7 +7,21 @@ _Last updated: 2026-08-27_
 ## In Progress
 Items currently being planned or actively worked.
 
-_None. ITER-004 closed 2026-08-25; the Phase 6 program plans are done through `program-d`, and `program-e` is BLOCKED on an authoritative hymn source._
+- [ ] ITER-019 — Stewardship: which households are even ours → [scope](.iterate/scopes/ITER-019.md) | [plan](plans/visit-stewardship-and-all-orgs.md)
+  **Depends on ITER-018 (shipped).** Every organization is currently measured against every
+  visitable household in the ward, which is wrong for most of them and plainly wrong for the
+  Primary — they will only ever visit families with a child in Primary, so their dashboard reads
+  "3 of 200" for ever. Two parts: a **per-organization stewardship** marking, kept strictly
+  separate from do-not-contact; and an **all-organizations view** when the ward's cross-org
+  visibility is on, one row per household summarising where each organization stands.
+  _Raised 2026-08-27 by the user reviewing the scenario-045 walkthrough. Seeing the Whitfields
+  read overdue for the Elders Quorum and On track for the Relief Society at the same moment —
+  which they judged correct and intentional — is what surfaced what was missing beside it._
+  **All six questions answered 2026-08-27 and planned.** Q6 resolved as "cross-org visibility
+  shares FACTS, never JUDGEMENTS": the new `household_stewardships_select` IS widened by the
+  setting, while `household_visit_cadences_select` and `visit_goals_select` stay narrow and their
+  RLS test passes unchanged — ITER-018 extended, not reversed.
+
 
 ---
 
@@ -21,22 +35,6 @@ is what the grouping asked for._
 
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
-
-- [ ] ITER-019 — Stewardship: which households are even ours → [scope](.iterate/scopes/ITER-019.md)
-  **Depends on ITER-018 (shipped).** Every organization is currently measured against every
-  visitable household in the ward, which is wrong for most of them and plainly wrong for the
-  Primary — they will only ever visit families with a child in Primary, so their dashboard reads
-  "3 of 200" for ever. Two parts: a **per-organization stewardship** marking, kept strictly
-  separate from do-not-contact; and an **all-organizations view** when the ward's cross-org
-  visibility is on, one row per household summarising where each organization stands.
-  _Raised 2026-08-27 by the user reviewing the scenario-045 walkthrough. Seeing the Whitfields
-  read overdue for the Elders Quorum and On track for the Relief Society at the same moment —
-  which they judged correct and intentional — is what surfaced what was missing beside it._
-  **Six questions in the scope need answering before `/planning`**, and Q6 is the sharp one:
-  cross-org visibility widens visit-LOG reads only, and ITER-018 deliberately refused to widen
-  cadence reads, with an RLS test now asserting it. An all-orgs view either revisits that or is
-  assembled bishopric-side only.
-
 
 - [ ] ITER-017 — Token counts are redacted out of every AI audit row → [scope](.iterate/scopes/ITER-017.md)
   _Found 2026-08-24 walking scenario 027 for `ai-d`. Every AI route logs `outputTokens` so spend is

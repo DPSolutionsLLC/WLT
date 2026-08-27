@@ -1,8 +1,8 @@
 # ITER-019: Stewardship — Which Households Are Even Ours
 
 **Type:** Feature
-**Status:** Scoped, not planned
-**Plan:** _none yet_
+**Status:** In Progress
+**Plan:** plans/visit-stewardship-and-all-orgs.md
 **Created:** 2026-08-27
 **Depends on:** ITER-018 (shipped) — the cadence model, `household_visit_cadences`, and the
 priority scale are all assumed here.
@@ -66,7 +66,19 @@ That is a product question, not a settled decision — see Q3.
 
 ## Open questions
 
-Answer before `/planning`.
+**ANSWERED 2026-08-27 during `/planning`.** All six are settled and recorded as D1-D6 in
+`plans/visit-stewardship-and-all-orgs.md` §Decisions taken. Kept below as the record of what was
+weighed.
+
+- **Q1+Q2 → D1+D2.** One `household_stewardships` table; zero rows means the whole ward, so nothing
+  changes on ship day. The Primary narrows in one press from `member_organizations`, and staleness
+  is surfaced by a live drift banner rather than prevented by a derived model.
+- **Q3 → D3.** Gone from the org dashboard. Unclaimed households surface in the all-orgs view.
+- **Q4 → D4.** `visits.manage_goals`, own route, `resolveOrgId()` reused verbatim.
+- **Q5 → D5.** Ward-wide last visit (who went, which org) plus a per-org band chip.
+- **Q6 → D6.** Cross-org visibility shares FACTS, never JUDGEMENTS. `household_stewardships_select`
+  IS widened; `household_visit_cadences_select` and `visit_goals_select` stay narrow and their RLS
+  test passes unchanged. ITER-018 is extended, not reversed.
 
 **Q1 — Is stewardship opt-in or opt-out?**
 Opt-in (an organization starts with nothing and adds households) is right for the Primary and

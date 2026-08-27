@@ -18,6 +18,8 @@ import {
   type VisitGoal,
   type VisitLogWithContext,
 } from "@/lib/visits/queries";
+import { readStewardshipScope } from "@/lib/visits/stewardship";
+import { isInScope, type StewardshipScope } from "@/lib/visits/stewardshipScope";
 import type { Database } from "@/types/database";
 
 // The progress dashboard's numbers.
@@ -59,9 +61,10 @@ import type { Database } from "@/types/database";
 // (readVisitProgress passes no `statuses` option) rather than re-derived, and what is added here
 // is only the household-level consequence of it.
 //
-// THIS RULE IS ALSO IN app/(app)/visits/page.tsx, on the household picker, and the two must not
-// drift. A household offered in the picker but absent from the denominator — or the reverse — is
-// a progress number nobody can reconcile against the list beside it.
+// THE PICKER ON app/(app)/visits/page.tsx APPLIES THE SAME RULE, and it no longer applies it
+// SEPARATELY — see describeHouseholdForVisits() below, which both now go through. There used to
+// be a pair of comments here and there insisting the two must not drift; there is now one
+// function, so they cannot.
 //
 // `households.do_not_contact` IS A SEPARATE AXIS AND IS NOT CHECKED HERE. This function answers
 // "does anybody live here"; do-not-contact answers "may we call". Conflating them would make a
@@ -69,6 +72,67 @@ import type { Database } from "@/types/database";
 // marked, and counted in nothing.
 export function isVisitableHousehold(household: { members: readonly unknown[] }): boolean {
   return household.members.length > 0;
+}
+
+export type HouseholdVisitDisposition = {
+  // TRUE when this household is in the dashboard's denominator.
+  inDenominator: boolean;
+  // What the household picker shows. Never omits a household the denominator counts.
+  pickerLabel: string;
+};
+
+// ---------------------------------------------------------------------------------------------
+// THREE REASONS A HOUSEHOLD IS NOT COUNTED, AND THEY MUST STAY DISTINCT
+// ---------------------------------------------------------------------------------------------
+// ONE function, deciding both what the picker offers and what the denominator counts. It replaces
+// the pair of "these two must not drift" comments that used to sit here and on the visits page —
+// the reason they can no longer drift is that there is one function.
+//
+//   No active members        -> ABSENT from both. Nobody lives here (a ward-wide fact).
+//   Do not contact           -> IN the picker, marked; NOT in the denominator. A ward-wide
+//                               PASTORAL fact: shown, marked, counted in nothing (ITER-018 D4).
+//   Outside the stewardship  -> IN the picker, marked; NOT in the denominator, and NOT in `rows`.
+//                               A PER-ORGANIZATION fact: this family was never ours (ITER-019 D3).
+//   Otherwise                -> in both, plain label.
+//
+// A do-not-contact household is SHOWN AND MARKED; a non-stewardship household is GONE from the
+// dashboard. They look different on purpose, because they are different questions, and collapsing
+// any two of them loses information a presidency needs.
+//
+// THE ASYMMETRY IS DELIBERATE AND IS WRITTEN DOWN HERE: the picker is a SUPERSET of the
+// denominator and marks the difference. A leader who visited a family anyway — a do-not-contact
+// household that asked for help, or a family outside their stewardship they happened to call on —
+// must be able to RECORD it. What the picker may never do is show LESS than the denominator
+// counts: a household counted against an organization with no way to log a visit to it is a
+// number nobody can move.
+//
+// Returns null for "not offered at all", which is the one case with no label to render.
+export function describeHouseholdForVisits(
+  household: {
+    id: string;
+    familyName: string;
+    members: readonly unknown[];
+    doNotContact: boolean;
+  },
+  scope: StewardshipScope,
+): HouseholdVisitDisposition | null {
+  if (!isVisitableHousehold(household)) return null;
+
+  if (household.doNotContact) {
+    return {
+      inDenominator: false,
+      pickerLabel: `${household.familyName} (do not contact)`,
+    };
+  }
+
+  if (!isInScope(scope, household.id)) {
+    return {
+      inDenominator: false,
+      pickerLabel: `${household.familyName} (not in your stewardship)`,
+    };
+  }
+
+  return { inDenominator: true, pickerLabel: household.familyName };
 }
 
 export type VisitProgressRow = {
@@ -105,7 +169,7 @@ export type VisitProgressRow = {
 // worth a test, and tests/lib/visitProgress.test.ts has one. A statistics block whose parts do
 // not add up to its whole is the shape of the contradiction this slice removed.
 export type VisitProgressStatistics = {
-  // Visitable AND not do-not-contact. THE DENOMINATOR.
+  // Visitable, IN THIS ORGANIZATION'S STEWARDSHIP, and not do-not-contact. THE DENOMINATOR.
   counted: number;
   onTrack: number;
   approaching: number;
@@ -148,6 +212,23 @@ export type VisitProgress = {
   // has been set" and "the goal that is set cannot be counted", because they need different
   // actions from the person reading.
   goalHasNoCadence: boolean;
+  // WHAT THIS ORGANIZATION IS MEASURED AGAINST. Reported rather than left implicit, because a
+  // denominator that silently SHRANK is the same erosion of trust visits-b recorded in the other
+  // direction — there, counting households an organization could not visit made every org look
+  // behind; here, a number quietly dropping from 200 to 38 with no sentence beside it would make
+  // a president wonder what the app had decided on their behalf.
+  stewardship: {
+    // FALSE = the whole ward. The Elders Quorum's ship-day state, and the reason nothing moves
+    // on the day this is deployed.
+    narrowed: boolean;
+    // Visitable households IN scope — the population `counted` is drawn from. Note it is not
+    // `counted` itself: a do-not-contact household inside the stewardship is in this number and
+    // not in that one.
+    inScope: number;
+    // Visitable households this organization has narrowed AWAY. Absent from `rows` entirely, so
+    // this is the only place they are represented at all.
+    outOfScope: number;
+  };
 };
 
 // WHICH goal a dashboard measures against, when an organization has several: the most recently
@@ -256,6 +337,11 @@ export type BuildVisitProgressInput = {
   // This organization's per-household overrides. Indexed into a Map once rather than searched
   // per row.
   householdCadences: readonly HouseholdVisitCadence[];
+  // REQUIRED, not optional. A missing one must be a TYPE ERROR at every call site, the way
+  // resolveRoleAccess is a required third argument to can() — a defaulted parameter is how 25
+  // call sites came to silently ignore the ward's configuration (ITER-005). An organization that
+  // has narrowed nothing passes `toStewardshipScope([])`, which says so explicitly.
+  stewardship: StewardshipScope;
   asOf: Date;
 };
 
@@ -265,9 +351,15 @@ export function buildVisitProgress({
   logs,
   goal,
   householdCadences,
+  stewardship,
   asOf,
 }: BuildVisitProgressInput): VisitProgress {
-  const visitable = households.filter(isVisitableHousehold);
+  // BOTH COUNTS COME FROM ONE PASS OVER THE UNFILTERED LIST, before the stewardship filter is
+  // applied — `outOfScope` cannot be recovered afterwards, because a household outside the
+  // stewardship never reaches `rows` at all.
+  const allVisitable = households.filter(isVisitableHousehold);
+  const visitable = allVisitable.filter((household) => isInScope(stewardship, household.id));
+
   const tallies = tallyLogs(logs);
 
   const goalCadence = goal?.cadence ?? null;
@@ -373,6 +465,11 @@ export function buildVisitProgress({
           }
         : null,
     goalHasNoCadence: goal !== null && !countable,
+    stewardship: {
+      narrowed: stewardship.hasNarrowed,
+      inScope: visitable.length,
+      outOfScope: allVisitable.length - visitable.length,
+    },
   };
 }
 
@@ -394,13 +491,16 @@ export async function readVisitProgress(
   asOf: Date,
   client?: SupabaseClient<Database>,
 ): Promise<VisitProgress> {
-  const [households, logs, goals, householdCadences] = await Promise.all([
+  const [households, logs, goals, householdCadences, stewardship] = await Promise.all([
     // NO `statuses` option, on purpose. The ["active"] default is what excludes moved_out and
     // do_not_contact members — see §THE DENOMINATOR above.
     listHouseholds(wardId, undefined, client),
     listVisitLogs(wardId, { orgId }, client),
     listVisitGoals(wardId, client),
     listHouseholdVisitCadences(wardId, orgId, client),
+    // Zero rows resolves to "the whole ward", so an organization that has narrowed nothing gets
+    // exactly the denominator it had before ITER-019 shipped.
+    readStewardshipScope(wardId, orgId, client),
   ]);
 
   return buildVisitProgress({
@@ -409,6 +509,7 @@ export async function readVisitProgress(
     logs,
     goal: selectActiveGoal(goals, orgId),
     householdCadences,
+    stewardship,
     asOf,
   });
 }

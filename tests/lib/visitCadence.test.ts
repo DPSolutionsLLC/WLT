@@ -4,6 +4,7 @@ import {
   CADENCE_COMPARISON_ANCHOR,
   compareCadences,
   describeCadence,
+  describeDuration,
   subtractCadence,
 } from "@/lib/visits/cadence";
 
@@ -132,5 +133,37 @@ describe("describeCadence", () => {
     expect(describeCadence({ amount: 3, unit: "week" })).toBe("Every 3 weeks");
     expect(describeCadence({ amount: 6, unit: "month" })).toBe("Every 6 months");
     expect(describeCadence({ amount: 2, unit: "year" })).toBe("Every 2 years");
+  });
+});
+
+// HOW LONG, not how often. The visit banner needs a duration to drop into "Warning ___ ahead",
+// and it used to build one by stripping "Every " off describeCadence() — which works above one
+// and produces a bare unit at one, so the banner read "Warning month ahead."
+//
+// Walked in scenario 047. It dated from ITER-018 and had gone unseen because the only fixture
+// using a one-unit notice window arrived with this slice.
+describe("describeDuration", () => {
+  it("takes the article at one, never a bare unit", () => {
+    expect(describeDuration({ amount: 1, unit: "day" })).toBe("a day");
+    expect(describeDuration({ amount: 1, unit: "week" })).toBe("a week");
+    expect(describeDuration({ amount: 1, unit: "month" })).toBe("a month");
+    expect(describeDuration({ amount: 1, unit: "year" })).toBe("a year");
+  });
+
+  it("uses the plural label above one", () => {
+    expect(describeDuration({ amount: 10, unit: "day" })).toBe("10 days");
+    expect(describeDuration({ amount: 2, unit: "week" })).toBe("2 weeks");
+    expect(describeDuration({ amount: 6, unit: "month" })).toBe("6 months");
+    expect(describeDuration({ amount: 2, unit: "year" })).toBe("2 years");
+  });
+
+  // THE REGRESSION, PINNED AS A SENTENCE. Reading the assertion tells you what was on screen.
+  it("never produces a bare unit that would read as \"Warning month ahead\"", () => {
+    for (const unit of ["day", "week", "month", "year"] as const) {
+      const phrase = describeDuration({ amount: 1, unit });
+
+      expect(`Warning ${phrase} ahead.`).not.toBe(`Warning ${unit} ahead.`);
+      expect(phrase.split(" ")).toHaveLength(2);
+    }
   });
 });

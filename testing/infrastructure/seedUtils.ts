@@ -918,6 +918,31 @@ export async function createHouseholdVisitCadence(options: {
   });
 }
 
+// One household claimed by one organization as ITS OWN TO VISIT.
+//
+// ABSENT MEANS THE WHOLE WARD. There is no sentinel row meaning "everything", so a scenario that
+// wants an un-narrowed organization simply does not call this — and an organization with NO rows
+// here is measured against every visitable household in the ward, which is every organization's
+// state before somebody narrows it (migration 052).
+//
+// THAT ASYMMETRY IS THE TRAP TO WATCH IN A FIXTURE. Calling this once for an organization does
+// not "add one household" — it narrows that organization to exactly that household, and every
+// other family disappears from its dashboard. Seed the whole intended set, or none of it.
+//
+// `unique (household_id, org_id)` means one per pair. Two calls with the same pair collide.
+export async function createHouseholdStewardship(options: {
+  householdId: string;
+  org: TestOrgKey;
+  createdBy?: string;
+}): Promise<string> {
+  return insertRow("household_stewardships", {
+    ward_id: TEST_WARD_ID,
+    household_id: options.householdId,
+    org_id: TEST_ORG_IDS[options.org],
+    created_by: options.createdBy ?? null,
+  });
+}
+
 // `recordedBy` is WHO TYPED IT IN, and it is deliberately not "who went". visits-d split the two
 // because they are frequently different people — a secretary records the visits their presidency
 // made. Who WENT is seeded separately with createVisitParticipant(), and a visit with NO

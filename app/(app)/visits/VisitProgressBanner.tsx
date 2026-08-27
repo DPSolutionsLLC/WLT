@@ -1,6 +1,7 @@
-import { describeCadence } from "@/lib/visits/cadence";
+import { describeCadence, describeDuration } from "@/lib/visits/cadence";
 // Type-only, so nothing from the server-only module survives the build (roster-b).
 import type {
+  VisitProgress,
   VisitProgressGoalSummary,
   VisitProgressStatistics,
 } from "@/lib/visits/progress";
@@ -26,6 +27,11 @@ export type VisitProgressBannerProps = {
   statistics: VisitProgressStatistics | null;
   goal: VisitProgressGoalSummary | null;
   goalHasNoCadence: boolean;
+  // What the denominator was drawn from. Rendered as a sentence when the organization has
+  // narrowed, and NOT AT ALL when it has not — the render-nothing-rather-than-"Never" rule
+  // talks-c set. "Measured against every household" is what an un-narrowed organization has
+  // always meant, and saying it every time would be noise on every board but one.
+  stewardship: VisitProgress["stewardship"];
 };
 
 function plural(count: number, word: string): string {
@@ -34,12 +40,19 @@ function plural(count: number, word: string): string {
 
 // "Every household, every year. Warning 2 months ahead."
 //
-// describeCadence() returns "Every year", so the lead-in is stripped where the sentence supplies
-// its own. One function owning the phrase means the goal panel's summary line and this sentence
-// cannot start describing the same cadence differently.
+// TWO DIFFERENT PHRASES, FROM TWO DIFFERENT FUNCTIONS, AND THAT IS THE FIX.
+//
+// The cadence half asks HOW OFTEN, so it takes describeCadence() with its lead-in stripped —
+// "Every 6 months" becomes "every 6 months", and "Every year" becomes "every year", both correct.
+//
+// The warning half asks HOW LONG, and the same treatment breaks it: "Every month" strips to a
+// bare "month" and the sentence read "Warning month ahead." for every goal with a one-unit notice
+// window. Walked in scenario 047; it dated from ITER-018 and survived because scenario 045 used a
+// two-month window. describeDuration() is the phrase that answers "how long", and it takes the
+// article at one — "Warning a month ahead."
 function goalSentence(goal: VisitProgressGoalSummary): string {
   const cadence = describeCadence(goal.cadence).replace(/^Every /, "");
-  const notice = describeCadence(goal.notice).replace(/^Every /, "");
+  const notice = describeDuration(goal.notice);
 
   return `Every household, every ${cadence}. Warning ${notice} ahead.`;
 }
@@ -72,6 +85,7 @@ export function VisitProgressBanner({
   statistics,
   goal,
   goalHasNoCadence,
+  stewardship,
 }: VisitProgressBannerProps) {
   // BOTH NULL-STATE MESSAGES SURVIVE, and so does the distinction between them. "No goal has
   // been set" and "the goal that is set cannot be counted" need different actions from the
@@ -158,6 +172,28 @@ export function VisitProgressBanner({
         <p className="mt-3 text-sm text-muted">
           {excluded} {plural(excluded, "household")} marked do not contact{" "}
           {excluded === 1 ? "is" : "are"} not counted.
+        </p>
+      ) : null}
+
+      {/* THE NARROWED DENOMINATOR, SAID OUT LOUD. Two different sentences beside each other on
+          purpose: `excluded` is a household this organization may not call on, and `outOfScope` is
+          a household that was never this organization's at all. They are different reasons and
+          they must not read as one.
+
+          Deliberately NOT a fifth number beside the four band counts. The invariant
+          `onTrack + approaching + overdue + neverVisited === counted` has to stay visibly true,
+          and a fifth figure in that row would look like part of the sum when it sits outside it —
+          these households are absent from `rows` entirely. */}
+      {stewardship.narrowed ? (
+        <p className="mt-1 text-sm text-muted">
+          Measured against {stewardship.inScope}{" "}
+          {plural(stewardship.inScope, "household")} in this stewardship
+          {stewardship.outOfScope > 0
+            ? ` · ${stewardship.outOfScope} in the ward ${
+                stewardship.outOfScope === 1 ? "is" : "are"
+              } not`
+            : ""}
+          .
         </p>
       ) : null}
     </div>

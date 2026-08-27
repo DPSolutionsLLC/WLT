@@ -1105,6 +1105,62 @@ export type Database = {
           },
         ]
       }
+      household_stewardships: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          household_id: string
+          id: string
+          org_id: string
+          ward_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          household_id: string
+          id?: string
+          org_id: string
+          ward_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          household_id?: string
+          id?: string
+          org_id?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "household_stewardships_created_by_ward_id_fkey"
+            columns: ["created_by", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "household_stewardships_household_id_ward_id_fkey"
+            columns: ["household_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "household_stewardships_org_id_ward_id_fkey"
+            columns: ["org_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "household_stewardships_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       household_visit_cadences: {
         Row: {
           cadence_amount: number

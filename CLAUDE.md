@@ -322,6 +322,52 @@ Flag these when they become relevant; do not silently pick a side.
   dashboard, and is counted in **nothing**. Do not fold it into `isVisitableHousehold()` — that
   would make the household vanish, which is exactly what the decision refused, and the record of
   what happened before the decision is what the next presidency needs.
+- **Per-organization stewardship — DECIDED: one table, and absent means the whole ward.**
+  `household_stewardships (household_id, org_id)` unique, answering "are they ours to visit at
+  all". **Zero rows for an organization means every visitable household**, so no ward's numbers
+  move on the day it ships — the same absent-means-default idiom as `household_visit_cadences`.
+  That gives **three** distinct reasons a household is not counted, and they must stay distinct:
+  no active members (absent from the page), do-not-contact (**shown, marked**, counted in nothing),
+  and outside the stewardship (**absent from that organization's page entirely**). Collapsing any
+  two loses what a presidency needs. `lib/visits/progress.ts`'s `describeHouseholdForVisits()` is
+  the single place that rule lives, so the picker and the denominator cannot drift; the picker is
+  deliberately a **superset** of the denominator and marks the difference, because a leader who
+  visited a family anyway must be able to record it.
+  **The empty bulk replace is REFUSED**, with a sentence naming the alternative: with one table,
+  "narrowed to nothing" and "not narrowed" are the same zero rows, and silently choosing the second
+  would widen an organization back to the whole ward. If a ward ever genuinely needs an empty
+  stewardship the fix is an org-level flag column, not a workaround.
+  `lib/visits/stewardshipScope.ts` is **subject-agnostic** (`subjectId`, never `householdId`) so
+  Phase 8's youth coverage imports it rather than writing a second meaning of the word.
+  **Open, and worth settling before the all-organizations view is relied on:** only the *Bishopric*
+  is excluded from claiming, so Young Men, Young Women and Sunday School each claim every household
+  and make "unclaimed" permanently false. Deciding it by "has a visit goal" does **not** work —
+  goals are not readable across organizations, so the answer would differ per reader.
+- **Cross-org visibility widens an organization's whole PROGRESS — DECIDED 2026-08-27, REVERSING
+  ITER-018.** `ward_allows_cross_org_visibility()` now appears in **four** SELECT policies:
+  `visit_logs_select` (019), `household_stewardships_select` (052), and — added by migration 053 —
+  `visit_goals_select` and `household_visit_cadences_select`.
+  It previously appeared in only the first two, and the contrast was itself the decision ("facts
+  are shared, judgements are not"). That was reversed after walking scenario 048: an org leader saw
+  the other organizations' chips on the all-organizations view but no **bands**, and the page had
+  to explain per chip that the number was being withheld. A ward turning this setting on is asking
+  for that number. **The cadence had to follow the goal** — a band prefers the per-household
+  override, so widening the goal alone would have rendered a pill computed from the wrong interval,
+  and a number that is visible and wrong is worse than one withheld.
+  **What did not move: every WRITE policy, and `visit_private_notes`.** Wider reads on shared work
+  do not widen a private note by one row (rule 5). `tests/rls/visit-cross-org.test.ts` asserts all
+  four tables on **both** sides of the setting, and the reversal is written there as an inversion
+  rather than a rewrite so it reads as a decision. No `if (isBishopric)` decides what is readable
+  anywhere (rule 2).
+- **An organization claims households only if it has a visit goal — DECIDED 2026-08-27.** This
+  replaced a hardcoded "not the Bishopric" exclusion in `lib/visits/allOrgProgress.ts`, which was a
+  special case standing in for the general rule it could not express: a ward has seven
+  organizations, so Young Men, Young Women and Sunday School each claimed **every** household
+  (absent means everything) and made "unclaimed" impossible to reach in any real ward. The rule
+  is only safe because it is **uniformly evaluable** — the all-organizations page is reachable only
+  by the bishopric or with cross-org visibility on, and migration 053 makes every goal readable in
+  both cases. **If that widening is ever reversed, this rule becomes reader-dependent** — two
+  people would see different unclaimed counts from the same data — and must be reconsidered with it.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

@@ -94,3 +94,24 @@ export function describeCadence(cadence: Cadence): string {
     ? `Every ${labels.one}`
     : `Every ${cadence.amount} ${labels.many}`;
 }
+
+// "3 weeks", "a month", "6 months" — the DURATION on its own, with no "Every" in front.
+//
+// HOW LONG IS NOT HOW OFTEN, AND THE TWO PHRASES ARE NOT INTERCHANGEABLE. describeCadence()
+// answers "how often", and its output survives having "Every " stripped only while the amount is
+// above one: "Every 6 months" becomes "6 months", but "Every month" becomes a bare "month".
+//
+// That is exactly the defect walked in scenario 047 — the visit banner assembled its warning
+// window that way and rendered "Warning month ahead.", missing the number, for every goal with a
+// one-unit notice window. A goal with a two-month window read correctly, which is why it went
+// unnoticed from ITER-018 until a fixture happened to use 1.
+//
+// An amount of one takes the ARTICLE rather than the digit, because "Warning a month ahead" is
+// what somebody would say and "Warning 1 month ahead" is what a form would say.
+export function describeDuration(cadence: Cadence): string {
+  const labels = CADENCE_UNIT_LABELS[cadence.unit];
+
+  return cadence.amount === 1
+    ? `a ${labels.one}`
+    : `${cadence.amount} ${labels.many}`;
+}

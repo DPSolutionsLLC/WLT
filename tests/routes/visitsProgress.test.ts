@@ -63,6 +63,7 @@ type ProgressBody = {
   } | null;
   goal: { id: string } | null;
   goalHasNoCadence: boolean;
+  stewardship: { narrowed: boolean; inScope: number; outOfScope: number };
 };
 
 async function callProgress(url: string) {
@@ -341,6 +342,91 @@ describe("GET /api/visits/progress", () => {
       expect(serialized).not.toContain("privateNotes");
       expect(serialized).not.toContain("sharedNotes");
       expect(serialized).not.toContain("private_notes");
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // THE STEWARDSHIP MOVES THE DENOMINATOR, END TO END
+  // ---------------------------------------------------------------------------
+  // The pure builder is covered in tests/lib/visitProgress.test.ts. THIS case exists to prove the
+  // WIRING: that readVisitProgress actually fetches the scope, that the route hands it to the
+  // builder, and that a row written by /api/visits/stewardship reaches this response. A pure test
+  // cannot catch a fifth Promise.all entry that was never added.
+  describe("a narrowed stewardship", () => {
+    // Written and removed inside the test rather than in beforeAll, so every assertion above
+    // keeps running against an un-narrowed organization — which is also the ship-day state.
+    const narrowTo = async (householdIds: string[]): Promise<void> => {
+      const { error } = await fixtures.service.from("household_stewardships").insert(
+        householdIds.map((householdId) => ({
+          ward_id: wardId,
+          household_id: householdId,
+          org_id: fixtures.eldersQuorumId,
+        })),
+      );
+      if (error) throw new Error(error.message);
+    };
+
+    const stopNarrowing = async (): Promise<void> => {
+      await fixtures.service
+        .from("household_stewardships")
+        .delete()
+        .eq("ward_id", wardId)
+        .eq("org_id", fixtures.eldersQuorumId);
+    };
+
+    it("drops an out-of-stewardship household from the rows and the count", async () => {
+      await actAs(fixtures, "eqPresident");
+
+      const { body: before } = await callProgress(PROGRESS_URL);
+      const countedBefore = progressFrom(before).statistics!.counted;
+
+      expect(rowFor(progressFrom(before), attemptedHouseholdId)).toBeDefined();
+      expect(progressFrom(before).stewardship).toEqual({
+        narrowed: false,
+        inScope: countedBefore,
+        outOfScope: 0,
+      });
+
+      try {
+        await narrowTo([visitedHouseholdId]);
+
+        const { body: after } = await callProgress(PROGRESS_URL);
+        const progress = progressFrom(after);
+
+        // The one claimed household is all that is left, out of a ward these suites share.
+        expect(progress.rows.map((row) => row.householdId)).toEqual([visitedHouseholdId]);
+        expect(progress.statistics!.counted).toBe(1);
+        expect(progress.stewardship.narrowed).toBe(true);
+        expect(progress.stewardship.inScope).toBe(1);
+
+        // REPORTED, NOT SILENT. A denominator that shrank without saying so is the same erosion
+        // of trust visits-b recorded in the other direction.
+        expect(progress.stewardship.outOfScope).toBe(countedBefore - 1);
+
+        // The attempted household was in the numbers a moment ago and is now gone entirely —
+        // visibly a different thing from a do-not-contact household, which stays and is marked.
+        expect(rowFor(progress, attemptedHouseholdId)).toBeUndefined();
+      } finally {
+        await stopNarrowing();
+      }
+    });
+
+    it("leaves another organization's denominator untouched", async () => {
+      try {
+        await narrowTo([visitedHouseholdId]);
+
+        // The Relief Society has narrowed nothing, so it still sees the whole ward. The Elders
+        // Quorum's rows must not reach it.
+        await actAs(fixtures, "bishop");
+        const { body } = await callProgress(
+          `${PROGRESS_URL}?orgId=${fixtures.reliefSocietyId}`,
+        );
+
+        expect(progressFrom(body).stewardship).toMatchObject({ narrowed: false });
+        expect(rowFor(progressFrom(body), attemptedHouseholdId)).toBeDefined();
+      } finally {
+        await stopNarrowing();
+      }
     });
   });
 

@@ -110,6 +110,40 @@ export async function listHouseholdVisitCadences(
   return (data ?? []).map(mapRow);
 }
 
+// EVERY organization's overrides, ward-wide, for the all-organizations view
+// (lib/visits/allOrgProgress.ts). The same select list, with no `org_id` filter.
+//
+// RLS TIERS THIS IDENTICALLY TO THE FUNCTION ABOVE, and that is the whole point of there being
+// no filter here: `household_visit_cadences_select` is `is_bishopric() or org_id =
+// current_org_id()` with NO cross-org branch, so the bishopric reads every organization's and an
+// org leader reads only their own — whatever the ward's cross-org visibility setting says.
+//
+// That is ITER-018's decision, left standing by ITER-019: migration 052 widens
+// `household_stewardships_select` for the ward setting and pointedly does NOT widen this one.
+// Whose stewardship a family is in is a fact about coverage; what interval an organization holds
+// them to is that presidency's judgement.
+//
+// DO NOT ADD A REDUNDANT APPLICATION-SIDE FILTER HERE. It would mask a policy regression by
+// hiding rows the policy had started letting through.
+export async function listWardVisitCadences(
+  wardId: string,
+  client?: SupabaseClient<Database>,
+): Promise<HouseholdVisitCadence[]> {
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("household_visit_cadences")
+    .select(HOUSEHOLD_VISIT_CADENCE_COLUMNS)
+    .eq("ward_id", wardId);
+
+  if (error) {
+    console.error(`Could not read the ward's household cadences — ${error.message}`, { wardId });
+    throw new Error(`Could not load the ward's household cadences: ${error.message}`);
+  }
+
+  return (data ?? []).map(mapRow);
+}
+
 // Sets or replaces this organization's cadence for this household.
 //
 // Targets the `unique (household_id, org_id)` pair rather than reading-then-writing, so two

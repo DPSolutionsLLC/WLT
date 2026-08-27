@@ -4,8 +4,38 @@
 //
 // The rule: cross-org visibility widens READS ONLY. With the ward setting on, an Elders Quorum
 // leader reads the Relief Society's visit logs and their shared notes; they never gain the right
-// to WRITE one, in either mode. Migration 019 puts `ward_allows_cross_org_visibility()` in
-// visit_logs_select and in no other policy, and this suite is what proves that stayed true.
+// to WRITE one, in either mode.
+//
+// ---------------------------------------------------------------------------
+// WHICH TABLES IT WIDENS — ALL FOUR, AS OF MIGRATION 053
+// ---------------------------------------------------------------------------
+// `ward_allows_cross_org_visibility()` now appears in four SELECT policies, and this file is where
+// every one of them is asserted on both sides of the setting, on one household:
+//
+//   WIDENED    visit_logs_select               (019) — what happened
+//   WIDENED    household_stewardships_select   (052) — whose family it is
+//   WIDENED    visit_goals_select              (053) — what interval they hold it to
+//   WIDENED    household_visit_cadences_select (053) — the override on that interval
+//
+// ---------------------------------------------------------------------------
+// THIS FILE RECORDS A REVERSAL, AND THE OLD SHAPE IS NAMED RATHER THAN DELETED
+// ---------------------------------------------------------------------------
+// Until 2026-08-27 the last two were pointedly NARROW, and the contrast between them and the
+// first two was itself the decision — "facts are shared, judgements are not" (migration 050's
+// header, ITER-019 D6). The assertions below used to prove that goals and cadences did NOT widen.
+//
+// They now prove the opposite, by a product decision taken after walking scenario 048: an org
+// leader saw the other organizations' CHIPS on the all-organizations view but no BANDS, and the
+// page had to explain per chip that the number was being withheld. A ward turning on
+// "cross-organization visibility" is asking for that number.
+//
+// Written as an inversion rather than a rewrite so the change reads as a decision. If somebody
+// later restores the narrow shape, these are the tests that will fail and this is the paragraph
+// telling them what they are undoing.
+//
+// WHAT DID NOT MOVE: every WRITE policy, and visit_private_notes. Wider reads on shared work do
+// not widen a private note by one row (CLAUDE.md rule 5), and the assertions proving both are
+// unchanged below.
 //
 // And in BOTH modes, private notes do not move at all. Cross-org visibility is a setting about
 // an organization's work; a private note was never the organization's (CLAUDE.md rule 5).
@@ -40,6 +70,11 @@ describe("visit cross-org visibility", () => {
   let rsGoalId: string;
   let eqCadenceId: string;
   let rsCadenceId: string;
+  let eqStewardshipId: string;
+  let rsStewardshipId: string;
+  // A household with NO claim on it, so a refused insert is the POLICY refusing rather than the
+  // unique constraint.
+  let spareHouseholdId: string;
 
   // Flipped with the service client between phases rather than reseeded, so both halves assert
   // against the SAME rows — which is what makes "the same query, one setting apart" a real
@@ -71,6 +106,19 @@ describe("visit cross-org visibility", () => {
   const readCadenceIds = async (client: SupabaseClient<Database>): Promise<string[]> => {
     const { data, error } = await client
       .from("household_visit_cadences")
+      .select("id")
+      .eq("ward_id", wardId);
+
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((row) => row.id).sort();
+  };
+
+  // Shaped exactly like readCadenceIds — ward-wide, NO org filter — and that is what makes the
+  // pair of them a real comparison. A filtered read here would pass even if the setting had
+  // STOPPED widening this table, which is the regression this suite has to be able to see.
+  const readStewardshipIds = async (client: SupabaseClient<Database>): Promise<string[]> => {
+    const { data, error } = await client
+      .from("household_stewardships")
       .select("id")
       .eq("ward_id", wardId);
 
@@ -227,6 +275,43 @@ describe("visit cross-org visibility", () => {
 
     eqCadenceId = cadences.find((row) => row.org_id === fixtures.eldersQuorumId)!.id;
     rsCadenceId = cadences.find((row) => row.org_id === fixtures.reliefSocietyId)!.id;
+
+    // The SAME household claimed by BOTH organizations, alongside the two cadence overrides
+    // above. Seeding them onto one family is what lets the assertions below compare two tables
+    // under one setting, one line apart — which is the whole point of putting the D6 contrast in
+    // this file rather than in the new table's own suite.
+    const { data: stewardships, error: stewardshipError } = await fixtures.service
+      .from("household_stewardships")
+      .insert([
+        {
+          ward_id: wardId,
+          household_id: household.id,
+          org_id: fixtures.eldersQuorumId,
+        },
+        {
+          ward_id: wardId,
+          household_id: household.id,
+          org_id: fixtures.reliefSocietyId,
+        },
+      ])
+      .select("id, org_id");
+    if (stewardshipError) throw new Error(stewardshipError.message);
+
+    eqStewardshipId = stewardships.find(
+      (row) => row.org_id === fixtures.eldersQuorumId,
+    )!.id;
+    rsStewardshipId = stewardships.find(
+      (row) => row.org_id === fixtures.reliefSocietyId,
+    )!.id;
+
+    const { data: spare, error: spareError } = await fixtures.service
+      .from("households")
+      .insert({ ward_id: wardId, family_name: `Cross-org spare ${fixtures.runId}` })
+      .select("id")
+      .single();
+    if (spareError) throw new Error(spareError.message);
+
+    spareHouseholdId = spare.id;
   }, 60_000);
 
   afterAll(async () => {
@@ -244,6 +329,27 @@ describe("visit cross-org visibility", () => {
 
     it("shows the EQ president only their own household cadence", async () => {
       expect(await readCadenceIds(eqPresident)).toEqual([eqCadenceId]);
+    });
+
+    it("shows the EQ president only their own stewardship claim", async () => {
+      expect(await readStewardshipIds(eqPresident)).toEqual([eqStewardshipId]);
+    });
+
+    // THE OFF SIDE IS WHAT MAKES THE ON SIDE MEAN ANYTHING. Migration 053 widened four policies
+    // for this setting and none of them unconditionally — with the setting off, every one of them
+    // is back to `is_bishopric() or org_id = current_org_id()`. Without these, a policy that had
+    // dropped the setting check entirely and simply let everybody read everything would pass every
+    // assertion in the ON block below.
+    it("shows the RS president only their own visit goal", async () => {
+      expect(await readGoalIds(rsPresident)).toEqual([rsGoalId]);
+    });
+
+    it("shows the RS president only their own household cadence", async () => {
+      expect(await readCadenceIds(rsPresident)).toEqual([rsCadenceId]);
+    });
+
+    it("shows the RS president only their own stewardship claim", async () => {
+      expect(await readStewardshipIds(rsPresident)).toEqual([rsStewardshipId]);
     });
 
     it("shows the EQ president exactly one visit goal across the whole ward", async () => {
@@ -286,30 +392,95 @@ describe("visit cross-org visibility", () => {
       expect(data?.shared_notes).toBe(RS_SHARED);
     });
 
-    // The setting widens visit_logs_select and NOTHING else. visit_goals_select has no cross-org
-    // branch, which 07-visits.md §Integration Notes hands to visits-b as an open question: with
-    // visibility on a leader reads another org's logs but not the goal that supplies their
-    // denominator. Asserted here so the answer is recorded rather than discovered.
-    it("still shows the EQ president only their own visit goal", async () => {
-      expect(await readGoalIds(eqPresident)).toEqual([eqGoalId]);
+    // REVERSED BY MIGRATION 053. This read "still shows the EQ president only their own visit
+    // goal", and it was the recorded answer to an open question 07-visits.md §Integration Notes
+    // handed to visits-b: with visibility on, a leader read another organization's logs but not
+    // the goal supplying their denominator.
+    //
+    // The all-organizations view settled it the other way. A band is computed FROM a goal, so
+    // withholding the goal meant showing a chip with no standing on it — which is not what a ward
+    // asks for when it turns this setting on.
+    it("shows the EQ president BOTH visit goals", async () => {
+      const visible = await readGoalIds(eqPresident);
+
+      expect(visible).toHaveLength(2);
+      expect(visible).toContain(eqGoalId);
+      expect(visible).toContain(rsGoalId);
     });
 
-    // THE NEW TABLE MUST NOT HAVE RIDDEN ALONG. `ward_allows_cross_org_visibility()` appears in
-    // visit_logs_select and nowhere else, and migration 050 deliberately did not add it to
-    // household_visit_cadences_select: the setting widens reads of visit REPORTS so a ward
-    // council can read what happened. A cadence is a CONFIGURATION, not a report — the Relief
-    // Society reading the Elders Quorum's private judgement about a family is not what that
-    // setting offered. Asserted rather than assumed, because a new table quietly inheriting a
-    // widened read is precisely what nobody would notice.
-    it("still shows the EQ president only their own household cadence", async () => {
+    // ALSO REVERSED BY MIGRATION 053, and this is the pair that used to carry migration 050's
+    // reasoning: "the setting widens reads of visit REPORTS so a ward council can read what
+    // happened; a cadence is a CONFIGURATION, not a report."
+    //
+    // THE CADENCE HAD TO FOLLOW THE GOAL, and would have been wrong to leave behind. A band
+    // prefers the per-household override and falls back to the goal, so widening the goal alone
+    // would have rendered a pill computed from the WRONG INTERVAL — the Elders Quorum's 3-month
+    // override on one family reading as their 1-year goal, and the chip saying "on track" about a
+    // family they consider overdue. A number that is visible and wrong is worse than one withheld.
+    it("shows the EQ president BOTH household cadences", async () => {
       const visible = await readCadenceIds(eqPresident);
 
-      expect(visible).toEqual([eqCadenceId]);
-      expect(visible).not.toContain(rsCadenceId);
+      expect(visible).toEqual([eqCadenceId, rsCadenceId].sort());
+      expect(visible).toContain(rsCadenceId);
     });
 
-    it("still shows the RS president only their own household cadence", async () => {
-      expect(await readCadenceIds(rsPresident)).toEqual([rsCadenceId]);
+    it("shows the RS president both as well", async () => {
+      expect(await readCadenceIds(rsPresident)).toEqual([eqCadenceId, rsCadenceId].sort());
+    });
+
+    // The stewardship table, widened by migration 052 and now sitting alongside the goal and the
+    // cadence rather than in contrast to them. All four say the same thing under this setting,
+    // which is the point of the reversal: an organization's PROGRESS is one object, and handing a
+    // reader three quarters of it was the state scenario 048 found unsatisfying.
+    it("shows the EQ president BOTH organizations' stewardship claims", async () => {
+      const visible = await readStewardshipIds(eqPresident);
+
+      expect(visible).toHaveLength(2);
+      expect(visible).toContain(eqStewardshipId);
+      expect(visible).toContain(rsStewardshipId);
+    });
+
+    it("shows the RS president both as well", async () => {
+      expect(await readStewardshipIds(rsPresident)).toEqual(
+        [eqStewardshipId, rsStewardshipId].sort(),
+      );
+    });
+
+    // THE READ WIDENS AND THE WRITE DOES NOT. Reading who has claimed a family is a fact anybody
+    // on the ward council may need; claiming one on another organization's behalf is not, and no
+    // write policy on this table mentions the setting at all.
+    //
+    // Written against a SPARE household with no existing claim, so the refusal below is the
+    // POLICY refusing and not the unique constraint — a test that passed on the constraint would
+    // keep passing after the policy was removed.
+    it("still refuses the EQ president a stewardship claim for the RS", async () => {
+      const { error } = await eqPresident.from("household_stewardships").insert({
+        ward_id: wardId,
+        household_id: spareHouseholdId,
+        org_id: fixtures.reliefSocietyId,
+      });
+
+      expect(error).not.toBeNull();
+    });
+
+    // The positive control for the test above: the same insert, on the same spare household, for
+    // the caller's OWN organization succeeds. Without it, the refusal would also pass against a
+    // policy that refused everybody everything.
+    it("still lets the EQ president claim that household for the EQ", async () => {
+      const { data, error } = await eqPresident
+        .from("household_stewardships")
+        .insert({
+          ward_id: wardId,
+          household_id: spareHouseholdId,
+          org_id: fixtures.eldersQuorumId,
+        })
+        .select("id")
+        .single();
+
+      expect(error).toBeNull();
+      expect(data?.id).toBeTruthy();
+
+      await fixtures.service.from("household_stewardships").delete().eq("id", data!.id);
     });
 
     // The line this whole slice exists to hold. Wider reads on shared work do not widen private
