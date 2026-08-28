@@ -752,6 +752,64 @@ export function coverageRank(state: CoverageState): number {
   return COVERAGE_STATES.indexOf(state);
 }
 
+// ---------------------------------------------------------------------------
+// WHETHER A GAME THAT HAS ALREADY HAPPENED IS WAITING ON SOMEBODY'S ACCOUNT OF IT
+// ---------------------------------------------------------------------------
+// COMPUTED, never stored, and it is the THIRD instance of that rule in this module alone —
+// COVERAGE_STATES above, appointmentViewState() and householdVisitPriority() elsewhere. A
+// follow-up prompt fires from the CLOCK ("after an event passes"), and nothing in this project
+// fires from a clock: pg_cron is not enabled, supabase/functions/ does not exist, and vercel.json
+// declares no crons. So `youth_followup_prompt` is emitted NOWHERE, and lib/youth/followUp.ts is
+// the one place that decides it (CLAUDE.md §9 — that makes six things waiting on Phase 11's
+// single decision about a mechanism, not five).
+//
+// HIGHEST URGENCY FIRST, AND THE ORDER IS THE RANK, exactly as COVERAGE_STATES is. followUpRank()
+// reads the index rather than carrying a second map that could disagree with it.
+//
+// `did_not_attend` RANKS ABOVE `logged` because it is the only one of the two anybody may need to
+// act on: a leader who was down for a game and did not go is a gap somebody may want to close.
+// That is the same reasoning that puts "Attempted" on a visit tile and leaves "Visited" off it.
+export const FOLLOW_UP_STATES = [
+  "awaiting", // past, not cancelled, the reader was down for it, and they have written nothing
+  "did_not_attend", // a log exists and its author confirmed they did not go
+  "logged", // a log exists
+  "not_due", // upcoming, or cancelled, or the reader was never down for it
+] as const;
+export type FollowUpState = (typeof FOLLOW_UP_STATES)[number];
+
+// SENTENCES A LEADER WOULD SAY, not field names. The youth-c walk is the authority on why: the
+// label "Not yet known" failed because it did not say WHAT was not known, and a chip carries no
+// field label beside it to explain itself.
+//
+// `not_due` IS THE EMPTY STRING AND RENDERS NOTHING AT ALL, matching COVERAGE_STATE_LABELS'
+// `not_expected`. A chip reading "Not due" is a chip about nothing, on the rows that make up most
+// of the list.
+export const FOLLOW_UP_STATE_LABELS: Record<FollowUpState, string> = {
+  awaiting: "Waiting on your follow-up",
+  did_not_attend: "Did not attend",
+  logged: "Follow-up recorded",
+  not_due: "",
+};
+
+// The SAME scale CoverageTone names, reused rather than duplicated. That union is not
+// coverage-specific in its members — it is the four-step scale app/(app)/visits/bandStyles.ts
+// uses, plus `none` for "render nothing" — and a second identical union would be a second thing
+// to keep in step with globals.css.
+//
+// `awaiting` is `warning` rather than `danger`: a follow-up nobody has written yet is a thing to
+// do, not a failure. Reserving the loudest tone for a game NOBODY IS GOING TO is what keeps that
+// tone worth reading (the same argument that keeps `awareness` out of the warning tone above).
+export const FOLLOW_UP_STATE_TONES: Record<FollowUpState, CoverageTone> = {
+  awaiting: "warning",
+  did_not_attend: "warning_quiet",
+  logged: "success",
+  not_due: "none",
+};
+
+export function followUpRank(state: FollowUpState): number {
+  return FOLLOW_UP_STATES.indexOf(state);
+}
+
 export const GOAL_TARGET_TYPES = ["member", "household", "org", "group"] as const;
 export type GoalTargetType = (typeof GOAL_TARGET_TYPES)[number];
 
@@ -1057,4 +1115,38 @@ export const CROSS_ORG_VISIBILITY_SCOPE_NOTE =
 export const CROSS_ORG_VISIBILITY_STATE_LABELS: Record<"on" | "off", string> = {
   on: "Every organization's leaders can read every organization's visit reports.",
   off: "Visit reports are visible to their own organization's leaders, and to the bishopric.",
+};
+
+// THE SAME SETTING, SAID ABOUT FOLLOW-UPS. A second Record rather than a reworded first one,
+// because the pair above names VISIT REPORTS in both branches and a sentence about visits on
+// /youth/feed would answer the wrong question.
+//
+// The "off" sentence has an extra clause the visits one does not need, and it is the whole reason
+// this exists: migration 057 narrows follow-ups while the CALENDAR stays ward-wide, so a leader
+// who can see every organization's games and only some organizations' follow-ups is looking at an
+// apparent contradiction. Saying it out loud is the mitigation for that narrowing — "why can I
+// see the Young Women's activities but not their follow-ups?" is a question the page answers
+// rather than one a leader takes to a counselor.
+// WHO CAN READ THIS, said on the SHARED note field itself.
+//
+// visits-a moved this emphasis off the private field and onto the shared one, and the reason is
+// the whole point: a leader hesitating over the private box has it backwards — that one is safe.
+// The SHARED note is the one other people read, and after migration 057 the set of those people
+// depends on a ward setting, so the field cannot say "be careful" and has to say WHO.
+//
+// Both sentences must be true in their own mode; neither is a hedge that covers both. "Whoever
+// wrote it" is left out of the "off" sentence deliberately — the person reading the label IS the
+// author, and telling somebody they can read their own note is noise.
+export const YOUTH_SHARED_NOTE_AUDIENCE: Record<"on" | "off", string> = {
+  on:
+    "Every organization's leaders and the bishopric can read this — this ward has " +
+    "cross-organization visibility turned on.",
+  off: "This activity's own organization leaders and the bishopric can read this.",
+};
+
+export const YOUTH_CROSS_ORG_VISIBILITY_STATE_LABELS: Record<"on" | "off", string> = {
+  on: "Every organization's leaders can read every organization's activity follow-ups.",
+  off:
+    "Follow-ups are visible to their own organization's leaders, to the bishopric, and to " +
+    "whoever wrote them. The activity calendar itself stays open to everybody.",
 };

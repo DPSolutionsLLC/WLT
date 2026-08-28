@@ -46,6 +46,7 @@ describe("/api/reports/read-status", () => {
   let eqUnreadLogId: string;
   let rsLogId: string;
   let activityLogId: string;
+  let otherOrgActivityLogId: string;
 
   const rowsFor = async (userId: string, reportId: string) => {
     const { data, error } = await fixtures.service
@@ -108,20 +109,105 @@ describe("/api/reports/read-status", () => {
     eqUnreadLogId = logs.find((row) => row.visit_date === "2026-04-19")!.id;
     rsLogId = logs.find((row) => row.org_id === fixtures.reliefSocietyId)!.id;
 
-    // Phase 8's table, which already exists (migration 009). Seeded so the youth branch of the
-    // route is exercised rather than asserted about.
-    const { data: activity, error: activityError } = await fixtures.service
-      .from("activity_logs")
+    // ---------------------------------------------------------------------
+    // Phase 8's half, AND IT NOW GOES THROUGH A NARROWED POLICY
+    // ---------------------------------------------------------------------
+    // `REPORT_MODULES.youth_activity` has existed since visits-c and was never exercised against
+    // anything but a ward-wide select. Migration 057c replaced that with
+    // `is_bishopric() or logged_by = auth.uid() or activity_event_is_in_caller_org(event_id) or
+    // ward_allows_cross_org_visibility()`, so the entry's whole purpose — "does this report exist
+    // and may this caller see it?" — is only now a question with two answers.
+    //
+    // Two follow-ups are seeded to ask both. The first hangs off a WARD-WIDE activity
+    // (`org_id` null) and is authored by the ward council member, who has no organization at all;
+    // the second belongs to the Relief Society and is authored by its president. A follow-up needs
+    // an event as of migration 057a, and an event needs an activity, and an activity needs a
+    // youth.
+    const { data: member, error: memberError } = await fixtures.service
+      .from("members")
       .insert({
         ward_id: wardId,
-        logged_by: fixtures.user("wardCouncilMember").id,
-        shared_notes: "Activity shared: the whole class turned up.",
+        first_name: "Ada",
+        last_name: `Youth${fixtures.runId}`,
+        category: "youth",
+        status: "active",
       })
       .select("id")
       .single();
+    if (memberError) throw new Error(memberError.message);
+
+    const { data: profiles, error: profileError } = await fixtures.service
+      .from("youth_activity_profiles")
+      .insert([
+        {
+          ward_id: wardId,
+          org_id: null,
+          member_id: member.id,
+          activity_name: `Ward-wide debate ${fixtures.runId}`,
+          activity_type: "academic",
+        },
+        {
+          ward_id: wardId,
+          org_id: fixtures.reliefSocietyId,
+          member_id: member.id,
+          activity_name: `RS choir ${fixtures.runId}`,
+          activity_type: "performance",
+        },
+      ])
+      .select("id, org_id");
+    if (profileError) throw new Error(profileError.message);
+
+    const wardWideProfileId = profiles.find((row) => row.org_id === null)!.id;
+    const rsProfileId = profiles.find((row) => row.org_id !== null)!.id;
+
+    const { data: events, error: eventError } = await fixtures.service
+      .from("activity_events")
+      .insert([
+        {
+          ward_id: wardId,
+          profile_id: wardWideProfileId,
+          title: `Debate final ${fixtures.runId}`,
+          event_type: "home",
+          event_date: "2026-04-05T19:00:00-07:00",
+          status: "upcoming",
+        },
+        {
+          ward_id: wardId,
+          profile_id: rsProfileId,
+          title: `Spring concert ${fixtures.runId}`,
+          event_type: "home",
+          event_date: "2026-04-12T19:00:00-07:00",
+          status: "upcoming",
+        },
+      ])
+      .select("id, profile_id");
+    if (eventError) throw new Error(eventError.message);
+
+    const { data: activities, error: activityError } = await fixtures.service
+      .from("activity_logs")
+      .insert([
+        {
+          ward_id: wardId,
+          event_id: events.find((row) => row.profile_id === wardWideProfileId)!.id,
+          logged_by: fixtures.user("wardCouncilMember").id,
+          shared_notes: "Activity shared: the whole class turned up.",
+        },
+        {
+          ward_id: wardId,
+          event_id: events.find((row) => row.profile_id === rsProfileId)!.id,
+          logged_by: fixtures.user("rsPresident").id,
+          shared_notes: "RS shared: the choir sang beautifully.",
+        },
+      ])
+      .select("id, logged_by");
     if (activityError) throw new Error(activityError.message);
 
-    activityLogId = activity.id;
+    activityLogId = activities.find(
+      (row) => row.logged_by === fixtures.user("wardCouncilMember").id,
+    )!.id;
+    otherOrgActivityLogId = activities.find(
+      (row) => row.logged_by === fixtures.user("rsPresident").id,
+    )!.id;
   }, 60_000);
 
   afterAll(async () => {
@@ -244,6 +330,35 @@ describe("/api/reports/read-status", () => {
       });
 
       expect(activity.status).toBe(200);
+    });
+
+    // ---------------------------------------------------------------------
+    // MIGRATION 057c's NARROWING, SEEN THROUGH THIS ROUTE
+    // ---------------------------------------------------------------------
+    // The ward council member holds `youth_activities.view` and has NO organization, so the
+    // Relief Society's follow-up is not theirs to read — and `getActivityLog` returns null for it
+    // through the caller's own session client, which is what turns the policy into the SAME 404
+    // the visits half gives. Not a 403: two distinguishable answers would be the oracle this
+    // suite's header says the check exists to remove.
+    //
+    // Before 057 this returned 200. That is the assertion the entry was written for and never had.
+    it("refuses a follow-up the caller's organization does not own", async () => {
+      await actAs(fixtures, "wardCouncilMember");
+
+      const { status, body } = await post({
+        reportType: "youth_activity",
+        reportId: otherOrgActivityLogId,
+        read: true,
+      });
+
+      expect(status).toBe(404);
+      expect(errorMessage(body)).toBe("That report is not available to you.");
+
+      // Nothing was written. A refusal that still left a row would mean the caller had marked
+      // read a report they cannot see.
+      expect(
+        await rowsFor(fixtures.user("wardCouncilMember").id, otherOrgActivityLogId),
+      ).toEqual([]);
     });
 
     // A 400 from Zod, not a 500 from migration 008's CHECK constraint reporting the server's own

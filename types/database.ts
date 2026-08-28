@@ -277,32 +277,35 @@ export type Database = {
       activity_logs: {
         Row: {
           created_at: string
-          event_id: string | null
+          event_id: string
           flag_sent_at: string | null
           flagged_for_ward_council: boolean
           id: string
-          logged_by: string | null
+          logged_by: string
           shared_notes: string | null
+          updated_at: string
           ward_id: string
         }
         Insert: {
           created_at?: string
-          event_id?: string | null
+          event_id: string
           flag_sent_at?: string | null
           flagged_for_ward_council?: boolean
           id?: string
-          logged_by?: string | null
+          logged_by: string
           shared_notes?: string | null
+          updated_at?: string
           ward_id: string
         }
         Update: {
           created_at?: string
-          event_id?: string | null
+          event_id?: string
           flag_sent_at?: string | null
           flagged_for_ward_council?: boolean
           id?: string
-          logged_by?: string | null
+          logged_by?: string
           shared_notes?: string | null
+          updated_at?: string
           ward_id?: string
         }
         Relationships: [
@@ -335,6 +338,7 @@ export type Database = {
           created_at: string
           id: string
           notes: string
+          updated_at: string
           user_id: string
           ward_id: string
         }
@@ -343,6 +347,7 @@ export type Database = {
           created_at?: string
           id?: string
           notes: string
+          updated_at?: string
           user_id: string
           ward_id: string
         }
@@ -351,6 +356,7 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string
+          updated_at?: string
           user_id?: string
           ward_id?: string
         }
@@ -3281,6 +3287,10 @@ export type Database = {
       }
     }
     Functions: {
+      activity_event_is_in_caller_org: {
+        Args: { target_event_id: string }
+        Returns: boolean
+      }
       applied_migration_versions: {
         Args: never
         Returns: {

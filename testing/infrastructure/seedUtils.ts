@@ -1213,6 +1213,10 @@ export async function createActivityAttendee(options: {
   eventId: string;
   userId: string;
   assignedBy?: string;
+  // Slice D. ABSENT MEANS NOBODY HAS SAID EITHER WAY, which is a third state rather than a
+  // defaulted false — "did not go" is a fact somebody stated, and a tile renders it in a warning
+  // tone. A scenario that wants the "Did not attend" case must set it to `false` explicitly.
+  confirmedAttendance?: boolean;
 }): Promise<string> {
   return insertRow("activity_attendees", {
     id: options.id ?? testUuid(`attendee:${options.eventId}:${options.userId}`),
@@ -1220,23 +1224,42 @@ export async function createActivityAttendee(options: {
     event_id: options.eventId,
     user_id: options.userId,
     assigned_by: options.assignedBy ?? null,
+    confirmed_attendance: options.confirmedAttendance ?? null,
   });
 }
 
+// A LEADER'S ACCOUNT OF AN EVENT THAT HAS ALREADY HAPPENED.
+//
+// `eventId` and `loggedBy` are REQUIRED as of migration 057a. They were nullable in migration 009
+// only because Foundation B created every table before anything wrote to one: a log with no event
+// is not a follow-up, and a log with no author cannot be edited by anybody, since every write
+// policy names `logged_by`.
+//
+// MIGRATION 057a MAKES (event_id, logged_by) UNIQUE, so seeding the same pair twice fails loudly
+// with a constraint violation rather than quietly giving one leader two follow-ups on one game.
+// That is the right failure — a scenario that wrote it twice was describing a state the app
+// refuses with a 409 and a sentence.
+//
+// `flagSentAt` is settable and is load-bearing for the flag transition: `flagged = true` with
+// `flagSentAt` already stamped is the RE-FLAG case, which must NOT notify again, and it is
+// impossible to reach through the UI without unflagging first. Setting it directly is the only way
+// a scenario can start there.
 export async function createActivityLog(options: {
   id?: string;
-  eventId?: string;
-  loggedBy?: string;
+  eventId: string;
+  loggedBy: string;
   sharedNotes?: string;
   flaggedForWardCouncil?: boolean;
+  flagSentAt?: string;
 }): Promise<string> {
   return insertRow("activity_logs", {
-    id: options.id ?? testUuid(`activity-log:${options.eventId ?? "standalone"}`),
+    id: options.id ?? testUuid(`activity-log:${options.eventId}:${options.loggedBy}`),
     ward_id: TEST_WARD_ID,
-    event_id: options.eventId ?? null,
-    logged_by: options.loggedBy ?? null,
+    event_id: options.eventId,
+    logged_by: options.loggedBy,
     shared_notes: options.sharedNotes ?? null,
     flagged_for_ward_council: options.flaggedForWardCouncil ?? false,
+    flag_sent_at: options.flagSentAt ?? null,
   });
 }
 
@@ -1668,6 +1691,15 @@ export const NOTIFICATION_TRIGGERS: Array<{ key: string; defaultRoles: Role[] }>
   { key: "visit_overdue", defaultRoles: ["org_president", "org_counselor", "org_secretary"] },
   // Must match supabase/seed/notification_triggers.sql exactly. A harness ward seeded from a
   // stale copy of this list restores the old roles and quietly disagrees with production.
+  //
+  // IT DID NOT MATCH, AND WALKING SCENARIO 056 ON 2026-08-28 IS WHAT FOUND OUT. Five keys were
+  // absent: `youth_activity_flagged_for_ward_council` (added below, in the same slice that walked
+  // it) and the four `program_*` keys, which have been missing since program-c and are left alone
+  // here deliberately — adding them would change what program scenarios observe, which is that
+  // slice's call to make rather than this one's.
+  //
+  // A THIRD hand-maintained copy of one list is the actual defect. If this drifts again, the fix
+  // worth making is a test that diffs this array against the seed file, not another careful edit.
   { key: "visit_flagged_for_ward_council", defaultRoles: ["executive_secretary"] },
   { key: "new_household_added", defaultRoles: ["bishop", "counselor", "org_president", "ward_secretary"] },
   { key: "youth_activity_added", defaultRoles: ["org_president", "org_counselor", "org_secretary"] },
@@ -1675,6 +1707,17 @@ export const NOTIFICATION_TRIGGERS: Array<{ key: string; defaultRoles: Role[] }>
   { key: "youth_support_assigned", defaultRoles: ["org_president", "org_counselor", "org_secretary"] },
   { key: "youth_followup_prompt", defaultRoles: ["org_president", "org_counselor", "org_secretary"] },
   { key: "youth_followup_submitted", defaultRoles: ["org_president", "org_counselor"] },
+  // Added in youth-d, AFTER walking scenario 056 found it missing. Flagging a follow-up stamped
+  // `flag_sent_at`, wrote an audit row saying `notified: true`, and delivered NOTHING — because
+  // emitNotification looks the trigger up in `notification_settings` and the harness ward had no
+  // row for it. No error, no log, just nothing arriving: migration 036's warning, arriving in a
+  // THIRD place that keeps a copy of this list.
+  //
+  // Migration 057d and supabase/seed/notification_triggers.sql both had it, so real wards were
+  // never affected — 8 of them held the row while the harness ward did not. That is what makes
+  // this list dangerous: it fails only in the harness, which is where the failure is supposed to
+  // be caught.
+  { key: "youth_activity_flagged_for_ward_council", defaultRoles: ["executive_secretary"] },
   { key: "agenda_published", defaultRoles: ["bishop", "counselor", "ward_council_member", "executive_secretary"] },
   { key: "agenda_email_distributed", defaultRoles: ["bishop", "counselor", "executive_secretary"] },
   { key: "sacrament_assignments_sent", defaultRoles: ["bishop", "counselor"] },

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { ReportReadState } from "@/lib/reports/readStatus";
-import {
-  PREVIEW_MAX_CHARACTERS,
-  toPreviewText,
-  toReportTiles,
-} from "@/lib/visits/reportTiles";
+// Re-pointed in youth-d: `toPreviewText` and `PREVIEW_MAX_CHARACTERS` moved to
+// lib/reports/preview.ts so the youth mapper could share them without importing a visits module.
+// NOT ONE ASSERTION IN THIS FILE CHANGED — if one had needed to, the move would not have been
+// behaviour-preserving.
+import { PREVIEW_MAX_CHARACTERS, toPreviewText } from "@/lib/reports/preview";
+import { toReportTiles } from "@/lib/visits/reportTiles";
 import type { VisitLogWithContext } from "@/lib/visits/queries";
 
 // Pure. No database, no client, no clock — which is the point of keeping the mapper out of the

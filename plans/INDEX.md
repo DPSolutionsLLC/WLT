@@ -24,7 +24,7 @@ one of its slices has a retro entry with a commit.
 | 5 | AI platform — knowledge base, pgvector, settings | [05-ai-platform.md](05-ai-platform.md) | 4 | Large | Shipped |
 | 6 | Program builder, music, PDF, public pages | [06-program-music.md](06-program-music.md) | 5 | Large | Shipped — M4 waits on a physical fold check (scenarios 034/035) |
 | 7 | Visit tracker & return-and-report feed | [07-visits.md](07-visits.md) | 2 | Medium | **Shipped 2026-08-26** — see the Definition of Done in the phase file for what it deliberately does not close |
-| 8 | Youth activity support | [08-youth-activities.md](08-youth-activities.md) | 7 | Medium | **In progress** — sliced into four; see below |
+| 8 | Youth activity support | [08-youth-activities.md](08-youth-activities.md) | 7 | Medium | **All four slices built 2026-08-28** — scenarios 049–056 not yet walked; M5 waits on those walks |
 | — | ITER-018 — visit cadence and the priority scale | [visits-e-cadence-and-priority.md](visits-e-cadence-and-priority.md) | 7 | Medium | **Built 2026-08-26** — migration 051 waits for the deploy |
 | 9 | Meeting agendas & tithing calculator | [09-meetings-tithing.md](09-meetings-tithing.md) | 1 | Medium | Started — tithing worksheet only |
 | 10 | Sacrament administration & public assignments | [10-sacrament-admin.md](10-sacrament-admin.md) | 3 | Medium | Not started |
@@ -52,7 +52,7 @@ phase file stays the specification; each slice gets its own plan and its own ret
 | youth-a | Migration 054, activity profiles CRUD, manual event entry, the `/youth` page | [youth-a-profiles-and-events.md](youth-a-profiles-and-events.md) | **Built 2026-08-27** — migration 054 applied; scenarios 049/050 not yet walked |
 | youth-b | ICS upload: `ical.js`, preview-then-confirm, timezones, `RRULE`, idempotent re-import, `activity_calendars` | [youth-b-ics-import.md](youth-b-ics-import.md) | **Built 2026-08-27** — migration 055 applied; scenarios 051/052 not yet walked |
 | youth-c | Home/away classification, attendees, coverage computed on read, `/youth/calendar` | [youth-c-coverage-and-calendar.md](youth-c-coverage-and-calendar.md) | **Built 2026-08-28** — migration 056 applied (`completed` dropped, attendee writes narrowed); scenarios 053/054 not yet walked |
-| youth-d | `activity_logs`, the shared/private split, ward-council flagging, the report feed | — | Not planned |
+| youth-d | `activity_logs`, the shared/private split, ward-council flagging, the report feed | [youth-d-followup-and-report-feed.md](youth-d-followup-and-report-feed.md) | **Built 2026-08-28** — migrations 057 and 058 applied (`activity_logs` reads narrowed to the owning organization; 058 corrects 057c's UPDATE check); the report feed is REUSED, not forked; scenarios 055/056 not yet walked |
 
 Three decisions were taken at the start of `youth-a` planning and apply to the whole phase.
 **Activity reads are ward-wide and only writes are org-scoped** (`org_id` on
@@ -146,7 +146,7 @@ Useful checkpoints for "is this usable yet?"
 | **M2 — Data loaded** | 2 | Full roster imported from LCR; households browsable |
 | **M3 — Plan a month** | 4 | Plan, approve, request, and confirm a month of speakers and prayers |
 | **M4 — Print a program** | 6 | Produce and distribute a real sacrament program PDF with a public link |
-| **M5 — Run the orgs** | 8 | Every organization tracks visits; youth events get covered |
+| **M5 — Run the orgs** | 8 | Every organization tracks visits; youth events get covered and reported on. All four slices are built; the milestone waits on scenarios 049–056 being walked |
 | **M6 — Run the meetings** | 9 | Ward council and bishopric agendas built, emailed, and carried forward |
 | **M7 — Feature complete** | 11 | All 17 modules live, notifications tuned, audit log browsable |
 | **M8 — Shippable** | 12 | Polished, accessible, and safe to onboard a second ward |

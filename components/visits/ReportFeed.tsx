@@ -23,6 +23,12 @@ import type {
 // mapper rather than a second component. 08-youth-activities.md names retrofitting genericity
 // after a module-specific component ships as the pitfall this avoids.
 //
+// ONE STRING SURVIVED THAT CLAIM AND WAS FIXED IN youth-d: the filter's "no filter" option read
+// "Every organization" hardcoded. It is now the `allContextsLabel` prop, defaulted to the string
+// that was there — so the visits feed passes nothing and behaves identically, and the youth feed
+// says "Every activity". Making the change here rather than forking the component is what §Step 6
+// authorises; the visits feed was re-verified in the same session.
+//
 // The filter is generic too: it selects a `contextId`, which is an organization here and will be
 // an activity in Phase 8. The component never learns what one is.
 //
@@ -59,6 +65,16 @@ export type ReportFeedProps = {
   // checkbox; null hides it, which is the right answer for somebody who oversees every context
   // rather than sitting in one.
   ownContextId?: string | null;
+  // WHAT THE "no filter" OPTION IS CALLED. The one string in this component that could not be
+  // generic without a prop: the dropdown's first option read "Every organization" hardcoded, which
+  // is correct for visits and wrong for a feed whose contexts are ACTIVITIES.
+  //
+  // Changed IN PLACE rather than forked, which is what 08-youth-activities.md §Step 6 authorises
+  // and §Pitfalls asks for by name ("Two nearly identical components drift. Parameterize the
+  // one."). The default is the string that was there, so the visits feed passes nothing and its
+  // behaviour is unchanged — which is how the change is shown to be safe rather than claimed to
+  // be.
+  allContextsLabel?: string;
   onOpen?: (tile: ReportTileModel) => void;
 };
 
@@ -114,6 +130,7 @@ export function ReportFeed({
   fetchPage,
   emptyMessage,
   ownContextId = null,
+  allContextsLabel = "Every organization",
   onOpen,
 }: ReportFeedProps) {
   const queryClient = useQueryClient();
@@ -422,7 +439,7 @@ export function ReportFeed({
                 value={activeContextId ?? ""}
                 onChange={(event) => changeContext(event.target.value || null)}
               >
-                <option value="">Every organization</option>
+                <option value="">{allContextsLabel}</option>
                 {contexts.map((context) => (
                   <option key={context.id} value={context.id}>
                     {context.label}

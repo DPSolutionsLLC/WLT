@@ -1,6 +1,6 @@
 # Backlog
 
-_Last updated: 2026-08-27_
+_Last updated: 2026-08-28_
 
 ---
 
@@ -21,6 +21,63 @@ is what the grouping asked for._
 
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
+
+- [ ] ITER-020 — The youth module needs two views it does not have → [scope](.iterate/scopes/ITER-020.md)
+  _Raised by the user 2026-08-28 reviewing the `youth-d` walkthrough. Phase 8 shipped four slices
+  and the module's **front door is wrong**: the follow-up feed is a record, not a workspace, and
+  the user could not say what it was for. What they want instead is a calendar of events you can
+  commit yourself from, and **an overview by young person** ranked so that a youth with an event
+  nobody has signed up for floats to the top. **Most of the first view already exists and was never
+  shown during the walk** — `/youth/calendar` has the filters, the month grid, the coverage
+  ranking, and a strip naming the events nobody is going to. Two real gaps: you cannot attend from
+  the calendar (`AttendeeControls` is on `/youth` only, verified in the browser), and nothing lists
+  all youth by need. **No schema change expected** — both views are presentation over data that
+  already exists, so nothing built in slices A–D is wasted. Settled in conversation and not to be
+  re-litigated: "commit to make contact with that youth" needs no new state (one event → one
+  profile → one youth already), it is a copy change on the button; and the feed gets demoted, not
+  deleted. **Open:** which view is the landing page, and a second more pastoral signal the user's
+  sort does not capture — "which young person has quietly had nobody turn up all season"._
+
+- [ ] ITER-021 — "Say how it went" is offered on another organization's event → [scope](.iterate/scopes/ITER-021.md)
+  _Found 2026-08-28 walking scenario 056 for `youth-d`. As the Young Men president, `/youth` offers
+  the follow-up control on a **Young Women** activity; typing a note and saving is refused with a
+  sentence. Nothing is written and migration 057c's INSERT policy holds — but the control should
+  never have been offered. **This is `youth-a` defect D1 / `visits-d` a THIRD time**, and both
+  `08-youth-activities.md` and the `youth-d` plan quote it by name as "a locked door somebody was
+  invited through". The cause is that `EventList` gates on `canLog` (the permission, which never
+  says WHICH events) and `isFollowUpWritable()` (the clock), and neither knows the event's
+  organization — `youth-d` applied the ownership mirror to the ward-council flag control and not
+  to the follow-up control beside it, inside the very slice that quoted the lesson. Fix is a
+  `canWriteFollowUpOn()` in `lib/youth/activityOwnership.ts` mirroring the INSERT policy, with the
+  `org_id is null` arm kept. `canManageActivityLog` also shipped **untested** and wants covering in
+  the same sitting. Scenario 056 already carries the failing checklist line._
+
+- [ ] ITER-022 — The follow-up form communicates by appearance alone → [scope](.iterate/scopes/ITER-022.md)
+  _Found 2026-08-28 walking `youth-d`. Three items in one file, one sitting. **(1)** "Did you go?"
+  conveys its answer by **colour alone** — confirmed from the DOM, neither button carries
+  `aria-pressed`, `aria-checked`, or a role, so a screen reader hears two identical buttons and
+  cannot tell which answer is stored. This codebase forbids exactly that in three places
+  (`CoverageBadge`, `ReportTile`, `VisitProgressTable` each say "colour is never the only signal")
+  and `ReportTile`'s bookmark already uses `aria-pressed` for the same shape of control.
+  **(2)** The private-note block wants to be harder to mistake for the shared one — the user's
+  verdict was "i don't think so? but it wouldn't hurt to make it more clear somehow though". Keep
+  `visits-a`'s emphasis, which correctly puts the caution on the SHARED field; strengthen the
+  visual separation only. **(3)** "Waiting on your follow-up" sits third on `/youth`, ~770px down,
+  below both activity cards — **overlaps ITER-020**, which may move the page entirely, so do not
+  reposition it in isolation._
+
+- [ ] ITER-023 — A third hand-maintained copy of the notification trigger keys → [scope](.iterate/scopes/ITER-023.md)
+  _Found 2026-08-28 walking scenario 056. The trigger keys live in three places — the seed SQL, a
+  migration per key, and `NOTIFICATION_TRIGGERS` in `testing/infrastructure/seedUtils.ts`. `youth-d`
+  updated the first two and not the third, and the symptom was exactly what migration 036 warns
+  about: flagging a follow-up **stamped `flag_sent_at`, wrote `notified: true`, and delivered
+  nothing**. **Real wards were never affected** — migration 057d had the row for all eight — which
+  makes it worse rather than better, because the harness is where such a failure is supposed to be
+  caught. The one key was added during the walk to unblock the scenario; **four `program_*` keys
+  are still missing**, pre-existing since `program-c`, and any scenario asserting one of those
+  notifications is asserting against silence. The fix is not another careful edit but **a test that
+  diffs the array against the seed file** — both inputs are files on disk, so it needs no database.
+  The comment above the array already said it must match exactly, while being wrong by five keys._
 
 - [ ] ITER-017 — Token counts are redacted out of every AI audit row → [scope](.iterate/scopes/ITER-017.md)
   _Found 2026-08-24 walking scenario 027 for `ai-d`. Every AI route logs `outputTokens` so spend is

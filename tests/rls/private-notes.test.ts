@@ -47,10 +47,54 @@ describe("private notes", () => {
     if (visitLogError) throw new Error(visitLogError.message);
     visitLogId = visitLog.id;
 
+    // A follow-up needs an EVENT as of migration 057a, and an event needs an activity, and an
+    // activity needs a youth. The chain is seeded with the service client because none of it is
+    // what this suite is asserting about — the note hanging off the end of it is.
+    const { data: member, error: memberError } = await fixtures.service
+      .from("members")
+      .insert({
+        ward_id: fixtures.wardAId,
+        first_name: "Ada",
+        last_name: `Youth${fixtures.runId}`,
+        category: "youth",
+        status: "active",
+      })
+      .select("id")
+      .single();
+    if (memberError) throw new Error(memberError.message);
+
+    const { data: profile, error: profileError } = await fixtures.service
+      .from("youth_activity_profiles")
+      .insert({
+        ward_id: fixtures.wardAId,
+        org_id: fixtures.eldersQuorumId,
+        member_id: member.id,
+        activity_name: `Basketball ${fixtures.runId}`,
+        activity_type: "sport",
+      })
+      .select("id")
+      .single();
+    if (profileError) throw new Error(profileError.message);
+
+    const { data: event, error: eventError } = await fixtures.service
+      .from("activity_events")
+      .insert({
+        ward_id: fixtures.wardAId,
+        profile_id: profile.id,
+        title: `Game ${fixtures.runId}`,
+        event_type: "home",
+        event_date: "2026-03-01T19:00:00-07:00",
+        status: "upcoming",
+      })
+      .select("id")
+      .single();
+    if (eventError) throw new Error(eventError.message);
+
     const { data: activityLog, error: activityLogError } = await fixtures.service
       .from("activity_logs")
       .insert({
         ward_id: fixtures.wardAId,
+        event_id: event.id,
         logged_by: fixtures.user("counselor1").id,
         shared_notes: "shared summary",
       })

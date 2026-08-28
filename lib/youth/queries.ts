@@ -29,25 +29,35 @@ import type {
 //
 // SERVER-ONLY. It imports createServerSupabaseClient, which imports next/headers.
 
+// `eventId` and `loggedBy` are NOT NULL as of migration 057a. They were nullable in migration 009
+// only because Foundation B created every table before anything wrote to one — a log with no event
+// is not a follow-up, and a log with no author cannot be edited by anybody, since every write
+// policy names `logged_by`.
 export type ActivityLog = {
   id: string;
-  eventId: string | null;
+  eventId: string;
   // WHO TYPED IT IN. `activity_logs` has no participants table and no equivalent of
   // `visit_participants`, so unlike a visit there is no separate record of who was actually
   // there. A feed tile must not present this under the same label a visit's "who went" uses
   // (lib/reports/types.ts).
-  loggedBy: string | null;
+  loggedBy: string;
   sharedNotes: string | null;
   flaggedForWardCouncil: boolean;
+  // NEVER SET FROM A REQUEST BODY. lib/youth/activityLogs.ts takes it as a separate parameter to
+  // its update for that reason: a body that could stamp its own would be able to silence the
+  // ward-council notification. It is on the read shape because the route needs it to decide
+  // whether a re-flag notifies again (07-visits.md §Step 3).
+  flagSentAt: string | null;
   createdAt: string;
 };
 
 type ActivityLogRow = {
   id: string;
-  event_id: string | null;
-  logged_by: string | null;
+  event_id: string;
+  logged_by: string;
   shared_notes: string | null;
   flagged_for_ward_council: boolean;
+  flag_sent_at: string | null;
   created_at: string;
 };
 
@@ -55,7 +65,7 @@ type ActivityLogRow = {
 // `string` and defeats supabase-js's literal parsing of the select list
 // (plans/retros/calendar-a-rules-and-api.md).
 const ACTIVITY_LOG_COLUMNS =
-  "id, event_id, logged_by, shared_notes, flagged_for_ward_council, created_at";
+  "id, event_id, logged_by, shared_notes, flagged_for_ward_council, flag_sent_at, created_at";
 
 function mapActivityLogRow(row: ActivityLogRow): ActivityLog {
   return {
@@ -64,14 +74,20 @@ function mapActivityLogRow(row: ActivityLogRow): ActivityLog {
     loggedBy: row.logged_by,
     sharedNotes: row.shared_notes,
     flaggedForWardCouncil: row.flagged_for_ward_council,
+    flagSentAt: row.flag_sent_at,
     createdAt: row.created_at,
   };
 }
 
-// Null, not an error, for a log this caller cannot see. Migration 019 gives `activity_logs` a
-// plain ward-scoped select policy, so today that means "not in your ward" — but the caller's
-// session client is still what runs the query, so a narrower policy added by Phase 8 narrows this
-// too without anything here changing.
+// Null, not an error, for a log this caller cannot see. This header anticipated slice D and slice
+// D is what happened: migration 057c replaced migration 019's plain ward-scoped select with
+// `is_bishopric() or logged_by = auth.uid() or activity_event_is_in_caller_org(event_id) or
+// ward_allows_cross_org_visibility()`, and NOT A LINE OF THIS FUNCTION CHANGED — the caller's
+// session client is what runs the query, so the narrower policy narrows this for free.
+//
+// That is also what makes app/api/reports/read-status/route.ts's `youth_activity` entry correct
+// after the narrowing rather than merely still compiling: "may this caller see this report?" is
+// answered by the policy, through this call.
 export async function getActivityLog(
   wardId: string,
   activityLogId: string,

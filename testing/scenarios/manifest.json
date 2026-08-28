@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 54,
+  "scenarioCount": 56,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -2213,6 +2213,96 @@
         "Would a bishopric member reading the panel cold know what to type into it?"
       ],
       "seedCommand": "npm run seed -- youth/scenario-054-home-away-and-the-wards-own-gym"
+    },
+    {
+      "id": "youth:scenario-055-the-game-is-over-and-nobody-has-said-how-it-went",
+      "path": "youth/scenario-055-the-game-is-over-and-nobody-has-said-how-it-went",
+      "name": "The game is over and nobody has said how it went",
+      "scope": "youth",
+      "part": 5,
+      "tags": [
+        "youth",
+        "full",
+        "follow-up",
+        "privacy"
+      ],
+      "prerequisites": "none",
+      "purpose": "The whole follow-up loop, end to end, including the two things a green suite cannot check:\nwhether a leader can **find out there is anything to write**, and whether the **shared/private\nboundary is legible on the screen where it matters**.\n\nThe arithmetic is pinned by `tests/lib/youthFollowUp.test.ts`, the policies by\n`tests/rls/activity-logs.test.ts` and `tests/rls/activity-private-notes.test.ts`, and the wire\nformat by `tests/routes/youthPrivateNote.test.ts` — which scans three endpoints' serialized bodies\nfor the note's text. What none of them can answer is whether the panel on `/youth` is **findable**,\nwhether the shared-note label reads as a fact rather than a warning, and whether a tile that says\n*\"Nobody recorded as taking part\"* reads as a bug.\n\nSeeding matters because four of the five events have to sit at specific distances **in the past**,\nand because a second leader's follow-up with a private note on it has to exist before anybody\ntouches the app — otherwise the only run that checks the privacy boundary is the run where the\ntester happened to use the private box.",
+      "checklist": [
+        "`/youth` shows **exactly one** event waiting on the president: *Game against Roosevelt*.",
+        "The heading counts what the list shows — **Waiting on your follow-up (1)** — and the count",
+        "The **cancelled** past event appears nowhere as waiting, and carries **no follow-up badge**.",
+        "The form asks **\"Did you go?\"** — and it asks it *because the president has an attendee row*.",
+        "On *Winter concert*, opened by the **secretary**, the same question appears; opened by",
+        "The shared-note field says **who can read it** and names them — with cross-org visibility",
+        "The private-note field says it is the author's alone, in a **visually distinct block**",
+        "Saving updates the **panel**, the **schedule badge** and the **attendee line** with no",
+        "A second follow-up on the same event is refused with *\"You have already recorded a follow-up",
+        "The **ward council** control is absent while creating a follow-up and present when editing",
+        "`/youth/feed` shows the new report, **unread**, and the sentence beneath the heading names",
+        "The dropdown's first option reads **Every activity**, not \"Every organization\".",
+        "Tapping a tile marks it read **for the president only** — sign in as the bishop and confirm",
+        "The tile's date is the **event's** date, formatted `Sat, 2 Jan 2027` style — never",
+        "The tile preview is **one line** of the **shared** note, ending in an ellipsis at a word",
+        "A follow-up that confirms **I did not go** shows *\"Did not attend\"* on its tile; one that",
+        "The bishop **can** read the secretary's shared note on `/youth/feed`.",
+        "The bishop **cannot** read the secretary's private note — not on the feed, not on `/youth`,",
+        "`audit_log` holds `youth_activity_followup_logged` and",
+        "`notifications` holds one `youth_followup_submitted` row addressed to the Young Men",
+        "No horizontal overflow at 375px. Every button is at least 44×44.",
+        "Is the **Waiting on your follow-up** panel *findable*? `youth-c` found the uncovered banner",
+        "Does *\"Nobody recorded as taking part\"* on a youth tile read as a **bug**? It is true —",
+        "Does the shared-note label read as a **fact about who can see it** rather than as a warning?",
+        "Do the two note fields look **different enough** that you would not type the wrong thing into",
+        "With nothing waiting, does the panel's empty state read as *\"you are up to date\"* or as",
+        "Is *\"Follow-up recorded\"* on a logged event useful, or is it noise on a row nobody has to act",
+        "Does the feed's ordering — **newest report first**, while each tile shows the **event's**",
+        "Legible one-handed at 375px, in both light and dark mode?"
+      ],
+      "seedCommand": "npm run seed -- youth/scenario-055-the-game-is-over-and-nobody-has-said-how-it-went"
+    },
+    {
+      "id": "youth:scenario-056-a-follow-up-the-ward-council-should-hear-about",
+      "path": "youth/scenario-056-a-follow-up-the-ward-council-should-hear-about",
+      "name": "A follow-up the ward council should hear about",
+      "scope": "youth",
+      "part": 6,
+      "tags": [
+        "youth",
+        "full",
+        "rls",
+        "notifications",
+        "cross-org"
+      ],
+      "prerequisites": "none",
+      "purpose": "The flag path, and **decision 1's boundary from an account that is on the wrong side of it**.\n\nMigration 057 makes `activity_logs` the **one read Phase 8 narrows**: a follow-up is visible to\nits own organization, to the bishopric, to whoever wrote it, and to everybody when the ward has\ncross-organization visibility on. The activity **calendar** stays ward-wide, so a leader can see\nevery organization's games and only some organizations' follow-ups. That is deliberate, and it is\nthe kind of thing a person calls a bug unless the page says otherwise.\n\n`tests/rls/activity-logs.test.ts` proves the policy on both sides of the setting.\n`tests/routes/youthLogs.test.ts` proves all three rows of the flag transition. What neither can\nanswer is **whether the sentence explaining the narrowing is one a leader accepts**, and whether\nthe flag confirmation makes clear the executive secretary receives a *pointer* rather than the\nnote.\n\nSeeding matters because the state — three ownership shapes, five accounts, an executive secretary\nwho holds no youth permission, and a ward setting toggled mid-walk — is tedious to build by hand\nand easy to build wrongly.",
+      "checklist": [
+        "With the setting **off**, `ym-president` sees **two** tiles: *Game against Roosevelt* and",
+        "`yw-president` sees *Winter concert* and *Food bank morning*, and **not** *Game against",
+        "`ward-council` (no organization) sees **only** *Food bank morning* — the ward-wide one, which",
+        "The bishop sees **all three**.",
+        "Every reader still sees **all three activities** on `/youth` and `/youth/calendar`. The",
+        "The filter dropdown offers only the activities that **have** a follow-up this reader can see —",
+        "Flagging emits **exactly one** notification, and its `recipient_user_id` is the executive",
+        "The notification body is the one-liner: the activity, the event, and *\"requested for ward",
+        "`exec-secretary@…` opening `/youth` or `/youth/feed` gets the \"not permitted\" page — they",
+        "**Unflagging clears `flag_sent_at`** (check the `activity_logs` row), and the next flag",
+        "**Flagging twice without unflagging notifies once.** Re-tick and save on an already-flagged",
+        "The flag control is **absent** on a follow-up the reader could not write — not present and",
+        "With the setting **on**, both presidents and the ward council member see **all three**, and",
+        "With the setting **on**, `ym-president` still **cannot edit** the Young Women's follow-up —",
+        "**`/visits/feed` still works**: tiles render, the dropdown's first option still reads",
+        "`audit_log` holds `youth_activity_flagged` and `youth_activity_unflagged` rows, and neither",
+        "No horizontal overflow at 375px. Every button is at least 44×44.",
+        "**This is the decision-1 question.** Is *\"Follow-ups are visible to their own organization's",
+        "For the **ward council member** specifically: they can see every activity and one follow-up.",
+        "Does the flag confirmation make clear the executive secretary receives a **pointer**, not the",
+        "Is the difference between the **star** (a private bookmark, nobody notified) and the **ward",
+        "When the setting is turned **on**, does the changed sentence read as an explanation of what",
+        "Does *\"Youth activity follow-up flagged for ward council\"* read sensibly to somebody who",
+        "Legible one-handed at 375px, in both light and dark mode?"
+      ],
+      "seedCommand": "npm run seed -- youth/scenario-056-a-follow-up-the-ward-council-should-hear-about"
     }
   ]
 }

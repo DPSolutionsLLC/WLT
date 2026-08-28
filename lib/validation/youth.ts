@@ -208,3 +208,80 @@ export const assignAttendeeSchema = z.object({
   userId: z.uuid("Choose who is going."),
 });
 export type AssignAttendeeInput = z.infer<typeof assignAttendeeSchema>;
+
+// ---------------------------------------------------------------------------
+// The follow-up: what happened after the game
+// ---------------------------------------------------------------------------
+// NO `wardId`, NO `loggedBy`, NO `flagSentAt` on any schema here, ever. The first two come from
+// the session — the rule this file's header already states for `wardId` and `enteredBy`, extended
+// to `loggedBy` because migration 057c's INSERT policy checks `logged_by = auth.uid()` with no
+// bishopric exemption, and a body that could name its own author is a body that can forge one.
+//
+// `flagSentAt` is the third, and it is the one worth spelling out: it is a separate parameter on
+// lib/youth/activityLogs.ts's update, because a body that could stamp its own would be able to
+// SILENCE the ward-council notification.
+//
+// The PRIVATE NOTE HAS ITS OWN SCHEMA AND ITS OWN ROUTE, and is never a field on a log body.
+// That is what keeps CLAUDE.md rule 5's "separate table, separate module, separate route" true at
+// every layer, including the wire format.
+
+// Shorter than a visit's 4000. A follow-up is an account of one evening — "they played well, Ethan
+// had a rough time in the second half, his mum was there" — where a visit note may carry a
+// family's circumstances. A limit that is generous everywhere teaches nobody anything about what
+// the field is for.
+export const MAX_ACTIVITY_SHARED_NOTES = 2000;
+export const MAX_ACTIVITY_PRIVATE_NOTES = 2000;
+
+const activitySharedNotesSchema = z
+  .string()
+  .trim()
+  .max(
+    MAX_ACTIVITY_SHARED_NOTES,
+    `Keep the shared notes to ${MAX_ACTIVITY_SHARED_NOTES} characters.`,
+  )
+  .nullable()
+  .optional();
+
+// ---------------------------------------------------------------------------
+// `attended` IS OPTIONAL AND ITS ABSENCE IS MEANINGFUL
+// ---------------------------------------------------------------------------
+// The same load-bearing distinction `createVisitLogSchema.participants` draws between `undefined`
+// and `[]`. ABSENT means the caller said nothing about attendance and the attendee row is left
+// exactly as it is; only `true` or `false` writes `confirmed_attendance`.
+//
+// It has to be that way because the form only ASKS the question when the reader has an attendee
+// row. A default would make "the control was never shown" and "they answered no" the same value,
+// and the second is a fact somebody stated.
+export const createActivityLogSchema = z.object({
+  eventId: z.uuid("That event is not valid."),
+  sharedNotes: activitySharedNotesSchema,
+  attended: z.boolean().optional(),
+});
+export type CreateActivityLogInput = z.infer<typeof createActivityLogSchema>;
+
+export const updateActivityLogSchema = z
+  .object({
+    sharedNotes: activitySharedNotesSchema,
+    flaggedForWardCouncil: z.boolean().optional(),
+    attended: z.boolean().optional(),
+  })
+  .superRefine((value, context) => {
+    if (Object.keys(value).length === 0) {
+      context.addIssue({ code: "custom", message: "Nothing was changed." });
+    }
+  });
+export type UpdateActivityLogInput = z.infer<typeof updateActivityLogSchema>;
+
+// No `userId`. The author of a private note is always auth.uid(), so "write someone else's note"
+// is not expressible in this schema, in lib/youth/privateNotes.ts, or in the route.
+export const upsertActivityPrivateNoteSchema = z.object({
+  notes: z
+    .string()
+    .trim()
+    .min(1, "Write something, or delete the note instead.")
+    .max(
+      MAX_ACTIVITY_PRIVATE_NOTES,
+      `Keep the note to ${MAX_ACTIVITY_PRIVATE_NOTES} characters.`,
+    ),
+});
+export type UpsertActivityPrivateNoteInput = z.infer<typeof upsertActivityPrivateNoteSchema>;

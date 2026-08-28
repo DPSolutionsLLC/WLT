@@ -62,6 +62,31 @@ export function canManageActivityProfile(
   return user.orgId === profile.orgId;
 }
 
+// WHO MAY EDIT A FOLLOW-UP, mirroring migration 057c's `activity_logs_update` USING clause
+// exactly:
+//
+//   using (ward_id = current_ward_id() and (is_bishopric() or logged_by = auth.uid()))
+//
+// TWO WAYS IN, AND THE ORGANIZATION IS NOT ONE OF THEM. An org president may READ their
+// organization's follow-ups and may not rewrite one somebody else wrote — a follow-up is a
+// personal account of an event, and editing another person's account is not oversight. What the
+// bishopric branch is actually for is clearing a ward-council FLAG on somebody's follow-up: they
+// own the agenda. The policy's WITH CHECK still refuses anybody, bishopric included, leaving a row
+// attributed to a different author.
+//
+// This is the same mirror canManageActivityProfile is, for the same reason its header gives at
+// length: a control the policy refuses is still a bug, twice recorded (visits-d, youth-a-D1).
+// `loggedBy` is `not null` as of migration 057a, so there is no null arm to get wrong here — the
+// trap that made the profile version's explicit guards necessary is simply absent.
+export function canManageActivityLog(
+  user: Pick<SessionUser, "id" | "role">,
+  log: { loggedBy: string },
+): boolean {
+  if (isBishopricRole(user.role)) return true;
+
+  return log.loggedBy === user.id;
+}
+
 // THERE IS DELIBERATELY NO canManageActivityEvent().
 //
 // `activity_events` keeps migration 019's ward-wide write policies and has no `org_id` of its own,

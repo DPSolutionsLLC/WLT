@@ -466,6 +466,76 @@ Flag these when they become relevant; do not silently pick a side.
   count, so a narrower read would make the same event read covered to one leader and uncovered to
   another from the same data. Writes are narrowed to `is_bishopric() or user_id = auth.uid()` —
   never `assigned_by`, which is null on a self-add and would be the `talks-d` hole again.
+- **A youth activity FOLLOW-UP is org-scoped, while the calendar stays ward-wide — DECIDED
+  2026-08-28.** This is the one read Phase 8 narrows and it goes the opposite way from the entry
+  above, deliberately. That entry says "do not re-propose making the read org-scoped for
+  consistency — the asymmetry IS the feature", and it is about COORDINATION data. **A pastoral
+  follow-up note is not coordination data.** 08-youth-activities.md §Step 5 asks for "the same
+  shared/private split as Phase 7, with the same rules", and Phase 7's rule for `visit_logs` is
+  `is_bishopric() or org_id = current_org_id() or ward_allows_cross_org_visibility()`. Migration
+  057c gives `activity_logs` that shape plus `logged_by = auth.uid()`, resolved through the event's
+  profile by a `security definer` helper — a LEFT JOIN with an explicit `profile.org_id is null`
+  arm, because absent still means ward-wide and an inner join would hide such a log from everybody
+  but the bishopric. **`youth_activity_profiles`, `activity_events` and `activity_attendees` keep
+  their ward-wide SELECT untouched**; the calendar promise in FEATURES.md §Module 10 is kept in
+  full, and `activity_attendees`' read stays load-bearing for coverage (056c).
+  **The cost is named rather than discovered:** `ward_council_member` — the role most likely to
+  have no organization at all, and one of the two this module was built for — sees only ward-wide
+  follow-ups, its own, and everything when cross-org visibility is on. That is the price of the
+  decision, **not** a bug to patch with an `if (role === 'ward_council_member')` branch, which
+  would be rule 2 broken in the most literal way available. `/youth/feed` states which mode the
+  ward is in **in words**, with its own labels rather than
+  `CROSS_ORG_VISIBILITY_STATE_LABELS` (whose two sentences both say "visit reports" and neither of
+  which mentions a calendar that stayed open). If a walk finds it too narrow the fix is a product
+  decision about the setting, not a special case for one role.
+  **A policy cannot express column immutability, and 057c tried.** Its UPDATE carried
+  `with check (… and logged_by = auth.uid())`, meaning to stop reattribution while letting the
+  bishopric clear a flag. WITH CHECK sees only the row that WOULD RESULT, never the row that was —
+  so it locked the bishopric out of touching another author's follow-up at all, which is the one
+  thing the USING clause had gone out of its way to allow. `tests/rls/activity-logs.test.ts` caught
+  it on its first run and **migration 058** replaces the policy with one predicate on both halves,
+  the shape `visit_logs_update` has. The author guarantee lives where
+  `visit_logs.recorded_by`'s does: `updateActivityLogSchema` has no `loggedBy` field and
+  `updateActivityLog()` never assigns the column. **There are no triggers anywhere in this repo**;
+  do not add the first one for this.
+
+- **Phase 11 now inherits SIX clock-driven things, not five.** `youth_followup_prompt` joins
+  `youth_event_uncovered`, the Monday away-digest, `visit_overdue`, `refresh_goal_status()` and ICS
+  re-sync. It fires from the clock — "after an event passes" — and nothing in this project fires
+  from a clock: `pg_cron` is not enabled, `supabase/functions/` does not exist, `vercel.json`
+  declares no crons. So it is **computed on read and emitted nowhere**: `lib/youth/followUp.ts` is
+  a pure function of `(eventDate, status, isAttendee, hasLog, confirmedAttendance, asOf)`, the
+  third instance in this module of the rule that produced `coverage.ts`, `appointmentViewState()`
+  and `householdVisitPriority()`. The alternative would be a notification emitted from a GET, which
+  puts a write path outside a human confirm (rule 3). `youth-c` deliberately added no sixth; this
+  slice does, and Phase 11 should settle the mechanism once for all six.
+
+- **The return-and-report feed is REUSED, not forked — proved 2026-08-28.**
+  `components/visits/ReportFeed.tsx` and `ReportTile.tsx` render both modules unchanged. Phase 8
+  supplies only a mapper (`lib/youth/reportTiles.ts`) and a fetcher
+  (`app/(app)/youth/feed/YouthReportFeed.tsx`, twelve lines), exactly as `visits-c` predicted. Two
+  shared halves moved to make that true and both are behaviour-preserving: `toPreviewText` went to
+  `lib/reports/preview.ts` so a `lib/youth/*` file need not import `lib/visits/*`, and the
+  ward-council recipient resolution went to `lib/notifications/notifyWardCouncilFlag.ts` taking a
+  `triggerKey` — `notifyOrgLeadership`'s precedent, and for its stated reason: the opt-out lookup
+  inside `emitNotification` is keyed on the trigger, so a hardcoded key would deliver a youth
+  follow-up to somebody who had switched visit flags off. `app/api/visits/[id]/route.ts` has **no
+  diff at all**, which is how the extraction is shown to be safe rather than claimed to be.
+  **ONE string in `ReportFeed` was not generic** — the filter's first option read "Every
+  organization" hardcoded — and it became an `allContextsLabel` prop defaulted to that same string.
+  Changing it in place is what 08-youth-activities.md §Step 6 authorises and §Pitfalls asks for by
+  name; forking the component is the thing to refuse.
+  **A youth tile's `authorLabel` is ALWAYS null**, and `lib/reports/types.ts` was amended in the
+  same change to say so rather than left contradicting the code. `authorLabel` is WHO WENT, and
+  `activity_logs` has no participants table at all — mapping `logged_by` onto it would put "who
+  went" on one kind of tile and "who typed it" on the other under the same label.
+  **The youth feed orders on `activity_logs.created_at`, not on the event's date**, because a
+  log's event date lives on another table and PostgREST cannot order parent rows by an embedded
+  column. The tile still DISPLAYS the event's date, in the **ward's** zone — never
+  `.toISOString().slice(0, 10)`, which is UTC and puts a 7:30pm Friday game on Saturday. The
+  cursor's `occurredOn` half therefore carries the LOG's date and must never be taken from
+  `tile.occurredOn`.
+
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS
@@ -480,6 +550,7 @@ Flag these when they become relevant; do not silently pick a side.
   `youth_event_uncovered`, the Monday digest, `visit_overdue` and `refresh_goal_status()` as Phase
   11's one decision about a mechanism; that makes **five**. **`youth-c` deliberately added no
   sixth** — coverage is computed on read, and `youth_event_uncovered` is emitted nowhere.
+  **`youth-d` added the sixth** (`youth_followup_prompt`) and says so below rather than quietly.
 - **Conference talk corpus scope — DECIDED: curated, not exhaustive.** The standard works are
   ingested in full via `knowledge:ingest`. General Conference is ingested **forward from now,
   plus roughly the last two years** — do not backfill decades. Two reasons, and the second is the

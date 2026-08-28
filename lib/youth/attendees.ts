@@ -36,6 +36,12 @@ export type ActivityAttendee = {
   // deciding whether to step in needs the difference.
   assignedBy: string | null;
   assignedByName: string | null;
+  // Slice D. NULL MEANS NOBODY HAS SAID EITHER WAY, and it is a third state rather than a
+  // defaulted false: "did not go" is a fact somebody stated, and reading it out of an unanswered
+  // column would put words in their mouth on a tile that renders "Did not attend" in a warning
+  // tone. The column has existed with no writer since Foundation B; migration 056c narrowed its
+  // UPDATE policy in advance, naming this slice.
+  confirmedAttendance: boolean | null;
 };
 
 // ONE STRING LITERAL ON ONE LINE. A `+` concatenation widens the type to `string` and defeats
@@ -50,7 +56,7 @@ export type ActivityAttendee = {
 // visit_participants rule that applies here unchanged: this is a display of who is going, and
 // every other column on `users` has its own read path and its own permission behind it.
 const ATTENDEE_COLUMNS =
-  "id, event_id, user_id, assigned_by, assigned_by_user:users!activity_attendees_assigned_by_ward_id_fkey (id, first_name, last_name), attending_user:users!activity_attendees_user_id_ward_id_fkey (id, first_name, last_name)";
+  "id, event_id, user_id, assigned_by, confirmed_attendance, assigned_by_user:users!activity_attendees_assigned_by_ward_id_fkey (id, first_name, last_name), attending_user:users!activity_attendees_user_id_ward_id_fkey (id, first_name, last_name)";
 
 type AttendeeUserEmbed = {
   id: string;
@@ -63,6 +69,7 @@ type ActivityAttendeeRow = {
   event_id: string;
   user_id: string;
   assigned_by: string | null;
+  confirmed_attendance: boolean | null;
   attending_user: AttendeeUserEmbed;
   assigned_by_user: AttendeeUserEmbed;
 };
@@ -85,6 +92,7 @@ function mapAttendeeRow(row: ActivityAttendeeRow): ActivityAttendee {
     assignedBy: row.assigned_by,
     assignedByName:
       row.assigned_by === null ? null : fullName(row.assigned_by_user) || UNKNOWN_ATTENDEE,
+    confirmedAttendance: row.confirmed_attendance,
   };
 }
 
@@ -208,6 +216,42 @@ export async function removeAttendee(
       eventId,
     });
     throw new Error(`Could not update who is going: ${error.message}`);
+  }
+
+  return (data ?? []).length > 0;
+}
+
+// "I went" / "I did not go", written after the game.
+//
+// FALSE MEANS REFUSED, NOT "NOTHING TO DO", exactly as removeAttendee has it: an RLS-denied UPDATE
+// is a zero-row success rather than an error (CLAUDE.md §8), so the route must say so plainly
+// instead of reporting a success that did not happen. A caller with no attendee row for the event
+// gets the same false, which is also the right answer to show them — the screen they were looking
+// at was stale.
+//
+// NOTHING HERE BRANCHES ON A ROLE. Migration 056c's UPDATE policy is
+// `is_bishopric() or user_id = auth.uid()`, and it decides: a bishopric member and an org
+// secretary run the same statement and the database answers differently (CLAUDE.md rule 2).
+export async function setConfirmedAttendance(
+  wardId: string,
+  eventId: string,
+  userId: string,
+  confirmed: boolean,
+  client?: SupabaseClient<Database>,
+): Promise<boolean> {
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("activity_attendees")
+    .update({ confirmed_attendance: confirmed })
+    .eq("ward_id", wardId)
+    .eq("event_id", eventId)
+    .eq("user_id", userId)
+    .select("id");
+
+  if (error) {
+    console.error(`Could not record attendance — ${error.message}`, { wardId, eventId });
+    throw new Error(`Could not record whether you went: ${error.message}`);
   }
 
   return (data ?? []).length > 0;

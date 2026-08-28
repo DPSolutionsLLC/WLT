@@ -390,6 +390,91 @@ describe("youth activity profile scoping", () => {
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // WHAT SLICE D DID **NOT** NARROW, ASSERTED NEXT TO WHAT IT DID
+  // ---------------------------------------------------------------------------
+  // Migration 057 gave `activity_logs` an org-scoped SELECT — the first read Phase 8 narrows, and
+  // tests/rls/activity-logs.test.ts is where that is proved. These three tables were left ALONE,
+  // and the whole value of asserting it is that it sits beside the narrowing rather than in a file
+  // of its own.
+  //
+  // Each has its own reason, and none of them is "we forgot":
+  //   youth_activity_profiles  FEATURES.md §Module 10 gives the ward council the FULL calendar.
+  //   activity_events          an event inherits its organization through its profile.
+  //   activity_attendees       LOAD-BEARING. Coverage is computed from an attendee COUNT, so a
+  //                            narrower read would make the same event read covered to one leader
+  //                            and uncovered to another from the same data (migration 056c).
+  //
+  // Read as an ORG LEADER whose organization owns none of it, with cross-org visibility OFF —
+  // which is the state in which a follow-up on the same event would be hidden.
+  describe("slice D narrowed the follow-up log and nothing else", () => {
+    it("still lets another organization's president read a profile", async () => {
+      expect((await readableProfileIds(rsPresident)).has(eqProfileId)).toBe(true);
+    });
+
+    it("still lets another organization's president read an event", async () => {
+      const { data, error } = await rsPresident
+        .from("activity_events")
+        .select("id")
+        .eq("id", eqEventId);
+
+      expect(error).toBeNull();
+      expect(data?.map((row) => row.id)).toEqual([eqEventId]);
+    });
+
+    it("still lets another organization's president read an attendee row", async () => {
+      const { data: attendee, error: seedError } = await fixtures.service
+        .from("activity_attendees")
+        .insert({
+          ward_id: fixtures.wardAId,
+          event_id: eqEventId,
+          user_id: fixtures.user("bishop").id,
+          assigned_by: null,
+        })
+        .select("id")
+        .single();
+      if (seedError) throw new Error(seedError.message);
+
+      const { data, error } = await rsPresident
+        .from("activity_attendees")
+        .select("id")
+        .eq("id", attendee.id);
+
+      expect(error).toBeNull();
+      expect(data?.map((row) => row.id)).toEqual([attendee.id]);
+
+      await fixtures.service.from("activity_attendees").delete().eq("id", attendee.id);
+    });
+
+    // THE CONTRAST, IN ONE TEST. The same reader, the same event, the same instant: the event is
+    // visible and the follow-up on it is not. If a later change widens `activity_logs` back, this
+    // fails here as well as in tests/rls/activity-logs.test.ts, and whoever does it has to write
+    // down why.
+    it("hides a follow-up on that same visible event", async () => {
+      const { data: log, error: seedError } = await fixtures.service
+        .from("activity_logs")
+        .insert({
+          ward_id: fixtures.wardAId,
+          event_id: eqEventId,
+          logged_by: fixtures.user("bishop").id,
+          shared_notes: `EQ follow-up ${fixtures.runId}`,
+        })
+        .select("id")
+        .single();
+      if (seedError) throw new Error(seedError.message);
+
+      const { data, error } = await rsPresident
+        .from("activity_logs")
+        .select("id")
+        .eq("id", log.id);
+
+      expect(error).toBeNull();
+      expect(data ?? []).toEqual([]);
+
+      await fixtures.service.from("activity_logs").delete().eq("id", log.id);
+    });
+  });
+
   describe("writes are scoped to the author's organization", () => {
     it("refuses an insert carrying another organization's org_id", async () => {
       const { error } = await eqPresident.from("youth_activity_profiles").insert({

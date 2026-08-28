@@ -111,6 +111,11 @@ export const reportFeedQuerySchema = z.object({
   // Which context the reader has filtered to — an organization for visits. A DISPLAY PREFERENCE,
   // never a permission: RLS has already decided which reports exist for this caller, so naming an
   // organization they cannot read returns an empty page rather than a 403. Absent means "all".
-  context: z.uuid("That organization is not valid.").optional(),
+  //
+  // The message is MODULE-AGNOSTIC, like the rest of this file. It read "That organization is not
+  // valid." until youth-d, which was a visits sentence in a file whose own header promises Phase 8
+  // "adds nothing here" — and a youth reader filtering by ACTIVITY would have been told their
+  // activity was not an organization.
+  context: z.uuid("That filter is not valid.").optional(),
 });
 export type ReportFeedQuery = z.infer<typeof reportFeedQuerySchema>;

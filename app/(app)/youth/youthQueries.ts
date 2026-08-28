@@ -1,5 +1,5 @@
 import type { ActivityAttendee } from "@/lib/youth/attendees";
-import type { ActivityEvent, ActivityProfile } from "@/lib/youth/queries";
+import type { ActivityEvent, ActivityLog, ActivityProfile } from "@/lib/youth/queries";
 
 // THE CLIENT SIDE'S SHARED CACHE KEYS AND FETCHERS, in one module so the three components on
 // /youth cannot disagree about what they are reading.
@@ -31,6 +31,7 @@ import type { ActivityEvent, ActivityProfile } from "@/lib/youth/queries";
 export const YOUTH_PROFILES_QUERY_KEY = "youth-activity-profiles";
 export const YOUTH_EVENTS_QUERY_KEY = "youth-activity-events";
 export const YOUTH_ATTENDEES_QUERY_KEY = "youth-activity-attendees";
+export const YOUTH_FOLLOW_UP_QUERY_KEY = "youth-activity-follow-up";
 
 export async function readJson(response: Response): Promise<Record<string, unknown>> {
   try {
@@ -124,4 +125,44 @@ export async function fetchAttendees(
 export const ATTENDEE_MUTATION_INVALIDATES = [
   [YOUTH_ATTENDEES_QUERY_KEY],
   [YOUTH_EVENTS_QUERY_KEY],
+] as const;
+
+// THE CALLER'S OWN follow-ups, keyed back by event id — one request for the whole screen, exactly
+// as fetchAttendees is, and taking the SAME `includePast` for the same reason: the route resolves
+// its event set through the same query, so the follow-up map and the event list cannot describe
+// different screens.
+//
+// `includePast` is part of the KEY. Every view is its own cache entry (visits-c found a row made
+// under one filter invisible under another until a reload), and this one matters more than most:
+// a follow-up is only ever due on a PAST event, so the widened view is the one that has anything
+// in it at all.
+export async function fetchOwnFollowUps(
+  includePast: boolean,
+): Promise<Record<string, ActivityLog>> {
+  const response = await fetch(`/api/youth/logs${includePast ? "?includePast=true" : ""}`);
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(errorFrom(payload, "Could not load your follow-ups."));
+  }
+
+  return payload.logs as Record<string, ActivityLog>;
+}
+
+// WHAT A FOLLOW-UP MUTATION HAS TO INVALIDATE, and the answer is ALL THREE. This module has now
+// been bitten twice by somebody reasonably assuming it was one (youth-a-D2, then
+// ATTENDEE_MUTATION_INVALIDATES), so the third time it is written down before the bug rather than
+// after it.
+//
+//   * The follow-ups themselves, obviously — the panel is a list of what is still owed.
+//   * The EVENTS, because the badge on an event card is derived from the log AND the event (its
+//     date and its status), and the panel disappearing while the event list still reads "waiting
+//     on you" is youth-a-D2 wearing a third hat.
+//   * The ATTENDEES, because `attended` writes `confirmed_attendance` on the attendee row. The
+//     attendee line under the card would otherwise still show what it showed before the leader
+//     confirmed they went.
+export const FOLLOW_UP_MUTATION_INVALIDATES = [
+  [YOUTH_FOLLOW_UP_QUERY_KEY],
+  [YOUTH_EVENTS_QUERY_KEY],
+  [YOUTH_ATTENDEES_QUERY_KEY],
 ] as const;

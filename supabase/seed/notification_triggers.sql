@@ -2,7 +2,9 @@
 --
 -- The keys below must match SPEC.md §Trigger Keys EXACTLY. emitNotification() (plan C) looks
 -- them up by string, so a typo here is a notification that silently never fires — no error,
--- no log, just nothing arriving. Twenty-eight keys; count them against the spec if you edit.
+-- no log, just nothing arriving. Thirty keys; count them against the spec if you edit. (This
+-- number read "twenty-eight" while the block held twenty-nine — a count nobody recounts is worse
+-- than none, so recount it rather than trusting it.)
 --
 -- default_roles is the role list that receives the trigger unless a user opts out in
 -- notification_user_prefs. Bishop and counselor always appear together: bishopric admin
@@ -50,6 +52,15 @@ cross join (values
   ('youth_support_assigned',        array['org_president', 'org_counselor', 'org_secretary']),
   ('youth_followup_prompt',         array['org_president', 'org_counselor', 'org_secretary']),
   ('youth_followup_submitted',      array['org_president', 'org_counselor']),
+  -- Added by migration 057d alongside this line, for wards that already exist. A new trigger key
+  -- is always BOTH, or it silently never fires for one set of wards — no error, no log, just
+  -- nothing arriving (migration 036's header).
+  --
+  -- The executive secretary and nobody else, matching `visit_flagged_for_ward_council` above.
+  -- Recipients are resolved EXPLICITLY by lib/notifications/notifyWardCouncilFlag.ts, so this
+  -- list is the opt-out surface rather than the address list, and the body is a one-liner that
+  -- carries no note text of any kind.
+  ('youth_activity_flagged_for_ward_council', array['executive_secretary']),
 
   -- Programs
   -- The first three were added by migration 036 alongside this block, and `program_distributed` by

@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { FollowUpForm } from "@/app/(app)/youth/FollowUpForm";
 import {
   YOUTH_ATTENDEES_QUERY_KEY,
   YOUTH_EVENTS_QUERY_KEY,
+  YOUTH_FOLLOW_UP_QUERY_KEY,
   YOUTH_PROFILES_QUERY_KEY,
   errorFrom,
   fetchAttendees,
   fetchEvents,
+  fetchOwnFollowUps,
   fetchProfiles,
   readJson,
 } from "@/app/(app)/youth/youthQueries";
@@ -18,15 +21,19 @@ import { FormError } from "@/components/ui/FormError";
 import { Input } from "@/components/ui/Input";
 import { AttendeeControls } from "@/components/youth/AttendeeControls";
 import { COVERAGE_EDGE_CLASSES, CoverageBadge } from "@/components/youth/CoverageBadge";
+import { FollowUpBadge } from "@/components/youth/FollowUpBadge";
+import { canManageActivityLog } from "@/lib/youth/activityOwnership";
 import type { ActivityAttendee } from "@/lib/youth/attendees";
 import { eventCoverage } from "@/lib/youth/coverage";
 import { toLocalInputValue, toOffsetBearingInstant } from "@/lib/youth/eventInstant";
-import type { ActivityEvent, ActivityProfile } from "@/lib/youth/queries";
+import { followUpState, isFollowUpWritable } from "@/lib/youth/followUp";
+import type { ActivityEvent, ActivityLog, ActivityProfile } from "@/lib/youth/queries";
 import {
   EVENT_STATUS_LABELS,
   EVENT_TYPES,
   EVENT_TYPE_LABELS,
   type EventType,
+  type SessionUser,
 } from "@/types/domain";
 
 // The games, concerts and meets themselves. Cards rather than a table, because at 375px a table
@@ -48,13 +55,27 @@ export type EventListProps = {
   // Seeds the SHARED attendee query, exactly as initialProfiles seeds the profiles one. Keyed by
   // event id; an event with nobody down for it is simply absent.
   initialAttendees: Record<string, ActivityAttendee[]>;
+  // Seeds the SHARED follow-up query, exactly as initialAttendees seeds the attendee one. Keyed by
+  // event id; an event this reader has written nothing about is simply absent. The server rendered
+  // the UPCOMING view, where a follow-up is never due — so this is empty on first paint by
+  // construction and the widened view is where it fills in.
+  initialFollowUps: Record<string, ActivityLog>;
   canManage: boolean;
+  // `youth_activities.log`, resolved ONCE on the server. A client component never re-derives a
+  // permission (AttendeeControls' header states the rule).
+  canLog: boolean;
+  // The ward's cross-organization visibility setting, for the sentence on the shared-note field.
+  crossOrgVisibility: boolean;
   // ONE INSTANT FOR THE WHOLE RENDER, resolved on the server and handed down, so every row is
   // judged against the same moment rather than against a clock that moves down the list
   // (lib/youth/coverage.ts). An ISO string rather than a Date because a Date does not survive the
   // server-to-client boundary as itself.
   asOf: string;
   currentUserId: string;
+  // For canManageActivityLog(), which mirrors migration 057c's UPDATE policy. The role rather than
+  // a boolean, because the mirror lives in lib/youth/activityOwnership.ts beside the profile's and
+  // must be the same function the rest of the module calls.
+  currentUserRole: SessionUser["role"];
   // Bishopric only, resolved once on the server. See AttendeeControls' header: a client component
   // never re-derives a permission.
   canAssign: boolean;
@@ -140,9 +161,13 @@ export function EventList({
   initialEvents,
   initialProfiles,
   initialAttendees,
+  initialFollowUps,
   canManage,
+  canLog,
+  crossOrgVisibility,
   asOf,
   currentUserId,
+  currentUserRole,
   canAssign,
   assignableUsers,
 }: EventListProps) {
@@ -167,6 +192,7 @@ export function EventList({
 
   const [includePast, setIncludePast] = useState(false);
   const [editing, setEditing] = useState<EventEdit | null>(null);
+  const [followingUp, setFollowingUp] = useState<string | null>(null);
   const [listError, setListError] = useState<string | undefined>(undefined);
 
   // The SAME `includePast` the events query uses, so the two describe one screen. The route
@@ -177,6 +203,15 @@ export function EventList({
     // The server rendered the UPCOMING view only, so the widened view starts empty rather than
     // seeded — the same guard the events query below carries, and for the same reason.
     initialData: includePast ? undefined : initialAttendees,
+  });
+
+  // The SAME `includePast` the events query uses, for the reason the attendee query takes it: the
+  // route resolves its event set through the same query, so the three describe one screen rather
+  // than three.
+  const followUpsQuery = useQuery({
+    queryKey: [YOUTH_FOLLOW_UP_QUERY_KEY, includePast],
+    queryFn: () => fetchOwnFollowUps(includePast),
+    initialData: includePast ? undefined : initialFollowUps,
   });
 
   const eventsQuery = useQuery({
@@ -237,6 +272,7 @@ export function EventList({
 
   const events = eventsQuery.data ?? [];
   const attendeesByEvent = attendeesQuery.data ?? {};
+  const followUpsByEvent = followUpsQuery.data ?? {};
 
   return (
     <div className="flex flex-col gap-4">
@@ -256,7 +292,9 @@ export function EventList({
             ? (eventsQuery.error as Error).message
             : attendeesQuery.isError
               ? (attendeesQuery.error as Error).message
-              : undefined)
+              : followUpsQuery.isError
+                ? (followUpsQuery.error as Error).message
+                : undefined)
         }
       />
 
@@ -275,6 +313,35 @@ export function EventList({
               event.profileId === null ? undefined : profileLabels.get(event.profileId);
 
             const attendees = attendeesByEvent[event.id] ?? [];
+            const ownAttendee =
+              attendees.find((attendee) => attendee.userId === currentUserId) ?? null;
+            const ownLog = followUpsByEvent[event.id] ?? null;
+
+            // Computed from the event, the reader's attendee row AND their own log, which is why
+            // a follow-up mutation invalidates all three keys
+            // (FOLLOW_UP_MUTATION_INVALIDATES). Judged against the same `asOfInstant` every
+            // coverage badge on this page is, so one card cannot say "past" while the next says
+            // "upcoming".
+            const followUp = followUpState(
+              {
+                eventDate: event.eventDate,
+                status: event.status,
+                isAttendee: ownAttendee !== null,
+                hasLog: ownLog !== null,
+                confirmedAttendance: ownAttendee?.confirmedAttendance ?? null,
+              },
+              asOfInstant,
+            );
+
+            // A DIFFERENT QUESTION FROM THE BADGE'S, and gating the control on
+            // `followUp !== "not_due"` would be the bug that question exists to prevent: a past
+            // game the reader was never down for reads `not_due`, and that person may still file
+            // a follow-up. lib/youth/followUp.ts argues it in full.
+            const canWriteFollowUp = isFollowUpWritable(
+              { eventDate: event.eventDate, status: event.status },
+              asOfInstant,
+            );
+
             // Computed from the event AND the attendee count, which is why an attendance
             // mutation invalidates both keys (ATTENDEE_MUTATION_INVALIDATES).
             const coverage = eventCoverage(
@@ -309,6 +376,10 @@ export function EventList({
                         for `not_expected`, so the "Cancelled" chip beside it is not doubled by a
                         badge saying the same thing less clearly. */}
                     <CoverageBadge coverage={coverage} />
+                    {/* Renders NOTHING for `not_due`, which is every upcoming event and every
+                        cancelled one — so this badge and the coverage badge above it are never
+                        both present, and a card carries at most one thing to do. */}
+                    <FollowUpBadge state={followUp} />
                     {/* A CANCELLED EVENT STAYS VISIBLE AND IS MARKED, rather than disappearing.
                         Removing it would lose the record that it was ever scheduled, which is
                         exactly what somebody asking "why did nobody go?" needs (migration
@@ -356,6 +427,60 @@ export function EventList({
                     canAssign={canAssign}
                     assignableUsers={assignableUsers}
                   />
+
+                  {/* ---------------------------------------------------------------
+                      THE FOLLOW-UP, ON A PAST EVENT ONLY
+                      ---------------------------------------------------------------
+                      `not_due` covers everything upcoming and everything cancelled, so this
+                      control appears exactly where a follow-up is a thing a person could write:
+                      after the game, on an event that was not called off.
+
+                      It is offered whether or not the reader was DOWN for the event — any
+                      `youth_activities.log` holder may file their own account, and a leader who
+                      turned up without putting themselves down beforehand is exactly the person
+                      whose account is worth having (app/api/youth/logs/route.ts, decision 5). What
+                      attendance decides is only whether the form asks "did you go?".
+
+                      ABSENT rather than present-and-refusing for somebody without the permission,
+                      which is the mirror of youth-a-D1.
+
+                      The gate is isFollowUpWritable(), NOT `followUp !== "not_due"`. Those look
+                      interchangeable and are not: a past game the reader was never down for reads
+                      `not_due`, and hiding the button from that person is exactly the workflow-rule
+                      -in-a-component mistake decision 5 refuses. */}
+                  {canLog && canWriteFollowUp ? (
+                    followingUp === event.id ? (
+                      <FollowUpForm
+                        eventId={event.id}
+                        eventTitle={event.title}
+                        existingLog={ownLog}
+                        isAttendee={ownAttendee !== null}
+                        confirmedAttendance={ownAttendee?.confirmedAttendance ?? null}
+                        // The mirror of migration 057c's UPDATE policy. It is true for the
+                        // reader's own follow-up and for the bishopric, and false is unreachable
+                        // from this page today — which is the point: the gate exists so that a
+                        // later screen showing somebody else's follow-up cannot forget it.
+                        canFlag={
+                          ownLog === null ||
+                          canManageActivityLog(
+                            { id: currentUserId, role: currentUserRole },
+                            { loggedBy: ownLog.loggedBy },
+                          )
+                        }
+                        crossOrgVisibility={crossOrgVisibility}
+                        onClose={() => setFollowingUp(null)}
+                      />
+                    ) : (
+                      <div className="mt-3">
+                        <Button
+                          variant={followUp === "awaiting" ? "primary" : "secondary"}
+                          onClick={() => setFollowingUp(event.id)}
+                        >
+                          {ownLog === null ? "Say how it went" : "Change what you wrote"}
+                        </Button>
+                      </div>
+                    )
+                  ) : null}
 
                   {/* Gated on the PERMISSION ALONE, and that is not the oversight it looks like
                       next to ActivityProfileList. `activity_events` keeps migration 019's

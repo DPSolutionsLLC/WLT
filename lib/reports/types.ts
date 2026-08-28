@@ -25,6 +25,12 @@ import type { ContextTone, ReportType } from "@/types/domain";
 // participants at all. Mapping it onto `authorLabel` would put "who went" on one kind of tile and
 // "who typed it" on the other under the same label, with nothing on screen to tell them apart.
 // It maps to `recordedByLabel`, and `authorLabel` stays null.
+//
+// THAT HELD. lib/youth/reportTiles.ts maps `authorLabel: null` in every case and its test asserts
+// it in three. The visible cost is that a youth tile renders ReportTile's
+// "Nobody recorded as taking part", which is TRUE and probably not useful there — flagged for
+// scenario 055 as the most likely copy defect in the slice. If it reads badly the fix is in
+// ReportTile IN PLACE, with the visits feed re-verified, and never a youth-only component.
 
 export type { ContextTone, ReportType };
 
@@ -59,9 +65,18 @@ export type ReportTile = {
   occurredOn: string;
   authorLabel: string | null;
   recordedByLabel: string | null;
-  // Set only for the EXCEPTION — "Attempted" on a visit nobody was home for. Null when there is
-  // nothing worth saying: every tile reading "Visited" is noise, and the one reading "Attempted"
-  // is the point. Phase 8's activities have no such state, so it stays null there.
+  // Set only for the EXCEPTION — "Attempted" on a visit nobody was home for, "Did not attend" on a
+  // youth follow-up whose author confirmed they did not go. Null when there is nothing worth
+  // saying: every tile reading "Visited" or "Went" is noise, and the exception is the point,
+  // because it is the only thing on the tile a leader has to act on.
+  //
+  // AMENDED IN youth-d. This read "Phase 8's activities have no such state, so it stays null
+  // there" — which was true until `activity_attendees.confirmed_attendance` got its first writer
+  // and stopped being true in the same change. Amended here rather than left to contradict
+  // lib/youth/reportTiles.ts, because a comment that disagrees with the code is worse than none.
+  //
+  // `null` is still the answer for "nobody said either way", which is not the same as "did not go"
+  // — the second is a fact somebody stated and earns a warning tone; the first is silence.
   outcomeLabel: string | null;
   // One line, from SHARED notes only. A private note has no route to this field: the mapper does
   // not import the module that reads them (CLAUDE.md rule 5).
