@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 52,
+  "scenarioCount": 54,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -2124,6 +2124,95 @@
         "After a third import that changes nothing, does the screen read as *\"there was nothing to"
       ],
       "seedCommand": "npm run seed -- youth/scenario-052-the-same-schedule-uploaded-again"
+    },
+    {
+      "id": "youth:scenario-053-nobody-is-going-to-fridays-game",
+      "path": "youth/scenario-053-nobody-is-going-to-fridays-game",
+      "name": "Nobody is going to Friday's game",
+      "scope": "youth",
+      "part": 4,
+      "tags": [
+        "youth",
+        "full",
+        "coverage",
+        "permissions"
+      ],
+      "prerequisites": "none",
+      "purpose": "Coverage is the whole claim of slice C, and it is **a function of the clock**. Which means the\nseed has to place events at *specific distances* from now — three days, twenty days, three days\nin the past — and a tester cannot do that by hand without arithmetic they will get wrong. Getting\nit wrong produces a run that passes for the wrong reason.\n\nIt also walks the **two permission gates**, which is the highest-risk surface in the slice.\nPutting yourself down needs only `youth_activities.view`; asking somebody else is bishopric-only.\nThat is three controls behind two gates, and `youth-a-D1` and `visits-d` both shipped a control\nthe API then refused — twice, the same defect, in two different modules. RLS refused it safely\nboth times and a leader was still invited through a locked door.\n\nThe unit tests pin the arithmetic (`tests/lib/youthCoverage.test.ts`) and the gates\n(`tests/routes/youthAttendance.test.ts`, `tests/rls/activity-attendees.test.ts`). What none of\nthem can answer is whether the uncovered event is **actually the loudest thing on the page**, and\nwhether a leader reading it in a hurry can tell what to do about it.",
+      "checklist": [
+        "The banner reads a **sentence that names the events**, not just a count — \"1 home event in",
+        "The uncovered card carries a **red left edge**, so it is findable without reading. Every",
+        "Each of the six events carries exactly the badge in the table above.",
+        "The **+20-day** home event reads *Nobody yet*, **not** *Nobody going*.",
+        "The away event carries **no warning tone**, at any distance.",
+        "The cancelled event shows **no coverage badge at all**, and **is** still counted in",
+        "After moving the cancelled event into the **past**, it still shows no warning — *the user's",
+        "Tapping **I'll go** on the +20-day event changes its badge from *Nobody yet* to",
+        "Tapping **I'll go** on the +3-day **uncovered** event removes the strip from",
+        "Tapping **I can't after all** puts both back.",
+        "`ward-council@…` is **not shown** an assign control anywhere — absent, not",
+        "`rs-president` receives **exactly one** `youth_support_assigned` notification, and its body",
+        "`ym-president` and the other leaders receive **none** — the seeded `default_roles` for that",
+        "`ward-council@…` is refused by the **API** as well as the UI: `POST` and `DELETE` on",
+        "After the assignment, the card reads \"Going: Nora Whitfield · asked by Marcus Reyes\" — a",
+        "`audit_log` holds `youth_activity_attend`, `youth_activity_unattend` and",
+        "Filtering to one organization changes the list **and** the count beside it together.",
+        "No horizontal overflow at 375px. Every button is at least 44×44.",
+        "Is the **+3-day uncovered event visually the loudest thing on the page**? Not merely",
+        "Does the count strip read as *something to do* rather than as a status line?",
+        "With zero uncovered events the strip renders **nothing at all**. Does its absence read as",
+        "Does *Away — awareness only* read as a deliberate design rather than as a missing feature?",
+        "Does *Home or away?* clearly read as something a person is expected to come back and settle?",
+        "On a cancelled game, is the absence of a coverage badge readable — or does the row look",
+        "At `md:` and up the month grid appears. Does it add anything the card list did not, or is it",
+        "Legible one-handed at 375px, in both light and dark mode?"
+      ],
+      "seedCommand": "npm run seed -- youth/scenario-053-nobody-is-going-to-fridays-game"
+    },
+    {
+      "id": "youth:scenario-054-home-away-and-the-wards-own-gym",
+      "path": "youth/scenario-054-home-away-and-the-wards-own-gym",
+      "name": "Home, away, and the ward's own gym",
+      "scope": "youth",
+      "part": 5,
+      "tags": [
+        "youth",
+        "full",
+        "classification",
+        "import"
+      ],
+      "prerequisites": "none",
+      "purpose": "Classification happens **on the way in** and is **never rewritten on re-import** — a guarantee\n`youth-b` made *about this slice, in advance*:\n\n> `status` and `event_type` are never touched on a matched row, so a hand-cancelled game and\n> slice C's future home/away correction both survive.\n\nSlice C is the change that starts writing `event_type` on an import at all, so it is the first\nthing that could break it. That can only be checked by importing, correcting by hand, and\nimporting again — three steps and a file, which is exactly what a manual walkthrough is for.\n\nThe scenario also covers the **venue editor**, which is the reason classification works at all.\nA timezone has a defensible fallback; a venue list does not. With no editor, auto-classification\nis inert in every real ward and `home_venues` is a column nobody fills in — which is why it\nshipped here rather than waiting for a Phase 11 admin screen.\n\n`tests/lib/icsIdempotent.test.ts` pins the diff and `tests/lib/homeAwayClassification.test.ts`\npins the matching. Neither can answer whether the **preview screen says so, in words, before the\nleader confirms** — and a guarantee nobody can see is a guarantee nobody trusts.",
+      "checklist": [
+        "With no venues configured, the preview shows **every** entry as *Home or away not set* —",
+        "After confirming, every row on `/youth` carries the *Home or away?* coverage badge — and",
+        "The Home venues panel is **absent** for `ym-president@…` and **present** for `bishop@…` —",
+        "The panel says, **before** the save, that existing events are not reclassified.",
+        "Saving `Lincoln High School` stores it **exactly as typed** in `wards.settings.home_venues`",
+        "Saving does **not** change any existing event — `/youth` reads exactly as it did in step 5.",
+        "`wards.settings` still holds `timezone` and `cross_org_visibility` after the save. *(The",
+        "Re-importing the **identical** file reports 0 to create, 0 to update, 12 already correct —",
+        "Importing the **March** file classifies the new game at *Lincoln High School gym* as",
+        "The new game at *Washington High School* previews as **Not yet known**, never *Away* —",
+        "The row under \"to update\" shows the **stored** value rather than the file's, and where the",
+        "After the second import, the hand-corrected Lincoln game is **still Away** — *the `youth-b`",
+        "The Jefferson game is **still Away**, and was never auto-classified as away by the app.",
+        "Nothing in the file ever produced an `away` classification on its own.",
+        "A hand-entered event at `Lincoln High School gym` with the select left alone arrives",
+        "A hand-entered event with **Not yet known** chosen explicitly stays *Not yet known*, at the",
+        "The `youth_activity_event_created` audit rows record `eventTypeSource` as",
+        "A `home_venues_updated` audit row exists carrying both the before and after lists.",
+        "The result screen pluralises correctly at 1 and at many.",
+        "Dates on every screen read `Sat, 2 Jan 2027`, never `1/2/2027`.",
+        "No horizontal overflow at 375px.",
+        "On the first import, does *Home or away not set* on every row read as **the app declining to",
+        "Does the venue panel's sentence about existing events land **before** a leader saves, or is",
+        "\"A match is on any part of the location\" — is that comprehensible to somebody who has never",
+        "Does \"Home or away stays Away — this file would have set it to Home\" now make the override",
+        "Does the deliberately wrong correction (a Lincoln game marked Away) surviving the re-import",
+        "Would a bishopric member reading the panel cold know what to type into it?"
+      ],
+      "seedCommand": "npm run seed -- youth/scenario-054-home-away-and-the-wards-own-gym"
     }
   ]
 }

@@ -636,27 +636,121 @@ export type ActivitySourceType = (typeof ACTIVITY_SOURCE_TYPES)[number];
 export const EVENT_TYPES = ["home", "away", "tbd"] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
-// `tbd` IS SPELLED OUT. An initialism read on a phone in a hurry looks like a bug, and slice C's
-// whole point is that a `tbd` event is something a PERSON has to resolve before anybody can be
-// asked to go to it.
+// `tbd` IS SPELLED OUT, AND IT NAMES ITS OWN SUBJECT. An initialism read on a phone in a hurry
+// looks like a bug, and slice C's whole point is that a `tbd` event is something a PERSON has to
+// resolve before anybody can be asked to go to it.
+//
+// IT WAS "Not yet known", AND THAT FAILED A WALKTHROUGH ON 2026-08-28. Asked what the label meant,
+// the reader could not tell: not yet known — whether anybody is going? whether it is home or away?
+// something else? A chip carries no field label beside it, so it has to say what it is about. It
+// appears standalone on an event card, standalone on every row of the import preview, and as an
+// option under a "Home or away" label in two selects — this wording is the one that reads
+// correctly in all three.
 export const EVENT_TYPE_LABELS: Record<EventType, string> = {
   home: "Home",
   away: "Away",
-  tbd: "Not yet known",
+  tbd: "Home or away not set",
 };
 
-// Narrowed to match migration 054c, which removed `covered` and `uncovered` and added
-// `cancelled`. Coverage is COMPUTED FROM THE CLOCK in slice C — a stored coverage value goes
-// stale the moment nobody refreshes it, and nothing in this project refreshes anything. A
-// cancellation is the opposite: a fact a person knows and nothing else can express.
-export const EVENT_STATUSES = ["upcoming", "cancelled", "completed"] as const;
+// TWO VALUES, AND BOTH ARE FACTS A PERSON KNOWS.
+//
+// Narrowed to match migration 054c, which removed `covered` and `uncovered`, and then migration
+// 056a, which removed `completed`. 054c left that last question open and addressed it to this
+// slice by name; the answer is the same argument that removed `covered` — an event in the past is
+// completed BY THE CLOCK, and a stored value the clock decides goes stale the moment nobody
+// refreshes it. Nothing in this project refreshes anything. Follow-up state ("did somebody go,
+// and what happened") is `activity_logs`' business in slice D, which is the table built to hold a
+// person's account of an event.
+//
+// A cancellation is the opposite kind of thing: a fact only a person knows, that nothing else can
+// express. Without it the only way off the list is a delete that loses the record the game was
+// ever scheduled.
+//
+// `updateActivityEventSchema` in lib/validation/youth.ts narrows for free, because it reads
+// `z.enum(EVENT_STATUSES)` rather than repeating the values — which is the whole point of
+// spelling enums this way.
+export const EVENT_STATUSES = ["upcoming", "cancelled"] as const;
 export type EventStatus = (typeof EVENT_STATUSES)[number];
 
 export const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
   upcoming: "Upcoming",
   cancelled: "Cancelled",
-  completed: "Completed",
 };
+
+// ---------------------------------------------------------------------------
+// WHETHER ANYBODY IS GOING TO AN EVENT
+// ---------------------------------------------------------------------------
+// COMPUTED, never stored, exactly as VISIT_PRIORITY_BANDS is. Migration 054c removed `covered`
+// and `uncovered` from `activity_events.status` for this reason and named the replacement:
+// coverage is a pure function of (event_type, event_date, status, attendee count, asOf), and
+// lib/youth/coverage.ts is the one place that decides it.
+//
+// HIGHEST URGENCY FIRST, AND THE ORDER IS THE RANK. coverageRank() reads the index of a state in
+// this array rather than carrying a second map that could disagree with it.
+//
+// TWO PLACEMENTS ARE NOT OBVIOUS AND BOTH ARE DELIBERATE.
+//
+// `needs_type` OUTRANKS `unassigned`. An event nobody has classified cannot be covered OR
+// dismissed — it is a decision that has not been made, and it blocks every other decision behind
+// it. Nobody can even be ASKED to go to a game whose location nobody has settled. That is the
+// same reasoning that put `never_visited` above `overdue`: a thing with no anchor is its own top
+// state rather than a lesser version of the state below it.
+//
+// `awareness` IS NOT A FAILURE. An away game with nobody going is the DESIGNED outcome
+// (08-youth-activities.md §Step 4 — an away event is awareness only, with no coverage
+// expectation), so it ranks below `covered` rather than beside `uncovered`. Rendering it in a
+// warning tone would train leaders to ignore the tone, which costs the badge its only job.
+export const COVERAGE_STATES = [
+  "uncovered", // home, upcoming, inside the notice window, nobody going
+  "needs_type", // still tbd — nobody can even be asked
+  "unassigned", // home, upcoming, beyond the window, nobody going yet
+  "covered", // home, upcoming, at least one person going
+  "awareness", // away — no coverage expectation, by design
+  "not_expected", // cancelled, or already past
+] as const;
+export type CoverageState = (typeof COVERAGE_STATES)[number];
+
+// A Record rather than a lookup with a fallback, for the same reason ACTIVITY_TYPE_LABELS is one:
+// a state added later must be given a label DELIBERATELY instead of rendering as its own
+// snake_case key.
+//
+// `not_expected` IS THE EMPTY STRING AND RENDERS NOTHING AT ALL. That is deliberate and it
+// matches talks-c's last-prayed nudge, which renders nothing rather than "Never": a badge on a
+// cancelled game reading "not expected" is noise on the one row that already explains itself.
+// components/youth/CoverageBadge.tsx returns null for this state, and its test guards the pair.
+export const COVERAGE_STATE_LABELS: Record<CoverageState, string> = {
+  uncovered: "Nobody going",
+  needs_type: "Home or away?",
+  unassigned: "Nobody yet",
+  covered: "Covered",
+  awareness: "Away — awareness only",
+  not_expected: "",
+};
+
+// The same four-step scale app/(app)/visits/bandStyles.ts uses, named rather than spelled as
+// Tailwind classes: a tone carries the MEANING, and the class strings live with the component
+// that renders them (Tailwind only emits class names it can see written out in full, so
+// `border-${tone}` compiles to nothing).
+export const COVERAGE_TONES = ["danger", "warning", "warning_quiet", "success", "neutral", "none"] as const;
+export type CoverageTone = (typeof COVERAGE_TONES)[number];
+
+export const COVERAGE_STATE_TONES: Record<CoverageState, CoverageTone> = {
+  uncovered: "danger",
+  needs_type: "warning",
+  // The SAME hue as needs_type, quieter. Nobody has volunteered for a game three weeks out, which
+  // is the ordinary state of a schedule rather than a problem — it earns a mark, not a shout.
+  unassigned: "warning_quiet",
+  covered: "success",
+  awareness: "neutral",
+  // No tone, because no badge. The label is empty for the same reason.
+  not_expected: "none",
+};
+
+// Reads the index in COVERAGE_STATES, the way priorityRank() reads VISIT_PRIORITY_BANDS. Lower is
+// more urgent, so a plain ascending sort puts the events somebody must act on first.
+export function coverageRank(state: CoverageState): number {
+  return COVERAGE_STATES.indexOf(state);
+}
 
 export const GOAL_TARGET_TYPES = ["member", "household", "org", "group"] as const;
 export type GoalTargetType = (typeof GOAL_TARGET_TYPES)[number];

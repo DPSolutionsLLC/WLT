@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  YOUTH_ATTENDEES_QUERY_KEY,
   YOUTH_EVENTS_QUERY_KEY,
   YOUTH_PROFILES_QUERY_KEY,
   errorFrom,
+  fetchAttendees,
   fetchEvents,
   fetchProfiles,
   readJson,
@@ -14,6 +16,10 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import { Input } from "@/components/ui/Input";
+import { AttendeeControls } from "@/components/youth/AttendeeControls";
+import { COVERAGE_EDGE_CLASSES, CoverageBadge } from "@/components/youth/CoverageBadge";
+import type { ActivityAttendee } from "@/lib/youth/attendees";
+import { eventCoverage } from "@/lib/youth/coverage";
 import { toLocalInputValue, toOffsetBearingInstant } from "@/lib/youth/eventInstant";
 import type { ActivityEvent, ActivityProfile } from "@/lib/youth/queries";
 import {
@@ -39,7 +45,20 @@ export type EventListProps = {
   // that is no longer listed" until a reload (part of youth-a-D2). Reading the same key
   // ActivityProfileList reads costs no extra fetch — it is the same cache entry.
   initialProfiles: ActivityProfile[];
+  // Seeds the SHARED attendee query, exactly as initialProfiles seeds the profiles one. Keyed by
+  // event id; an event with nobody down for it is simply absent.
+  initialAttendees: Record<string, ActivityAttendee[]>;
   canManage: boolean;
+  // ONE INSTANT FOR THE WHOLE RENDER, resolved on the server and handed down, so every row is
+  // judged against the same moment rather than against a clock that moves down the list
+  // (lib/youth/coverage.ts). An ISO string rather than a Date because a Date does not survive the
+  // server-to-client boundary as itself.
+  asOf: string;
+  currentUserId: string;
+  // Bishopric only, resolved once on the server. See AttendeeControls' header: a client component
+  // never re-derives a permission.
+  canAssign: boolean;
+  assignableUsers: { id: string; label: string }[];
 };
 
 const CHIP_CLASSES =
@@ -94,6 +113,11 @@ function formatEventWhen(instant: string, allDay: boolean): string {
   return `${date} · All day`;
 }
 
+// A CANCELLED EVENT STAYS INSIDE THIS COUNT, and that was DECIDED rather than overlooked (the
+// youth-a retro left it open by name). A cancelled game can be reinstated, so it is still part of
+// the schedule a leader is looking at. What must be true is that it never registers as
+// UNATTENDED, and that rule lives in lib/youth/coverage.ts, which tests `cancelled` before it
+// consults the clock.
 function eventCount(count: number, includePast: boolean): string {
   const noun = count === 1 ? "event" : "events";
   return includePast ? `${count} ${noun}` : `${count} upcoming ${noun}`;
@@ -112,8 +136,21 @@ type EventEdit = {
   eventType: EventType;
 };
 
-export function EventList({ initialEvents, initialProfiles, canManage }: EventListProps) {
+export function EventList({
+  initialEvents,
+  initialProfiles,
+  initialAttendees,
+  canManage,
+  asOf,
+  currentUserId,
+  canAssign,
+  assignableUsers,
+}: EventListProps) {
   const queryClient = useQueryClient();
+
+  // Parsed ONCE, outside the row loop, for the reason the server resolved it once: a `new Date()`
+  // per row would judge the bottom of a long list against a later instant than the top.
+  const asOfInstant = new Date(asOf);
 
   const profilesQuery = useQuery({
     queryKey: [YOUTH_PROFILES_QUERY_KEY],
@@ -131,6 +168,16 @@ export function EventList({ initialEvents, initialProfiles, canManage }: EventLi
   const [includePast, setIncludePast] = useState(false);
   const [editing, setEditing] = useState<EventEdit | null>(null);
   const [listError, setListError] = useState<string | undefined>(undefined);
+
+  // The SAME `includePast` the events query uses, so the two describe one screen. The route
+  // resolves its event set through the same query for the same reason.
+  const attendeesQuery = useQuery({
+    queryKey: [YOUTH_ATTENDEES_QUERY_KEY, includePast],
+    queryFn: () => fetchAttendees(includePast),
+    // The server rendered the UPCOMING view only, so the widened view starts empty rather than
+    // seeded — the same guard the events query below carries, and for the same reason.
+    initialData: includePast ? undefined : initialAttendees,
+  });
 
   const eventsQuery = useQuery({
     queryKey: [YOUTH_EVENTS_QUERY_KEY, includePast],
@@ -189,6 +236,7 @@ export function EventList({ initialEvents, initialProfiles, canManage }: EventLi
   }
 
   const events = eventsQuery.data ?? [];
+  const attendeesByEvent = attendeesQuery.data ?? {};
 
   return (
     <div className="flex flex-col gap-4">
@@ -203,7 +251,12 @@ export function EventList({ initialEvents, initialProfiles, canManage }: EventLi
 
       <FormError
         message={
-          listError ?? (eventsQuery.isError ? (eventsQuery.error as Error).message : undefined)
+          listError ??
+          (eventsQuery.isError
+            ? (eventsQuery.error as Error).message
+            : attendeesQuery.isError
+              ? (attendeesQuery.error as Error).message
+              : undefined)
         }
       />
 
@@ -221,12 +274,41 @@ export function EventList({ initialEvents, initialProfiles, canManage }: EventLi
             const profile =
               event.profileId === null ? undefined : profileLabels.get(event.profileId);
 
+            const attendees = attendeesByEvent[event.id] ?? [];
+            // Computed from the event AND the attendee count, which is why an attendance
+            // mutation invalidates both keys (ATTENDEE_MUTATION_INVALIDATES).
+            const coverage = eventCoverage(
+              {
+                eventType: event.eventType,
+                eventDate: event.eventDate,
+                status: event.status,
+                attendeeCount: attendees.length,
+              },
+              asOfInstant,
+            );
+
+            // THE SAME FACT MUST NOT APPEAR TWICE ON ONE CARD. An unclassified event used to show
+            // BOTH a type chip and a coverage badge saying the same thing — and the chip was the
+            // vaguer of the two. Where the badge already says it, the chip goes.
+            //
+            // It is kept when the badge is ABSENT, which is a past or cancelled event: there the
+            // chip is the only thing carrying the fact, and losing it would lose the record.
+            const showTypeChip = !(
+              event.eventType === "tbd" && coverage.state === "needs_type"
+            );
+
             return (
               <li key={event.id}>
-                <Card>
+                <Card className={COVERAGE_EDGE_CLASSES[coverage.state]}>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium text-foreground">{event.title}</span>
-                    <span className={CHIP_CLASSES}>{EVENT_TYPE_LABELS[event.eventType]}</span>
+                    {showTypeChip ? (
+                      <span className={CHIP_CLASSES}>{EVENT_TYPE_LABELS[event.eventType]}</span>
+                    ) : null}
+                    {/* Renders NOTHING for a cancelled or past event — CoverageBadge returns null
+                        for `not_expected`, so the "Cancelled" chip beside it is not doubled by a
+                        badge saying the same thing less clearly. */}
+                    <CoverageBadge coverage={coverage} />
                     {/* A CANCELLED EVENT STAYS VISIBLE AND IS MARKED, rather than disappearing.
                         Removing it would lose the record that it was ever scheduled, which is
                         exactly what somebody asking "why did nobody go?" needs (migration
@@ -261,6 +343,19 @@ export function EventList({ initialEvents, initialProfiles, canManage }: EventLi
                   {event.location === null ? null : (
                     <p className="text-sm text-muted">{event.location}</p>
                   )}
+
+                  {/* SHOWN ON EVERY EVENT, INCLUDING CANCELLED AND PAST ONES. The gate is
+                      `youth_activities.view`, which everybody reading this page holds, so hiding
+                      the control anywhere would be hiding something the API allows — the mirror
+                      of youth-a-D1. A person may legitimately want to come off a cancelled game's
+                      list, and somebody who went to a past one is a record worth keeping. */}
+                  <AttendeeControls
+                    eventId={event.id}
+                    attendees={attendees}
+                    currentUserId={currentUserId}
+                    canAssign={canAssign}
+                    assignableUsers={assignableUsers}
+                  />
 
                   {/* Gated on the PERMISSION ALONE, and that is not the oversight it looks like
                       next to ActivityProfileList. `activity_events` keeps migration 019's

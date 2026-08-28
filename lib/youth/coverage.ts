@@ -1,0 +1,150 @@
+import {
+  COVERAGE_STATES,
+  type CoverageState,
+  type EventStatus,
+  type EventType,
+} from "@/types/domain";
+
+// Whether anybody is going to an event, computed.
+//
+// ---------------------------------------------------------------------------
+// COMPUTED, NEVER STORED
+// ---------------------------------------------------------------------------
+// Migration 054c removed `covered` and `uncovered` from `activity_events.status` for exactly
+// this, and named this file as the replacement. A stored coverage value goes stale the moment
+// nobody refreshes it, and NOTHING IN THIS PROJECT REFRESHES ANYTHING: pg_cron is not enabled,
+// supabase/functions/ does not exist, and vercel.json declares no crons. The same reasoning
+// governs appointmentViewState() computing "missed" and householdVisitPriority() computing
+// "overdue"; this is the third instance of one rule, not a new idea.
+//
+// ---------------------------------------------------------------------------
+// CLIENT-IMPORTABLE — KEEP IT THAT WAY
+// ---------------------------------------------------------------------------
+// CoverageBadge renders this and ActivityCalendar sorts by it. ONE import of lib/youth/queries.ts
+// would pull next/headers into the client bundle and break both. This file imports types and
+// nothing else, which is the same standing instruction lib/visits/householdStatus.ts and
+// lib/goals/goalStatus.ts carry.
+//
+// ---------------------------------------------------------------------------
+// `asOf` IS A PARAMETER, NEVER A `new Date()` INSIDE
+// ---------------------------------------------------------------------------
+// That is what makes both boundaries testable, and it is what keeps every row of one render
+// judged against the same instant instead of against a clock that moves down the list. /youth
+// already resolves one `asOf` per render and hands it down; /youth/calendar does the same.
+
+// Seven days. A leader who finds out on Thursday that nobody is going to Friday's game has been
+// told too late to do anything about it, and one told four weeks out has been told about a
+// problem that does not exist yet.
+export const COVERAGE_NOTICE_DAYS = 7;
+
+const MS_PER_DAY = 86_400_000;
+
+export type EventCoverageInput = {
+  eventType: EventType;
+  eventDate: string;
+  status: EventStatus;
+  attendeeCount: number;
+};
+
+export type EventCoverage = {
+  state: CoverageState;
+  // Null when the event is past or cancelled — there is nothing to count down to. FRACTIONAL, so
+  // a card can say "tomorrow" rather than rounding twenty hours down to 0 days.
+  daysUntil: number | null;
+  attendeeCount: number;
+};
+
+export function eventCoverage(
+  event: EventCoverageInput,
+  asOf: Date,
+  noticeDays: number = COVERAGE_NOTICE_DAYS,
+): EventCoverage {
+  const { eventType, status, attendeeCount } = event;
+
+  // ---------------------------------------------------------------------------
+  // 1. CANCELLED, BEFORE THE CLOCK IS CONSULTED. THE ORDER IS THE RULE.
+  // ---------------------------------------------------------------------------
+  // A cancelled game may be REINSTATED, so it stays in the schedule and inside the "upcoming"
+  // count on /youth — that is a decision, not an oversight. What must be true is that it NEVER
+  // registers as unattended, at any distance from the clock: a cancelled game three days out is
+  // not uncovered, and a cancelled game three days PAST is not a failure anybody should be shown.
+  //
+  // Testing it first is what makes that true at every distance at once. Testing it after the
+  // clock would give the right answer today and the wrong one for somebody reading the same row
+  // next week.
+  if (status === "cancelled") {
+    return { state: "not_expected", daysUntil: null, attendeeCount };
+  }
+
+  const eventMs = new Date(event.eventDate).getTime();
+
+  // An unreadable date is treated as past rather than as urgent. It cannot be acted on — nobody
+  // can be asked to turn up at a time nothing can render — and shouting about it would put a
+  // permanent warning on a screen whose warnings are supposed to mean something.
+  if (!Number.isFinite(eventMs)) {
+    return { state: "not_expected", daysUntil: null, attendeeCount };
+  }
+
+  const daysUntil = (eventMs - asOf.getTime()) / MS_PER_DAY;
+
+  // ---------------------------------------------------------------------------
+  // 2. PAST — AND "PAST" IS THE START INSTANT, NOT AN END
+  // ---------------------------------------------------------------------------
+  // This schema has no duration column, so a game that kicked off an hour ago reads
+  // `not_expected` while it is still being played. That is CORRECT for the question this function
+  // answers — "does somebody still need to be asked?" — and would be wrong for a question slice D
+  // might ask, which is "did anybody go, and what happened". That one is answered by
+  // `activity_logs`, not here. Naming the difference stops the next reader treating it as a bug.
+  if (daysUntil < 0) {
+    return { state: "not_expected", daysUntil: null, attendeeCount };
+  }
+
+  // 3. Away — no coverage expectation, by design (08-youth-activities.md §Step 4). An away game
+  // with nobody going is the designed outcome, which is why `awareness` ranks below `covered`
+  // rather than beside `uncovered`.
+  if (eventType === "away") {
+    return { state: "awareness", daysUntil, attendeeCount };
+  }
+
+  // 4. Nobody has said whether this is home or away, so nobody can even be asked. It blocks every
+  // decision behind it, which is why it outranks `unassigned`.
+  if (eventType === "tbd") {
+    return { state: "needs_type", daysUntil, attendeeCount };
+  }
+
+  if (attendeeCount > 0) {
+    return { state: "covered", daysUntil, attendeeCount };
+  }
+
+  // 6. Inside the notice window it is a problem; outside it, it is a schedule. The boundary is
+  // inclusive — exactly `noticeDays` out reads `uncovered` — because a leader would rather be
+  // told a day early than a day late.
+  return {
+    state: daysUntil <= noticeDays ? "uncovered" : "unassigned",
+    daysUntil,
+    attendeeCount,
+  };
+}
+
+// The count strip at the top of /youth/calendar.
+//
+// HERE RATHER THAN IN THE PAGE, so the number in the strip and the badges beneath it cannot
+// disagree — they are two renderings of one computation. That is describeHouseholdForVisits()'s
+// lesson from visits-f, where the picker and the denominator drifted because two places answered
+// the same question.
+//
+// Every state is present in the result, including the zeroes, so a caller reading
+// `summary.uncovered` never has to decide what `undefined` meant.
+export function summariseCoverage(
+  coverages: readonly EventCoverage[],
+): Record<CoverageState, number> {
+  const summary = Object.fromEntries(
+    COVERAGE_STATES.map((state) => [state, 0]),
+  ) as Record<CoverageState, number>;
+
+  for (const coverage of coverages) {
+    summary[coverage.state] += 1;
+  }
+
+  return summary;
+}

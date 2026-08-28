@@ -8,7 +8,9 @@ import {
   countsFromPreview,
   type IcsImportPreview,
   type PreviewEvent,
+  type PreviewEventChange,
 } from "@/lib/youth/ics/buildImportPreview";
+import { EVENT_TYPE_LABELS, type EventType } from "@/types/domain";
 
 export type IcsPreviewStepProps = {
   preview: IcsImportPreview;
@@ -35,7 +37,22 @@ function Count({ label, value }: { label: string; value: number }) {
 // THE HOUR IS THE POINT. A leader has to be able to read "Fri, 15 Jan 2027, 19:30" before
 // confirming, not discover it afterwards — which is why every row here shows the resolved local
 // time and not a raw ISO string.
-function EventRow({ event, note }: { event: PreviewEvent; note?: string }) {
+// `eventType` IS A SEPARATE PARAMETER RATHER THAN READ OFF `event`, and that is not tidiness.
+//
+// On a row about to be UPDATED, `change.event` is what the FILE says — including a classification
+// this import is forbidden from writing. Printing that would have the row read "Home" above a
+// sentence saying the setting is being left alone, which is exactly the kind of screen that
+// contradicts itself one line apart (youth-b shipped three such copy defects with a green suite).
+// The caller passes what will actually be true afterwards.
+function EventRow({
+  event,
+  eventType,
+  note,
+}: {
+  event: PreviewEvent;
+  eventType?: EventType;
+  note?: string;
+}) {
   return (
     <li className="border-t border-border py-2 first:border-t-0 first:pt-0">
       <div className="flex flex-wrap items-baseline gap-x-2">
@@ -45,6 +62,14 @@ function EventRow({ event, note }: { event: PreviewEvent; note?: string }) {
       {event.location === null ? null : (
         <p className="text-sm text-muted">{event.location}</p>
       )}
+      {/* HOME OR AWAY, READ BEFORE CONFIRMING RATHER THAN DISCOVERED AFTERWARDS — the same promise
+          the resolved hour above makes, and the reason the venue editor had to ship in the same
+          slice. On a row about to be created this is what the ward's venue list decided; on one
+          that already exists it is what is staying. An unmatched location shows "Not yet known"
+          and never "Away" (lib/youth/classifyLocation.ts). */}
+      <p className="text-sm text-muted">
+        {EVENT_TYPE_LABELS[eventType ?? event.eventType]}
+      </p>
       {note === undefined ? null : <p className="text-sm text-muted">{note}</p>}
       {/* Said per event rather than once at the top. A leader who can see WHICH games were
           assumed can tell at a glance whether the assumption was right; a single banner saying
@@ -56,6 +81,48 @@ function EventRow({ event, note }: { event: PreviewEvent; note?: string }) {
       ) : null}
     </li>
   );
+}
+
+// ---------------------------------------------------------------------------
+// SAYING WHAT THE FILE WOULD HAVE DONE IS WHAT MAKES THE GUARANTEE MEAN SOMETHING
+// ---------------------------------------------------------------------------
+// "Home or away is left as it is" was the whole note, and walking scenario 054 on 2026-08-28
+// found it unreadable: left as it is *instead of what*? Nothing on the screen suggested anything
+// had been overridden, so the sentence read as filler rather than as a promise being kept.
+//
+// The preview already holds both answers — `existingEventType` is what is stored, and
+// `change.event.eventType` is what this file's location would classify to — so where they differ
+// it can state the comparison. That is a FACT DERIVED FROM DATA, not a guess about who typed it.
+//
+// IT DOES NOT CLAIM A PERSON SET IT, because nothing records that. `activity_events` has no
+// column saying who last wrote `event_type`, and inferring one from a disagreement would be a
+// second, weaker meaning for a field that does not exist — the kind of thing `assigned_by` is a
+// real column precisely to avoid. "This file would have set it to Home" is true either way, and
+// it is the half a leader can act on.
+// THE `tbd` LABEL IS NEVER DROPPED INTO THIS SENTENCE, and that is why the two halves are built
+// separately rather than by interpolating EVENT_TYPE_LABELS twice.
+//
+// "Home or away not set" is the right words on a chip standing alone, and nonsense inside a
+// clause: the first attempt at this note read "this file would have set it to Home or away not
+// set". A label that reads correctly in one place and not another needs the sentence rewritten
+// around it, not the label bent to fit — the chip is the harder constraint and it wins.
+export function leftAloneNote(change: PreviewEventChange): string {
+  const stored = change.existingEventType;
+  const classified = change.event.eventType;
+
+  if (stored === classified) return "Home or away is left as it is.";
+
+  const stays =
+    stored === "tbd"
+      ? "Home or away is still not set"
+      : `Home or away stays ${EVENT_TYPE_LABELS[stored]}`;
+
+  const would =
+    classified === "tbd"
+      ? "this file would have left it for somebody to set"
+      : `this file would have set it to ${EVENT_TYPE_LABELS[classified]}`;
+
+  return `${stays} — ${would}.`;
 }
 
 export function IcsPreviewStep({
@@ -143,7 +210,12 @@ export function IcsPreviewStep({
               <EventRow
                 key={change.existingId}
                 event={change.event}
-                note={`Was ${change.existingTitle}, ${change.existingLocalTime} — changing ${change.changedFields.join(", ")}`}
+                // WHAT IT STAYS AS, not what the file would have made it. A leader who corrected a
+                // classification last month otherwise has no way to see that the correction
+                // survived, and youth-b's guarantee — written about this slice, in advance —
+                // stays theoretical.
+                eventType={change.existingEventType}
+                note={`Was ${change.existingTitle}, ${change.existingLocalTime} — changing ${change.changedFields.join(", ")}. ${leftAloneNote(change)}`}
               />
             ))}
           </ul>

@@ -159,6 +159,16 @@ export type WardOptions = {
   crossOrgVisibility?: boolean;
   timezone?: string;
   roleAccess?: RoleAccessSeed;
+  // The places that count as the ward's own, read by lib/ward/homeVenues.ts and used by
+  // lib/youth/classifyLocation.ts to mark an imported event Home.
+  //
+  // WRITTEN EXACTLY AS GIVEN, capitals and all — that is what writeHomeVenues() now stores, and
+  // classifyEventLocation() folds case on both sides at comparison time. A seed that lower-cased
+  // would describe a state the app no longer produces.
+  //
+  // ABSENT MEANS NO VENUES, which is the ordinary state of an unconfigured ward and makes every
+  // event arrive as "Home or away?". Scenario 054 seeds it absent on purpose.
+  homeVenues?: string[];
   settings?: Record<string, unknown>;
 };
 
@@ -173,6 +183,10 @@ export async function ensureTestWard(options: WardOptions = {}): Promise<string>
         cross_org_visibility: options.crossOrgVisibility ?? false,
         timezone: options.timezone ?? "America/Denver",
         ...(options.roleAccess ? { role_access: options.roleAccess } : {}),
+        // Trimmed but NOT lower-cased: the app stores what a person typed.
+        ...(options.homeVenues
+          ? { home_venues: options.homeVenues.map((venue) => venue.trim()) }
+          : {}),
         ...options.settings,
       },
     },
@@ -1121,9 +1135,11 @@ export async function createYouthActivityProfile(options: {
 // (lib/validation/youth.ts), so a seed that wrote one would put the harness and the app on
 // different clocks.
 //
-// The status set is migration 054c's: `covered` and `uncovered` are GONE, because the clock
-// decides coverage and a stored value the clock decides goes stale. `cancelled` replaces them —
-// a called-off game is a fact a person knows and nothing else can express.
+// The status set is migration 056a's, which is 054c's minus one: `covered` and `uncovered` went
+// because the clock decides coverage, and `completed` went for the same reason — an event in the
+// past is completed by the clock too. What is left is the pair a PERSON knows: it is coming up,
+// or it was called off. A called-off game stays on the list, marked, because the record that it
+// was ever scheduled is what "why did nobody go?" needs.
 export async function createActivityEvent(options: {
   id?: string;
   profileId?: string;
@@ -1131,7 +1147,7 @@ export async function createActivityEvent(options: {
   eventDate: string;
   eventType?: "home" | "away" | "tbd";
   location?: string;
-  status?: "upcoming" | "cancelled" | "completed";
+  status?: "upcoming" | "cancelled";
   // Migration 055. Leaving all four at their defaults produces a HAND-ENTERED event, which is
   // what createActivityEvent has always meant — `calendar_id` and `source_uid` both null is
   // exactly the shape slice B's re-import is forbidden from matching.
@@ -1180,6 +1196,30 @@ export async function createActivityCalendar(options: {
     source_type: options.sourceType ?? "ics_upload",
     source_url: null,
     last_synced_at: options.lastSyncedAt ?? null,
+  });
+}
+
+// SOMEBODY IS GOING TO THIS EVENT.
+//
+// `assignedBy` ABSENT MEANS THEY ADDED THEMSELVES, which is the same meaning the column carries in
+// the app: a name there means somebody was asked, and the card renders "· asked by ⟨name⟩". A
+// scenario that wants to test the bishopric's assign path must set it.
+//
+// MIGRATION 056b MAKES (event_id, user_id) UNIQUE, so seeding the same pair twice fails loudly
+// with a constraint violation rather than quietly doubling a coverage count. That is the right
+// failure — a scenario that wrote it twice was describing a state the app refuses.
+export async function createActivityAttendee(options: {
+  id?: string;
+  eventId: string;
+  userId: string;
+  assignedBy?: string;
+}): Promise<string> {
+  return insertRow("activity_attendees", {
+    id: options.id ?? testUuid(`attendee:${options.eventId}:${options.userId}`),
+    ward_id: TEST_WARD_ID,
+    event_id: options.eventId,
+    user_id: options.userId,
+    assigned_by: options.assignedBy ?? null,
   });
 }
 

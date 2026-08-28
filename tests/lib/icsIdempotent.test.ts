@@ -25,6 +25,13 @@ const AS_OF = new Date("2026-12-01T00:00:00Z");
 const CALENDAR_ID = "11111111-1111-4111-8111-111111111111";
 const PROFILE_ID = "22222222-2222-4222-8222-222222222222";
 
+// Stored as a person would type it — lib/ward/homeVenues.ts keeps the ward's own spelling and
+// classifyEventLocation folds case on both sides. "Lincoln High" is the default location the
+// `game()` helper writes, so every fixture game in this file classifies as `home`, which is what
+// makes the guarantee below testable at all: a re-import that DID rewrite event_type would
+// visibly turn a hand-corrected `away` back into `home`.
+const HOME_VENUES = ["Lincoln High"];
+
 function calendar(events: string[]): string {
   return [
     "BEGIN:VCALENDAR",
@@ -78,13 +85,18 @@ function asStoredEvents(occurrences: readonly IcsOccurrence[]): ActivityEvent[] 
   }));
 }
 
-function preview(text: string, existingEvents: readonly ActivityEvent[]) {
+function preview(
+  text: string,
+  existingEvents: readonly ActivityEvent[],
+  homeVenues: readonly string[] = HOME_VENUES,
+) {
   return buildImportPreview({
     occurrences: parse(text),
     problems: [],
     occurrencesDropped: 0,
     existingEvents,
     wardTimeZone: WARD_ZONE,
+    homeVenues,
     fileHash: "0".repeat(64),
     calendarExists: existingEvents.length > 0,
     lastSyncedAt: null,
@@ -314,6 +326,7 @@ describe("what the preview tells the reader about zones and dates", () => {
       occurrencesDropped: 0,
       existingEvents: [],
       wardTimeZone: WARD_ZONE,
+      homeVenues: HOME_VENUES,
       fileHash: "0".repeat(64),
       calendarExists: true,
       lastSyncedAt: "2027-01-03T01:00:00+00:00",
@@ -328,5 +341,72 @@ describe("what the preview tells the reader about zones and dates", () => {
 
   it("leaves lastSyncedLocal null when there is no feed yet", () => {
     expect(preview(JANUARY_FILE, []).lastSyncedLocal).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SLICE C: A HAND-MADE HOME/AWAY CORRECTION SURVIVES EVERY FUTURE RE-IMPORT
+// ---------------------------------------------------------------------------
+// This is youth-b's Decision 6, and that decision was written ABOUT THIS SLICE, IN ADVANCE:
+// "status and event_type are never touched on a matched row, so a hand-cancelled game and slice
+// C's future home/away correction both survive."
+//
+// Slice C is the first thing that could break it — it is the change that starts writing
+// `event_type` on an import at all. Without these cases nothing would notice: the preview would
+// still show the right counts, the suite would still be green, and a leader's correction would be
+// silently undone on the next import of an unchanged file.
+describe("a hand-made classification survives a re-import", () => {
+  it("does not list a corrected event as needing an update at all", () => {
+    const stored = asStoredEvents(parse(JANUARY_FILE));
+    // A leader looked at "Lincoln High" and knew it was the OTHER Lincoln — an away game. The
+    // classifier would say `home`, because the location matches a configured venue.
+    stored[0] = { ...stored[0], eventType: "away" };
+
+    const second = preview(JANUARY_FILE, stored);
+
+    // event_type is NOT one of the four writable columns, so a differing classification is not a
+    // change at all — the row is unchanged, not updated-with-the-old-value.
+    expect(second.toUpdate).toEqual([]);
+    expect(second.unchanged).toBe(3);
+  });
+
+  it("reports the stored classification, not the file's, on a row that IS being updated", () => {
+    const stored = asStoredEvents(parse(JANUARY_FILE));
+    stored[0] = { ...stored[0], eventType: "away" };
+
+    // The school moved the game, so this row genuinely does need updating — and the preview must
+    // still say the home/away setting stays `away`. Showing the classifier's `home` here would be
+    // the screen promising something the write path is forbidden from doing.
+    const moved = calendar([
+      game("g1@lincoln", "Game against Roosevelt", "20270116T023000Z"),
+      game("g2@lincoln", "Game against Jefferson", "20270122T023000Z"),
+      game("g3@lincoln", "Game against Madison", "20270129T023000Z"),
+    ]);
+
+    const second = preview(moved, stored);
+
+    expect(second.toUpdate).toHaveLength(1);
+    expect(second.toUpdate[0].existingEventType).toBe("away");
+    expect(second.toUpdate[0].changedFields).toEqual(["date and time"]);
+  });
+
+  it("classifies a genuinely NEW occurrence from the ward's venues", () => {
+    const first = preview(JANUARY_FILE, []);
+
+    expect(first.toCreate.map((event) => event.eventType)).toEqual(["home", "home", "home"]);
+  });
+
+  it("leaves a new occurrence at an unknown venue for a person, never marking it away", () => {
+    const elsewhere = calendar([
+      game("g9@lincoln", "Game at Roosevelt", "20270205T023000Z", "Roosevelt High School"),
+    ]);
+
+    expect(preview(elsewhere, []).toCreate[0].eventType).toBe("tbd");
+  });
+
+  it("classifies everything as tbd when the ward has configured no venues", () => {
+    const first = preview(JANUARY_FILE, [], []);
+
+    expect(first.toCreate.map((event) => event.eventType)).toEqual(["tbd", "tbd", "tbd"]);
   });
 });

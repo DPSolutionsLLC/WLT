@@ -1,9 +1,11 @@
+import { classifyEventLocation } from "@/lib/youth/classifyLocation";
 import {
   occurrenceInstant,
   type IcsOccurrence,
   type IcsProblem,
 } from "@/lib/youth/ics/occurrence";
 import type { ActivityEvent } from "@/lib/youth/queries";
+import type { EventType } from "@/types/domain";
 
 // What the import WILL do, computed against what is already there.
 //
@@ -49,6 +51,17 @@ export type PreviewEvent = {
   // Shown per event, because a leader who can see which games were assumed can tell at a glance
   // whether the assumption was right (Decisions 1 and 2).
   usedWardZone: boolean;
+  // HOME OR AWAY, ALREADY DECIDED, SO THE LEADER READS IT BEFORE CONFIRMING.
+  //
+  // On a row about to be CREATED this is classifyEventLocation()'s answer — `home` when the
+  // location matches one of the ward's venues, `tbd` otherwise, and NEVER `away` (that function's
+  // header argues why at length). On a row that already exists it is the row's stored value,
+  // which is what will still be there afterwards.
+  //
+  // Showing it here is the reason the venue editor had to ship in the same slice: a preview that
+  // said nothing about classification would leave a leader discovering it afterwards, which is
+  // the same failure the localTime field exists to prevent for the hour.
+  eventType: EventType;
 };
 
 export type PreviewEventChange = {
@@ -58,6 +71,13 @@ export type PreviewEventChange = {
   existingTitle: string;
   existingLocalTime: string;
   changedFields: string[];
+  // WHAT THE HOME/AWAY SETTING STAYS AS — never what the file would have made it.
+  //
+  // applyImport writes `event_type` on an INSERT ONLY; a matched row keeps whatever it has, which
+  // is youth-b's Decision 6 and was written about this slice in advance. Without this field the
+  // guarantee is invisible: a leader who corrected a classification last month has no way to see
+  // that the correction survived, so the screen says so per row rather than in a footnote.
+  existingEventType: EventType;
 };
 
 export type IcsImportPreview = {
@@ -145,6 +165,7 @@ function toPreviewEvent(
   occurrence: IcsOccurrence,
   instant: Date,
   wardTimeZone: string,
+  homeVenues: readonly string[],
 ): PreviewEvent {
   return {
     uid: occurrence.uid,
@@ -165,6 +186,10 @@ function toPreviewEvent(
     // Corrected here rather than at the render site, so a second reader of this field cannot
     // reintroduce the same sentence somewhere else.
     usedWardZone: occurrence.allDay ? false : occurrence.usedWardZone,
+    // Classified from the LOCATION TEXT and nothing else. This function reads no time, which is
+    // what keeps ICAL.Time.toJSDate() out of the classification path — occurrenceInstant() above
+    // is the one place an instant is resolved (lib/youth/ics/resolveInstant.ts).
+    eventType: classifyEventLocation(occurrence.location, homeVenues),
   };
 }
 
@@ -180,6 +205,10 @@ function existingAsPreviewEvent(event: ActivityEvent, wardTimeZone: string): Pre
     allDay: event.allDay,
     localTime: formatLocal(instant, wardTimeZone, event.allDay),
     usedWardZone: false,
+    // The STORED value, not a re-classification. This shape describes a row that already exists,
+    // and re-running the classifier over it would show a leader a home/away the import is
+    // forbidden from writing.
+    eventType: event.eventType,
   };
 }
 
@@ -207,6 +236,11 @@ export type BuildImportPreviewInput = {
   // caller's own client so RLS decided. Hand-entered events are absent by construction: they
   // carry a null calendar_id and the caller filters on the calendar.
   existingEvents: readonly ActivityEvent[];
+  // The ward's own venues, already trimmed and lower-cased by lib/ward/homeVenues.ts. An empty
+  // list is the ordinary state of a ward that has not configured one, and it means every new
+  // occurrence previews as "Home or away?" — which is the loud, correct answer rather than a
+  // guess.
+  homeVenues: readonly string[];
   wardTimeZone: string;
   fileHash: string;
   calendarExists: boolean;
@@ -214,7 +248,7 @@ export type BuildImportPreviewInput = {
 };
 
 export function buildImportPreview(input: BuildImportPreviewInput): IcsImportPreview {
-  const { occurrences, existingEvents, wardTimeZone } = input;
+  const { occurrences, existingEvents, wardTimeZone, homeVenues } = input;
 
   const existingByKey = new Map<string, ActivityEvent>();
   for (const event of existingEvents) {
@@ -234,7 +268,7 @@ export function buildImportPreview(input: BuildImportPreviewInput): IcsImportPre
 
   for (const occurrence of occurrences) {
     const instant = occurrenceInstant(occurrence, wardTimeZone);
-    const previewEvent = toPreviewEvent(occurrence, instant, wardTimeZone);
+    const previewEvent = toPreviewEvent(occurrence, instant, wardTimeZone, homeVenues);
     const key = matchKey(occurrence.uid, occurrence.recurrenceId);
 
     // THE WINDOW IS THE FILE'S OWN SPAN, and it is built from every occurrence the file produced
@@ -271,6 +305,7 @@ export function buildImportPreview(input: BuildImportPreviewInput): IcsImportPre
       existingTitle: existing.title,
       existingLocalTime: formatLocal(new Date(existing.eventDate), wardTimeZone, existing.allDay),
       changedFields: changed,
+      existingEventType: existing.eventType,
     });
   }
 

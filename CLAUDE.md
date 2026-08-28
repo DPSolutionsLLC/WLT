@@ -444,6 +444,28 @@ Flag these when they become relevant; do not silently pick a side.
   implemented as two rules: a `VEVENT` with no `UID` gets a deterministic synthesised one
   (`wlt-synth-…`), so there is one match key and one code path.
 
+- **An unmatched location is `tbd`, never `away` — DECIDED 2026-08-28.**
+  `lib/youth/classifyLocation.ts` returns `home` or `tbd` and has no branch that can return
+  `away`. Absence of a match is not evidence of an away game: "Lincoln HS Gymnasium", "Lincoln
+  High — auxiliary gym" and a plain typo all fail to match a venue list holding
+  "lincoln high school", and every one of them is a home game. An `away` event carries **no
+  coverage expectation by design** (`08-youth-activities.md` §Step 4), so a wrong `away` guess
+  silently removes the event from the coverage model — nobody is asked, nobody notices, and no
+  badge anywhere says so. `tbd` is loud instead: it ranks second in `COVERAGE_STATES`, renders
+  "Home or away?", and asks a person for the one fact only a person has. **`away` is always a
+  human's word.** This is the kind of rule a later reader "improves" with fuzzy matching; the cost
+  of reversing it is a game nobody is asked to attend. Matching is deliberately boring —
+  lower-case, collapse whitespace, `includes()` — because a near-miss a clever matcher would catch
+  is exactly the case where a person should be asked. `wards.settings.home_venues` normalises on
+  write so the classifier normalises only the location side, and the **fallback is the empty
+  list**: an unconfigured ward classifies nothing rather than guessing.
+  Migration 056 also **drops `completed` from `activity_events.status`**, closing the question
+  054c addressed to this slice by name — an event in the past is completed by the clock, and
+  follow-up state is `activity_logs`' business in slice D. `activity_attendees` keeps migration
+  019's ward-wide SELECT **untouched and load-bearing**: coverage is computed from an attendee
+  count, so a narrower read would make the same event read covered to one leader and uncovered to
+  another from the same data. Writes are narrowed to `is_bishopric() or user_id = auth.uid()` —
+  never `assigned_by`, which is null on a self-add and would be the `talks-d` hole again.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS
@@ -456,7 +478,8 @@ Flag these when they become relevant; do not silently pick a side.
   PERSON last imported, never when a machine did — automatic re-fetching would put a write path
   outside a human confirm, which is where rule 3 draws its line. This joins
   `youth_event_uncovered`, the Monday digest, `visit_overdue` and `refresh_goal_status()` as Phase
-  11's one decision about a mechanism; that makes **five**.
+  11's one decision about a mechanism; that makes **five**. **`youth-c` deliberately added no
+  sixth** — coverage is computed on read, and `youth_event_uncovered` is emitted nowhere.
 - **Conference talk corpus scope — DECIDED: curated, not exhaustive.** The standard works are
   ingested in full via `knowledge:ingest`. General Conference is ingested **forward from now,
   plus roughly the last two years** — do not backfill decades. Two reasons, and the second is the

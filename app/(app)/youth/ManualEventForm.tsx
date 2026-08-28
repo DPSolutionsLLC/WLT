@@ -67,7 +67,11 @@ export function ManualEventForm({ initialProfiles }: ManualEventFormProps) {
   const [title, setTitle] = useState("");
   const [localDate, setLocalDate] = useState("");
   const [location, setLocation] = useState("");
-  const [eventType, setEventType] = useState<EventType>("tbd");
+  // "" IS "DECIDE FROM THE LOCATION" AND IS THE DEFAULT. It is not an EventType, deliberately:
+  // the whole point is that this state has to be distinguishable from an explicit "tbd", and a
+  // third EventType value would put the distinction in the type where the database would then
+  // have to store it. Empty means "send no eventType at all".
+  const [eventType, setEventType] = useState<EventType | "">("");
   const [error, setError] = useState<string | undefined>(undefined);
   const [notice, setNotice] = useState<string | undefined>(undefined);
 
@@ -86,7 +90,7 @@ export function ManualEventForm({ initialProfiles }: ManualEventFormProps) {
       setTitle("");
       setLocalDate("");
       setLocation("");
-      setEventType("tbd");
+      setEventType("");
       setNotice("Event added.");
       setError(undefined);
       // INVALIDATE BOTH VIEWS. The key prefix matches `[YOUTH_EVENTS_QUERY_KEY, includePast]` for
@@ -127,7 +131,10 @@ export function ManualEventForm({ initialProfiles }: ManualEventFormProps) {
       title: title.trim(),
       eventDate,
       location: location.trim() === "" ? null : location.trim(),
-      eventType,
+      // OMITTED ENTIRELY when the leader left it alone, never sent as "tbd". The route reads
+      // absent as "classify from the location" and present as "a person decided", and
+      // createActivityEventSchema dropped its default so the two are distinguishable at all.
+      ...(eventType === "" ? {} : { eventType }),
     });
   }
 
@@ -198,22 +205,32 @@ export function ManualEventForm({ initialProfiles }: ManualEventFormProps) {
           <label htmlFor="event-type" className="text-sm font-medium text-foreground">
             Home or away
           </label>
-          {/* Defaults to "Not yet known" rather than guessing "Home". Slice C's whole point is
-              that an unresolved event is something a person must settle before anybody is asked
-              to travel to it, and a wrong guess hides that. */}
+          {/* THE FIRST OPTION IS THE DEFAULT AND SENDS NOTHING. The three explicit choices remain
+              beneath it, and choosing one of them is a decision nothing may overwrite — including
+              "Not yet known", which is a person saying they do not know rather than a person not
+              having looked.
+
+              It still never guesses "Home": with no venues configured, or a location that matches
+              none of them, classification returns `tbd` and the card says so loudly. An unmatched
+              location is a question for a person, never evidence of an away game
+              (lib/youth/classifyLocation.ts). */}
           <select
             id="event-type"
             className={SELECT_CLASSES}
             value={eventType}
             disabled={createMutation.isPending}
-            onChange={(input) => setEventType(input.target.value as EventType)}
+            onChange={(input) => setEventType(input.target.value as EventType | "")}
           >
+            <option value="">Decide from the location</option>
             {EVENT_TYPES.map((type) => (
               <option key={type} value={type}>
                 {EVENT_TYPE_LABELS[type]}
               </option>
             ))}
           </select>
+          <p className="text-sm text-muted">
+            Chosen automatically from the location, or left for somebody to set.
+          </p>
         </div>
 
         <FormError message={error} />

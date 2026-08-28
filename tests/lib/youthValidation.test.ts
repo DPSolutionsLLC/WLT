@@ -7,6 +7,7 @@ import {
   MAX_SCHOOL_ORG,
   MAX_SEASON_SCHEDULE,
   PROFILE_MEMBER_CATEGORIES,
+  assignAttendeeSchema,
   createActivityEventSchema,
   createActivityProfileSchema,
   eventInstantSchema,
@@ -263,8 +264,20 @@ describe("updateActivityProfileSchema", () => {
 });
 
 describe("createActivityEventSchema", () => {
-  it("defaults an unstated event type to tbd", () => {
-    expect(createActivityEventSchema.parse(event()).eventType).toBe("tbd");
+  // ---------------------------------------------------------------------------
+  // ABSENT MUST STAY DISTINGUISHABLE FROM AN EXPLICIT "tbd"
+  // ---------------------------------------------------------------------------
+  // It used to read `.default("tbd")`, and that one word made classification impossible: with a
+  // default, "the leader left the field alone" and "the leader chose Not yet known" reach the
+  // route as the same value, so classifying anything would mean overriding an explicit human
+  // choice. Slice C dropped it, and this pair of cases is what stops it being restored as an
+  // obvious tidy-up.
+  it("leaves an unstated event type undefined rather than defaulting it to tbd", () => {
+    expect(createActivityEventSchema.parse(event()).eventType).toBeUndefined();
+  });
+
+  it("keeps an explicit tbd, because a person choosing it is a decision", () => {
+    expect(createActivityEventSchema.parse(event({ eventType: "tbd" })).eventType).toBe("tbd");
   });
 
   it("accepts home and away", () => {
@@ -303,17 +316,25 @@ describe("createActivityEventSchema", () => {
 });
 
 describe("updateActivityEventSchema", () => {
-  it("accepts each of the three statuses", () => {
-    for (const status of ["upcoming", "cancelled", "completed"]) {
+  it("accepts each of the two statuses", () => {
+    for (const status of ["upcoming", "cancelled"]) {
       expect(updateActivityEventSchema.safeParse({ status }).success).toBe(true);
     }
   });
 
-  // Removed by migration 054c, because the clock decides coverage and a stored value the clock
-  // decides goes stale the moment nobody refreshes it.
-  it.each(["covered", "uncovered"])("refuses the removed status %s", (status) => {
-    expect(updateActivityEventSchema.safeParse({ status }).success).toBe(false);
-  });
+  // `covered` and `uncovered` went in migration 054c, `completed` in 056a, and all three for the
+  // SAME reason: the clock decides them, and a stored value the clock decides goes stale the
+  // moment nobody refreshes it. Nothing in this project refreshes anything.
+  //
+  // This schema narrowed for FREE when EVENT_STATUSES did, because it reads `z.enum(EVENT_STATUSES)`
+  // rather than repeating the values — which is the point of spelling enums that way, and worth
+  // an assertion so a future hand-written list is caught here.
+  it.each(["covered", "uncovered", "completed"])(
+    "refuses the removed status %s",
+    (status) => {
+      expect(updateActivityEventSchema.safeParse({ status }).success).toBe(false);
+    },
+  );
 
   it("refuses an empty object with a sentence", () => {
     const result = updateActivityEventSchema.safeParse({});
@@ -353,5 +374,36 @@ describe("listActivityEventsQuerySchema", () => {
   it("refuses a profileId that is not a uuid", () => {
     expect(listActivityEventsQuerySchema.safeParse({ profileId: "basketball" }).success)
       .toBe(false);
+  });
+});
+
+describe("assignAttendeeSchema", () => {
+  it("accepts a user id", () => {
+    expect(assignAttendeeSchema.safeParse({ userId: VALID_UUID }).success).toBe(true);
+  });
+
+  it("refuses a missing user with a sentence somebody can act on", () => {
+    const result = assignAttendeeSchema.safeParse({});
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe("Choose who is going.");
+  });
+
+  it("refuses something that is not a uuid", () => {
+    expect(assignAttendeeSchema.safeParse({ userId: "somebody" }).success).toBe(false);
+  });
+
+  // NEITHER COMES FROM THE BODY. `eventId` is the route parameter and `assignedBy` is the
+  // session — a body that could name its own assigner is a body that can forge one, which is the
+  // rule lib/validation/youth.ts's header already states for wardId and enteredBy.
+  it("drops an eventId or an assignedBy rather than accepting one", () => {
+    const parsed = assignAttendeeSchema.parse({
+      userId: VALID_UUID,
+      eventId: SECOND_UUID,
+      assignedBy: SECOND_UUID,
+    });
+
+    expect(parsed).not.toHaveProperty("eventId");
+    expect(parsed).not.toHaveProperty("assignedBy");
   });
 });

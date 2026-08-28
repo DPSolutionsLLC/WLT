@@ -8,6 +8,8 @@ import {
   createActivityEventSchema,
   listActivityEventsQuerySchema,
 } from "@/lib/validation/youth";
+import { readHomeVenues } from "@/lib/ward/homeVenues";
+import { classifyEventLocation } from "@/lib/youth/classifyLocation";
 import {
   createActivityEvent,
   getActivityProfile,
@@ -86,7 +88,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const event = await createActivityEvent(user.wardId, input, supabase);
+    // ABSENT MEANS "DECIDE FROM THE LOCATION"; PRESENT MEANS A PERSON DECIDED. That distinction
+    // is only expressible because createActivityEventSchema dropped its `.default("tbd")` — with
+    // a default, classifying anything would mean overriding an explicit human choice.
+    //
+    // The venues are read only when they are needed, so a leader who chose home or away by hand
+    // does not pay for a settings read to be ignored.
+    const chosenEventType = input.eventType;
+    const eventType =
+      chosenEventType ??
+      classifyEventLocation(input.location, await readHomeVenues(user.wardId, supabase));
+
+    const event = await createActivityEvent(user.wardId, input, eventType, supabase);
 
     await writeAuditLog(
       {
@@ -100,6 +113,11 @@ export async function POST(request: Request) {
           orgId: profile.orgId,
           eventDate: event.eventDate,
           eventType: event.eventType,
+          // WHETHER A PERSON CHOSE IT OR THE VENUE LIST DID. Without this, the audit row cannot
+          // answer "why is this marked home?" and a reader has to guess — which is the question
+          // somebody asks precisely when the classification turns out to be wrong.
+          eventTypeSource:
+            chosenEventType === undefined ? "classified_from_location" : "chosen",
         },
       },
       supabase,

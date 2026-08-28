@@ -3,6 +3,7 @@ import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { readHomeVenues } from "@/lib/ward/homeVenues";
 import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import { buildImportPreview } from "@/lib/youth/ics/buildImportPreview";
 import {
@@ -54,6 +55,9 @@ export async function POST(request: Request) {
     // two different "now"s.
     const asOf = new Date();
     const wardTimeZone = await readWardTimezone(user.wardId, supabase);
+    // Slice C. Read here so the preview can say Home or "Home or away?" per row BEFORE the leader
+    // confirms, rather than leaving it to be discovered afterwards on /youth.
+    const homeVenues = await readHomeVenues(user.wardId, supabase);
 
     const read = await readIcsFile(file, { asOf, wardTimeZone });
 
@@ -77,6 +81,7 @@ export async function POST(request: Request) {
       occurrencesDropped: read.occurrencesDropped,
       existingEvents,
       wardTimeZone,
+      homeVenues,
       fileHash: read.fileHash,
       calendarExists: calendar !== null,
       lastSyncedAt: calendar?.lastSyncedAt ?? null,

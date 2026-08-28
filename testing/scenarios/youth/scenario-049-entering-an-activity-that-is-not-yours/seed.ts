@@ -200,7 +200,9 @@ export async function seed(): Promise<void> {
     eventDate: "2025-12-02T19:30:00-07:00",
     eventType: "away",
     location: "Jefferson High School gym",
-    status: "completed",
+    // A game two seasons ago. `completed` was removed by migration 056a on the argument that
+    // removed `covered`: an event in the past is completed BY THE CLOCK, and this row's date is
+    // what makes it past. Slice D records what actually happened, on activity_logs.
   });
 
   console.log(

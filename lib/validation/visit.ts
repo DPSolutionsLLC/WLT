@@ -491,3 +491,41 @@ export const crossOrgVisibilitySchema = z.object({
   crossOrgVisibility: z.boolean(),
 });
 export type CrossOrgVisibilityInput = z.infer<typeof crossOrgVisibilitySchema>;
+
+// ---------------------------------------------------------------------------
+// The ward's home venues
+// ---------------------------------------------------------------------------
+// A LIST OF PLACES, and it lives here rather than in a new file because this is already where the
+// ward-settings schemas live — crossOrgVisibilitySchema is directly above. Both write to
+// wards.settings through a route under /api/ward-settings. (If a reviewer prefers these move to a
+// lib/validation/ward.ts, that is a separate change and should move both.)
+//
+// THE TWO BOUNDS ARE DECLARED HERE RATHER THAN IN lib/ward/homeVenues.ts, WHICH READS THEM BACK.
+// That module is SERVER-ONLY (it imports next/headers through the Supabase server client), and
+// this one is imported by client components — so a constant living there and imported from here
+// drags next/headers into the browser bundle and fails `npm run build`, while lint, typecheck and
+// the entire test suite stay green. It is the same placement every other limit in this codebase
+// uses: MAX_EVENT_TITLE and friends live in lib/validation/youth.ts, which is pure.
+//
+// One declaration, read by the schema below and by the parser that trims the list on the way back
+// out — two numbers that could disagree is worse than either being wrong.
+//
+// The key name is what app/(app)/youth/HomeVenuePanel.tsx sends, checked against that file rather
+// than assumed (plans/retros/roster-b-picker-and-orgs.md).
+// Generous enough for a ward with several schools, small enough that the textarea stays a
+// textarea.
+export const MAX_HOME_VENUES = 40;
+export const MAX_HOME_VENUE_LENGTH = 120;
+
+export const homeVenuesSchema = z.object({
+  homeVenues: z
+    .array(
+      z
+        .string()
+        .trim()
+        .min(1, "A venue needs a name.")
+        .max(MAX_HOME_VENUE_LENGTH, `Keep each venue to ${MAX_HOME_VENUE_LENGTH} characters.`),
+    )
+    .max(MAX_HOME_VENUES, `Keep the list to ${MAX_HOME_VENUES} places.`),
+});
+export type HomeVenuesInput = z.infer<typeof homeVenuesSchema>;

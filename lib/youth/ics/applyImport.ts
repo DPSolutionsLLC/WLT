@@ -102,6 +102,11 @@ function toInsert(
     allDay: event.allDay,
     sourceUid: event.uid,
     sourceRecurrenceId: event.recurrenceId,
+    // ON AN INSERT ONLY. This function is called over `preview.toCreate` and nothing else; the
+    // update path below writes four columns by name and `event_type` is deliberately not one of
+    // them. That asymmetry IS Decision 6, and slice C is the first thing that could have broken
+    // it — tests/lib/icsIdempotent.test.ts pins it from both sides.
+    eventType: event.eventType,
   };
 }
 
@@ -121,6 +126,7 @@ export async function applyIcsImport(
     occurrencesDropped: input.occurrencesDropped,
     existingEvents: input.existingEvents,
     wardTimeZone: input.wardTimeZone,
+    homeVenues: input.homeVenues,
     fileHash: input.fileHash,
     calendarExists: input.calendar !== null,
     lastSyncedAt: input.calendar?.lastSyncedAt ?? null,

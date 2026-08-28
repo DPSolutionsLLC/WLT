@@ -513,10 +513,18 @@ export async function getActivityEvent(
 // somebody typed in by hand.
 //
 // `status` is always 'upcoming' on creation. Nothing else is a fact at the moment of entry: a
-// cancellation has not happened yet, and "completed" is the clock's business.
+// cancellation has not happened yet, and follow-up is `activity_logs`' business — migration 056a
+// removed `completed` from the column for that reason.
+//
+// `eventType` ARRIVES ALREADY RESOLVED, as a separate parameter rather than off `input`. Slice C
+// made it optional on the schema (absent means "decide from the location"), and the route is what
+// runs classifyEventLocation over the ward's home venues. Taking it here rather than reading
+// `input.eventType` means EXACTLY ONE PLACE decides classification, and a caller that forgot is a
+// type error rather than a row silently written `tbd`.
 export async function createActivityEvent(
   wardId: string,
   input: CreateActivityEventInput,
+  eventType: EventType,
   client?: SupabaseClient<Database>,
 ): Promise<ActivityEvent> {
   const supabase = await resolveClient(client);
@@ -528,7 +536,7 @@ export async function createActivityEvent(
       calendar_id: null,
       profile_id: input.profileId,
       title: input.title,
-      event_type: input.eventType,
+      event_type: eventType,
       event_date: input.eventDate,
       location: input.location ?? null,
       status: "upcoming",
@@ -709,11 +717,21 @@ export type ImportedEventInsert = {
   allDay: boolean;
   sourceUid: string;
   sourceRecurrenceId: string | null;
+  // Slice C. Classified from the location by lib/youth/classifyLocation.ts and carried down from
+  // the preview, so the row is written with the home/away the leader READ before confirming —
+  // rather than one derived a second time here, where the two could disagree.
+  //
+  // It is `home` or `tbd` and NEVER `away`: an unmatched location is a question for a person, not
+  // evidence of an away game (that function's header argues it in full).
+  eventType: EventType;
 };
 
-// `status: 'upcoming'` and `event_type: 'tbd'` on every imported row. Neither is a fact the file
-// carries: a cancellation has not happened, and home-or-away is slice C's classification step.
-// Guessing either would be the import inventing something a person then has to correct.
+// `status: 'upcoming'` on every imported row — a cancellation has not happened, and it is not
+// something a file can assert.
+//
+// `event_type` IS WRITTEN HERE AND ON NO OTHER PATH. This is an INSERT, which is the only place
+// slice C's classification is allowed to reach the column: updateImportedEvent() below never
+// touches it, so a correction a person made by hand survives every future re-import (Decision 6).
 export async function insertImportedEvents(
   wardId: string,
   rows: readonly ImportedEventInsert[],
@@ -731,7 +749,7 @@ export async function insertImportedEvents(
         profile_id: row.profileId,
         calendar_id: row.calendarId,
         title: row.title,
-        event_type: "tbd",
+        event_type: row.eventType,
         event_date: row.eventDate,
         location: row.location,
         status: "upcoming",

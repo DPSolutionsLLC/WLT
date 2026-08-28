@@ -134,12 +134,26 @@ const eventLocationSchema = z
 
 // No `calendarId`. A hand-entered event belongs to no calendar, and the route writes null — slice
 // B's idempotent re-import must never match one of these against a feed's row.
+//
+// ---------------------------------------------------------------------------
+// `eventType` IS OPTIONAL AND HAS NO DEFAULT. THE DEFAULT LOOKS SAFE TO RESTORE. IT IS NOT.
+// ---------------------------------------------------------------------------
+// It used to read `.default("tbd")`, and that one word made classification impossible. With a
+// default, ABSENT AND "tbd" ARRIVE AT THE ROUTE AS THE SAME VALUE, so the route cannot tell "the
+// leader left the field alone" from "the leader deliberately chose Not yet known" — and to
+// classify anything at all it would have to override an explicit human choice.
+//
+// Absent means DECIDE FROM THE LOCATION (lib/youth/classifyLocation.ts). Present means A PERSON
+// DECIDED, including when they decided "tbd", and nothing may overwrite that.
+//
+// The column keeps its own `default 'tbd'` in the database (migration 054c), so a row written by
+// anything that skips this schema is still valid.
 export const createActivityEventSchema = z.object({
   profileId: z.uuid("Choose which activity this event belongs to."),
   title: eventTitleSchema,
   eventDate: eventInstantSchema,
   location: eventLocationSchema.nullable().optional(),
-  eventType: z.enum(EVENT_TYPES).default("tbd"),
+  eventType: z.enum(EVENT_TYPES).optional(),
 });
 export type CreateActivityEventInput = z.infer<typeof createActivityEventSchema>;
 
@@ -179,3 +193,18 @@ export const listActivityEventsQuerySchema = z.object({
     .transform((value) => value === "true"),
 });
 export type ListActivityEventsQuery = z.infer<typeof listActivityEventsQuerySchema>;
+
+// ---------------------------------------------------------------------------
+// Who is going
+// ---------------------------------------------------------------------------
+// NO `eventId` — it is the route parameter. NO `assignedBy` — it comes from the session, which is
+// the rule this file's header already states for `wardId` and `enteredBy`. A body that could name
+// its own assigner is a body that can forge one.
+//
+// THE SELF-ADD ROUTE NEEDS NO SCHEMA AT ALL, and deliberately has none: the only two facts are
+// the event (a route parameter) and the person (the session). A schema for an empty body would be
+// a schema for nothing.
+export const assignAttendeeSchema = z.object({
+  userId: z.uuid("Choose who is going."),
+});
+export type AssignAttendeeInput = z.infer<typeof assignAttendeeSchema>;

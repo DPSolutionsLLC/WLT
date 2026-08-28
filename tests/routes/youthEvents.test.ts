@@ -185,7 +185,10 @@ describe("/api/youth/events", () => {
           title: `Last season ${fixtures.runId}`,
           event_type: "home",
           event_date: yearsFromNow(-2),
-          status: "completed",
+          // `upcoming`, not `completed`: migration 056a removed that value on the argument that
+          // removed `covered` — an event in the past is completed BY THE CLOCK, and this row
+          // being two years old is what makes it past. Nothing needs to say so as well.
+          status: "upcoming",
         },
         {
           ward_id: wardId,

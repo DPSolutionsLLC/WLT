@@ -51,7 +51,7 @@ phase file stays the specification; each slice gets its own plan and its own ret
 |---|---|---|---|
 | youth-a | Migration 054, activity profiles CRUD, manual event entry, the `/youth` page | [youth-a-profiles-and-events.md](youth-a-profiles-and-events.md) | **Built 2026-08-27** — migration 054 applied; scenarios 049/050 not yet walked |
 | youth-b | ICS upload: `ical.js`, preview-then-confirm, timezones, `RRULE`, idempotent re-import, `activity_calendars` | [youth-b-ics-import.md](youth-b-ics-import.md) | **Built 2026-08-27** — migration 055 applied; scenarios 051/052 not yet walked |
-| youth-c | Home/away classification, attendees, coverage computed on read, `/youth/calendar` | — | Not planned |
+| youth-c | Home/away classification, attendees, coverage computed on read, `/youth/calendar` | [youth-c-coverage-and-calendar.md](youth-c-coverage-and-calendar.md) | **Built 2026-08-28** — migration 056 applied (`completed` dropped, attendee writes narrowed); scenarios 053/054 not yet walked |
 | youth-d | `activity_logs`, the shared/private split, ward-council flagging, the report feed | — | Not planned |
 
 Three decisions were taken at the start of `youth-a` planning and apply to the whole phase.

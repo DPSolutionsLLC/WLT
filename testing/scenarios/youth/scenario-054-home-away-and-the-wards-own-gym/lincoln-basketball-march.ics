@@ -1,0 +1,73 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Lincoln High School//Athletics Schedule//EN
+CALSCALE:GREGORIAN
+X-WR-CALNAME:Lincoln High Varsity Basketball
+BEGIN:VTIMEZONE
+TZID:America/Denver
+BEGIN:STANDARD
+DTSTART:19701101T020000
+RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU
+TZOFFSETFROM:-0600
+TZOFFSETTO:-0700
+TZNAME:MST
+END:STANDARD
+BEGIN:DAYLIGHT
+DTSTART:19700308T020000
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU
+TZOFFSETFROM:-0700
+TZOFFSETTO:-0600
+TZNAME:MDT
+END:DAYLIGHT
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:lhs-bball-001@lincolnhigh.example
+SUMMARY:Varsity Basketball vs Roosevelt
+DTSTART;TZID=America/Denver:20270115T193000
+DTEND;TZID=America/Denver:20270115T211500
+LOCATION:Lincoln High School gym
+DESCRIPTION:UNCHANGED from January. The ward cancelled this one by hand; it MUST still read Cancelled after the import.
+END:VEVENT
+BEGIN:VEVENT
+UID:lhs-bball-002@lincolnhigh.example
+SUMMARY:Varsity Basketball at Jefferson
+DTSTART;TZID=America/Denver:20270129T193000
+DTEND;TZID=America/Denver:20270129T211500
+LOCATION:Jefferson High School
+DESCRIPTION:MOVED - was Fri 22 Jan, now Fri 29 Jan 2027 at 7:30pm. Same UID, so it is an UPDATE and keeps its id. The ward corrected this one to Away by hand; that MUST survive.
+END:VEVENT
+BEGIN:VEVENT
+UID:lhs-bball-004@lincolnhigh.example
+SUMMARY:District Tournament
+DTSTART;VALUE=DATE:20270205
+DTEND;VALUE=DATE:20270208
+LOCATION:Regional Sports Center
+DESCRIPTION:UNCHANGED from January. All day.
+END:VEVENT
+BEGIN:VEVENT
+UID:lhs-bball-005@lincolnhigh.example
+SUMMARY:Varsity Basketball practice
+DTSTART;TZID=America/Denver:20270105T160000
+DTEND;TZID=America/Denver:20270105T173000
+RRULE:FREQ=WEEKLY;COUNT=8
+EXDATE;TZID=America/Denver:20270119T160000
+LOCATION:Lincoln High School gym
+DESCRIPTION:UNCHANGED from January. Seven occurrences, all of them already in the app.
+END:VEVENT
+BEGIN:VEVENT
+UID:lhs-bball-008@lincolnhigh.example
+SUMMARY:Varsity Basketball vs Central
+DTSTART;TZID=America/Denver:20270305T193000
+DTEND;TZID=America/Denver:20270305T211500
+LOCATION:Lincoln High School gym
+DESCRIPTION:NEW - not in the January file. EXPECTED: created, Fri 5 Mar 2027 at 7:30pm.
+END:VEVENT
+BEGIN:VEVENT
+UID:lhs-bball-009@lincolnhigh.example
+SUMMARY:Varsity Basketball at Washington
+DTSTART;TZID=America/Denver:20270312T190000
+DTEND;TZID=America/Denver:20270312T204500
+LOCATION:Washington High School
+DESCRIPTION:NEW - not in the January file. EXPECTED: created, Fri 12 Mar 2027 at 7:00pm.
+END:VEVENT
+END:VCALENDAR

@@ -5,6 +5,7 @@ import { respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { fileHashSchema } from "@/lib/validation/youthImport";
+import { readHomeVenues } from "@/lib/ward/homeVenues";
 import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import { applyIcsImport } from "@/lib/youth/ics/applyImport";
 import {
@@ -53,6 +54,9 @@ export async function POST(request: Request) {
 
     const asOf = new Date();
     const wardTimeZone = await readWardTimezone(user.wardId, supabase);
+    // Re-read here rather than posted back from the client, exactly as the file itself is: a
+    // client-supplied venue list would be a client deciding which games count as home.
+    const homeVenues = await readHomeVenues(user.wardId, supabase);
 
     const read = await readIcsFile(file, { asOf, wardTimeZone });
 
@@ -86,6 +90,7 @@ export async function POST(request: Request) {
         occurrencesDropped: read.occurrencesDropped,
         existingEvents,
         wardTimeZone,
+        homeVenues,
         fileHash: read.fileHash,
       },
       supabase,
