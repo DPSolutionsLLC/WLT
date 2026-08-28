@@ -2,7 +2,7 @@
 id: youth-b-ics-import
 type: feature
 iter: null
-commits: ["ba86121"]
+commits: ["45dd928"]
 date: 2026-08-28
 files:
   - supabase/migrations/055_activity_event_source.sql
