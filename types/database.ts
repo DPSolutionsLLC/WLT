@@ -164,8 +164,8 @@ export type Database = {
           created_at: string
           id: string
           last_synced_at: string | null
-          profile_id: string | null
-          source_type: string | null
+          profile_id: string
+          source_type: string
           source_url: string | null
           ward_id: string
         }
@@ -173,8 +173,8 @@ export type Database = {
           created_at?: string
           id?: string
           last_synced_at?: string | null
-          profile_id?: string | null
-          source_type?: string | null
+          profile_id: string
+          source_type: string
           source_url?: string | null
           ward_id: string
         }
@@ -182,8 +182,8 @@ export type Database = {
           created_at?: string
           id?: string
           last_synced_at?: string | null
-          profile_id?: string | null
-          source_type?: string | null
+          profile_id?: string
+          source_type?: string
           source_url?: string | null
           ward_id?: string
         }
@@ -206,6 +206,7 @@ export type Database = {
       }
       activity_events: {
         Row: {
+          all_day: boolean
           calendar_id: string | null
           created_at: string
           event_date: string
@@ -213,11 +214,14 @@ export type Database = {
           id: string
           location: string | null
           profile_id: string | null
+          source_recurrence_id: string | null
+          source_uid: string | null
           status: string
           title: string
           ward_id: string
         }
         Insert: {
+          all_day?: boolean
           calendar_id?: string | null
           created_at?: string
           event_date: string
@@ -225,11 +229,14 @@ export type Database = {
           id?: string
           location?: string | null
           profile_id?: string | null
+          source_recurrence_id?: string | null
+          source_uid?: string | null
           status?: string
           title: string
           ward_id: string
         }
         Update: {
+          all_day?: boolean
           calendar_id?: string | null
           created_at?: string
           event_date?: string
@@ -237,6 +244,8 @@ export type Database = {
           id?: string
           location?: string | null
           profile_id?: string | null
+          source_recurrence_id?: string | null
+          source_uid?: string | null
           status?: string
           title?: string
           ward_id?: string

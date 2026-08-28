@@ -1,0 +1,78 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Lincoln High School//Athletics Schedule//EN
+CALSCALE:GREGORIAN
+X-WR-CALNAME:Lincoln High Varsity Basketball
+BEGIN:VTIMEZONE
+TZID:America/Denver
+BEGIN:STANDARD
+DTSTART:19701101T020000
+RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU
+TZOFFSETFROM:-0600
+TZOFFSETTO:-0700
+TZNAME:MST
+END:STANDARD
+BEGIN:DAYLIGHT
+DTSTART:19700308T020000
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU
+TZOFFSETFROM:-0700
+TZOFFSETTO:-0600
+TZNAME:MDT
+END:DAYLIGHT
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:lhs-bball-001@lincolnhigh.example
+SUMMARY:Varsity Basketball vs Roosevelt
+DTSTART;TZID=America/Denver:20270115T193000
+DTEND;TZID=America/Denver:20270115T211500
+LOCATION:Lincoln High School gym
+DESCRIPTION:Home game. EXPECTED IN THE APP: Fri 15 Jan 2027 at 7:30pm. Carries TZID=America/Denver and the file defines that VTIMEZONE.
+END:VEVENT
+BEGIN:VEVENT
+UID:lhs-bball-002@lincolnhigh.example
+SUMMARY:Varsity Basketball at Jefferson
+DTSTART:20270123T023000Z
+DTEND:20270123T041500Z
+LOCATION:Jefferson High School
+DESCRIPTION:Away game. EXPECTED IN THE APP: Fri 22 Jan 2027 at 7:30pm. Published as UTC (02:30Z the next day) by the league's scheduling system.
+END:VEVENT
+BEGIN:VEVENT
+UID:lhs-bball-003@lincolnhigh.example
+SUMMARY:Varsity Basketball vs Madison
+DTSTART:20270129T180000
+DTEND:20270129T194500
+LOCATION:Lincoln High School gym
+DESCRIPTION:Home game. EXPECTED IN THE APP: Fri 29 Jan 2027 at 6:00pm. This entry carries NO time zone, so it is read in the ward's and the preview says so.
+END:VEVENT
+BEGIN:VEVENT
+UID:lhs-bball-004@lincolnhigh.example
+SUMMARY:District Tournament
+DTSTART;VALUE=DATE:20270205
+DTEND;VALUE=DATE:20270208
+LOCATION:Regional Sports Center
+DESCRIPTION:EXPECTED IN THE APP: Fri 5 Feb 2027, marked ALL DAY and never 12:00am. No start time is published.
+END:VEVENT
+BEGIN:VEVENT
+UID:lhs-bball-005@lincolnhigh.example
+SUMMARY:Varsity Basketball practice
+DTSTART;TZID=America/Denver:20270105T160000
+DTEND;TZID=America/Denver:20270105T173000
+RRULE:FREQ=WEEKLY;COUNT=8
+EXDATE;TZID=America/Denver:20270119T160000
+LOCATION:Lincoln High School gym
+DESCRIPTION:EXPECTED IN THE APP: 7 rows at 4:00pm - 5, 12, 26 Jan and 2, 9, 16, 23 Feb 2027. Eight weekly, minus 19 Jan for the school holiday.
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Team photo
+DTSTART;TZID=America/Denver:20270112T153000
+DTEND;TZID=America/Denver:20270112T160000
+LOCATION:Lincoln High School gym
+DESCRIPTION:EXPECTED IN THE APP: Tue 12 Jan 2027 at 3:30pm, with a source_uid beginning wlt-synth-. This entry has NO UID; the app synthesises a deterministic one.
+END:VEVENT
+BEGIN:VEVENT
+UID:lhs-bball-007@lincolnhigh.example
+SUMMARY:Season awards night
+LOCATION:Lincoln High School cafeteria
+DESCRIPTION:EXPECTED IN THE APP: NOT created, and listed under problems with a sentence. This entry has no DTSTART.
+END:VEVENT
+END:VCALENDAR

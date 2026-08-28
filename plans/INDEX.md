@@ -50,7 +50,7 @@ phase file stays the specification; each slice gets its own plan and its own ret
 | Slice | Covers | Plan | Status |
 |---|---|---|---|
 | youth-a | Migration 054, activity profiles CRUD, manual event entry, the `/youth` page | [youth-a-profiles-and-events.md](youth-a-profiles-and-events.md) | **Built 2026-08-27** — migration 054 applied; scenarios 049/050 not yet walked |
-| youth-b | ICS upload: `ical.js`, preview-then-confirm, timezones, `RRULE`, idempotent re-import | — | Not planned |
+| youth-b | ICS upload: `ical.js`, preview-then-confirm, timezones, `RRULE`, idempotent re-import, `activity_calendars` | [youth-b-ics-import.md](youth-b-ics-import.md) | **Built 2026-08-27** — migration 055 applied; scenarios 051/052 not yet walked |
 | youth-c | Home/away classification, attendees, coverage computed on read, `/youth/calendar` | — | Not planned |
 | youth-d | `activity_logs`, the shared/private split, ward-council flagging, the report feed | — | Not planned |
 
@@ -61,8 +61,12 @@ migration 019 left addressed to this phase by name. **Coverage is computed on re
 `covered` and `uncovered` leave `activity_events.status` and both scheduled notifications
 (`youth_event_uncovered`, the Monday away-digest) join `visit_overdue` and
 `refresh_goal_status()` as Phase 11's single decision about a mechanism. **Google Calendar sync
-is cut**, as the phase file's own Pitfalls section instructs. `ical.js` is approved for
-`youth-b` and must not be added to `package.json` before then.
+is cut**, as the phase file's own Pitfalls section instructs. `ical.js` was approved for
+`youth-b` and **was added there** (`^2.2.1`, MPL-2.0 — file-level copyleft, which imposes nothing
+on this codebase while the package is used unmodified). It is the only dependency slice B added:
+no timezone library and no `ical.timezones` bundle, because `lib/youth/ics/resolveInstant.ts` does
+the zone arithmetic in about twenty lines of `Intl`, on the same reasoning that made
+`lib/roster/csv/parseCsv.ts` a hand-written RFC 4180 parser.
 
 **Not scoped, and recorded so it is not lost: leader-to-leader messaging.** Raised 2026-08-27
 while reviewing the `youth-a` walkthrough. The shape asked for is *"send a message to the author of

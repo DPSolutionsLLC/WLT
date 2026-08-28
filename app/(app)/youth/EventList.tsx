@@ -70,6 +70,30 @@ function formatInstant(instant: string): string {
   });
 }
 
+// AN ALL-DAY EVENT NEVER RENDERS "12:00am", AND THAT IS THE WHOLE JUSTIFICATION FOR THE COLUMN.
+//
+// An ICS all-day entry carries a date and no time at all, so it is stored at ward midnight —
+// `event_date` is a timestamptz and there is nowhere else to put it. Rendered as a time, midnight
+// on this screen is INDISTINGUISHABLE from a 7:30pm game that got converted through the wrong
+// zone, which is the exact bug the whole ICS slice is arranged to prevent. Making a tournament
+// weekend read "All day" is what keeps a real off-by-N-hours bug legible when one happens
+// (migration 055a).
+function formatEventWhen(instant: string, allDay: boolean): string {
+  if (!allDay) return formatInstant(instant);
+
+  const parsed = new Date(instant);
+  if (!Number.isFinite(parsed.getTime())) return "An unreadable date";
+
+  const date = parsed.toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  return `${date} · All day`;
+}
+
 function eventCount(count: number, includePast: boolean): string {
   const noun = count === 1 ? "event" : "events";
   return includePast ? `${count} ${noun}` : `${count} upcoming ${noun}`;
@@ -212,10 +236,20 @@ export function EventList({ initialEvents, initialProfiles, canManage }: EventLi
                         {EVENT_STATUS_LABELS.cancelled}
                       </span>
                     ) : null}
+                    {/* A LABEL, NOT A CONTROL. An imported row can be edited by hand exactly like
+                        any other — but the next import of the same file will overwrite the name,
+                        the time, the place and the all-day flag (lib/youth/ics/applyImport.ts,
+                        Decision 6). Saying where the row came from is what lets somebody decide
+                        whether to fix it here or in the school's calendar. Home/away and cancelled
+                        are never overwritten, so those edits are safe and the marker is not a
+                        warning. */}
+                    {event.sourceUid === null ? null : (
+                      <span className={CHIP_CLASSES}>From a schedule feed</span>
+                    )}
                   </div>
 
                   <p className="mt-1 text-sm text-foreground">
-                    {formatInstant(event.eventDate)}
+                    {formatEventWhen(event.eventDate, event.allDay)}
                   </p>
 
                   <p className="mt-1 text-sm text-muted">

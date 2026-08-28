@@ -51,6 +51,8 @@ describe("youth activity profile scoping", () => {
   let wardBProfileId: string;
   let eqEventId: string;
   let wardBEventId: string;
+  let eqCalendarId: string;
+  let wardBCalendarId: string;
 
   const seedProfile = async (
     orgId: string | null,
@@ -190,6 +192,30 @@ describe("youth activity profile scoping", () => {
 
     eqEventId = events!.find((row) => row.ward_id === fixtures.wardAId)!.id;
     wardBEventId = events!.find((row) => row.ward_id === fixtures.wardBId)!.id;
+
+    const { data: calendars, error: calendarError } = await fixtures.service
+      .from("activity_calendars")
+      .insert([
+        {
+          ward_id: fixtures.wardAId,
+          profile_id: eqProfileId,
+          source_type: "ics_upload",
+          source_url: null,
+          last_synced_at: "2026-08-27T00:00:00Z",
+        },
+        {
+          ward_id: fixtures.wardBId,
+          profile_id: wardBProfileId,
+          source_type: "ics_upload",
+          source_url: null,
+          last_synced_at: "2026-08-27T00:00:00Z",
+        },
+      ])
+      .select("id, ward_id");
+    if (calendarError) throw new Error(calendarError.message);
+
+    eqCalendarId = calendars!.find((row) => row.ward_id === fixtures.wardAId)!.id;
+    wardBCalendarId = calendars!.find((row) => row.ward_id === fixtures.wardBId)!.id;
   }, 180_000);
 
   afterAll(async () => {
@@ -229,6 +255,107 @@ describe("youth activity profile scoping", () => {
 
       expect(error).toBeNull();
       expect(data ?? []).toEqual([]);
+    });
+
+    it("hides ward B's schedule feed from ward A", async () => {
+      const { data, error } = await eqPresident
+        .from("activity_calendars")
+        .select("id")
+        .eq("id", wardBCalendarId);
+
+      expect(error).toBeNull();
+      expect(data ?? []).toEqual([]);
+    });
+
+    it("hides ward A's schedule feed from ward B's bishop", async () => {
+      const { data, error } = await wardBBishop
+        .from("activity_calendars")
+        .select("id")
+        .eq("id", eqCalendarId);
+
+      expect(error).toBeNull();
+      expect(data ?? []).toEqual([]);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // activity_calendars — MIGRATION 019's WARD-WIDE POLICIES, ON PURPOSE (migration 055c)
+  // ---------------------------------------------------------------------------
+  // A calendar hangs off a profile exactly as an event does, so its organization is already
+  // answered once, on the profile. Narrowing it here would put a second copy of that answer where
+  // it could disagree with the first — and would achieve nothing anyway, since the same leader
+  // could create the same events one at a time through POST /api/youth/events.
+  //
+  // THE POSITIVE ASSERTIONS ARE THE POINT. Asserting only that ward B is hidden would leave a
+  // later narrowing free to happen silently; asserting that a Relief Society president CAN reach
+  // an Elders Quorum calendar means a narrowing has to break a test rather than quietly change
+  // behaviour, and whoever breaks it has to write down why.
+  describe("a schedule feed is ward-wide within its ward", () => {
+    it("lets another organization's president read it", async () => {
+      const { data, error } = await rsPresident
+        .from("activity_calendars")
+        .select("id, profile_id, source_type")
+        .eq("id", eqCalendarId);
+
+      expect(error).toBeNull();
+      expect(data?.map((row) => row.id)).toEqual([eqCalendarId]);
+    });
+
+    it("lets a ward council member with no organization read it", async () => {
+      const { data, error } = await wardCouncilMember
+        .from("activity_calendars")
+        .select("id")
+        .eq("id", eqCalendarId);
+
+      expect(error).toBeNull();
+      expect(data?.map((row) => row.id)).toEqual([eqCalendarId]);
+    });
+
+    it("lets another organization's president stamp it", async () => {
+      const stamped = "2026-09-01T12:00:00+00:00";
+
+      const { error } = await rsPresident
+        .from("activity_calendars")
+        .update({ last_synced_at: stamped })
+        .eq("id", eqCalendarId);
+
+      expect(error).toBeNull();
+
+      // Re-read with the service client. A refused UPDATE is a zero-row SUCCESS, so asserting on
+      // `error` alone would pass against a policy that refused everything.
+      const { data } = await fixtures.service
+        .from("activity_calendars")
+        .select("last_synced_at")
+        .eq("id", eqCalendarId)
+        .maybeSingle();
+
+      expect(new Date(data!.last_synced_at!).toISOString()).toBe(
+        new Date(stamped).toISOString(),
+      );
+    });
+
+    it("refuses an insert into another ward", async () => {
+      const { error } = await eqPresident.from("activity_calendars").insert({
+        ward_id: fixtures.wardBId,
+        profile_id: wardBProfileId,
+        source_type: "ics_upload",
+      });
+
+      // Only INSERT raises. The two refusals above had to be re-read instead.
+      expect(error).not.toBeNull();
+    });
+
+    it("refuses a calendar pointing at another ward's profile", async () => {
+      const { error } = await eqPresident.from("activity_calendars").insert({
+        ward_id: fixtures.wardAId,
+        profile_id: wardBProfileId,
+        source_type: "ics_upload",
+      });
+
+      // The composite foreign key (profile_id, ward_id) is what refuses this, before any policy
+      // has to. Belt and braces, and it is the constraint slice B's route relies on rather than
+      // re-checking.
+      expect(error).not.toBeNull();
     });
   });
 

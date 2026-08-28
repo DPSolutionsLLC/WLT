@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ActivityProfileList } from "@/app/(app)/youth/ActivityProfileList";
 import { EventList } from "@/app/(app)/youth/EventList";
 import { ManualEventForm } from "@/app/(app)/youth/ManualEventForm";
@@ -100,7 +101,18 @@ export default async function YouthActivitiesPage() {
 
       {canManage ? (
         <div className="flex flex-col gap-3">
-          <h2 className="text-base font-semibold text-foreground">Add an event</h2>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-base font-semibold text-foreground">Add an event</h2>
+            {/* Inside the existing canManage branch, because importing writes events and
+                `youth_activities.manage` is what the route requires. A link offered to somebody
+                the API would refuse is the same defect as a form that fails on submit. */}
+            <Link
+              href="/youth/import"
+              className="text-sm text-primary underline underline-offset-4"
+            >
+              Import a schedule
+            </Link>
+          </div>
           <ManualEventForm initialProfiles={profiles} />
         </div>
       ) : (

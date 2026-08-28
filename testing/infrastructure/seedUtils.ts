@@ -4,6 +4,7 @@ import { getAdminClient } from "./adminClient.ts";
 import { loadEnvironment } from "./envLoader.ts";
 import type {
   AppointmentStatus,
+  ActivitySourceType,
   ActivityType,
   AgendaStatus,
   AssignmentType,
@@ -1131,16 +1132,54 @@ export async function createActivityEvent(options: {
   eventType?: "home" | "away" | "tbd";
   location?: string;
   status?: "upcoming" | "cancelled" | "completed";
+  // Migration 055. Leaving all four at their defaults produces a HAND-ENTERED event, which is
+  // what createActivityEvent has always meant — `calendar_id` and `source_uid` both null is
+  // exactly the shape slice B's re-import is forbidden from matching.
+  //
+  // Setting `calendarId` and `sourceUid` produces a row that LOOKS LIKE ONE AN IMPORT WROTE,
+  // which is what a "already imported, then edited by hand" scenario needs to reach a state that
+  // takes several minutes through the UI.
+  allDay?: boolean;
+  calendarId?: string;
+  sourceUid?: string;
+  sourceRecurrenceId?: string;
 }): Promise<string> {
   return insertRow("activity_events", {
     id: options.id ?? testUuid(`event:${options.title}:${options.eventDate}`),
     ward_id: TEST_WARD_ID,
     profile_id: options.profileId ?? null,
+    calendar_id: options.calendarId ?? null,
     title: options.title,
     event_date: options.eventDate,
     event_type: options.eventType ?? "tbd",
     location: options.location ?? null,
     status: options.status ?? "upcoming",
+    all_day: options.allDay ?? false,
+    source_uid: options.sourceUid ?? null,
+    source_recurrence_id: options.sourceRecurrenceId ?? null,
+  });
+}
+
+// ONE ICS CALENDAR PER PROFILE (slice B, Decision 5). `profile_id` and `source_type` are both
+// NOT NULL as of migration 055c: a calendar belonging to no activity is orphaned, and a null
+// source type maps to a value ActivitySourceType says cannot exist.
+//
+// `sourceUrl` stays null and there is no option for it. Slice B uploads a file and never fetches
+// a URL server-side, which would be SSRF surface for no gain the phase plan asks for; a seed that
+// wrote one would describe a state the app cannot produce.
+export async function createActivityCalendar(options: {
+  id?: string;
+  profileId: string;
+  sourceType?: ActivitySourceType;
+  lastSyncedAt?: string;
+}): Promise<string> {
+  return insertRow("activity_calendars", {
+    id: options.id ?? testUuid(`calendar:${options.profileId}`),
+    ward_id: TEST_WARD_ID,
+    profile_id: options.profileId,
+    source_type: options.sourceType ?? "ics_upload",
+    source_url: null,
+    last_synced_at: options.lastSyncedAt ?? null,
   });
 }
 

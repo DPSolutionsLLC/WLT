@@ -7,7 +7,12 @@ import type {
   UpdateActivityProfileInput,
 } from "@/lib/validation/youth";
 import type { Database } from "@/types/database";
-import type { ActivityType, EventStatus, EventType } from "@/types/domain";
+import type {
+  ActivitySourceType,
+  ActivityType,
+  EventStatus,
+  EventType,
+} from "@/types/domain";
 
 // Youth activity logs.
 //
@@ -128,6 +133,29 @@ export type ActivityEvent = {
   eventDate: string;
   location: string | null;
   status: EventStatus;
+  // Migration 055. An all-day entry is stored at ward midnight because `event_date` is a
+  // timestamptz and there is nowhere else to put it — and a midnight instant read back without
+  // this flag is indistinguishable from a 7:30pm game converted through the wrong zone. The
+  // marker is what keeps a real timezone bug legible.
+  allDay: boolean;
+  // Null on a hand-entered event, and that is the whole point: slice B's re-import matches on
+  // (calendar_id, source_uid, source_recurrence_id), so a manual entry can never be overwritten
+  // by a feed. `sourceRecurrenceId` is the occurrence's own DTSTART for an expanded series and
+  // null for a one-off.
+  sourceUid: string | null;
+  sourceRecurrenceId: string | null;
+  createdAt: string;
+};
+
+// A schedule feed, hanging off one activity profile. One row per profile per source type, which
+// is what makes "re-import" mean something without asking a leader which of three calendars they
+// meant (slice B, Decision 5).
+export type ActivityCalendar = {
+  id: string;
+  profileId: string;
+  sourceType: ActivitySourceType;
+  sourceUrl: string | null;
+  lastSyncedAt: string | null;
   createdAt: string;
 };
 
@@ -142,8 +170,15 @@ export type ActivityEvent = {
 const ACTIVITY_PROFILE_COLUMNS =
   "id, member_id, org_id, activity_name, school_org, activity_type, season_schedule, notes, entered_by, created_at, members!youth_activity_profiles_member_id_ward_id_fkey (first_name, last_name)";
 
+// ONE STRING LITERAL ON ONE LINE, still, now that it has grown three columns. A `+`
+// concatenation widens the type to `string` and defeats supabase-js's literal parsing of the
+// select list, silently degrading every row to something untyped
+// (plans/retros/calendar-a-rules-and-api.md).
 const ACTIVITY_EVENT_COLUMNS =
-  "id, profile_id, calendar_id, title, event_type, event_date, location, status, created_at";
+  "id, profile_id, calendar_id, title, event_type, event_date, location, status, all_day, source_uid, source_recurrence_id, created_at";
+
+const ACTIVITY_CALENDAR_COLUMNS =
+  "id, profile_id, source_type, source_url, last_synced_at, created_at";
 
 type ActivityProfileRow = {
   id: string;
@@ -168,6 +203,18 @@ type ActivityEventRow = {
   event_date: string;
   location: string | null;
   status: string;
+  all_day: boolean;
+  source_uid: string | null;
+  source_recurrence_id: string | null;
+  created_at: string;
+};
+
+type ActivityCalendarRow = {
+  id: string;
+  profile_id: string;
+  source_type: string;
+  source_url: string | null;
+  last_synced_at: string | null;
   created_at: string;
 };
 
@@ -207,6 +254,20 @@ function mapActivityEventRow(row: ActivityEventRow): ActivityEvent {
     eventDate: row.event_date,
     location: row.location,
     status: row.status as EventStatus,
+    allDay: row.all_day,
+    sourceUid: row.source_uid,
+    sourceRecurrenceId: row.source_recurrence_id,
+    createdAt: row.created_at,
+  };
+}
+
+function mapActivityCalendarRow(row: ActivityCalendarRow): ActivityCalendar {
+  return {
+    id: row.id,
+    profileId: row.profile_id,
+    sourceType: row.source_type as ActivitySourceType,
+    sourceUrl: row.source_url,
+    lastSyncedAt: row.last_synced_at,
     createdAt: row.created_at,
   };
 }
@@ -372,6 +433,10 @@ export async function deleteActivityProfile(
 
 export type ListActivityEventsOptions = {
   profileId?: string;
+  // Slice B. Narrows to the events one schedule feed produced, which is what the import preview
+  // diffs against — a hand-entered event (calendar_id null) is invisible to this filter by
+  // construction, and that is exactly the guarantee the re-import needs.
+  calendarId?: string;
   from?: string;
   to?: string;
   includePast?: boolean;
@@ -396,6 +461,7 @@ export async function listActivityEvents(
     .eq("ward_id", wardId);
 
   if (options.profileId !== undefined) query = query.eq("profile_id", options.profileId);
+  if (options.calendarId !== undefined) query = query.eq("calendar_id", options.calendarId);
   if (options.from !== undefined) query = query.gte("event_date", options.from);
   if (options.to !== undefined) query = query.lte("event_date", options.to);
 
@@ -532,4 +598,202 @@ export async function deleteActivityEvent(
   }
 
   return (data ?? []).length > 0;
+}
+
+// ===========================================================================
+// Phase 8 slice B — schedule feeds
+// ===========================================================================
+//
+// The SQL for the ICS import lives HERE, following how every other module in this repo splits
+// data access from logic. lib/youth/ics/applyImport.ts decides WHAT to write; these four
+// functions are the only place that writes it.
+//
+// `activity_calendars` keeps migration 019's ward-wide policies (migration 055c says why), so
+// every one of these runs under the caller's own client and the database decides.
+
+// ONE ICS CALENDAR PER PROFILE (Decision 5). A team has one schedule feed, and that is what makes
+// "re-import" a well-defined action rather than a question about which of three calendars was
+// meant. `.maybeSingle()` rather than `.single()`: no calendar yet is the ordinary state of a
+// first import, not an error.
+export async function getIcsCalendarForProfile(
+  wardId: string,
+  profileId: string,
+  client?: SupabaseClient<Database>,
+): Promise<ActivityCalendar | null> {
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("activity_calendars")
+    .select(ACTIVITY_CALENDAR_COLUMNS)
+    .eq("ward_id", wardId)
+    .eq("profile_id", profileId)
+    .eq("source_type", "ics_upload")
+    .maybeSingle();
+
+  if (error) {
+    console.error(`Could not read an activity calendar — ${error.message}`, {
+      wardId,
+      profileId,
+    });
+    throw new Error(`Could not load that activity's schedule feed: ${error.message}`);
+  }
+
+  return data === null ? null : mapActivityCalendarRow(data);
+}
+
+// `source_url` IS ALWAYS NULL. Slice B uploads a file; it never fetches a URL server-side, which
+// would be SSRF surface for no gain 08-youth-activities.md asks for. The column stays for a
+// future slice that decides otherwise, and writing null is what says nothing has.
+export async function createIcsCalendar(
+  wardId: string,
+  profileId: string,
+  syncedAt: string,
+  client?: SupabaseClient<Database>,
+): Promise<ActivityCalendar> {
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("activity_calendars")
+    .insert({
+      ward_id: wardId,
+      profile_id: profileId,
+      source_type: "ics_upload",
+      source_url: null,
+      last_synced_at: syncedAt,
+    })
+    .select(ACTIVITY_CALENDAR_COLUMNS)
+    .single();
+
+  if (error) {
+    console.error(`Could not create an activity calendar — ${error.message}`, {
+      wardId,
+      profileId,
+    });
+    throw new Error(`Could not save that schedule feed: ${error.message}`);
+  }
+
+  return mapActivityCalendarRow(data);
+}
+
+// WHEN A PERSON LAST IMPORTED, never when a machine did. There is no cron and no scheduled
+// re-sync in this project, so this column records a human action or nothing at all.
+export async function touchCalendarSyncedAt(
+  wardId: string,
+  calendarId: string,
+  syncedAt: string,
+  client?: SupabaseClient<Database>,
+): Promise<void> {
+  const supabase = await resolveClient(client);
+
+  const { error } = await supabase
+    .from("activity_calendars")
+    .update({ last_synced_at: syncedAt })
+    .eq("ward_id", wardId)
+    .eq("id", calendarId);
+
+  if (error) {
+    console.error(`Could not stamp an activity calendar — ${error.message}`, {
+      wardId,
+      calendarId,
+    });
+    throw new Error(`Could not record that import: ${error.message}`);
+  }
+}
+
+export type ImportedEventInsert = {
+  profileId: string;
+  calendarId: string;
+  title: string;
+  eventDate: string;
+  location: string | null;
+  allDay: boolean;
+  sourceUid: string;
+  sourceRecurrenceId: string | null;
+};
+
+// `status: 'upcoming'` and `event_type: 'tbd'` on every imported row. Neither is a fact the file
+// carries: a cancellation has not happened, and home-or-away is slice C's classification step.
+// Guessing either would be the import inventing something a person then has to correct.
+export async function insertImportedEvents(
+  wardId: string,
+  rows: readonly ImportedEventInsert[],
+  client?: SupabaseClient<Database>,
+): Promise<ActivityEvent[]> {
+  if (rows.length === 0) return [];
+
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("activity_events")
+    .insert(
+      rows.map((row) => ({
+        ward_id: wardId,
+        profile_id: row.profileId,
+        calendar_id: row.calendarId,
+        title: row.title,
+        event_type: "tbd",
+        event_date: row.eventDate,
+        location: row.location,
+        status: "upcoming",
+        all_day: row.allDay,
+        source_uid: row.sourceUid,
+        source_recurrence_id: row.sourceRecurrenceId,
+      })),
+    )
+    .select(ACTIVITY_EVENT_COLUMNS);
+
+  if (error) {
+    console.error(`Could not insert imported activity events — ${error.message}`, {
+      wardId,
+      count: rows.length,
+    });
+    throw new Error(`Could not save the imported events: ${error.message}`);
+  }
+
+  return (data ?? []).map(mapActivityEventRow);
+}
+
+export type ImportedEventPatch = {
+  title: string;
+  eventDate: string;
+  location: string | null;
+  allDay: boolean;
+};
+
+// FOUR COLUMNS AND NO OTHERS (Decision 6). `status` is never touched, so a hand-cancelled game
+// stays cancelled; `event_type` is never touched, so a correction a person made by hand survives
+// every future re-import. The absence is the feature, which is why the patch is written out field
+// by field rather than spread from an input object.
+export async function updateImportedEvent(
+  wardId: string,
+  eventId: string,
+  patch: ImportedEventPatch,
+  client?: SupabaseClient<Database>,
+): Promise<ActivityEvent | null> {
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("activity_events")
+    .update({
+      title: patch.title,
+      event_date: patch.eventDate,
+      location: patch.location,
+      all_day: patch.allDay,
+    })
+    .eq("ward_id", wardId)
+    .eq("id", eventId)
+    .select(ACTIVITY_EVENT_COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`Could not update an imported activity event — ${error.message}`, {
+      wardId,
+      eventId,
+    });
+    throw new Error(`Could not update that event: ${error.message}`);
+  }
+
+  // Null is a row RLS refused, which is a zero-row success rather than an error
+  // (plans/retros/foundation-c-services.md). The caller counts what actually changed.
+  return data === null ? null : mapActivityEventRow(data);
 }

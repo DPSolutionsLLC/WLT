@@ -402,10 +402,61 @@ Flag these when they become relevant; do not silently pick a side.
   that loses the record it was ever scheduled. Slice C should revisit whether `completed` earns its
   place — an event in the past is completed by the clock too.
 
+- **An ICS import reads a floating time in the WARD's zone, and an all-day entry at ward midnight
+  — DECIDED 2026-08-27.** `DTSTART:20270115T193000` carries no zone: half past seven in no
+  particular place. Refusing such files was rejected — school feeds publish them routinely, and
+  refusing would leave manual entry as the only path for exactly the wards this feature is for. So
+  `wards.settings.timezone` gains its **first reader in the whole repo**
+  (`lib/ward/wardTimezone.ts`); it has been seeded since Foundation B and two migrations refer to
+  it in comments without anything reading it. There is still **no editing UI** for it — that is a
+  Phase 11 admin screen, and `lib/ward/crossOrgVisibility.ts` is the pattern.
+  The preview shows the resolved hour **and says per event that the file gave no zone**, so a
+  leader reads "7:30pm" before confirming rather than after. An unresolvable `TZID` does the same
+  and additionally names the zone it asked for: silently treating it as UTC would be the wrong
+  hour with no trace, which is worse than a wrong hour somebody was shown.
+  `activity_events.all_day` (migration 055) exists because without it every tournament weekend
+  renders "12:00am", which on that screen is **indistinguishable from the off-by-N-hours bug this
+  slice is most likely to produce** — the marker is what keeps a real bug legible.
+  **`ICAL.Time.toJSDate()` is called nowhere.** It resolves a floating time against the *process's*
+  zone — America/Denver locally, UTC on Vercel — so it is a bug that passes every test on the dev
+  machine and ships wrong. `parseIcs.ts` carries a wall clock and a zone NAME; `resolveInstant.ts`
+  is the one place they become an instant, it is pure, and it takes **two** offset-correction
+  passes because one is wrong for an hour twice a year. `parseWardTimezone` also refuses a bare
+  offset (`-07:00`) that `Intl` would happily accept: a fixed offset has no daylight saving, so it
+  would put every summer game an hour out with nothing saying why.
+
+- **An imported event that vanishes from a re-imported file is LEFT ALONE — DECIDED 2026-08-27.**
+  The confirm performs **no deletes and no status changes**, ever, and the preview names the
+  absent events so the guarantee is visible rather than theoretical. A feed that briefly publishes
+  a short file must not be able to cancel a season, and a re-import must never destroy something a
+  leader typed, corrected, or cancelled by hand. On a row that *did* match, only `title`,
+  `location`, `event_date` and `all_day` are written: `status` and `event_type` are never touched,
+  so a hand-cancelled game stays cancelled and slice C's home/away correction survives every future
+  import. *The trap this avoids:* "absent from the file" is computed **within the window the file
+  itself covers**, never against all time — recurrence is expanded only ~12 months ahead, so over
+  all time every past game the feed ever produced would qualify.
+  Idempotence lives in the DATABASE, not in TypeScript: migration 055's
+  `(ward_id, calendar_id, source_uid, source_recurrence_id)` unique index carries **`nulls not
+  distinct`** — without it two rows with a null `source_recurrence_id` would not conflict, the
+  talks-d hole again — and a **partial `where`** that keeps hand-entered rows (null on both) out,
+  since under `nulls not distinct` every one of them would otherwise collide with every other.
+  `08-youth-activities.md`'s "match on UID where present, else title + date" is deliberately NOT
+  implemented as two rules: a `VEVENT` with no `UID` gets a deterministic synthesised one
+  (`wlt-synth-…`), so there is one match key and one code path.
+
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS
-  upload is far simpler. Ship ICS first, treat Google sync as a stretch goal.
+  upload is far simpler. **ICS shipped in `youth-b`**; Google sync stays cut, as
+  `08-youth-activities.md`'s own Pitfalls section instructs ("Cut Google sync before cutting
+  anything else here"). `ACTIVITY_SOURCE_TYPES` keeps its `google_sync` value and nothing writes
+  it. Nor does anything fetch a `source_url`: an import is a file a person uploaded, and a
+  server-side URL fetch would be SSRF surface for no gain the phase plan asks for.
+  **No cron and no scheduled re-sync**, either. `activity_calendars.last_synced_at` records when a
+  PERSON last imported, never when a machine did — automatic re-fetching would put a write path
+  outside a human confirm, which is where rule 3 draws its line. This joins
+  `youth_event_uncovered`, the Monday digest, `visit_overdue` and `refresh_goal_status()` as Phase
+  11's one decision about a mechanism; that makes **five**.
 - **Conference talk corpus scope — DECIDED: curated, not exhaustive.** The standard works are
   ingested in full via `knowledge:ingest`. General Conference is ingested **forward from now,
   plus roughly the last two years** — do not backfill decades. Two reasons, and the second is the

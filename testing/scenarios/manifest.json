@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 50,
+  "scenarioCount": 52,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -1987,6 +1987,7 @@
       "purpose": "Migration 054 makes **reads ward-wide and writes org-scoped**, and that asymmetry is the one\ndecision in this slice that cannot be seen from a single account. From one login the two rules look\nlike one rule: whatever you can see, you can probably also change. It takes four people signing in\nat different times, three differently-owned activities, and a youth who has two of them — which is\nexactly what seeding is for.\n\nIt also covers the phase plan's **\"ward council member scope confusion\"** pitfall, which it\ndescribes as *two different rules that must both be checked*. The ward council member here has\n`org_id` deliberately null, which is the `talks-d` hole seen from the outside: they write a\nward-wide activity, the write succeeds, and the only thing that proves the policy is right is\nwhether it then appears in their own list.\n\nA route test proves each of these against the database. What it cannot answer is whether an org\nleader who cannot edit somebody else's activity is **told why in a sentence**, or is simply handed a\ncontrol that fails — and whether \"Ward-wide\" reads as a deliberate state rather than as missing\ndata.",
       "checklist": [
         "All four accounts see **all four** activities on `/youth`, grouped under three youth.",
+        "**The Edit and Remove controls are ABSENT on an activity this account may not change** —",
         "The Young Men president's attempt to save a change to *Chamber choir* does not change the",
         "The Young Women president's mirror attempt on *Varsity basketball* likewise changes nothing.",
         "The bishop's **Add an activity** form contains an organization select; the Young Men",
@@ -1996,6 +1997,8 @@
         "Malia renders as **one** heading with **two** activity cards beneath it, not twice.",
         "The heading beside Ethan reads \"1 activity\", not \"1 activities\".",
         "An `audit_log` row exists with action `youth_activity_profile_created` for the council",
+        "Creating an activity **owned by an organization** writes a `youth_activity_added`",
+        "Creating a **ward-wide** activity writes NO notification — there is no org leadership to",
         "The past event (*Game against Jefferson*) is absent until **Show past events** is pressed.",
         "No horizontal overflow at 375px. Every button is at least 44×44.",
         "No raw uuid appears anywhere on screen.",
@@ -2029,6 +2032,8 @@
         "The cancelled event **stays in the list**, marked *Cancelled*, rather than disappearing.",
         "Pressing the control again un-cancels it, and it is the same row (same `id` in Supabase), not",
         "`activity_events.calendar_id` is **null** on every row entered here.",
+        "**After adding an activity, the \"Add an event\" form offers it without a reload.** ADDED",
+        "**After removing an activity, its cascade-deleted events leave the Schedule without a",
         "The home/away field defaults to **\"Not yet known\"**, spelled out — not `tbd`.",
         "An `audit_log` row with action `youth_activity_event_created` exists for each event.",
         "No horizontal overflow at 375px. Every button is at least 44×44.",
@@ -2039,6 +2044,86 @@
         "Legible one-handed at 375px, in both light and dark mode?"
       ],
       "seedCommand": "npm run seed -- youth/scenario-050-a-game-added-by-hand"
+    },
+    {
+      "id": "youth:scenario-051-a-season-imported-from-the-schools-calendar",
+      "path": "youth/scenario-051-a-season-imported-from-the-schools-calendar",
+      "name": "A season imported from the school's calendar",
+      "scope": "youth",
+      "part": 2,
+      "tags": [
+        "youth",
+        "import",
+        "timezones",
+        "smoke"
+      ],
+      "prerequisites": "none",
+      "purpose": "The hour is the thing this slice most likely gets wrong, and no unit test can answer whether the\nhour a leader **reads on the card** is the hour the school published. There are four conversions\nbetween the file and the screen — the ICS wall clock resolved against a zone, the instant stored as\na `timestamptz`, the instant read back, and the instant rendered in the reader's own zone — and\n`tests/lib/icsTimezone.test.ts` only proves the first two.\n\n08-youth-activities.md is blunt about the cost: *\"A game showing at the wrong hour makes the whole\nfeature useless.\"* The failure mode worth fearing is the one that **passes on the dev machine and\nships wrong** — `ICAL.Time.toJSDate()` resolves a floating time against the process's own zone,\nwhich is `America/Denver` here and UTC on Vercel.\n\nSeeding matters because the fixture needs a genuine multi-timezone `.ics` file that takes twenty\nminutes to build by hand and that a tester would quietly build half of.",
+      "checklist": [
+        "The preview names every event **with the day, date and hour** it will be created at — not a",
+        "The `TZID` game, the UTC game and the floating game each show the hour the fixture's own",
+        "The floating game is marked on the preview as having carried no time zone. The `TZID` game",
+        "**The all-day tournament is not marked as \"carried no time zone\" either.** An entry with no",
+        "The all-day tournament reads **\"All day\"**, not `12:00am`, on the preview *and* on `/youth`.",
+        "The recurring practice appears **7 times** — eight weekly minus the one `EXDATE`.",
+        "The entry with no `DTSTART` is listed under problems with a sentence, and is **not** created.",
+        "The preview says **12 to create, 0 to update, 0 already correct, 0 not in this file**.",
+        "Confirming creates exactly the events the preview named, and the result screen shows the",
+        "**After confirming, `/youth` shows the imported games without a reload.** This is the",
+        "`activity_calendars` has exactly **one** row for this profile, `source_type = 'ics_upload'`,",
+        "Every created row has a non-null `source_uid` and `calendar_id`, `status = 'upcoming'` and",
+        "The team-photo row's `source_uid` starts `wlt-synth-`.",
+        "The seven practice rows share **one** `source_uid` and have **seven distinct**",
+        "An `audit_log` row with action `youth_calendar_imported` exists, carrying the counts and",
+        "**No notification was emitted** — `notifications` for this ward is unchanged.",
+        "Imported rows carry a *From a schedule feed* marker on `/youth`; nothing entered by hand does.",
+        "Change the machine's time zone, reload, and every game still reads at the hour the school",
+        "No horizontal overflow at 375px, and every **button and form control** at least 44×44.",
+        "Does the preview read as a **description of what will happen**, or as a table dump?",
+        "Could a leader who has never seen an ICS file tell from the screen what is about to be",
+        "Does \"This entry carried no time zone, so it is shown in the ward's\" read as information",
+        "Is it obvious that **nothing has been written yet** while the preview is on screen?"
+      ],
+      "seedCommand": "npm run seed -- youth/scenario-051-a-season-imported-from-the-schools-calendar"
+    },
+    {
+      "id": "youth:scenario-052-the-same-schedule-uploaded-again",
+      "path": "youth/scenario-052-the-same-schedule-uploaded-again",
+      "name": "The same schedule, uploaded again in March",
+      "scope": "youth",
+      "part": 3,
+      "tags": [
+        "youth",
+        "import",
+        "idempotency",
+        "full"
+      ],
+      "prerequisites": "none",
+      "purpose": "Proves the three things a re-import must not do — **duplicate, revive, or destroy**.\n\nA school publishes its schedule in November and republishes it in March with two games added, one\nmoved and one dropped. In between, a leader cancelled a game and corrected another to *Away*, and\ntyped in a team dinner by hand. Every one of those is work the import must leave alone.\n\n`tests/lib/icsIdempotent.test.ts` asserts the diff and\n`tests/routes/youthCalendarImport.test.ts` asserts the writes. What neither answers is whether a\nleader, **reading only the preview**, can tell that nothing they did by hand is at risk. That is a\nquestion about the words on the screen and it is the reason this scenario exists.\n\nSeeding is what makes it cheap: the \"already imported, then edited by hand\" state takes several\nminutes to reach through the UI, and a tester reaching it by hand does something slightly different\nevery run.",
+      "checklist": [
+        "The preview reports **2 to create, 1 to update, 9 already correct, 1 in the app and not in",
+        "The one to update is *at Jefferson*, and the preview names **which fields change** — the",
+        "The \"in the app, not in this file\" entry is *vs Madison*, described as **unchanged by this",
+        "**The hand-entered team dinner is not listed under \"not in this file\"**, even though it is",
+        "Confirming creates **exactly 2** rows. The total event count goes from 12 to 14 and by",
+        "The moved game has the **new** date (29 Jan, 7:30pm) and **the same `id`** as in step 4 — it",
+        "**The hand-cancelled Roosevelt game is still `cancelled`.**",
+        "**The hand-corrected Jefferson game is still `event_type = 'away'`**, not reset to `tbd`.",
+        "**The hand-entered team dinner is untouched** — same title, same date, `calendar_id` and",
+        "*vs Madison* is still present, still `upcoming`, on its original date.",
+        "`last_synced_at` moved forward, and a **second `activity_calendars` row was not created**.",
+        "The result screen shows the **same four numbers under the same labels** as the preview.",
+        "**The result screen pluralises**: \"1 event updated\", never \"1 events updated\". ADDED",
+        "**\"last imported\" reads like every other date on the screen** — `Sat, 2 Jan 2027`, not",
+        "A second `youth_calendar_imported` audit row exists carrying this import's counts.",
+        "Importing the identical file a third time reports **0 to create, 0 to update**, and creates",
+        "No horizontal overflow at 375px, and every **button and form control** at least 44×44.",
+        "**Reading only the preview, can a leader tell that nothing they did by hand is at risk?**",
+        "Does \"1 in the app and not in this file — nothing will change for it\" read as a **statement**",
+        "Does the update row make it clear what is moving *from* and *to*, rather than only what it",
+        "After a third import that changes nothing, does the screen read as *\"there was nothing to"
+      ],
+      "seedCommand": "npm run seed -- youth/scenario-052-the-same-schedule-uploaded-again"
     }
   ]
 }

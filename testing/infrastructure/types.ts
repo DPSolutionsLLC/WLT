@@ -3,6 +3,7 @@
 // module contract.
 
 export type {
+  ActivitySourceType,
   ActivityType,
   AgendaStatus,
   AppointmentStatus,
