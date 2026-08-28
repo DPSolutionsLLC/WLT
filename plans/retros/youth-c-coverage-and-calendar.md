@@ -2,7 +2,7 @@
 id: youth-c-coverage-and-calendar
 type: feature
 iter: null
-commits: ["57fff1c"]
+commits: ["f52bcaf"]
 date: 2026-08-28
 files:
   - supabase/migrations/056_activity_attendees_and_status.sql
