@@ -2,7 +2,7 @@
 id: youth-a-profiles-and-events
 type: feature
 iter: null
-commits: ["e3a7a75"]
+commits: ["6b23fcd"]
 date: 2026-08-27
 files:
   - supabase/migrations/054_youth_activity_scope.sql
