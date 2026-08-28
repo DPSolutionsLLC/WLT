@@ -24,7 +24,7 @@ one of its slices has a retro entry with a commit.
 | 5 | AI platform — knowledge base, pgvector, settings | [05-ai-platform.md](05-ai-platform.md) | 4 | Large | Shipped |
 | 6 | Program builder, music, PDF, public pages | [06-program-music.md](06-program-music.md) | 5 | Large | Shipped — M4 waits on a physical fold check (scenarios 034/035) |
 | 7 | Visit tracker & return-and-report feed | [07-visits.md](07-visits.md) | 2 | Medium | **Shipped 2026-08-26** — see the Definition of Done in the phase file for what it deliberately does not close |
-| 8 | Youth activity support | [08-youth-activities.md](08-youth-activities.md) | 7 | Medium | Next — ITER-018 is done, so the blocker is cleared |
+| 8 | Youth activity support | [08-youth-activities.md](08-youth-activities.md) | 7 | Medium | **In progress** — sliced into four; see below |
 | — | ITER-018 — visit cadence and the priority scale | [visits-e-cadence-and-priority.md](visits-e-cadence-and-priority.md) | 7 | Medium | **Built 2026-08-26** — migration 051 waits for the deploy |
 | 9 | Meeting agendas & tithing calculator | [09-meetings-tithing.md](09-meetings-tithing.md) | 1 | Medium | Started — tithing worksheet only |
 | 10 | Sacrament administration & public assignments | [10-sacrament-admin.md](10-sacrament-admin.md) | 3 | Medium | Not started |
@@ -43,6 +43,37 @@ What Phase 8 should import rather than re-derive: `lib/visits/cadence.ts` (`addC
 names anything visit-specific in its parameters — `lastCompletedOn`, not `lastVisitedOn` — for
 exactly this reason. If a third module wants them, that is the moment to lift `cadence.ts` out of
 `lib/visits/`; not before.
+
+**Phase 8 ships in four slices**, the same way Phase 7 shipped as `visits-a` … `visits-f`. The
+phase file stays the specification; each slice gets its own plan and its own retro entry.
+
+| Slice | Covers | Plan | Status |
+|---|---|---|---|
+| youth-a | Migration 054, activity profiles CRUD, manual event entry, the `/youth` page | [youth-a-profiles-and-events.md](youth-a-profiles-and-events.md) | **Built 2026-08-27** — migration 054 applied; scenarios 049/050 not yet walked |
+| youth-b | ICS upload: `ical.js`, preview-then-confirm, timezones, `RRULE`, idempotent re-import | — | Not planned |
+| youth-c | Home/away classification, attendees, coverage computed on read, `/youth/calendar` | — | Not planned |
+| youth-d | `activity_logs`, the shared/private split, ward-council flagging, the report feed | — | Not planned |
+
+Three decisions were taken at the start of `youth-a` planning and apply to the whole phase.
+**Activity reads are ward-wide and only writes are org-scoped** (`org_id` on
+`youth_activity_profiles`, nullable, absent meaning ward-wide) — which answers the question
+migration 019 left addressed to this phase by name. **Coverage is computed on read**, so
+`covered` and `uncovered` leave `activity_events.status` and both scheduled notifications
+(`youth_event_uncovered`, the Monday away-digest) join `visit_overdue` and
+`refresh_goal_status()` as Phase 11's single decision about a mechanism. **Google Calendar sync
+is cut**, as the phase file's own Pitfalls section instructs. `ical.js` is approved for
+`youth-b` and must not be added to `package.json` before then.
+
+**Not scoped, and recorded so it is not lost: leader-to-leader messaging.** Raised 2026-08-27
+while reviewing the `youth-a` walkthrough. The shape asked for is *"send a message to the author of
+an event to suggest an edit or a delete"* — a leader who can SEE another organization's work but
+not change it needs a way to ask. That is the natural other half of the read-wide/write-narrow
+split `youth-a` shipped, and the same gap exists in visits, where cross-org visibility shows a
+leader work they cannot touch. **It is a cross-cutting feature, not a youth one**, so it does not
+belong to Phase 8; it needs its own scope, and it should be designed against both modules at once
+rather than bolted onto whichever asks first. Two things it will need that do not exist yet: an
+`entered_by` column on `activity_events` (profiles have one, events do not), and a decision about
+whether a suggestion is a notification, a comment thread, or a task.
 
 **Deployment is unnumbered on purpose.** It is not a phase after 12. It depends only on Phase 1
 and is *required* by Phase 6, whose public program pages are meaningless without a URL a ward

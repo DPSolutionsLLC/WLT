@@ -511,15 +511,27 @@ flagged         boolean DEFAULT false
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
 ward_id         uuid REFERENCES wards(id)
-member_id       uuid REFERENCES members(id)
+org_id          uuid REFERENCES organizations(id)  -- nullable; NULL = ward-wide (migration 054a)
+member_id       uuid NOT NULL REFERENCES members(id)
 activity_name   text NOT NULL
 school_org      text
-activity_type   text  -- 'sport' | 'performance' | 'academic' | 'community' | 'other'
+activity_type   text NOT NULL  -- 'sport' | 'performance' | 'academic' | 'community' | 'other'
 season_schedule text
 notes           text
 entered_by      uuid REFERENCES users(id)
 created_at      timestamptz DEFAULT now()
 ```
+
+`org_id` was added by migration 054a and is **the only activity table that carries one**. Events,
+attendees and logs inherit their organization through the profile — a second copy of the answer
+could disagree with the first. **Reads are ward-wide; only writes are org-scoped**, which is the
+whole point: FEATURES.md §Module 10 gives the ward council the full calendar, and an org leader
+entering an activity "for the Young Women" is not coordination. A **null `org_id` is a ward-wide
+profile**, the same absent-means-default idiom as `household_stewardships`; there is no sentinel
+row meaning "everybody".
+
+`member_id` and `activity_type` became `NOT NULL` in migration 054b. Both were nullable only
+because Foundation B created every table before anything wrote to one.
 
 ### `activity_calendars`
 ```sql
@@ -542,9 +554,20 @@ title           text
 event_type      text  -- 'home' | 'away' | 'tbd'
 event_date      timestamptz
 location        text
-status          text DEFAULT 'upcoming'  -- 'upcoming' | 'covered' | 'uncovered' | 'completed'
+status          text DEFAULT 'upcoming'  -- 'upcoming' | 'cancelled' | 'completed'
 created_at      timestamptz DEFAULT now()
 ```
+
+`title`, `event_date` and `event_type` became `NOT NULL` in migration 054c, and `event_type`
+gained a `'tbd'` default.
+
+The status set changed there too, and the two halves are separate decisions. **`covered` and
+`uncovered` were removed** because the clock decides them: coverage is computed on read from
+`(event_date, event_type, attendee count, now)`, the way `appointmentViewState()` computes
+"missed", and a stored value the clock decides goes stale the moment nobody refreshes it — nothing
+in this project refreshes anything. **`cancelled` was added** because a called-off game is a fact a
+person knows and nothing else can express; without it the only way off the list is a delete, which
+loses the record that it was ever scheduled.
 
 ### `activity_attendees`
 ```sql
@@ -926,7 +949,14 @@ Enable RLS on all tables. Key patterns:
 
 **Tithing** — `tithing_sessions` and `tithing_entries`: role must be `bishop` or `counselor`
 
-**Org scoping** — visit_logs, activity_events, etc.: non-bishopric users can only read/write records where `org_id = (SELECT org_id FROM users WHERE id = auth.uid())`
+**Org scoping** — visit_logs etc.: non-bishopric users can only read/write records where `org_id = (SELECT org_id FROM users WHERE id = auth.uid())`
+
+**Youth activities are the exception, and deliberately** — `youth_activity_profiles` READS stay
+ward-wide (migration 019's select policy is untouched) and only its three WRITE policies are
+org-scoped (migration 054d). `activity_events` and the rest carry no `org_id` at all and stay
+ward-scoped, inheriting their organization through the profile. Every write policy carries an
+explicit `org_id IS NULL` branch: `org_id = current_org_id()` is NULL rather than true when both
+sides are null, so without it a ward-wide row would be invisible to its own author
 
 **Cross-org visibility** — visit_logs shared_notes readable by all org users when `ward.settings->>'cross_org_visibility' = 'true'`
 

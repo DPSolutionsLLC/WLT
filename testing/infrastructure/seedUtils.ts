@@ -1084,25 +1084,45 @@ export async function createVisitPrivateNote(options: {
 // Youth activities
 // ============================================================================
 
+// `memberId` is REQUIRED as of migration 054b: a profile that names no youth is not a profile.
+//
+// `org` is OPTIONAL AND ABSENT MEANS THE WHOLE WARD — the same absent-is-the-default idiom
+// household_stewardships and household_visit_cadences use. A ward-wide profile is a legitimate
+// state that policy 054d permits on purpose, and it is what a ward council member with no
+// organization writes.
 export async function createYouthActivityProfile(options: {
   id?: string;
-  memberId?: string;
+  memberId: string;
   activityName: string;
   activityType?: ActivityType;
   schoolOrg?: string;
+  seasonSchedule?: string;
+  notes?: string;
+  org?: TestOrgKey;
   enteredBy?: string;
 }): Promise<string> {
   return insertRow("youth_activity_profiles", {
     id: options.id ?? testUuid(`profile:${options.activityName}`),
     ward_id: TEST_WARD_ID,
-    member_id: options.memberId ?? null,
+    org_id: options.org ? TEST_ORG_IDS[options.org] : null,
+    member_id: options.memberId,
     activity_name: options.activityName,
     activity_type: options.activityType ?? "sport",
     school_org: options.schoolOrg ?? null,
+    season_schedule: options.seasonSchedule ?? null,
+    notes: options.notes ?? null,
     entered_by: options.enteredBy ?? null,
   });
 }
 
+// `eventDate` MUST CARRY AN OFFSET OR `Z`. It is a timestamptz, and a bare `2026-09-04T19:30`
+// is four o'clock in no particular place — the app's own validator refuses one
+// (lib/validation/youth.ts), so a seed that wrote one would put the harness and the app on
+// different clocks.
+//
+// The status set is migration 054c's: `covered` and `uncovered` are GONE, because the clock
+// decides coverage and a stored value the clock decides goes stale. `cancelled` replaces them —
+// a called-off game is a fact a person knows and nothing else can express.
 export async function createActivityEvent(options: {
   id?: string;
   profileId?: string;
@@ -1110,7 +1130,7 @@ export async function createActivityEvent(options: {
   eventDate: string;
   eventType?: "home" | "away" | "tbd";
   location?: string;
-  status?: "upcoming" | "covered" | "uncovered" | "completed";
+  status?: "upcoming" | "cancelled" | "completed";
 }): Promise<string> {
   return insertRow("activity_events", {
     id: options.id ?? testUuid(`event:${options.title}:${options.eventDate}`),
@@ -1118,7 +1138,7 @@ export async function createActivityEvent(options: {
     profile_id: options.profileId ?? null,
     title: options.title,
     event_date: options.eventDate,
-    event_type: options.eventType ?? "home",
+    event_type: options.eventType ?? "tbd",
     location: options.location ?? null,
     status: options.status ?? "upcoming",
   });

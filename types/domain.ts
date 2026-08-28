@@ -595,6 +595,37 @@ export const ACTIVITY_TYPES = [
 ] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 
+// A Record rather than a lookup with a fallback, for the same reason ORGANIZATION_TYPE_LABELS is
+// one: an activity type added later must be given a label DELIBERATELY instead of silently
+// rendering as the default, or as its raw snake_case column value.
+export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
+  sport: "Sport",
+  performance: "Performance",
+  academic: "Academic",
+  community: "Community",
+  other: "Other",
+};
+
+// The activity counterpart of ORGANIZATION_TYPE_TONES, and it sits beside it because that is
+// where a reader looks. CONTEXT_TONES above already anticipates this: "the same scale labels
+// organizations here and will label activity kinds in Phase 8."
+//
+// Slice D's report tiles carry a context chip whose tone comes from the ACTIVITY TYPE, where a
+// visit's comes from the organization type — a youth activity feed is read by activity, not by
+// which presidency happened to enter it. Added in slice A rather than slice D on purpose: it is
+// one line per value, and slice D should not have to reopen this file to add a map slice A
+// already knew the shape of.
+//
+// `other` shares slate with `bishopric` for the reason recorded there — the chip always carries
+// the name, so two contexts sharing a hue costs less than a hue nobody can tell from another.
+export const ACTIVITY_TYPE_TONES: Record<ActivityType, ContextTone> = {
+  sport: "teal",
+  performance: "violet",
+  academic: "blue",
+  community: "amber",
+  other: "slate",
+};
+
 export const ACTIVITY_SOURCE_TYPES = [
   "ics_upload",
   "google_sync",
@@ -605,13 +636,27 @@ export type ActivitySourceType = (typeof ACTIVITY_SOURCE_TYPES)[number];
 export const EVENT_TYPES = ["home", "away", "tbd"] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
-export const EVENT_STATUSES = [
-  "upcoming",
-  "covered",
-  "uncovered",
-  "completed",
-] as const;
+// `tbd` IS SPELLED OUT. An initialism read on a phone in a hurry looks like a bug, and slice C's
+// whole point is that a `tbd` event is something a PERSON has to resolve before anybody can be
+// asked to go to it.
+export const EVENT_TYPE_LABELS: Record<EventType, string> = {
+  home: "Home",
+  away: "Away",
+  tbd: "Not yet known",
+};
+
+// Narrowed to match migration 054c, which removed `covered` and `uncovered` and added
+// `cancelled`. Coverage is COMPUTED FROM THE CLOCK in slice C — a stored coverage value goes
+// stale the moment nobody refreshes it, and nothing in this project refreshes anything. A
+// cancellation is the opposite: a fact a person knows and nothing else can express.
+export const EVENT_STATUSES = ["upcoming", "cancelled", "completed"] as const;
 export type EventStatus = (typeof EVENT_STATUSES)[number];
+
+export const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
+  upcoming: "Upcoming",
+  cancelled: "Cancelled",
+  completed: "Completed",
+};
 
 export const GOAL_TARGET_TYPES = ["member", "household", "org", "group"] as const;
 export type GoalTargetType = (typeof GOAL_TARGET_TYPES)[number];

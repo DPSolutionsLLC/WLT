@@ -368,6 +368,40 @@ Flag these when they become relevant; do not silently pick a side.
   by the bishopric or with cross-org visibility on, and migration 053 makes every goal readable in
   both cases. **If that widening is ever reversed, this rule becomes reader-dependent** — two
   people would see different unclaimed counts from the same data — and must be reconsidered with it.
+- **Youth activities: reads are ward-wide, writes are org-scoped — DECIDED 2026-08-27.** Migration
+  019 left a note addressed to Phase 8 asking whether youth activity coordination is genuinely
+  org-private. **It is not.** FEATURES.md §Module 10 and `08-youth-activities.md` both give the ward
+  council the *full* calendar, because seeing across the organizations is the entire reason a ward
+  council exists. What is private is the WRITING: an Elders Quorum president entering an activity
+  "for the Young Women" is not coordination, it is somebody believing they did something they did
+  not. So migration 054 leaves `youth_activity_profiles_ward_select` **untouched** and replaces only
+  the three write policies, and the contrast is the decision. `org_id` goes on
+  `youth_activity_profiles` **alone** and is nullable — **null means ward-wide**, the same
+  absent-means-default idiom as `household_stewardships` and `household_visit_cadences`, with no
+  sentinel row meaning "everybody". Events, attendees and logs inherit their organization through
+  the profile; a second copy of the answer could disagree with the first. Every write policy carries
+  an explicit `org_id is null` branch, because `org_id = current_org_id()` is NULL rather than true
+  when both sides are null and `ward_council_member` — the widest role in the app — is the role most
+  likely to have no organization at all. Consequently `POST /api/youth/profiles` **departs from
+  `visit-goals`**: a null-org author gets a 201 and a ward-wide row, not the 409 a goal gets. A goal
+  with no org is invisible to its author; a profile with no org is visible to everybody. Do not
+  re-propose making the read org-scoped "for consistency" — the asymmetry *is* the feature.
+
+- **Youth event coverage is computed on read; `covered`/`uncovered` are gone from the column —
+  DECIDED 2026-08-27.** Migration 054c narrows `activity_events.status` to
+  `upcoming | cancelled | completed`. Coverage is a pure function of `(event_date, event_type,
+  attendee count, now)`, exactly as `appointmentViewState()` computes "missed" and
+  `householdVisitPriority()` computes "overdue" — and a stored value the clock decides goes stale
+  the moment nobody refreshes it. **Nothing in this project refreshes anything:** `pg_cron` is not
+  enabled, `supabase/functions/` does not exist, and `vercel.json` declares no crons.
+  `youth_event_uncovered` and the Monday away-digest therefore join `visit_overdue` and
+  `refresh_goal_status()` as **Phase 11's** decision — that is now four things that are computable
+  and fire from nothing, and Phase 11 should settle the mechanism once for all of them.
+  `cancelled` is a deliberate addition to SPEC.md's four values: a called-off game is a fact a
+  person knows and nothing else can express, and without it the only way off the list is a delete
+  that loses the record it was ever scheduled. Slice C should revisit whether `completed` earns its
+  place — an event in the past is completed by the clock too.
+
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

@@ -9,6 +9,15 @@ export type NotifyOrgLeadershipParams = {
   actingUserId: string;
   description: string;
   title?: string;
+  // WHICH notification this is. Defaults to the conducting rotation, which was the only caller
+  // until Phase 8 — the recipient resolution below (this organization's presidency, and nobody
+  // else's) is what the two callers actually share, and it is the part worth having once.
+  //
+  // Added rather than copied: a second module-specific copy of "who is this organization's
+  // leadership" would be a second answer to drift from the first, and the opt-out lookup inside
+  // emitNotification is keyed on the trigger, so a hardcoded key would have delivered a youth
+  // activity to somebody who had switched rotation notices off.
+  triggerKey?: string;
 };
 
 const ORG_ROTATION_TRIGGER_KEY = "org_conducting_rotation_changed";
@@ -32,6 +41,7 @@ export async function notifyOrgLeadership(
   client?: SupabaseClient<Database>,
 ): Promise<void> {
   const { wardId, orgId, actingUserId, description, title } = params;
+  const triggerKey = params.triggerKey ?? ORG_ROTATION_TRIGGER_KEY;
 
   try {
     const supabase = client ?? createServiceSupabaseClient();
@@ -61,7 +71,7 @@ export async function notifyOrgLeadership(
     await emitNotification(
       {
         wardId,
-        triggerKey: ORG_ROTATION_TRIGGER_KEY,
+        triggerKey,
         title: title ?? "Organization conducting changed",
         body: description,
         recipientUserIds,

@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 48,
+  "scenarioCount": 50,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -1937,7 +1937,7 @@
         "cross-org"
       ],
       "prerequisites": "none",
-      "purpose": "This view has no content of its own. Its entire content is **the relationship between three\r\norganizations' data and one ward's households, at one instant** — and none of it can be arranged by\r\nhand.\r\n\r\nThree things are only real on this screen:\r\n\r\n**A household nobody has claimed.** ITER-019 D3 makes a household outside an organization's\r\nstewardship *vanish* from that organization's dashboard, which is right — an organization has\r\nnothing to hand the next presidency about a family that was never theirs. What it creates is a\r\nfamily invisible to **everybody**, and this page is the only place that shows up. Ravensworth is\r\nthat family, and its being sorted first, in the danger tone, is what made D3 safe to take.\r\n\r\n**A \"last seen\" that disagrees with every dashboard.** Whitfield was visited by the **Relief\r\nSociety 12 days ago** and by the **Elders Quorum 300 days ago**, and the Primary **attempted** it\r\n3 days ago. The ward-wide answer is *the Relief Society, 12 days ago* — which is not what the\r\nElders Quorum's own board says about the same family on the same day, and both are correct. The\r\nattempt is more recent than either visit and must not win.\r\n\r\n**The same page read by two different people.** The bishop and the RS president must now see the\r\n*same* standings — migration 053 widened goals and cadences with the same ward setting that gates\r\nthis page, so an org leader reads every organization's progress, not just who claimed whom. That\r\nreverses ITER-018's \"a cadence is a presidency's private judgement\" and ITER-019 D6, by a product\r\ndecision on 2026-08-27. You cannot check it without signing in twice, and the point is that\r\nnothing differs.\r\n\r\n**The pill is the whole vocabulary.** Each chip is the *same gauge pill* as your own board —\r\norganization name, band colour, filled to show how far through the interval that family is — with\r\nthe band word dropped, because a reader who learned the colours managing their own organization\r\ndoes not need it repeated three times per row. `Never visited` keeps its word: an empty pill with\r\nno word is indistinguishable from a family at the very start of its interval, and those are\r\nopposite situations. Hovering a pill gives the due date.",
+      "purpose": "This view has no content of its own. Its entire content is **the relationship between three\r\norganizations' data and one ward's households, at one instant** — and none of it can be arranged by\r\nhand.\r\n\r\nThree things are only real on this screen:\r\n\r\n**A household nobody has claimed.** ITER-019 D3 makes a household outside an organization's\r\nstewardship *vanish* from that organization's dashboard, which is right — an organization has\r\nnothing to hand the next presidency about a family that was never theirs. What it creates is a\r\nfamily invisible to **everybody**, and this page is the only place that shows up. Ravensworth is\r\nthat family, and its being sorted first, in the danger tone, is what made D3 safe to take.\r\n\r\n**A \"last seen\" that disagrees with every dashboard.** Whitfield was visited by the **Relief\r\nSociety 12 days ago** and by the **Elders Quorum 300 days ago**, and the Primary **attempted** it\r\n3 days ago. The ward-wide answer is *the Relief Society, 12 days ago* — which is not what the\r\nElders Quorum's own board says about the same family on the same day, and both are correct. The\r\nattempt is more recent than either visit and must not win.\r\n\r\n**The same page read by two different people.** The bishop and the RS president must now see the\r\n*same* standings — migration 053 widened goals and cadences with the same ward setting that gates\r\nthis page, so an org leader reads every organization's progress, not just who claimed whom. That\r\nreverses ITER-018's \"a cadence is a presidency's private judgement\" and ITER-019 D6, by a product\r\ndecision on 2026-08-27. You cannot check it without signing in twice, and the point is that\r\nnothing differs.\r\n\r\n**The pill is the whole vocabulary.** Each chip is the *same gauge pill* as your own board —\r\norganization name, band colour, filled to show how far through the interval that family is — with\r\nthe band word dropped, because a reader who learned the colours managing their own organization\r\ndoes not need it repeated three times per row. `Never visited` keeps its word: an empty pill with\r\nno word is indistinguishable from a family at the very start of its interval, and those are\r\nopposite situations. The due date rides with the pill: on hover on the table, and written out\r\nbeside it on the phone cards, because a tooltip is unreachable by touch.",
       "checklist": [
         "**Ravensworth sorts first** and reads *\"No organization has claimed this household\"*",
         "The summary above the table says **1 household is in no organization's stewardship**",
@@ -1970,6 +1970,75 @@
         "Sorensen carries history and no band. On a page about coverage, does that read as"
       ],
       "seedCommand": "npm run seed -- visits/scenario-048-every-organization-at-once"
+    },
+    {
+      "id": "youth:scenario-049-entering-an-activity-that-is-not-yours",
+      "path": "youth/scenario-049-entering-an-activity-that-is-not-yours",
+      "name": "Entering an activity for a youth who is not yours",
+      "scope": "youth",
+      "part": 1,
+      "tags": [
+        "youth",
+        "full",
+        "permissions",
+        "org-scope"
+      ],
+      "prerequisites": "none",
+      "purpose": "Migration 054 makes **reads ward-wide and writes org-scoped**, and that asymmetry is the one\ndecision in this slice that cannot be seen from a single account. From one login the two rules look\nlike one rule: whatever you can see, you can probably also change. It takes four people signing in\nat different times, three differently-owned activities, and a youth who has two of them — which is\nexactly what seeding is for.\n\nIt also covers the phase plan's **\"ward council member scope confusion\"** pitfall, which it\ndescribes as *two different rules that must both be checked*. The ward council member here has\n`org_id` deliberately null, which is the `talks-d` hole seen from the outside: they write a\nward-wide activity, the write succeeds, and the only thing that proves the policy is right is\nwhether it then appears in their own list.\n\nA route test proves each of these against the database. What it cannot answer is whether an org\nleader who cannot edit somebody else's activity is **told why in a sentence**, or is simply handed a\ncontrol that fails — and whether \"Ward-wide\" reads as a deliberate state rather than as missing\ndata.",
+      "checklist": [
+        "All four accounts see **all four** activities on `/youth`, grouped under three youth.",
+        "The Young Men president's attempt to save a change to *Chamber choir* does not change the",
+        "The Young Women president's mirror attempt on *Varsity basketball* likewise changes nothing.",
+        "The bishop's **Add an activity** form contains an organization select; the Young Men",
+        "The council member's new activity appears in **their own list** immediately, without a",
+        "That row carries `org_id = null` in the database and reads **Ward-wide** on screen.",
+        "Each activity card names the organization that owns it.",
+        "Malia renders as **one** heading with **two** activity cards beneath it, not twice.",
+        "The heading beside Ethan reads \"1 activity\", not \"1 activities\".",
+        "An `audit_log` row exists with action `youth_activity_profile_created` for the council",
+        "The past event (*Game against Jefferson*) is absent until **Show past events** is pressed.",
+        "No horizontal overflow at 375px. Every button is at least 44×44.",
+        "No raw uuid appears anywhere on screen.",
+        "When the Young Men president cannot save somebody else's activity, does the message **say",
+        "Does **Ward-wide** read as a deliberate state (\"this belongs to no one presidency\") rather",
+        "Is it obvious at a glance which activities are *yours* and which you are only reading? Or do",
+        "Does the empty-state sentence (sign in before seeding, or remove every activity) explain what",
+        "Legible one-handed at 375px, in both light and dark mode?"
+      ],
+      "seedCommand": "npm run seed -- youth/scenario-049-entering-an-activity-that-is-not-yours"
+    },
+    {
+      "id": "youth:scenario-050-a-game-added-by-hand",
+      "path": "youth/scenario-050-a-game-added-by-hand",
+      "name": "A game added by hand, at the right time of day",
+      "scope": "youth",
+      "part": 1,
+      "tags": [
+        "youth",
+        "smoke",
+        "timezones"
+      ],
+      "prerequisites": "none",
+      "purpose": "Manual entry is the path that must work before any import exists — 08-youth-activities.md asks for\nit first for exactly that reason: *\"Manual entry — always available, always works.\"* A feed goes\ndown, a school changes its calendar software, and a leader still has to be able to type in Friday's\ngame.\n\nThe hour a game shows at is the thing slice B (ICS import) is most likely to break, and the phase\nplan is blunt about the cost: *\"A game showing at the wrong hour makes the whole feature useless.\"*\nEstablishing the correct instant **now, by hand**, gives slice B something to be compared against.\n\nThe specific bug this scenario exists to catch is the **double conversion**, and it is worth stating\nbecause it is invisible otherwise: `<input type=\"datetime-local\">` yields a floating time, and the\nobvious fix converts it to UTC. Fill the field back in from that UTC string without converting back,\nsave again, and 7:30pm walks by the offset. **A single save looks perfect.** It only ever appears on\nthe second write, which is how it ships.\n\n`tests/lib/youthValidation.test.ts` round-trips this three times and `tests/routes/youthEvents.test.ts`\nsaves the same instant twice across the wire. What neither can answer is whether the hour a leader\nreads on the card is the hour they typed.",
+      "checklist": [
+        "After the reload in step 5, the event lists at **7:30pm** — not 12:30pm, not 2:30am, not",
+        "The stored `event_date` is an instant carrying an offset (e.g. `2027-01-15 19:30:00-07`), not",
+        "Converting that stored instant back to your own zone gives 7:30pm.",
+        "**After the re-save in step 7 the time is still 7:30pm.** This is the double-conversion check",
+        "The July event also reads 7:30pm, and its stored offset differs from January's by one hour.",
+        "The cancelled event **stays in the list**, marked *Cancelled*, rather than disappearing.",
+        "Pressing the control again un-cancels it, and it is the same row (same `id` in Supabase), not",
+        "`activity_events.calendar_id` is **null** on every row entered here.",
+        "The home/away field defaults to **\"Not yet known\"**, spelled out — not `tbd`.",
+        "An `audit_log` row with action `youth_activity_event_created` exists for each event.",
+        "No horizontal overflow at 375px. Every button is at least 44×44.",
+        "Does the empty schedule (\"Nothing coming up…\") read as a deliberate state rather than as a",
+        "After changing your machine's zone in step 10, does the shift read as *correct* — you have",
+        "Does a **cancelled** event read as *called off* rather than as *something went wrong*?",
+        "Is \"Not yet known\" clearly something a person is expected to come back and settle?",
+        "Legible one-handed at 375px, in both light and dark mode?"
+      ],
+      "seedCommand": "npm run seed -- youth/scenario-050-a-game-added-by-hand"
     }
   ]
 }

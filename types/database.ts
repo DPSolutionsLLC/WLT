@@ -208,37 +208,37 @@ export type Database = {
         Row: {
           calendar_id: string | null
           created_at: string
-          event_date: string | null
-          event_type: string | null
+          event_date: string
+          event_type: string
           id: string
           location: string | null
           profile_id: string | null
           status: string
-          title: string | null
+          title: string
           ward_id: string
         }
         Insert: {
           calendar_id?: string | null
           created_at?: string
-          event_date?: string | null
-          event_type?: string | null
+          event_date: string
+          event_type?: string
           id?: string
           location?: string | null
           profile_id?: string | null
           status?: string
-          title?: string | null
+          title: string
           ward_id: string
         }
         Update: {
           calendar_id?: string | null
           created_at?: string
-          event_date?: string | null
-          event_type?: string | null
+          event_date?: string
+          event_type?: string
           id?: string
           location?: string | null
           profile_id?: string | null
           status?: string
-          title?: string | null
+          title?: string
           ward_id?: string
         }
         Relationships: [
@@ -3140,36 +3140,39 @@ export type Database = {
       youth_activity_profiles: {
         Row: {
           activity_name: string
-          activity_type: string | null
+          activity_type: string
           created_at: string
           entered_by: string | null
           id: string
-          member_id: string | null
+          member_id: string
           notes: string | null
+          org_id: string | null
           school_org: string | null
           season_schedule: string | null
           ward_id: string
         }
         Insert: {
           activity_name: string
-          activity_type?: string | null
+          activity_type: string
           created_at?: string
           entered_by?: string | null
           id?: string
-          member_id?: string | null
+          member_id: string
           notes?: string | null
+          org_id?: string | null
           school_org?: string | null
           season_schedule?: string | null
           ward_id: string
         }
         Update: {
           activity_name?: string
-          activity_type?: string | null
+          activity_type?: string
           created_at?: string
           entered_by?: string | null
           id?: string
-          member_id?: string | null
+          member_id?: string
           notes?: string | null
+          org_id?: string | null
           school_org?: string | null
           season_schedule?: string | null
           ward_id?: string
@@ -3187,6 +3190,13 @@ export type Database = {
             columns: ["member_id", "ward_id"]
             isOneToOne: false
             referencedRelation: "members"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "youth_activity_profiles_org_id_ward_id_fkey"
+            columns: ["org_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id", "ward_id"]
           },
           {

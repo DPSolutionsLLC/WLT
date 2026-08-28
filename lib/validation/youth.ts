@@ -1,0 +1,181 @@
+import { z } from "zod";
+import { ACTIVITY_TYPES, EVENT_STATUSES, EVENT_TYPES } from "@/types/domain";
+
+// No wardId and no enteredBy on any schema here, ever. Both come from the session
+// (conventions.md §Validation). `orgId` IS here, for the one reason it is on
+// createVisitGoalSchema: a bishopric member entering an activity on another organization's
+// behalf has to say which one, and the route refuses it from anybody else with a sentence
+// rather than ignoring it.
+
+export const MAX_ACTIVITY_NAME = 120;
+export const MAX_SCHOOL_ORG = 160;
+export const MAX_SEASON_SCHEDULE = 120;
+export const MAX_ACTIVITY_NOTES = 2000;
+export const MAX_EVENT_TITLE = 200;
+export const MAX_EVENT_LOCATION = 240;
+
+// ---------------------------------------------------------------------------
+// WHICH MEMBER MAY AN ACTIVITY PROFILE NAME — ONE ANSWER, IN ONE PLACE
+// ---------------------------------------------------------------------------
+// Both the route's validation and ActivityProfileForm's MemberPicker filter read this constant.
+// Two places deciding the same thing and disagreeing is worse than either being wrong
+// (plans/retros/visits-b-*, visits-f-*), and a picker that offers a name the route then refuses
+// is exactly that shape.
+//
+// It lives HERE rather than in the form, because a constant imported from a "use client" module
+// reaches a Server Component as a function instead of a string — the bug that killed visits-d's
+// entire "Log this visit" flow.
+export const PROFILE_MEMBER_CATEGORIES = ["youth"] as const;
+
+// ---------------------------------------------------------------------------
+// AN EVENT'S INSTANT MUST CARRY ITS OFFSET
+// ---------------------------------------------------------------------------
+// `activity_events.event_date` is a timestamptz, and the whole of slice B (ICS import) turns on
+// getting instants right — "A game showing at the wrong hour makes the whole feature useless"
+// is 08-youth-activities.md's own sentence. So slice A must not set a sloppy precedent.
+//
+// A BARE `2026-09-04T16:00` IS REFUSED. It is a floating time: four o'clock in no particular
+// place. `new Date()` would happily read it in the server's zone, store the resulting instant,
+// and render it back an hour or eight out. A manual-entry form submits from a browser, which
+// always has a zone available, so there is no caller that cannot send one — and accepting one
+// here would mean slice B inherits a column whose EXISTING rows already carry the ambiguity it
+// exists to prevent.
+//
+// Accepted: an explicit numeric offset (`+01:00`, `-0600`) or `Z`. Both are unambiguous
+// instants, which is the only property this validator cares about.
+const OFFSET_BEARING = /(?:[Zz]|[+-]\d{2}:?\d{2})$/;
+
+const FLOATING_TIME_MESSAGE =
+  "Give the date and time with its time zone, like 2026-09-04T19:30:00-06:00. A time with no " +
+  "zone could be any of two dozen different moments.";
+
+export const eventInstantSchema = z
+  .string()
+  .trim()
+  .min(1, "Give the date and time of the event.")
+  .refine((value) => OFFSET_BEARING.test(value), FLOATING_TIME_MESSAGE)
+  .refine(
+    (value) => Number.isFinite(new Date(value).getTime()),
+    "That is not a date and time this app can read.",
+  );
+
+// ---------------------------------------------------------------------------
+// Activity profiles
+// ---------------------------------------------------------------------------
+
+const activityNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Give the activity a name.")
+  .max(MAX_ACTIVITY_NAME, `Keep the name to ${MAX_ACTIVITY_NAME} characters.`);
+
+const schoolOrgSchema = z
+  .string()
+  .trim()
+  .max(MAX_SCHOOL_ORG, `Keep the school or club to ${MAX_SCHOOL_ORG} characters.`);
+
+const seasonScheduleSchema = z
+  .string()
+  .trim()
+  .max(MAX_SEASON_SCHEDULE, `Keep the season to ${MAX_SEASON_SCHEDULE} characters.`);
+
+const activityNotesSchema = z
+  .string()
+  .trim()
+  .max(MAX_ACTIVITY_NOTES, `Keep the notes to ${MAX_ACTIVITY_NOTES} characters.`);
+
+export const createActivityProfileSchema = z.object({
+  memberId: z.uuid("Choose which youth this activity belongs to."),
+  activityName: activityNameSchema,
+  activityType: z.enum(ACTIVITY_TYPES),
+  schoolOrg: schoolOrgSchema.nullable().optional(),
+  seasonSchedule: seasonScheduleSchema.nullable().optional(),
+  notes: activityNotesSchema.nullable().optional(),
+  orgId: z.uuid("That organization is not valid.").optional(),
+});
+export type CreateActivityProfileInput = z.infer<typeof createActivityProfileSchema>;
+
+// `memberId` is deliberately NOT patchable, on the precedent visit-goals set with `org_id`:
+// moving a profile onto a different youth would silently reassign every event hanging off it,
+// and the audit row would record it as an ordinary edit. Delete it and enter the right one.
+//
+// `orgId` is not patchable either, for the same reason and one more: policy 054d's WITH CHECK
+// permits the move, so a partial patch could hand a profile to another organization without the
+// audit trail saying that is what happened.
+export const updateActivityProfileSchema = z
+  .object({
+    activityName: activityNameSchema.optional(),
+    activityType: z.enum(ACTIVITY_TYPES).optional(),
+    schoolOrg: schoolOrgSchema.nullable().optional(),
+    seasonSchedule: seasonScheduleSchema.nullable().optional(),
+    notes: activityNotesSchema.nullable().optional(),
+  })
+  .superRefine((value, context) => {
+    if (Object.keys(value).length === 0) {
+      context.addIssue({ code: "custom", message: "Nothing was changed." });
+    }
+  });
+export type UpdateActivityProfileInput = z.infer<typeof updateActivityProfileSchema>;
+
+// ---------------------------------------------------------------------------
+// Activity events
+// ---------------------------------------------------------------------------
+
+const eventTitleSchema = z
+  .string()
+  .trim()
+  .min(1, "Give the event a name.")
+  .max(MAX_EVENT_TITLE, `Keep the name to ${MAX_EVENT_TITLE} characters.`);
+
+const eventLocationSchema = z
+  .string()
+  .trim()
+  .max(MAX_EVENT_LOCATION, `Keep the location to ${MAX_EVENT_LOCATION} characters.`);
+
+// No `calendarId`. A hand-entered event belongs to no calendar, and the route writes null — slice
+// B's idempotent re-import must never match one of these against a feed's row.
+export const createActivityEventSchema = z.object({
+  profileId: z.uuid("Choose which activity this event belongs to."),
+  title: eventTitleSchema,
+  eventDate: eventInstantSchema,
+  location: eventLocationSchema.nullable().optional(),
+  eventType: z.enum(EVENT_TYPES).default("tbd"),
+});
+export type CreateActivityEventInput = z.infer<typeof createActivityEventSchema>;
+
+// `profileId` is not patchable, for the reason `memberId` is not: an event that moved between
+// activities is a different event.
+export const updateActivityEventSchema = z
+  .object({
+    title: eventTitleSchema.optional(),
+    eventDate: eventInstantSchema.optional(),
+    location: eventLocationSchema.nullable().optional(),
+    eventType: z.enum(EVENT_TYPES).optional(),
+    status: z.enum(EVENT_STATUSES).optional(),
+  })
+  .superRefine((value, context) => {
+    if (Object.keys(value).length === 0) {
+      context.addIssue({ code: "custom", message: "Nothing was changed." });
+    }
+  });
+export type UpdateActivityEventInput = z.infer<typeof updateActivityEventSchema>;
+
+// The parameter NAMES here are what GET /api/youth/events reads, and what EventList sends. A
+// parameter this schema does not carry gets no error, just a filter that is silently ignored
+// (plans/retros/roster-b-picker-and-orgs.md).
+//
+// `from` and `to` are instants for the same reason `eventDate` is: a page filtering "this week"
+// from a browser knows its own zone, and a bare date would mean a different eight hours
+// depending on where the server happens to run.
+export const listActivityEventsQuerySchema = z.object({
+  profileId: z.uuid("That activity is not valid.").optional(),
+  from: eventInstantSchema.optional(),
+  to: eventInstantSchema.optional(),
+  // A query string carries no booleans. "true" widens the list to past events; anything else,
+  // including absent, leaves it on upcoming only.
+  includePast: z
+    .string()
+    .optional()
+    .transform((value) => value === "true"),
+});
+export type ListActivityEventsQuery = z.infer<typeof listActivityEventsQuerySchema>;
