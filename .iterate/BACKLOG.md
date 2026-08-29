@@ -246,8 +246,8 @@ _None._
 
 ## Completed
 
-- [x] ITER-021 — "Say how it went" is offered on another organization's event _(completed 2026-08-29, eae29f5)_
-- [x] ITER-022 — The follow-up form communicates by appearance alone _(completed 2026-08-29, eae29f5 — items 1 and 2; **item 3 moved to ITER-026**, not built)_
+- [x] ITER-021 — "Say how it went" is offered on another organization's event _(completed 2026-08-29, 17032a9)_
+- [x] ITER-022 — The follow-up form communicates by appearance alone _(completed 2026-08-29, 17032a9 — items 1 and 2; **item 3 moved to ITER-026**, not built)_
 - [x] ITER-023 — A third hand-maintained copy of the notification trigger keys _(completed 2026-08-28, b2b8aab)_
 - [x] ITER-019 — Stewardship: which households are even ours _(completed 2026-08-27, 10197b3)_
 - [x] ITER-018 — Visit goals should be a cadence, not a dated period _(completed 2026-08-27, 8f71f90)_

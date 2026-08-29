@@ -4,7 +4,7 @@
 **Status:** Completed
 **Plan:** plans/youth-follow-up-controls.md
 **Completed:** 2026-08-29
-**Commit:** eae29f5
+**Commit:** 17032a9
 **Created:** 2026-08-28
 **Found:** walking scenarios 055 and 056 for `youth-d`, 2026-08-28
 **Files:** `app/(app)/youth/FollowUpForm.tsx`, and `app/(app)/youth/page.tsx` for the third item.

@@ -4,7 +4,7 @@
 **Status:** Completed
 **Plan:** plans/youth-follow-up-controls.md
 **Completed:** 2026-08-29
-**Commit:** eae29f5
+**Commit:** 17032a9
 **Created:** 2026-08-28
 **Found:** walking scenario 056 for `youth-d`, 2026-08-28
 **Related:** `plans/retros/youth-a-*` (defect D1), `plans/retros/visits-d-*` — this is the same
