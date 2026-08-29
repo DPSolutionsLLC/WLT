@@ -66,19 +66,6 @@ Each of these is large or complex enough to tackle on its own.
   below both activity cards — **overlaps ITER-020**, which may move the page entirely, so do not
   reposition it in isolation._
 
-- [ ] ITER-023 — A third hand-maintained copy of the notification trigger keys → [scope](.iterate/scopes/ITER-023.md) | [plan](plans/notification-trigger-drift-test.md)
-  _Found 2026-08-28 walking scenario 056. The trigger keys live in three places — the seed SQL, a
-  migration per key, and `NOTIFICATION_TRIGGERS` in `testing/infrastructure/seedUtils.ts`. `youth-d`
-  updated the first two and not the third, and the symptom was exactly what migration 036 warns
-  about: flagging a follow-up **stamped `flag_sent_at`, wrote `notified: true`, and delivered
-  nothing**. **Real wards were never affected** — migration 057d had the row for all eight — which
-  makes it worse rather than better, because the harness is where such a failure is supposed to be
-  caught. The one key was added during the walk to unblock the scenario; **four `program_*` keys
-  are still missing**, pre-existing since `program-c`, and any scenario asserting one of those
-  notifications is asserting against silence. The fix is not another careful edit but **a test that
-  diffs the array against the seed file** — both inputs are files on disk, so it needs no database.
-  The comment above the array already said it must match exactly, while being wrong by five keys._
-
 - [ ] ITER-017 — Token counts are redacted out of every AI audit row → [scope](.iterate/scopes/ITER-017.md)
   _Found 2026-08-24 walking scenario 027 for `ai-d`. Every AI route logs `outputTokens` so spend is
   traceable; the audit log stores the string `"[redacted]"` instead of the number, every time.
@@ -238,6 +225,7 @@ _None._
 
 ## Completed
 
+- [x] ITER-023 — A third hand-maintained copy of the notification trigger keys _(completed 2026-08-28, b2b8aab)_
 - [x] ITER-019 — Stewardship: which households are even ours _(completed 2026-08-27, 10197b3)_
 - [x] ITER-018 — Visit goals should be a cadence, not a dated period _(completed 2026-08-27, 8f71f90)_
 - [x] ITER-004 — Speakers who are not members of the ward _(completed 2026-08-25, be4ea6e)_
