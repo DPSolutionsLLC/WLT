@@ -2,7 +2,7 @@
 
 **Type:** Chore
 **Status:** Backlog
-**Plan:** _none yet_
+**Plan:** plans/notification-trigger-drift-test.md
 **Created:** 2026-08-28
 **Found:** walking scenario 056 for `youth-d`, 2026-08-28
 **Related:** migration 036's header — *"A new trigger key is always BOTH the seed and a migration

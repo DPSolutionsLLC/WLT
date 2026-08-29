@@ -1689,17 +1689,14 @@ export const NOTIFICATION_TRIGGERS: Array<{ key: string; defaultRoles: Role[] }>
     defaultRoles: ["org_president", "org_counselor", "org_secretary"],
   },
   { key: "visit_overdue", defaultRoles: ["org_president", "org_counselor", "org_secretary"] },
-  // Must match supabase/seed/notification_triggers.sql exactly. A harness ward seeded from a
-  // stale copy of this list restores the old roles and quietly disagrees with production.
+  // Must match supabase/seed/notification_triggers.sql exactly, and that is ENFORCED by
+  // tests/db/notification-triggers-seed.test.ts, which diffs this array against the seed file and
+  // SPEC.md in both directions. A key added to the seed file without being added here fails that
+  // test rather than going silent — silence being the whole problem, since the only symptom of a
+  // missing row is a notification that never arrives.
   //
-  // IT DID NOT MATCH, AND WALKING SCENARIO 056 ON 2026-08-28 IS WHAT FOUND OUT. Five keys were
-  // absent: `youth_activity_flagged_for_ward_council` (added below, in the same slice that walked
-  // it) and the four `program_*` keys, which have been missing since program-c and are left alone
-  // here deliberately — adding them would change what program scenarios observe, which is that
-  // slice's call to make rather than this one's.
-  //
-  // A THIRD hand-maintained copy of one list is the actual defect. If this drifts again, the fix
-  // worth making is a test that diffs this array against the seed file, not another careful edit.
+  // The comment that used to sit here said the same thing without a test behind it, and was wrong
+  // by five keys while saying it.
   { key: "visit_flagged_for_ward_council", defaultRoles: ["executive_secretary"] },
   { key: "new_household_added", defaultRoles: ["bishop", "counselor", "org_president", "ward_secretary"] },
   { key: "youth_activity_added", defaultRoles: ["org_president", "org_counselor", "org_secretary"] },
@@ -1718,6 +1715,13 @@ export const NOTIFICATION_TRIGGERS: Array<{ key: string; defaultRoles: Role[] }>
   // this list dangerous: it fails only in the harness, which is where the failure is supposed to
   // be caught.
   { key: "youth_activity_flagged_for_ward_council", defaultRoles: ["executive_secretary"] },
+  // Missing since program-c, which is why scenario 035's "the sacrament program has gone out"
+  // checklist line had never been reachable and scenario 031 recorded a defect it could not fix
+  // in its own slice. Added by ITER-023 alongside the drift test.
+  { key: "program_pending_approval", defaultRoles: ["bishop", "counselor"] },
+  { key: "program_approved", defaultRoles: ["bishop", "counselor", "ward_secretary"] },
+  { key: "program_changes_requested", defaultRoles: ["bishop", "counselor", "ward_secretary"] },
+  { key: "program_distributed", defaultRoles: ["bishop", "counselor", "ward_secretary"] },
   { key: "agenda_published", defaultRoles: ["bishop", "counselor", "ward_council_member", "executive_secretary"] },
   { key: "agenda_email_distributed", defaultRoles: ["bishop", "counselor", "executive_secretary"] },
   { key: "sacrament_assignments_sent", defaultRoles: ["bishop", "counselor"] },

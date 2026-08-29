@@ -1682,6 +1682,7 @@ youth_event_uncovered
 youth_support_assigned
 youth_followup_prompt
 youth_followup_submitted
+youth_activity_flagged_for_ward_council   -- a follow-up raised to the ward council (migration 057d)
 
 -- Programs
 program_pending_approval       -- a builder submitted a program for approval (program-a)
@@ -1697,6 +1698,9 @@ agenda_email_distributed
 sacrament_assignments_sent
 sacrament_assignments_overdue
 sacrament_manager_changed
+
+-- Youth Accounts
+youth_account_locked           -- a youth PIN account was locked after repeated failed attempts
 ```
 
 ### Adding Triggers (Future)

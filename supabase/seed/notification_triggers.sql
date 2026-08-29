@@ -1,10 +1,15 @@
 -- One notification_settings row per trigger key, per ward.
 --
--- The keys below must match SPEC.md §Trigger Keys EXACTLY. emitNotification() (plan C) looks
--- them up by string, so a typo here is a notification that silently never fires — no error,
--- no log, just nothing arriving. Thirty keys; count them against the spec if you edit. (This
--- number read "twenty-eight" while the block held twenty-nine — a count nobody recounts is worse
--- than none, so recount it rather than trusting it.)
+-- This file is the CANONICAL list. The keys below must match SPEC.md §Trigger Keys and
+-- NOTIFICATION_TRIGGERS in testing/infrastructure/seedUtils.ts EXACTLY. emitNotification()
+-- (plan C) looks them up by string, so a typo here is a notification that silently never fires —
+-- no error, no log, just nothing arriving.
+--
+-- That match is ENFORCED by tests/db/notification-triggers-seed.test.ts, which diffs all three in
+-- both directions. A key added here without the other two fails that test, naming the key and the
+-- file. Do not recount by hand: the count in this header once read "twenty-eight" while the block
+-- held twenty-nine, and a count nobody recounts is worse than none. The test counts nothing
+-- either — it compares, so adding a key needs no edit to it.
 --
 -- default_roles is the role list that receives the trigger unless a user opts out in
 -- notification_user_prefs. Bishop and counselor always appear together: bishopric admin

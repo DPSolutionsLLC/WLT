@@ -66,7 +66,7 @@ Each of these is large or complex enough to tackle on its own.
   below both activity cards — **overlaps ITER-020**, which may move the page entirely, so do not
   reposition it in isolation._
 
-- [ ] ITER-023 — A third hand-maintained copy of the notification trigger keys → [scope](.iterate/scopes/ITER-023.md)
+- [ ] ITER-023 — A third hand-maintained copy of the notification trigger keys → [scope](.iterate/scopes/ITER-023.md) | [plan](plans/notification-trigger-drift-test.md)
   _Found 2026-08-28 walking scenario 056. The trigger keys live in three places — the seed SQL, a
   migration per key, and `NOTIFICATION_TRIGGERS` in `testing/infrastructure/seedUtils.ts`. `youth-d`
   updated the first two and not the third, and the symptom was exactly what migration 036 warns

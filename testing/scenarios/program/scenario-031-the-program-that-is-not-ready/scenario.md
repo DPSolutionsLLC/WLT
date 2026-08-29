@@ -208,14 +208,23 @@ standing open for them. Locked in by `tests/components/program/ProgramPreview.te
    write in `ProgramBuilder` now cancels in-flight queries first. Caught by the new
    send-for-approval test, not by a person.
 
-**Defect 2 from the walk is NOT fixed** — `NOTIFICATION_TRIGGERS` in
-`testing/infrastructure/seedUtils.ts` still has no `program_*` keys. It is shared harness
-infrastructure, pre-existing, and affects scenarios 028 and 029 too, so it wants its own change
-rather than riding along in this one.
+**Defect 2 from the walk is fixed, in its own change, on 2026-08-28.** The walk asked for exactly
+that — "it is shared harness infrastructure, pre-existing, and affects scenarios 028 and 029 too,
+so it wants its own change rather than riding along in this one" — and ITER-023 is that change.
+It added the four `program_*` keys to `NOTIFICATION_TRIGGERS` in
+`testing/infrastructure/seedUtils.ts`, and `tests/db/notification-triggers-seed.test.ts`, which
+diffs the harness list against `supabase/seed/notification_triggers.sql` and SPEC.md in both
+directions so the next such drift fails a test rather than going silent. Re-seeding this scenario
+now produces the `program_pending_approval` row that was missing.
+
+The *claim* "The bishopric has been notified.", removed from the UI during this walk, stays
+removed. The fix makes the notification arrive; it does not restore a sentence asserting that it
+did.
 
 ### Left unwalked
 
-- The notification bell itself, blocked by Defect 2.
+- The notification bell itself. It was blocked by Defect 2 on the day of the walk; ITER-023
+  unblocked it on 2026-08-28 and it has still not been walked.
 - Real-device behaviour. Driven in a desktop browser at a 375px viewport, which is not a thumb on
   glass.
 - Scenario 030, the AI editor — not run; it spends money on real Claude calls.
