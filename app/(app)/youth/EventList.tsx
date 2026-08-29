@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/Input";
 import { AttendeeControls } from "@/components/youth/AttendeeControls";
 import { COVERAGE_EDGE_CLASSES, CoverageBadge } from "@/components/youth/CoverageBadge";
 import { FollowUpBadge } from "@/components/youth/FollowUpBadge";
-import { canManageActivityLog } from "@/lib/youth/activityOwnership";
+import { canManageActivityLog, canWriteFollowUpOn } from "@/lib/youth/activityOwnership";
 import type { ActivityAttendee } from "@/lib/youth/attendees";
 import { eventCoverage } from "@/lib/youth/coverage";
 import { toLocalInputValue, toOffsetBearingInstant } from "@/lib/youth/eventInstant";
@@ -76,6 +76,9 @@ export type EventListProps = {
   // a boolean, because the mirror lives in lib/youth/activityOwnership.ts beside the profile's and
   // must be the same function the rest of the module calls.
   currentUserRole: SessionUser["role"];
+  // For canWriteFollowUpOn(), which mirrors migration 057c's INSERT policy. Resolved once on the
+  // server; a client component never re-derives a session value.
+  currentUserOrgId: string | null;
   // Bishopric only, resolved once on the server. See AttendeeControls' header: a client component
   // never re-derives a permission.
   canAssign: boolean;
@@ -168,6 +171,7 @@ export function EventList({
   asOf,
   currentUserId,
   currentUserRole,
+  currentUserOrgId,
   canAssign,
   assignableUsers,
 }: EventListProps) {
@@ -186,7 +190,7 @@ export function EventList({
   const profileLabels = new Map(
     (profilesQuery.data ?? []).map((profile) => [
       profile.id,
-      { activityName: profile.activityName, memberName: profile.memberName },
+      { activityName: profile.activityName, memberName: profile.memberName, orgId: profile.orgId },
     ]),
   );
 
@@ -342,6 +346,32 @@ export function EventList({
               asOfInstant,
             );
 
+            // WHICH POLICY APPLIES DEPENDS ON WHICH ACTION IS OFFERED.
+            //
+            // Creating a follow-up is an INSERT (057c): the bishopric, or the organization that
+            // owns the event through its profile. Changing one is an UPDATE (058): the author, or
+            // the bishopric — with NO organization arm at all.
+            //
+            // Collapsing these into one check would break in both directions. Using the INSERT
+            // rule on an existing log would hide "Change what you wrote" from a leader who has
+            // since moved organizations but may still edit what they wrote — the mirror mistake,
+            // hiding what the API allows. Using the UPDATE rule on a new one would offer the
+            // create button on every organization's events, which is the bug this exists to close.
+            //
+            // `profile` is `undefined` both when the event has no profile and when the profile is
+            // not in this reader's list; both resolve to ward-wide, which is what the policy's
+            // LEFT JOIN does.
+            const canWriteFollowUpHere =
+              ownLog === null
+                ? canWriteFollowUpOn(
+                    { role: currentUserRole, orgId: currentUserOrgId },
+                    profile ?? null,
+                  )
+                : canManageActivityLog(
+                    { id: currentUserId, role: currentUserRole },
+                    { loggedBy: ownLog.loggedBy },
+                  );
+
             // Computed from the event AND the attendee count, which is why an attendance
             // mutation invalidates both keys (ATTENDEE_MUTATION_INVALIDATES).
             const coverage = eventCoverage(
@@ -447,8 +477,17 @@ export function EventList({
                       The gate is isFollowUpWritable(), NOT `followUp !== "not_due"`. Those look
                       interchangeable and are not: a past game the reader was never down for reads
                       `not_due`, and hiding the button from that person is exactly the workflow-rule
-                      -in-a-component mistake decision 5 refuses. */}
-                  {canLog && canWriteFollowUp ? (
+                      -in-a-component mistake decision 5 refuses.
+
+                      AND THE ORGANIZATION IS A SEPARATE QUESTION AGAIN. `canLog` is the
+                      permission — `youth_activities.log` — and it says nothing about WHICH events.
+                      canWriteFollowUpOn() is the organization half, mirroring migration 057c's
+                      INSERT policy, and canManageActivityLog() is the different rule that applies
+                      once a follow-up exists (migration 058's UPDATE, which has no organization
+                      arm). Without the first of those, "Say how it went" appeared on every
+                      organization's past events and the API answered 403 — visits-d and
+                      youth-a-D1 a THIRD time, found walking scenario 056. ITER-021. */}
+                  {canLog && canWriteFollowUp && canWriteFollowUpHere ? (
                     followingUp === event.id ? (
                       <FollowUpForm
                         eventId={event.id}

@@ -184,6 +184,8 @@ export default async function YouthActivitiesPage() {
         initialPastAttendees={Object.fromEntries(pastAttendeesByEvent)}
         profiles={profiles}
         currentUserId={user.id}
+        currentUserRole={user.role}
+        currentUserOrgId={user.orgId}
         // The SAME instant every query above was judged against.
         asOf={asOf.toISOString()}
         canLog={canLog}
@@ -206,6 +208,7 @@ export default async function YouthActivitiesPage() {
         asOf={asOf.toISOString()}
         currentUserId={user.id}
         currentUserRole={user.role}
+        currentUserOrgId={user.orgId}
         canAssign={isBishopric}
         assignableUsers={assignableUsers}
       />

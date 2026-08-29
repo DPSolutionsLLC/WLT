@@ -38,8 +38,13 @@ import { YOUTH_SHARED_NOTE_AUDIENCE } from "@/types/domain";
 // migration 057 WHICH people depends on a ward setting, so the label says who rather than "be
 // careful". YOUTH_SHARED_NOTE_AUDIENCE carries both sentences and each is true in its own mode.
 
+// THE FILL IS NOT IN HERE, and that is deliberate rather than an omission. The two textareas on
+// this form carry DIFFERENT fills — see the private block below — and there is no
+// tailwind-merge in this project, so a trailing `bg-*` appended to a base string holding one
+// would be resolved by stylesheet order rather than by the order of the class attribute.
+// Each field naming its own fill is the version that cannot silently do nothing.
 const TEXTAREA_CLASSES =
-  "min-h-24 w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-base " +
+  "min-h-24 w-full rounded-md border border-border px-3 py-2 text-base " +
   "text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 " +
   "focus-visible:outline-primary";
 
@@ -241,9 +246,17 @@ export function FollowUpForm({
       {isAttendee ? (
         <fieldset className="flex flex-col gap-2">
           <legend className="text-sm font-medium text-foreground">Did you go?</legend>
+          {/* aria-pressed ON BOTH BUTTONS IN EVERY STATE. Without it a screen reader hears two
+              identically named buttons and cannot tell which answer is stored — the fill of
+              the primary variant is the only thing saying so, and it says nothing out loud.
+              The attribute on ONE button and not the other would be worse than neither: the
+              reader is told about one answer and left to infer the other. This is the pattern
+              VisitLogForm uses for the identical question, and MemberPicker, RosterViewToggle,
+              CrossOrgVisibilityToggle and ReportTile all use. ITER-022. */}
           <div className="flex flex-wrap gap-2">
             <Button
               variant={attended === true ? "primary" : "secondary"}
+              aria-pressed={attended === true}
               disabled={isBusy}
               onClick={() => setAttended(true)}
             >
@@ -251,17 +264,27 @@ export function FollowUpForm({
             </Button>
             <Button
               variant={attended === false ? "primary" : "secondary"}
+              aria-pressed={attended === false}
               disabled={isBusy}
               onClick={() => setAttended(false)}
             >
               I did not go
             </Button>
           </div>
-          {attended === null ? (
-            <p className="text-xs text-muted">
-              You have not said either way. Leaving it is fine — the follow-up saves without it.
-            </p>
-          ) : null}
+          {/* ALWAYS RENDERED, naming the stored answer in words. The fill-versus-outline
+              difference between the two button variants is otherwise the only signal that an
+              answer is stored at all, and CoverageBadge, ReportTile and VisitProgressTable each
+              state in this codebase that colour is never the only signal. youth-c found that a
+              badge is a weaker pointer than a sentence; this is the sentence. No tick glyph —
+              youth-c defect 1 is the precedent, where a marker carried less than naming the
+              thing did. */}
+          <p className="text-xs text-muted">
+            {attended === null
+              ? "You have not said either way. Leaving it is fine — the follow-up saves without it."
+              : attended
+                ? "Recorded: you went."
+                : "Recorded: you did not go."}
+          </p>
         </fieldset>
       ) : null}
 
@@ -277,7 +300,7 @@ export function FollowUpForm({
         </p>
         <textarea
           id={`follow-up-shared-${eventId}`}
-          className={TEXTAREA_CLASSES}
+          className={`${TEXTAREA_CLASSES} bg-surface-raised`}
           maxLength={MAX_ACTIVITY_SHARED_NOTES}
           value={sharedNotes}
           disabled={isBusy}
@@ -286,16 +309,40 @@ export function FollowUpForm({
       </div>
 
       {/* ---------------------------------------------------------------
-          3. THE PRIVATE NOTE — A VISUALLY DISTINCT BLOCK, ON ITS OWN ENDPOINT
+          3. THE PRIVATE NOTE — A SECTION, NOT A THIRD FIELD IN A STACK
           ---------------------------------------------------------------
           Its own bordered block rather than a third field in a row, because the boundary is the
           point and a form where the two boxes look alike is a form that invites a leader to type
-          the wrong thing into the wrong one. */}
-      <div className="flex flex-col gap-1.5 rounded-md border border-dashed border-border bg-surface p-3">
-        <label
-          htmlFor={`follow-up-private-${eventId}`}
-          className="text-sm font-medium text-foreground"
-        >
+          the wrong thing into the wrong one.
+
+          ITER-022 STRENGTHENED THE SEPARATION AND NOT THE EMPHASIS, and the difference is the
+          whole decision. There is no warning or danger token anywhere in this block — not on
+          the border, not on the fill, not on the text — because visits-a deliberately moved the
+          caution OFF the private field and ONTO the shared one, and VisitLogForm records that
+          highlighting the private box "read as an error state". A leader hesitating over this
+          box has it backwards; this one is the safe one.
+
+          THREE STRUCTURAL CHANGES, none of them colour: a HEADING above the label, so the block
+          reads as a section rather than as a sibling field; a DIFFERENT FILL on the textarea
+          (bg-surface against the shared field's bg-surface-raised), so the two boxes on this
+          form differ in more than position; and extra SPACE above, so the shared field and this
+          one are not evenly spaced siblings in a gap-4 stack.
+
+          THE OUTLINE CARRIES DARK MODE, NOT THE FILL. Walking it on 2026-08-29 the block read
+          clearly in light and receded in dark, and the reason is that the fills invert in meaning:
+          --surface is LIGHTER than the card in light and DARKER than it in dark, so the same
+          "slightly different fill" reads as an inset panel in one theme and as a hole in the
+          other. Raising the fill instead would put this block above the shared field in
+          prominence, which is visits-a's finding backwards. So the dashed border moves from
+          --border (#e2e8f0 / #2e2e2e, nearly invisible on #141414) to --muted at 60%, which is a
+          NEUTRAL at partial strength in both themes — still no warning or danger token anywhere
+          in this block. ITER-022 item 2. */}
+      <div className="mt-2 flex flex-col gap-1.5 rounded-md border border-dashed border-muted/60 bg-surface p-3">
+        <h4 className="text-sm font-semibold text-foreground">Private note</h4>
+        {/* sr-only, because the h4 above is now what a sighted reader sees and two identical
+            strings stacked would read as a mistake. The label element stays so the textarea
+            keeps its accessible name — UserRow and CommentThread do the same. */}
+        <label htmlFor={`follow-up-private-${eventId}`} className="sr-only">
           Private note
         </label>
         <p className="text-xs text-muted">
@@ -304,7 +351,7 @@ export function FollowUpForm({
         </p>
         <textarea
           id={`follow-up-private-${eventId}`}
-          className={TEXTAREA_CLASSES}
+          className={`${TEXTAREA_CLASSES} bg-surface`}
           maxLength={MAX_ACTIVITY_PRIVATE_NOTES}
           value={privateNotes}
           disabled={isBusy}

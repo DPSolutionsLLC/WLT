@@ -103,11 +103,26 @@ Who should see what on `/youth/feed`, **with the setting off**:
       notifies **again**.
 - [ ] **Flagging twice without unflagging notifies once.** Re-tick and save on an already-flagged
       follow-up and confirm the notification count does not move.
-- [ ] **"Say how it went" is absent on another organization's event.** *Currently FAILS — see the
-      walkthrough record.* As `ym-president`, `/youth` → Show past events offers the control on
-      *Winter concert*, which belongs to the Young Women; saving is then refused with a sentence.
-      Nothing is written and RLS holds, but the control should not have been offered. This is
-      `youth-a-D1` / `visits-d` a third time.
+- [ ] **"Say how it went" is absent on another organization's event.** As `ym-president`,
+      `/youth` → Show past events must NOT offer the control on *Winter concert*, which belongs
+      to the Young Women, while the ward-wide activity still offers it. Fixed 2026-08-28
+      (ITER-021).
+- [ ] **The same is true in *Waiting on your follow-up*.** Add yourself as `ym-president` to
+      *Winter concert* (one tap on the attendee line), reload `/youth`, and the event appears
+      under the heading **Played, and recorded by another organization** — a separate group with
+      **no** *Say how it went* button, no amber edge, and the sentence *"They record what
+      happened; you can still see that it was played."* `activity_attendees` writes are
+      `is_bishopric() or user_id = auth.uid()`, so any leader can put themselves on any
+      organization's event — which is how the panel had the same defect the card did.
+- [ ] **The count excludes it.** With that row present and one writable event waiting, the heading
+      reads **Waiting on your follow-up (1)**, not (2). A number that counts what the reader
+      cannot act on is a promise the screen cannot keep — raised by the user on 2026-08-29 in
+      review: *"it doesn't make sense to say they need to follow up on 2 when they in fact only
+      have the ability to follow up on 1."*
+- [ ] **"Change what you wrote" is still offered on the reader's OWN follow-up**, whatever
+      organization now owns the event. Migration 058's UPDATE policy is `logged_by =
+      auth.uid()` with no organization arm, and hiding a control the API allows is the mirror
+      mistake.
 - [ ] The **ward-council flag** control is absent on a follow-up the reader could not write.
       CORRECTED 2026-08-28: this is **structurally unreachable from `/youth` today** — the form only
       ever opens on the reader's own follow-up or a new one, so `canFlag` cannot currently be false
@@ -227,7 +242,8 @@ have been invisible to everybody but the bishopric.
   `triggerKey: 'visit_flagged_for_ward_council'`. That message comes only from the shared helper,
   and the key proves it is the caller's rather than hardcoded.
 
-**Two defects found, not fixed** — see the review page:
+**Two defects found** — see the review page. Defect 1 is now fixed; defect 2 was fixed during
+the walk:
 
 1. **"Say how it went" is offered on another organization's event.** As `ym-president`, the control
    appears on *Winter concert* (a Young Women activity). Typing a note and saving is refused with
@@ -236,6 +252,13 @@ have been invisible to everybody but the bishopric.
    held and nothing leaked. But the control should not have been offered: this is
    `youth-a-D1` / `visits-d` a third time, and the plan quotes it by name. The `canFlag` gate got
    the ownership mirror; the follow-up control itself did not.
+   **FIXED 2026-08-28 (ITER-021).** `canWriteFollowUpOn()` in `lib/youth/activityOwnership.ts`
+   mirrors migration 057c's INSERT policy, and is applied at **both** places the control is
+   offered — `EventList` and `FollowUpPanel`. The panel is not named in ITER-021's scope file and
+   had the defect too: any leader may add themselves to any organization's event, so fixing the
+   card alone would have shipped the same shape a fourth time. The API was **not** narrowed —
+   the route's 403 is what still makes the refusal graceful if the two ever disagree
+   (CLAUDE.md rule 2).
 2. **The harness's notification-trigger list had drifted.** The first flag stamped `flag_sent_at`,
    wrote `notified: true`, and delivered **nothing** — `testing/infrastructure/seedUtils.ts` keeps a
    THIRD hand-maintained copy of the trigger keys and had no row for
@@ -257,6 +280,61 @@ Not walked: every "needs a human eye" line — those are the review questions, w
 `walk-youth-d/`. Also not walked: `yw-president`'s own session, because the policy's mirror image
 was already proven from `ym-president`'s and from the RLS suite; and 375px for this scenario, which
 renders the same components 055 measured.
+
+---
+
+**2026-08-29 — driven by Claude in a real browser (Playwright), against the hosted project.**
+A RE-WALK of the ITER-021 line only, after the fix. Every value below was read back with the
+SERVICE CLIENT. `now = 2026-08-29T02:20Z`; the three events sat at −5d, −4d and −3d.
+
+**The fix, as `ym-president` (Miguel Cortez, `org_president`, Young Men) on `/youth` →
+Show past events.** All three ownership shapes on one screen:
+
+| Event | Profile → owning org | Control offered |
+|---|---|---|
+| *Food bank morning* | Stake service project → **null (ward-wide)** | **Say how it went** |
+| *Winter concert* | Concert choir → **Young Women** | **none** ← the ITER-021 line |
+| *Game against Roosevelt* | Varsity basketball → Young Men, own log | **Change what you wrote** |
+
+The ward-wide arm and the own-log arm are both present, so the fix narrowed exactly one case.
+
+**The panel half, which ITER-021's scope file does not name.** Pressed **I'll go** on *Winter
+concert* as `ym-president` — permitted, because `activity_attendees` writes are `is_bishopric() or
+user_id = auth.uid()`. Read back: a new row, `confirmed_attendance = null`. Reloaded `/youth`:
+
+- *Winter concert* appears under **Waiting on your follow-up**, with **zero buttons** and the
+  sentence *"This activity belongs to another organization. They record what happened; you can
+  still see that it was played."*
+- Before the fix this row carried **Say how it went** and the API answered 403.
+
+**The policy is still the boundary, proved rather than assumed.** `POST /api/youth/logs` for the
+*Winter concert* event id, from `ym-president`'s own authenticated session:
+
+```
+403  {"error":"That event belongs to another organization. You can record a follow-up on your
+      own organization's activities, and on ward-wide ones."}
+```
+
+`activity_logs` stayed at **3 rows**. The UI gate did not become a second boundary (CLAUDE.md
+rule 2) — it agrees with one that still holds on its own.
+
+**Written by this walk:** two `activity_attendees` rows (*Winter concert* and *Food bank morning*,
+both `confirmed_attendance = null`), created deliberately to reach the panel and the unanswered
+state. **Zero `activity_logs` rows** — the count was 3 before and after, including after the
+refused probe.
+
+**A NEW question this walk raised, not a regression — see the review page.** The panel heading
+reads **"Waiting on your follow-up (2)"** and one of those two is the event this reader may not
+write. `followUpState()` computes `awaiting` from `(past, not cancelled, isAttendee, no log)` and
+knows nothing about organization ownership, so the ownership gate removes the BUTTON without
+changing the COUNT. Before the fix every listed row was actionable — wrongly, since it 403'd — so
+the inconsistency is newly visible rather than newly introduced. Left as found: the plan chose to
+show the row with a sentence rather than hide it, and whether the COUNT should follow the button
+is a product decision, not a bug to patch mid-walk.
+
+**Not re-walked:** the flag path, the cross-organization visibility toggle, `/youth/feed`, the
+notification assertions and every "needs a human eye" line — all were walked on 2026-08-28 and
+this change touches none of them.
 
 ## Notes
 

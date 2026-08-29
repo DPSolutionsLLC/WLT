@@ -1,13 +1,13 @@
 # Backlog
 
-_Last updated: 2026-08-28_
+_Last updated: 2026-08-29_
 
 ---
 
 ## In Progress
 Items currently being planned or actively worked.
 
-_None. ITER-019 shipped 2026-08-27; the Phase 6 program plans are done through `program-d`, and `program-e` is BLOCKED on an authoritative hymn source._
+_None._
 
 ---
 
@@ -21,6 +21,55 @@ is what the grouping asked for._
 
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
+
+- [ ] ITER-024 — One event, one youth, or one occasion, many youth? → [scope](.iterate/scopes/ITER-024.md) — **DECIDED: A′**
+  _Raised by the user 2026-08-29 reviewing the ITER-021/022 walk. **A schema decision, and it blocks
+  the useful half of ITER-020.** The user wants to click an event and see *every* youth tied to it,
+  with coverage meaning "every youth has at least one leader committed **for that youth**". That is
+  not expressible: `activity_events.profile_id` is a single FK, so an event belongs to exactly one
+  young person and two team-mates at one game are two rows. Three options are written up with what
+  actually happens under each. **Recommended: A′** — keep one row per youth and add an explicit link
+  saying which rows share a real-world occasion. The module's atom is already right (a commitment is
+  to a young person on an occasion); what is missing is only that two atoms can share an evening. A′
+  costs one nullable column and leaves the ITER-021 org gate, per-youth coverage, the ICS import and
+  the follow-up shape all untouched — where the full many-to-many (Option B) would rework all four,
+  three of which shipped in the last week. **Do not group by matching title and date** —
+  `classifyLocation.ts` refuses near-miss matching by name, for the reason that applies here too._
+
+- [ ] ITER-025 — Should being there earn the right to comment? → [scope](.iterate/scopes/ITER-025.md)
+  _Raised by the user 2026-08-29: "anyone should be able to click on the event and add their comment
+  after they confirm that they were present." **A policy decision, not a bug** — ITER-021 was right
+  to make the screen match the database; the question is whether the database rule should change.
+  Two things were verified and are NOT the problem: several leaders can already commit to one event,
+  and `activity_logs_one_per_author unique (event_id, logged_by)` already gives each of them their
+  own follow-up. The only obstacle is the organization gate. Against changing it: migration 057c's
+  reasoning that writing is where coordination becomes misrepresentation, and that attendance is
+  **self-asserted**, so "anyone who says they were there may write" is "anyone may write" reached in
+  two steps. **Sequence after ITER-024** — if an occasion can hold rows from two organizations, the
+  young person a leader wants to write about may simply be a row their own organization owns, and
+  the problem partly dissolves without widening anything. Private notes do not move either way._
+
+- [ ] ITER-026 — A leader's own page: what I committed to, what I owe → [scope](.iterate/scopes/ITER-026.md)
+  _Raised by the user 2026-08-29. Every youth screen is organised around the youth or the event;
+  nothing is organised around the leader reading it. `FollowUpPanel` is **half of this already** —
+  it names what is waiting rather than counting it, and since ITER-021 counts only what that reader
+  can act on — but it holds nothing about the FUTURE, which is the half that changes behaviour, and
+  it lives below the activity list on `/youth`. **ITER-022 item 3 folds into this** and should be
+  closed by it rather than worked separately; it was parked precisely because the page might move.
+  **Open:** youth-only page or a personal dashboard, given `/dashboard` exists and visits raise the
+  same need. If both this and `/youth` render the waiting list, both must read ONE computation._
+
+- [ ] ITER-027 — Who else is in that gym → [scope](.iterate/scopes/ITER-027.md) — **blocked by ITER-024**
+  _Raised by the user 2026-08-29, and the most human idea in the batch. Two halves. **Before:** you
+  committed to see Ethan on Friday; three other ward youth are at the same game, so tell you, to
+  "help them feel seen and loved". **After:** you were there, you may well have spoken to them —
+  offer to record it rather than lose it. Both need "which other young people share this occasion",
+  which is exactly what ITER-024 decides; under Option A′ both become straightforward. **Two things
+  to hold on to when it unblocks:** the "after" half must OFFER and never write on its own (a
+  recorded pastoral contact that did not happen is rule 3 broken), and it must read as a prompt
+  rather than a checklist of people you failed to greet — the module exists so a young person is
+  seen, not so a leader is measured. The "before" half fires from the clock, which would make
+  **seven** clock-driven things deferred to Phase 11; computing it on read avoids an eighth._
 
 - [ ] ITER-020 — The youth module needs two views it does not have → [scope](.iterate/scopes/ITER-020.md)
   _Raised by the user 2026-08-28 reviewing the `youth-d` walkthrough. Phase 8 shipped four slices
@@ -37,34 +86,6 @@ Each of these is large or complex enough to tackle on its own.
   profile → one youth already), it is a copy change on the button; and the feed gets demoted, not
   deleted. **Open:** which view is the landing page, and a second more pastoral signal the user's
   sort does not capture — "which young person has quietly had nobody turn up all season"._
-
-- [ ] ITER-021 — "Say how it went" is offered on another organization's event → [scope](.iterate/scopes/ITER-021.md)
-  _Found 2026-08-28 walking scenario 056 for `youth-d`. As the Young Men president, `/youth` offers
-  the follow-up control on a **Young Women** activity; typing a note and saving is refused with a
-  sentence. Nothing is written and migration 057c's INSERT policy holds — but the control should
-  never have been offered. **This is `youth-a` defect D1 / `visits-d` a THIRD time**, and both
-  `08-youth-activities.md` and the `youth-d` plan quote it by name as "a locked door somebody was
-  invited through". The cause is that `EventList` gates on `canLog` (the permission, which never
-  says WHICH events) and `isFollowUpWritable()` (the clock), and neither knows the event's
-  organization — `youth-d` applied the ownership mirror to the ward-council flag control and not
-  to the follow-up control beside it, inside the very slice that quoted the lesson. Fix is a
-  `canWriteFollowUpOn()` in `lib/youth/activityOwnership.ts` mirroring the INSERT policy, with the
-  `org_id is null` arm kept. `canManageActivityLog` also shipped **untested** and wants covering in
-  the same sitting. Scenario 056 already carries the failing checklist line._
-
-- [ ] ITER-022 — The follow-up form communicates by appearance alone → [scope](.iterate/scopes/ITER-022.md)
-  _Found 2026-08-28 walking `youth-d`. Three items in one file, one sitting. **(1)** "Did you go?"
-  conveys its answer by **colour alone** — confirmed from the DOM, neither button carries
-  `aria-pressed`, `aria-checked`, or a role, so a screen reader hears two identical buttons and
-  cannot tell which answer is stored. This codebase forbids exactly that in three places
-  (`CoverageBadge`, `ReportTile`, `VisitProgressTable` each say "colour is never the only signal")
-  and `ReportTile`'s bookmark already uses `aria-pressed` for the same shape of control.
-  **(2)** The private-note block wants to be harder to mistake for the shared one — the user's
-  verdict was "i don't think so? but it wouldn't hurt to make it more clear somehow though". Keep
-  `visits-a`'s emphasis, which correctly puts the caution on the SHARED field; strengthen the
-  visual separation only. **(3)** "Waiting on your follow-up" sits third on `/youth`, ~770px down,
-  below both activity cards — **overlaps ITER-020**, which may move the page entirely, so do not
-  reposition it in isolation._
 
 - [ ] ITER-017 — Token counts are redacted out of every AI audit row → [scope](.iterate/scopes/ITER-017.md)
   _Found 2026-08-24 walking scenario 027 for `ai-d`. Every AI route logs `outputTokens` so spend is
@@ -225,6 +246,8 @@ _None._
 
 ## Completed
 
+- [x] ITER-021 — "Say how it went" is offered on another organization's event _(completed 2026-08-29, eae29f5)_
+- [x] ITER-022 — The follow-up form communicates by appearance alone _(completed 2026-08-29, eae29f5 — items 1 and 2; **item 3 moved to ITER-026**, not built)_
 - [x] ITER-023 — A third hand-maintained copy of the notification trigger keys _(completed 2026-08-28, b2b8aab)_
 - [x] ITER-019 — Stewardship: which households are even ours _(completed 2026-08-27, 10197b3)_
 - [x] ITER-018 — Visit goals should be a cadence, not a dated period _(completed 2026-08-27, 8f71f90)_

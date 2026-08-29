@@ -1,8 +1,10 @@
 # ITER-022: The Follow-Up Form Communicates By Appearance Alone
 
 **Type:** Bug
-**Status:** Backlog
-**Plan:** _none yet_
+**Status:** Completed
+**Plan:** plans/youth-follow-up-controls.md
+**Completed:** 2026-08-29
+**Commit:** eae29f5
 **Created:** 2026-08-28
 **Found:** walking scenarios 055 and 056 for `youth-d`, 2026-08-28
 **Files:** `app/(app)/youth/FollowUpForm.tsx`, and `app/(app)/youth/page.tsx` for the third item.
@@ -66,3 +68,9 @@ it **names** the waiting event rather than counting it, which is the fix that wo
 and the add-event form. **This overlaps ITER-020**, which may move or replace the page entirely —
 so do not reposition the panel in isolation. If ITER-020 is worked first, this item may disappear
 into it; if ITER-022 is worked first, leave item 3 alone.
+
+**RESOLVED 2026-08-29 — item 3 was NOT built, and moved rather than closed.** Items 1 and 2 shipped
+in `plans/youth-follow-up-controls.md`; this one was left alone exactly as instructed above. It now
+lives in **ITER-026** (a leader's own page: what I committed to, what I owe), which is the page the
+panel belongs on — so the question stopped being "where on `/youth` does this sit" and became "which
+screen owns it". Closing ITER-022 does not close item 3; ITER-026 carries it.

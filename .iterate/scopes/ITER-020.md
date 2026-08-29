@@ -77,6 +77,8 @@ as a rule — `COVERAGE_STATES` ordering — it is simply organised **by event**
   **The limit worth knowing:** this schema cannot express one event with several youth present (a
   combined activity, a stake dance). One event, one profile, one youth, always. If that is ever
   wanted it is a schema question and a separate scope.
+  **It was wanted, on 2026-08-29, and it is now ITER-024** — which BLOCKS the event-detail half
+  of this scope. See the additions section below.
 
 - **The follow-up feed is a RECORD, not a workspace, and should be demoted rather than deleted.**
   It carries a readable account, per-person read state, and the ward-council flag — all real jobs,
@@ -85,11 +87,54 @@ as a rule — `COVERAGE_STATES` ordering — it is simply organised **by event**
 
 ## Why this is cheap
 
-**No migration is expected.** `youth_activity_profiles.member_id` → `members`,
+**No migration is expected _for what was scoped on 2026-08-28_.** The 2026-08-29 additions below
+change that: the event-detail view needs ITER-024 settled first, and its recommended option is a
+small migration. The rest of this scope stands unchanged and is still presentation-only.
+
+`youth_activity_profiles.member_id` → `members`,
 `activity_events.profile_id` → profile, `activity_attendees.event_id` → event,
 `activity_logs.event_id` → event. Both views are presentation over data that already exists, and
 `lib/youth/coverage.ts` already computes the ranking either view would sort on. Nothing built in
 slices A–D is wasted by this.
+
+## Added 2026-08-29 — navigation, and what each view opens into
+
+Raised by the user reviewing the ITER-021/022 walk, thinking aloud about how the module is moved
+through rather than what each screen holds. **The two base views above are unchanged**; this is
+about what happens when you click something in them.
+
+> so yes, cross navigations from different views to easily get where you are wanting to go … the
+> calendar view highlighting events with youth that need attention, and the youth list highlighting
+> youth that need attention.
+
+**The shape, as described:**
+
+| From | Click | Arrive at |
+|---|---|---|
+| any card | the event | event detail: the details, **and every youth tied to it** |
+| event detail | a youth | that youth's events, filterable, with what they need |
+| youth list | a name | the card expands in place — upcoming and past, commit and follow up inline |
+
+1. **An event-detail view listing every youth at that event**, with the ability to **add a youth you
+   notice is missing**. **BLOCKED by ITER-024** — an event belongs to exactly one youth today, so
+   "every youth tied to it" has no answer. This is the single largest thing standing between this
+   scope and the user's picture of it.
+
+2. **A youth-detail view** — a filterable list of that young person's events and a snapshot of where
+   commitments are missing. Not blocked; the profile is already the right unit.
+
+3. **The youth list is searchable, and each name expands in place** rather than navigating away.
+   Inside the expanded card: upcoming and past events, with committing and writing a follow-up both
+   done there. Not blocked.
+
+4. **Coverage on the calendar, stated as the user states it:** an event is fully covered when
+   **every** youth in it has at least one leader committed **for that youth**, and shows an alert
+   when even one does not. Under one-youth-per-event this is what `eventCoverage()` already
+   computes. Under ITER-024's Option A′ it becomes worst-of over the occasion's rows — which is
+   exactly the rule `coverageRank()` already applies to day cells, reused rather than invented.
+
+**What this does not change:** the two base views, the demotion of `/youth/feed`, and the decision
+that committing to an event already is committing to that youth.
 
 ## Open, and worth deciding while planning
 
@@ -101,3 +146,7 @@ slices A–D is wasted by this.
   up all season"*. Different question, arguably the one that matters more. Raised in conversation
   and deliberately left out of the first pass; the youth view is where it would live.
 - Whether the sort buttons replace the calendar's four filter selects or sit beside them.
+- **Does this scope wait for ITER-024, or ship in two passes?** The youth view, the sort
+  buttons, committing from the calendar and the youth-detail view are all unblocked and are
+  most of the value. The event-detail view is the only piece that needs the schema decision, so
+  splitting is possible — and would get the better front door in front of a ward sooner.

@@ -84,11 +84,23 @@ The five events, and what each must read **for `ym-president`**:
 - [ ] The form asks **"Did you go?"** — and it asks it *because the president has an attendee row*.
 - [ ] On *Winter concert*, opened by the **secretary**, the same question appears; opened by
       somebody with no attendee row it is **absent**, not disabled.
+- [ ] **"Did you go?" announces which answer is stored.** Inspect both buttons: the selected one
+      carries `aria-pressed="true"` and the other `aria-pressed="false"` — **both** carry the
+      attribute in every state, including before either has been pressed, where both read
+      `"false"`. The line beneath reads **Recorded: you went** or **Recorded: you did not go**,
+      and before an answer is given, *"You have not said either way."* Fixed 2026-08-28
+      (ITER-022).
 - [ ] The shared-note field says **who can read it** and names them — with cross-org visibility
       **off** it must say the activity's own organization and the bishopric.
 - [ ] The private-note field says it is the author's alone, in a **visually distinct block**
       (dashed border), and posts to `/api/youth/logs/[id]/private-note` — a **separate request**
       from the follow-up itself. Check the network panel: there are two.
+- [ ] The private block reads as a **section, not a third field in a stack**: a *Private note*
+      heading above the box, extra space separating it from the shared field, and a textarea
+      whose fill differs from the shared one's. **No warning or danger colour anywhere in it** —
+      `visits-a` moved the caution onto the *shared* field on purpose, and `VisitLogForm`
+      records that highlighting the private box read as an error state. Changed 2026-08-28
+      (ITER-022, item 2).
 - [ ] Saving updates the **panel** and the **schedule badge** with no reload, and the network panel
       shows all three cache keys refetching (`/api/youth/logs`, `/api/youth/events`,
       `/api/youth/attendees`).
@@ -144,7 +156,11 @@ The five events, and what each must read **for `ym-president`**:
 - [ ] Does the shared-note label read as a **fact about who can see it** rather than as a warning?
       `visits-a` moved this emphasis off the private field onto the shared one; check it landed.
 - [ ] Do the two note fields look **different enough** that you would not type the wrong thing into
-      the wrong one on a phone, in a hurry?
+      the wrong one on a phone, in a hurry? **This is the one item ITER-022 could not settle with
+      a test.** Look at it at 375px in **both** themes. The private textarea now shares its
+      block's `bg-surface` fill and is bounded by its border alone — check that it still reads
+      as a box you can type in, and that the separation reads as *structure* rather than as a
+      warning.
 - [ ] With nothing waiting, does the panel's empty state read as *"you are up to date"* or as
       *"something failed to load"*?
 - [ ] Is *"Follow-up recorded"* on a logged event useful, or is it noise on a row nobody has to act
@@ -227,13 +243,18 @@ America/Denver; the seed placed events at −5.74d, −4.74d, −3.74d, −2.74d
   The only sub-44px targets were two inline prose links, the same pattern `/visits/feed` ships.
   Light and dark both legible.
 
-**One defect found, not fixed** — see the review page:
+**One defect found** — see the review page:
 
 - **"Did you go?" conveys its answer by colour alone.** "I went" renders `bg-primary` and "I did
   not go" `bg-surface`, and **neither carries `aria-pressed`, `aria-checked`, or a role**. A screen
   reader hears two identical buttons. `CoverageBadge`, `ReportTile` and `VisitProgressTable` each
   state "colour is never the only signal", and `ReportTile`'s bookmark uses `aria-pressed` for the
   same shape of control.
+  **FIXED 2026-08-28 (ITER-022).** Both buttons carry `aria-pressed` in every state, and a
+  sentence beneath them always names the stored answer in words — `tests/components/youth/
+  FollowUpForm.test.tsx` pins both directions, so removing the attribute from one button fails
+  the suite. No tick glyph was added: `youth-c` defect 1 found a marker carried less than naming
+  the thing did.
 
 Corrections made to this file during the walk:
 
@@ -245,10 +266,61 @@ Corrections made to this file during the walk:
 3. **Added a check that "Say how it went" appears only on writable events**, because scenario 056
    found it does not. This scenario seeds only Young Men activities and cannot reach the bug; the
    check is recorded here so the two scenarios agree.
+   FOLLOWED UP 2026-08-28 (ITER-021): the fix landed, and the *Waiting on your follow-up* half of
+   it is asserted in **scenario 056**, not here. 055's *Winter concert* belongs to a **Young Men**
+   profile (`seed.ts`: "BOTH OWNED BY THE YOUNG MEN … Cross-organization boundaries are scenario
+   056"), so this ward cannot reach the cross-organization case even by hand. Bending the seed to
+   reach it would make 055 a second copy of 056.
 
 Not walked: every "needs a human eye" line — those are the review questions, with screenshots in
 `walk-youth-d/`. Also not re-walked: clearing the private note to delete it, which is covered by
 `tests/routes/youthPrivateNote.test.ts`.
+
+---
+
+**2026-08-29 — the two ITER-022 lines only, driven by Claude in a real browser (Playwright).**
+
+**Walked against scenario 056's ward, not this one, and that is a real limitation.** `/youth`
+renders one `FollowUpForm` for every event, so the assistive-technology and note-field checks are
+component-level and identical in both wards — but this scenario's own seed was NOT re-run, and its
+follow-up loop (steps 1–8) was not re-walked. It was walked in full on 2026-08-28 and this change
+does not touch it.
+
+**"Did you go?" — all three states, read off the live DOM:**
+
+| Stored answer | `I went` | `I did not go` | Sentence |
+|---|---|---|---|
+| `null` (unanswered) | `aria-pressed="false"` | `aria-pressed="false"` | *You have not said either way. Leaving it is fine — the follow-up saves without it.* |
+| `true` | `aria-pressed="true"` | `aria-pressed="false"` | *Recorded: you went.* |
+| `false` | `aria-pressed="false"` | `aria-pressed="true"` | *Recorded: you did not go.* |
+
+Both buttons carry the attribute in every state, including the unanswered one. The `true` row was
+the seeded `confirmed_attendance`, verified against the database rather than taken from the screen;
+the `false` row was reached by pressing, and the `null` row by joining the ward-wide event, which
+is the only combination on this screen that yields an attendee row with no answer AND a writable
+event.
+
+**An unsaved answer is discarded, checked rather than assumed.** Pressed *I did not go* on a
+follow-up seeded `confirmed_attendance = true`, reloaded without saving, read the row back: still
+`true`. No optimistic write.
+
+**The note fields**, computed styles at 375px:
+
+| | Light | Dark |
+|---|---|---|
+| Shared textarea | `rgb(255,255,255)` | `rgb(28,28,28)` |
+| Private textarea | `rgb(248,250,252)` | `rgb(20,20,20)` |
+
+The private block is `mt-2 … border-dashed border-border bg-surface`, carries an `<h4>` reading
+*Private note* with an `sr-only` `<label>` beneath it keeping the textarea's accessible name, and
+holds **no warning or danger token** — `visits-a`'s emphasis stays on the shared field. The private
+textarea shares its container's fill and is bounded by its own solid border; whether that reads as
+a box you can type into is the judgement on the review page.
+
+No horizontal overflow at 375px: content 360px in a 375px viewport, both themes.
+
+**Screenshots:** `testing/walk-screenshots/iter021-04-*`, `iter022-01-*`, `iter022-02-*`,
+`iter022-03-*`.
 
 ## Notes
 

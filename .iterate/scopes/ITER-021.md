@@ -1,8 +1,10 @@
 # ITER-021: "Say How It Went" Is Offered On Another Organization's Event
 
 **Type:** Bug
-**Status:** Backlog
-**Plan:** _none yet_
+**Status:** Completed
+**Plan:** plans/youth-follow-up-controls.md
+**Completed:** 2026-08-29
+**Commit:** eae29f5
 **Created:** 2026-08-28
 **Found:** walking scenario 056 for `youth-d`, 2026-08-28
 **Related:** `plans/retros/youth-a-*` (defect D1), `plans/retros/visits-d-*` — this is the same
@@ -68,3 +70,23 @@ graceful; this is the UI agreeing with the boundary, not a second boundary (CLAU
   over the three arms.
 - Scenario 056's checklist already carries the failing line, added during the walk:
   *"**"Say how it went" is absent on another organization's event.** Currently FAILS."*
+
+## Widened during planning, 2026-08-28
+
+**`app/(app)/youth/FollowUpPanel.tsx` has the same defect and this scope did not name it.**
+"Waiting on your follow-up" gates its "Say how it went" button on `canLog` alone, with no
+organization check of any kind.
+
+It is reachable: `activity_attendees` writes are `is_bishopric() or user_id = auth.uid()`, so any
+leader may add **themselves** to any organization's event. A Young Men president who signs up for a
+Young Women game gets that game in their waiting list with a button the API refuses — the same
+locked door, one component over.
+
+Fixing `EventList` alone would ship this defect a fourth time inside the change that exists to
+close it, so both call sites are in the plan. Confirmed with the user before planning.
+
+**Also settled during planning:** the gate is not one check. Creating a follow-up is migration
+057c's INSERT policy (organization); changing one is migration 058's UPDATE policy (author, no
+organization arm). Using the INSERT rule on an existing log would hide "Change what you wrote"
+from a leader who has since moved organizations but may still edit what they wrote — the mirror
+mistake.

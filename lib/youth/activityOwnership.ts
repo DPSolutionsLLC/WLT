@@ -87,6 +87,66 @@ export function canManageActivityLog(
   return log.loggedBy === user.id;
 }
 
+// WHO MAY FILE A FOLLOW-UP ON AN EVENT, mirroring migration 057c's `activity_logs_insert`
+// WITH CHECK clause:
+//
+//   with check (ward_id = current_ward_id()
+//               and logged_by = auth.uid()
+//               and (is_bishopric() or activity_event_is_in_caller_org(event_id)))
+//
+// THE `logged_by = auth.uid()` CLAUSE IS NOT REPRESENTED HERE AND MUST NOT BE. The caller is
+// always writing their OWN follow-up — `loggedBy` is never in a request body, the route reads it
+// from the session — so that clause is satisfied by construction. Restating it as a parameter
+// would invite somebody to pass another user's id and get a `true` back for a write the policy
+// would refuse.
+//
+// ---------------------------------------------------------------------------
+// THE NULL HANDLING HERE IS THE INVERSE OF canManageActivityProfile'S, DELIBERATELY
+// ---------------------------------------------------------------------------
+// This is the most important line in this file. There, a null `org_id` means NOBODY but the
+// author or the bishopric; here it means EVERYBODY. The two policies genuinely differ:
+// `youth_activity_profiles_update` compares `org_id = current_org_id()` directly, while
+// `activity_event_is_in_caller_org` resolves the event's profile through a LEFT JOIN carrying an
+// explicit `profile.org_id is null` arm:
+//
+//   left join youth_activity_profiles profile
+//     on profile.id = event.profile_id
+//    and profile.ward_id = event.ward_id
+//   where event.id = target_event_id
+//     and event.ward_id = current_ward_id()
+//     and (profile.org_id is null or profile.org_id = current_org_id())
+//
+// Two mirrors of two different policies are allowed to disagree. A reader assuming they agree is
+// the hazard, and "unifying" them would silently remove every ward-wide activity from the
+// follow-up flow — the ordinary case for this module, not an edge one.
+//
+// THERE IS NO `enteredBy` ARM. The profile's UPDATE policy has one; the log's INSERT policy does
+// not. Filing a follow-up is about the organization that owns the event, not about who typed the
+// activity in.
+//
+// WHY IT EXISTS: scenario 056 found "Say how it went" offered on another organization's event —
+// the third sighting of visits-d / youth-a-D1's shape, inside the module whose own plan quotes the
+// lesson. RLS refused the write and the route answered 403 with a sentence; the leader was still
+// invited through a locked door. ITER-021.
+export function canWriteFollowUpOn(
+  user: Pick<SessionUser, "role" | "orgId">,
+  profile: { orgId: string | null } | null,
+): boolean {
+  if (isBishopricRole(user.role)) return true;
+
+  // A LEFT JOIN that matched nothing yields a null org_id, and `profile.org_id is null` is the
+  // policy's own first arm — so an event with no profile, or one whose profile is not in the
+  // reader's list, is ward-wide and writable. Absent means ward-wide, module-wide.
+  if (profile === null) return true;
+  if (profile.orgId === null) return true;
+
+  // Only NOW does the null-equals-null trap apply: a reader with no organization cannot match an
+  // owned profile, and SQL's `null = current_org_id()` is NULL rather than true.
+  if (user.orgId === null) return false;
+
+  return user.orgId === profile.orgId;
+}
+
 // THERE IS DELIBERATELY NO canManageActivityEvent().
 //
 // `activity_events` keeps migration 019's ward-wide write policies and has no `org_id` of its own,
