@@ -3,7 +3,7 @@
 **Type:** Feature
 **Status:** Completed — the UNBLOCKED half. See **What shipped, and what did not** below.
 **Completed:** 2026-08-29
-**Commit:** 3a33109
+**Commit:** 5cb14a2
 **Plan:** plans/youth-e-overview-and-cross-navigation.md — the UNBLOCKED half only
 (the youth overview, the sort buttons, committing from the calendar, the youth detail). The
 event-detail view stays out, blocked by ITER-024.

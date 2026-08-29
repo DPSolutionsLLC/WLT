@@ -2,7 +2,7 @@
 id: youth-f-support-percentage-and-youth-cards
 type: feature
 iter: null
-commits: [3a33109]
+commits: [5cb14a2]
 date: 2026-08-29
 files:
   - lib/youth/profileNeed.ts

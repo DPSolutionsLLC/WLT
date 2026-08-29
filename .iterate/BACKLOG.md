@@ -246,7 +246,7 @@ _None._
 
 ## Completed
 
-- [x] ITER-020 — The youth module needs two views it does not have _(completed 2026-08-29, 3a33109 — the UNBLOCKED half; the **event-detail view stays with ITER-024 → ITER-027**, not built)_
+- [x] ITER-020 — The youth module needs two views it does not have _(completed 2026-08-29, 5cb14a2 — the UNBLOCKED half; the **event-detail view stays with ITER-024 → ITER-027**, not built)_
 - [x] ITER-021 — "Say how it went" is offered on another organization's event _(completed 2026-08-29, 17032a9)_
 - [x] ITER-022 — The follow-up form communicates by appearance alone _(completed 2026-08-29, 17032a9 — items 1 and 2; **item 3 moved to ITER-026**, not built)_
 - [x] ITER-023 — A third hand-maintained copy of the notification trigger keys _(completed 2026-08-28, b2b8aab)_
