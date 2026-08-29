@@ -2,7 +2,7 @@
 id: notification-trigger-drift
 type: bugfix
 iter: [ITER-023]
-commits: ["cc77eba"]
+commits: ["b2b8aab"]
 date: 2026-08-28
 files:
   - testing/infrastructure/seedUtils.ts
