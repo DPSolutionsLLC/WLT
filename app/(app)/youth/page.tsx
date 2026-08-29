@@ -1,25 +1,26 @@
 import Link from "next/link";
-import { ActivityProfileList } from "@/app/(app)/youth/ActivityProfileList";
-import { EventList } from "@/app/(app)/youth/EventList";
-import { FollowUpPanel } from "@/app/(app)/youth/FollowUpPanel";
-import { HomeVenuePanel } from "@/app/(app)/youth/HomeVenuePanel";
-import { ManualEventForm } from "@/app/(app)/youth/ManualEventForm";
-import { Card } from "@/components/ui/Card";
+import { YouthOverview } from "@/app/(app)/youth/YouthOverview";
 import { NotPermitted } from "@/components/ui/NotPermitted";
-import { displayName, listWardOrganizations, listWardUsers } from "@/lib/auth/adminUsers";
+import { displayName, listWardUsers } from "@/lib/auth/adminUsers";
 import { BISHOPRIC_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { readCrossOrgVisibility } from "@/lib/ward/crossOrgVisibility";
-import { readHomeVenues } from "@/lib/ward/homeVenues";
 import { listOwnLogsForEvents } from "@/lib/youth/activityLogs";
 import { listAttendeesForEvents } from "@/lib/youth/attendees";
 import { listActivityEvents, listActivityProfiles } from "@/lib/youth/queries";
 
 // Youth activity support, at /youth — where lib/auth/navigation.ts has linked
-// `youth_activities.view` holders since auth-a, and where nothing has existed until now. Four
-// roles have had a navigation item that 404s; this page is what makes that link honest. No change
-// to navigation.ts is needed, and adding one would be wrong.
+// `youth_activities.view` holders since auth-a. THE FRONT DOOR DID NOT MOVE, so navigation.ts is
+// unchanged and changing it would be wrong.
+//
+// ---------------------------------------------------------------------------
+// THE YOUNG PERSON, NOT THE SCHEDULE
+// ---------------------------------------------------------------------------
+// This page was four jobs on one screen — activity profiles, the venue panel, the follow-up
+// panel, the schedule and an add-event form — and none of them was organised around the unit the
+// whole module exists to serve. Managing the activities themselves moved to /youth/profiles,
+// which is where SPEC.md's component tree has said it belongs all along.
 //
 // ---------------------------------------------------------------------------
 // THIS IS NOT app/(youth)/ — AND THE TWO ARE UNRELATED
@@ -46,7 +47,12 @@ import { listActivityEvents, listActivityProfiles } from "@/lib/youth/queries";
 // belongs to its author and appears in no list, ever — it is fetched by FollowUpForm from its own
 // endpoint, one note at a time, and only ever the caller's own (CLAUDE.md rule 5).
 
-export default async function YouthActivitiesPage() {
+// searchParams is a Promise in Next 16, typed explicitly rather than with the generated PageProps
+// helper — that only exists after a build (plans/retros/foundation-a-scaffold.md). The pattern is
+// app/(app)/roster/page.tsx's.
+export type YouthPageProps = { searchParams: Promise<{ youth?: string }> };
+
+export default async function YouthActivitiesPage({ searchParams }: YouthPageProps) {
   const user = await requireSessionUser();
   const supabase = await createServerSupabaseClient();
   const roleAccess = await resolveRoleAccess(supabase, user.wardId);
@@ -58,30 +64,26 @@ export default async function YouthActivitiesPage() {
   }
 
   const canManage = can(user, "youth_activities.manage", roleAccess);
+  const canLog = can(user, "youth_activities.log", roleAccess);
   const isBishopric = (BISHOPRIC_ROLES as readonly string[]).includes(user.role);
 
   // The clock enters ONCE and is handed down, so every event in this render is judged against the
   // same instant rather than against a fresh Date per query.
   const asOf = new Date();
 
-  const canLog = can(user, "youth_activities.log", roleAccess);
+  const [profiles, events, pastEvents, crossOrgVisibility] = await Promise.all([
+    listActivityProfiles(user.wardId, supabase),
+    listActivityEvents(user.wardId, { asOf }, supabase),
+    // THE WIDENED LIST, for the follow-up panel AND for the pastoral ranking — "nobody has been
+    // to one of Ethan's games all season" is a question about games already played. It is a
+    // DIFFERENT cache entry from the upcoming-only one the expanded EventList opens on, and
+    // seeding them separately is what stops one view rendering the other's rows (visits-c).
+    listActivityEvents(user.wardId, { includePast: true, asOf }, supabase),
+    readCrossOrgVisibility(user.wardId, supabase),
+  ]);
 
-  const [profiles, events, pastEvents, organizations, homeVenues, crossOrgVisibility] =
-    await Promise.all([
-      listActivityProfiles(user.wardId, supabase),
-      listActivityEvents(user.wardId, { asOf }, supabase),
-      // THE WIDENED LIST, for the follow-up panel. A follow-up is only ever due on an event that
-      // has already happened, so the panel reads the `includePast` view — which is a DIFFERENT
-      // cache entry from the upcoming-only one EventList opens on, and seeding them separately is
-      // what stops one view rendering the other's rows (visits-c).
-      listActivityEvents(user.wardId, { includePast: true, asOf }, supabase),
-      listWardOrganizations(user.wardId, supabase),
-      readHomeVenues(user.wardId, supabase),
-      readCrossOrgVisibility(user.wardId, supabase),
-    ]);
-
-  // AFTER the events, because both need their ids — one query for the whole schedule rather than
-  // one per card (lib/youth/attendees.ts). An empty list short-circuits without a round trip.
+  // AFTER the events, because all three need their ids — one query for the whole schedule rather
+  // than one per card (lib/youth/attendees.ts). An empty list short-circuits without a round trip.
   //
   // The follow-up map is the CALLER'S OWN, over the PAST events: migration 057 lets a leader read
   // other people's follow-ups, and the panel is about what this reader still owes.
@@ -104,11 +106,6 @@ export default async function YouthActivitiesPage() {
     ),
   ]);
 
-  const organizationOptions = organizations.map((organization) => ({
-    id: organization.id,
-    label: organization.name,
-  }));
-
   // ONLY FOR THE BISHOPRIC, because only they can use the control it feeds. Everybody else gets
   // an empty list and no picker — absent rather than present-and-refusing.
   //
@@ -121,125 +118,73 @@ export default async function YouthActivitiesPage() {
         .map((wardUser) => ({ id: wardUser.id, label: displayName(wardUser) }))
     : [];
 
+  // RESOLVED HERE RATHER THAN WITH useSearchParams(), which would need a Suspense boundary around
+  // the whole overview. Resolving it against the fetched profiles also means an id naming no
+  // profile becomes `null` — a card that never opens is worse than no deep link at all.
+  //
+  // `?youth=` STILL NAMES A PROFILE, and it is resolved to the MEMBER who owns it. The parameter
+  // is unchanged on purpose: /youth/calendar builds it from `row.event.profileId`, which is the
+  // only id an event carries, and changing the contract would break a link that already works.
+  // What changed is on this side — a card is a young person now, and several profiles can open
+  // the same one.
+  const params = await searchParams;
+  const requestedProfileId = params.youth ?? null;
+  const initialExpandedMemberId =
+    requestedProfileId === null
+      ? null
+      : (profiles.find((profile) => profile.id === requestedProfileId)?.memberId ?? null);
+
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold text-foreground">Youth activities</h1>
         <p className="mt-1 text-sm text-muted">
-          The teams, choirs and clubs the ward&rsquo;s young people belong to, and what is coming
-          up. Everybody here sees every organization&rsquo;s activities; you can change your
-          own.
+          The ward&rsquo;s young people and what is happening in their lives outside church.
+          Everybody here sees every organization&rsquo;s activities; you can change your own.
         </p>
-        {/* IN THE HEADING RATHER THAN BESIDE "Import a schedule", because that link sits inside
-            the canManage branch and the calendar needs only `youth_activities.view`. A link
-            offered to somebody the page would refuse is the same defect as a form that fails on
-            submit, and so is one hidden from somebody it would admit.
+        {/* NOT ADDED TO lib/auth/navigation.ts, and checked rather than assumed: that file lists
+            neither /visits/all-organizations nor /visits/feed, so putting three youth items in
+            the sidebar would be a navigation decision this slice was not asked to take.
 
-            NOT ADDED TO lib/auth/navigation.ts. /visits/all-organizations is reached the same
-            way, and putting a second youth item in the sidebar for four roles is a navigation
-            decision this slice was not asked to take. */}
+            THE FEED IS LAST. It was the second link on this page and it is a place to read what
+            has already been written — a leader who has something to write finds it in the panel at
+            the top of this page, or on a young person's own card. */}
         <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-          <Link
-            href="/youth/calendar"
-            className="text-primary underline underline-offset-4"
-          >
+          <Link href="/youth/calendar" className="text-primary underline underline-offset-4">
             Open the ward activity calendar
           </Link>
-          {/* NOT ADDED TO lib/auth/navigation.ts, for the reason recorded above and checked
-              rather than assumed: that file does not list /visits/feed either, so a youth feed
-              item in the sidebar would be a navigation decision this slice was not asked to
-              take. */}
+          <Link href="/youth/profiles" className="text-primary underline underline-offset-4">
+            Activities and schedule
+          </Link>
           <Link href="/youth/feed" className="text-primary underline underline-offset-4">
             Read the follow-up feed
           </Link>
         </p>
       </div>
 
-      <ActivityProfileList
+      <YouthOverview
         initialProfiles={profiles}
-        user={user}
-        canManage={canManage}
-        organizations={organizationOptions}
-        // Only the bishopric is asked which organization. Everybody else has theirs stamped from
-        // the session by the route, so a control would be offering a decision that is not theirs.
-        canChooseOrganization={isBishopric}
-      />
-
-      {/* Both of these take `profiles` to SEED a shared client query rather than as a standing
-          answer. A Server Component prop never refetches, so passing derived lists straight into
-          them left the event form and the schedule stale after any activity change — that was
-          defect youth-a-D2. app/(app)/youth/youthQueries.ts owns the key they share. */}
-      {/* BISHOPRIC ONLY, and ABSENT for everybody else rather than present-and-refusing. The
-          route enforces the same rule again; this is the half that stops a leader being invited
-          through a locked door (youth-a-D1, visits-d). */}
-      {isBishopric ? <HomeVenuePanel initialVenues={homeVenues} /> : null}
-
-      {/* ABOVE the schedule, because it is the one thing on this page that is waiting on the
-          reader personally — everything below it is a list to browse. youth-c found a banner that
-          was correct and unfindable; the fix there was to NAME the events rather than count them,
-          and this panel is built that way from the start. */}
-      <FollowUpPanel
+        // The WIDENED seeds, [.., true] — read by the pastoral ranking and by FollowUpPanel.
+        initialAllEvents={pastEvents}
+        initialAllAttendees={Object.fromEntries(pastAttendeesByEvent)}
+        // The NARROW seeds, [.., false] — handed through to the EventList inside an expanded card.
+        // WHOLE rather than pre-filtered: the entry is shared with every other reader on the page.
+        initialUpcomingEvents={events}
+        initialUpcomingAttendees={Object.fromEntries(attendeesByEvent)}
         initialFollowUps={Object.fromEntries(ownLogsByEvent)}
-        initialPastEvents={pastEvents}
-        initialPastAttendees={Object.fromEntries(pastAttendeesByEvent)}
-        profiles={profiles}
+        initialExpandedMemberId={initialExpandedMemberId}
+        // The SAME instant every query above was judged against. Creating a second clock in the
+        // client would let a row be listed as upcoming and then rendered as past.
+        asOf={asOf.toISOString()}
         currentUserId={user.id}
         currentUserRole={user.role}
         currentUserOrgId={user.orgId}
-        // The SAME instant every query above was judged against.
-        asOf={asOf.toISOString()}
-        canLog={canLog}
-        crossOrgVisibility={crossOrgVisibility}
-      />
-
-      <EventList
-        initialEvents={events}
-        initialProfiles={profiles}
-        initialAttendees={Object.fromEntries(attendeesByEvent)}
-        // Empty by construction on first paint: the server rendered the UPCOMING view, where a
-        // follow-up is never due. It seeds the shared query so the widened view fills in from one
-        // fetch rather than from a prop that never refetches (youth-a-D2).
-        initialFollowUps={{}}
         canManage={canManage}
         canLog={canLog}
-        crossOrgVisibility={crossOrgVisibility}
-        // The SAME instant every query above was judged against. Creating a second clock here
-        // would let a row be listed as upcoming and then rendered as past.
-        asOf={asOf.toISOString()}
-        currentUserId={user.id}
-        currentUserRole={user.role}
-        currentUserOrgId={user.orgId}
         canAssign={isBishopric}
         assignableUsers={assignableUsers}
+        crossOrgVisibility={crossOrgVisibility}
       />
-
-      {canManage ? (
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-base font-semibold text-foreground">Add an event</h2>
-            {/* Inside the existing canManage branch, because importing writes events and
-                `youth_activities.manage` is what the route requires. A link offered to somebody
-                the API would refuse is the same defect as a form that fails on submit. */}
-            <Link
-              href="/youth/import"
-              className="text-sm text-primary underline underline-offset-4"
-            >
-              Import a schedule
-            </Link>
-          </div>
-          <ManualEventForm initialProfiles={profiles} />
-        </div>
-      ) : (
-        // ABSENT rather than present-and-refusing, with a sentence saying why. An org secretary
-        // holds `youth_activities.view` and `.log` but not `.manage`, and a form that fails on
-        // submit is worse than no form (ITER-007).
-        <Card>
-          <p className="text-sm text-muted">
-            You can read the ward&rsquo;s youth activities. Adding or changing one is done by an
-            organization presidency or the bishopric.
-          </p>
-        </Card>
-      )}
     </div>
   );
 }

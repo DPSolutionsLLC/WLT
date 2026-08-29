@@ -499,6 +499,70 @@ Flag these when they become relevant; do not silently pick a side.
   `updateActivityLog()` never assigns the column. **There are no triggers anywhere in this repo**;
   do not add the first one for this.
 
+- **Youth support is CONFIRMED attendance, HOME games only, over the whole profile — DECIDED
+  2026-08-29.** `/youth` shows one card per YOUNG PERSON with one pill per activity, and the pill's
+  percentage is the share of that activity's past home games where at least one leader actively
+  said "I went". Three narrowings, each with its own reason: an **away** game carries no coverage
+  expectation by design, so counting one manufactures alarm about a rule working correctly (it is
+  the same `isExpectedPast()` the pastoral half already applies, reused rather than restated);
+  being **down** for a game is a plan, not an attendance, and `confirmed_attendance` is
+  `boolean | null` where null means NOBODY HAS SAID EITHER WAY; and there is **no season boundary
+  in the schema** — `season_schedule` is free text, so the convention that a profile is created per
+  activity per season is what makes "played" mean "played on this profile".
+  **THE HORIZON IS EVERY PAST GAME PLUS THE NEXT ONE — not the whole season.** Decided 2026-08-29
+  on the user's instruction after walking scenario 057: the number is *the history of support plus
+  the plan of support for the next event*. Counting the whole remaining season would let an
+  imported fixture list drag every percentage down for a reason nobody did anything about;
+  counting only the past would make the number **unmovable**, since no action a leader could take
+  today would change it. The next event is therefore judged on whether anybody is **signed up**,
+  not on confirmed attendance — nobody can confirm a game not yet played — so this one metric asks
+  two different questions of the same column on purpose, and `describeActivitySupport()` names the
+  two halves in separate clauses rather than reporting one blended fraction.
+  **A NULL PERCENTAGE SORTS LAST IN BOTH DIRECTIONS**, and that is the deliberate OPPOSITE of the
+  sort it replaced: `nobody_all_season` sorted `lastAttendedOn: null` FIRST, because there null
+  meant "nobody has ever been" — a real signal. Here it means no home game has been played, which
+  is no data at all, and `VisitProgressTable.compareNullable()`'s rule applies instead. The two
+  rules look identical and are opposite; `tests/lib/youthProfileNeed.test.ts` asserts both
+  directions explicitly. It renders as an em dash, **never `0%`** — 0% would put the one person
+  nobody could possibly have supported at the top of "least supported", which is `visits-f` exactly.
+  **The number measures RECORDED support, not support**, which is why `POST /api/youth/logs` and
+  `PATCH /api/youth/logs/[id]` now CREATE the attendee row when an author answers "I went" —
+  **reversing youth-d**, whose "no attendee row, no such question to answer" was right until a
+  metric started counting the answer. Only on `true`: a row created to record an ABSENCE would put
+  somebody on the list the coverage badge counts. `assignedBy` stays **null** there — null means
+  they added themselves, and stamping it would be the `talks-d` hole a fourth time.
+  **A NULL IS NOW NARROWER THAN "NOTHING PLAYED":** an activity with a home game coming up has a
+  real percentage before its season starts, and a next game with nobody down for it is a genuine
+  **0%** that sorts first. Only "nothing played *and* nothing coming up" is the em dash.
+
+- **"Did you go?" STAYS ASKED OF EVERYBODY, as an interim — DECIDED 2026-08-29, with the real rule
+  written down.** Reviewing scenario 057 the user asked that this question have *specific triggers*
+  rather than being put to every leader: the app must not "bug leaders for every single event", and
+  the trigger they named is **a leader who had their own youth at the same event** — who should not
+  be asked to record supporting their own child, but could be reminded they might support another
+  youth who was there.
+  **That trigger is not computable today, for two separate reasons, and BOTH must be solved before
+  it can be built.** `users` and `members` are UNRELATED rows in this schema — there is no
+  `users.member_id` — so the app cannot know which member is a leader's own child; and an
+  `activity_events` row belongs to exactly ONE profile, so "another youth who was also there" has
+  no answer until ITER-024's occasion link exists.
+  Given that, the user chose to **leave the blanket ask in place** rather than revert to attendees
+  only, on the ground that it never appears unprompted: it renders only inside the follow-up form,
+  after a leader has deliberately pressed "Say how it went" on a past event. Reverting would have
+  made the attendee-row-creating path unreachable and put the metric back to reporting neglect that
+  did not happen. **This is an interim, not the destination.** When ITER-024 lands, revisit it —
+  and do not invent a half-trigger that guesses in the meantime.
+
+- **Closing out a season is ITER-028, and it REVERSES the "no season boundary" decision below.**
+  Raised by the user 2026-08-29: once a season ends its stats should stop showing on `/youth`,
+  while the history stays reachable — a link on the young person's card, and possibly a ward-wide
+  historical overview. The standing decision said to design a season model only once a ward was
+  found reusing one profile across years; that test has been superseded by a direct product
+  request, which is a better reason than the one it was waiting for. It needs schema (`closed_at`
+  on `youth_activity_profiles`, nullable so a mistake is reopenable), a read path that excludes
+  closed profiles without deleting them, and at least one new page. **Do not bolt it onto the
+  support percentage.**
+
 - **Phase 11 now inherits SIX clock-driven things, not five.** `youth_followup_prompt` joins
   `youth_event_uncovered`, the Monday away-digest, `visit_overdue`, `refresh_goal_status()` and ICS
   re-sync. It fires from the clock — "after an event passes" — and nothing in this project fires

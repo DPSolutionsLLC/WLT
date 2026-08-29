@@ -1,11 +1,8 @@
 import Link from "next/link";
-import {
-  ActivityCalendar,
-  type CalendarEvent,
-} from "@/app/(app)/youth/calendar/ActivityCalendar";
+import { ActivityCalendar } from "@/app/(app)/youth/calendar/ActivityCalendar";
 import { NotPermitted } from "@/components/ui/NotPermitted";
-import { listWardOrganizations } from "@/lib/auth/adminUsers";
-import { can, resolveRoleAccess } from "@/lib/auth/permissions";
+import { displayName, listWardOrganizations, listWardUsers } from "@/lib/auth/adminUsers";
+import { BISHOPRIC_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { listAttendeesForEvents } from "@/lib/youth/attendees";
@@ -27,13 +24,20 @@ import { listActivityEvents, listActivityProfiles } from "@/lib/youth/queries";
 // can() rather than assertCan(): a ForbiddenError escaping a Server Component becomes a 500 whose
 // message Next.js strips in production (plans/retros/auth-b-invites-admin.md).
 //
-// COVERAGE IS COMPUTED IN THE CLIENT, from props handed down here, against ONE `asOf` resolved
-// once on this line. The count strip and the badges beneath it therefore come from one
-// computation over one list — see ActivityCalendar's header on why the filters are client-side.
+// ---------------------------------------------------------------------------
+// THIS PAGE SEEDS THE SHARED CACHE. IT NO LONGER HANDS DOWN A FINISHED LIST.
+// ---------------------------------------------------------------------------
+// It used to build a merged `CalendarEvent[]` here and pass it as a plain prop. That was correct
+// while the page had no controls on it — and it became a bug the moment one was added, because a
+// Server Component prop never refetches: "I'll go" would succeed, invalidate two cache keys this
+// page did not read, and change nothing on screen (youth-a-D2, the defect youthQueries.ts exists
+// for).
 //
-// THIS PAGE DOES NOT IMPORT lib/youth/privateNotes OR ANYTHING THAT READS
-// `activity_private_notes` — no such module exists yet, and slice D must not make this page the
-// first. A private note belongs to its author and appears in no list, ever (CLAUDE.md rule 5).
+// So the three lists below SEED the same entries /youth seeds, and ActivityCalendar composes its
+// rows from them exactly as EventList does. The server still fetches, so first paint is right.
+//
+// THIS PAGE DOES NOT IMPORT lib/youth/privateNotes.ts, AND MUST NOT. A private note belongs to
+// its author and appears in no list, ever (CLAUDE.md rule 5).
 
 export default async function YouthCalendarPage() {
   const user = await requireSessionUser();
@@ -46,6 +50,8 @@ export default async function YouthCalendarPage() {
     );
   }
 
+  const isBishopric = (BISHOPRIC_ROLES as readonly string[]).includes(user.role);
+
   // The clock enters ONCE and is handed down, so every event on this page is judged against the
   // same instant rather than against a clock that moves down the list.
   const asOf = new Date();
@@ -53,7 +59,8 @@ export default async function YouthCalendarPage() {
   const [profiles, events, organizations] = await Promise.all([
     listActivityProfiles(user.wardId, supabase),
     // `includePast: false` — a calendar that opens on last season is a calendar nobody opens
-    // twice, the same rule /youth follows.
+    // twice, the same rule /youth follows. It is also what makes these the NARROW cache entries,
+    // [.., false], which is the pair the component reads.
     listActivityEvents(user.wardId, { includePast: false, asOf }, supabase),
     listWardOrganizations(user.wardId, supabase),
   ]);
@@ -64,40 +71,17 @@ export default async function YouthCalendarPage() {
     supabase,
   );
 
-  const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
-
-  const calendarEvents: CalendarEvent[] = events.map((event) => {
-    const profile = event.profileId === null ? undefined : profilesById.get(event.profileId);
-    const attendees = attendeesByEvent.get(event.id) ?? [];
-
-    return {
-      id: event.id,
-      title: event.title,
-      eventType: event.eventType,
-      eventDate: event.eventDate,
-      location: event.location,
-      allDay: event.allDay,
-      status: event.status,
-      profileId: event.profileId,
-      memberName: profile?.memberName ?? null,
-      activityName: profile?.activityName ?? null,
-      activityType: profile?.activityType ?? null,
-      // An event inherits its organization THROUGH ITS PROFILE — `activity_events` has no org_id
-      // and migration 054d says why: a second copy of the answer could disagree with the first.
-      orgId: profile?.orgId ?? null,
-      // ONLY THE NAMES cross to the client. Not user ids, not emails — this page shows no
-      // attendance controls, so it needs nothing to address a request with.
-      attendeeNames: attendees.map((attendee) => attendee.displayName),
-      attendeeCount: attendees.length,
-    };
-  });
-
-  const youthOptions = profiles.map((profile) => ({
-    id: profile.id,
-    // The youth AND the activity, because two young people on the same team would otherwise give
-    // two identical options — the same label ManualEventForm builds.
-    label: `${profile.memberName} — ${profile.activityName}`,
-  }));
+  // ONLY FOR THE BISHOPRIC, because only they can use the control it feeds — copied from /youth
+  // rather than re-derived. Everybody else gets an empty list and no picker: absent rather than
+  // present-and-refusing.
+  //
+  // Mapped down to { id, label } HERE, so the email and role listWardUsers returns never cross
+  // into a client component.
+  const assignableUsers = isBishopric
+    ? (await listWardUsers(user.wardId, supabase))
+        .filter((wardUser) => wardUser.isActive)
+        .map((wardUser) => ({ id: wardUser.id, label: displayName(wardUser) }))
+    : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -109,19 +93,23 @@ export default async function YouthCalendarPage() {
         </p>
         <p className="mt-2 text-sm">
           <Link href="/youth" className="text-primary underline underline-offset-4">
-            Back to youth activities
+            Back to the young people
           </Link>
         </p>
       </div>
 
       <ActivityCalendar
-        events={calendarEvents}
+        initialProfiles={profiles}
+        initialEvents={events}
+        initialAttendees={Object.fromEntries(attendeesByEvent)}
         organizations={organizations.map((organization) => ({
           id: organization.id,
           label: organization.name,
         }))}
-        youth={youthOptions}
         asOf={asOf.toISOString()}
+        currentUserId={user.id}
+        canAssign={isBishopric}
+        assignableUsers={assignableUsers}
       />
     </div>
   );

@@ -1,12 +1,26 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import {
+  YOUTH_ATTENDEES_QUERY_KEY,
+  YOUTH_EVENTS_QUERY_KEY,
+  YOUTH_PROFILES_QUERY_KEY,
+  fetchAttendees,
+  fetchEvents,
+  fetchProfiles,
+} from "@/app/(app)/youth/youthQueries";
 import { Card } from "@/components/ui/Card";
+import { FormError } from "@/components/ui/FormError";
 import { ActivityMonthGrid, type ActivityMonthGridDay } from "@/components/youth/ActivityMonthGrid";
+import { AttendeeControls } from "@/components/youth/AttendeeControls";
 import { COVERAGE_EDGE_CLASSES, CoverageBadge } from "@/components/youth/CoverageBadge";
 import type { DateOnly } from "@/lib/calendar/dates";
 import { monthOf } from "@/lib/calendar/dates";
+import type { ActivityAttendee } from "@/lib/youth/attendees";
 import { eventCoverage, summariseCoverage, type EventCoverage } from "@/lib/youth/coverage";
+import type { ActivityEvent, ActivityProfile } from "@/lib/youth/queries";
 import {
   ACTIVITY_TYPES,
   ACTIVITY_TYPE_LABELS,
@@ -18,6 +32,22 @@ import {
 } from "@/types/domain";
 
 // The ward's whole youth calendar, filtered.
+//
+// ---------------------------------------------------------------------------
+// IT COMPOSES ITS ROWS FROM THE SHARED CACHE, NOT FROM A SERVER-BUILT LIST
+// ---------------------------------------------------------------------------
+// `CalendarEvent` used to be an exported type the page built and handed down. It is now an
+// internal derived row: an ActivityEvent joined to its profile and its attendees in a useMemo,
+// exactly as EventList does it.
+//
+// THAT CHANGE IS WHAT MAKES THE ATTENDANCE CONTROLS WORK. AttendeeControls invalidates
+// YOUTH_ATTENDEES_QUERY_KEY and YOUTH_EVENTS_QUERY_KEY, and a Server Component prop never
+// refetches — so on the old shape "I'll go" would have succeeded, invalidated two keys this page
+// did not read, and changed nothing at all on screen. That is defect youth-a-D2, and it is the
+// single most likely bug in this area.
+//
+// The NARROW entries, [.., false], because this page shows upcoming events only. /youth reads the
+// widened pair. Every view is its own cache key (visits-c).
 //
 // ---------------------------------------------------------------------------
 // EVERY FILTER IS APPLIED CLIENT-SIDE OVER THE ONE FETCHED LIST
@@ -47,31 +77,38 @@ import {
 // day a rendered card belongs to. Those are two different questions and the ward's zone is the
 // answer to only the first.
 
-export type CalendarEvent = {
-  id: string;
-  title: string;
-  eventType: EventType;
-  eventDate: string;
-  location: string | null;
-  allDay: boolean;
-  status: "upcoming" | "cancelled";
-  profileId: string | null;
+// An ActivityEvent with its profile and its attendees resolved. Derived here rather than on the
+// server, so it moves when the cache does.
+type CalendarRow = {
+  event: ActivityEvent;
   memberName: string | null;
   activityName: string | null;
   activityType: ActivityType | null;
+  // An event inherits its organization THROUGH ITS PROFILE — `activity_events` has no org_id and
+  // migration 054d says why: a second copy of the answer could disagree with the first.
   orgId: string | null;
-  attendeeNames: string[];
-  attendeeCount: number;
+  attendees: ActivityAttendee[];
+  coverage: EventCoverage;
 };
 
 export type ActivityCalendarProps = {
-  events: CalendarEvent[];
+  // The three SHARED cache entries, seeded by the server so first paint is right. Not standing
+  // answers — see the header.
+  initialProfiles: ActivityProfile[];
+  initialEvents: ActivityEvent[];
+  initialAttendees: Record<string, ActivityAttendee[]>;
   organizations: { id: string; label: string }[];
-  youth: { id: string; label: string }[];
   // ONE INSTANT for the whole render, resolved on the server. An ISO string because a Date does
   // not survive the server-to-client boundary as itself.
   asOf: string;
+  currentUserId: string;
+  // Resolved ONCE on the server. AttendeeControls' header states the rule: a client component
+  // never re-derives a permission.
+  canAssign: boolean;
+  assignableUsers: { id: string; label: string }[];
 };
+
+const UPCOMING_ONLY = false;
 
 const SELECT_CLASSES =
   "min-h-11 rounded-md border border-border bg-surface-raised px-3 py-2 text-base " +
@@ -146,10 +183,14 @@ function dayKey(instant: string): DateOnly | null {
 }
 
 export function ActivityCalendar({
-  events,
+  initialProfiles,
+  initialEvents,
+  initialAttendees,
   organizations,
-  youth,
   asOf,
+  currentUserId,
+  canAssign,
+  assignableUsers,
 }: ActivityCalendarProps) {
   const asOfInstant = useMemo(() => new Date(asOf), [asOf]);
 
@@ -158,27 +199,85 @@ export function ActivityCalendar({
   const [activityType, setActivityType] = useState<ActivityType | "">(ANY);
   const [eventType, setEventType] = useState<EventType | "">(ANY);
 
-  const rows = useMemo(() => {
+  const profilesQuery = useQuery({
+    queryKey: [YOUTH_PROFILES_QUERY_KEY],
+    queryFn: fetchProfiles,
+    initialData: initialProfiles,
+  });
+
+  const eventsQuery = useQuery({
+    queryKey: [YOUTH_EVENTS_QUERY_KEY, UPCOMING_ONLY],
+    queryFn: () => fetchEvents(UPCOMING_ONLY),
+    initialData: initialEvents,
+  });
+
+  const attendeesQuery = useQuery({
+    queryKey: [YOUTH_ATTENDEES_QUERY_KEY, UPCOMING_ONLY],
+    queryFn: () => fetchAttendees(UPCOMING_ONLY),
+    initialData: initialAttendees,
+  });
+
+  // The `?? []` fallbacks live INSIDE each callback rather than above them. A `??` in a dependency
+  // list allocates a fresh empty array on every render, which would defeat the memo entirely.
+  const profilesById = useMemo(
+    () => new Map((profilesQuery.data ?? []).map((profile) => [profile.id, profile])),
+    [profilesQuery.data],
+  );
+
+  // The youth AND the activity, because two young people on the same team would otherwise give
+  // two identical options — the same label ManualEventForm builds. Built HERE now rather than on
+  // the server, from the same cache entry every other label on this page comes from, so a profile
+  // added while the page is open reaches the filter too.
+  const youthOptions = useMemo(
+    () =>
+      (profilesQuery.data ?? []).map((profile) => ({
+        id: profile.id,
+        label: `${profile.memberName} — ${profile.activityName}`,
+      })),
+    [profilesQuery.data],
+  );
+
+  const rows: CalendarRow[] = useMemo(() => {
+    const events = eventsQuery.data ?? [];
+    const attendeesByEvent = attendeesQuery.data ?? {};
+
     return events
-      .filter((event) => (profileId === ANY ? true : event.profileId === profileId))
-      .filter((event) => (orgId === ANY ? true : event.orgId === orgId))
-      .filter((event) =>
-        activityType === ANY ? true : event.activityType === activityType,
-      )
-      .filter((event) => (eventType === ANY ? true : event.eventType === eventType))
-      .map((event) => ({
-        event,
-        coverage: eventCoverage(
-          {
-            eventType: event.eventType,
-            eventDate: event.eventDate,
-            status: event.status,
-            attendeeCount: event.attendeeCount,
-          },
-          asOfInstant,
-        ),
-      }));
-  }, [events, profileId, orgId, activityType, eventType, asOfInstant]);
+      .map((event) => {
+        const profile = event.profileId === null ? undefined : profilesById.get(event.profileId);
+        const attendees = attendeesByEvent[event.id] ?? [];
+
+        return {
+          event,
+          memberName: profile?.memberName ?? null,
+          activityName: profile?.activityName ?? null,
+          activityType: profile?.activityType ?? null,
+          orgId: profile?.orgId ?? null,
+          attendees,
+          coverage: eventCoverage(
+            {
+              eventType: event.eventType,
+              eventDate: event.eventDate,
+              status: event.status,
+              attendeeCount: attendees.length,
+            },
+            asOfInstant,
+          ),
+        };
+      })
+      .filter((row) => (profileId === ANY ? true : row.event.profileId === profileId))
+      .filter((row) => (orgId === ANY ? true : row.orgId === orgId))
+      .filter((row) => (activityType === ANY ? true : row.activityType === activityType))
+      .filter((row) => (eventType === ANY ? true : row.event.eventType === eventType));
+  }, [
+    eventsQuery.data,
+    attendeesQuery.data,
+    profilesById,
+    profileId,
+    orgId,
+    activityType,
+    eventType,
+    asOfInstant,
+  ]);
 
   // Computed from the ROWS ON SCREEN, so the strip and the badges beneath it cannot disagree —
   // summariseCoverage lives in lib/youth/coverage.ts beside eventCoverage for exactly that reason
@@ -188,9 +287,24 @@ export function ActivityCalendar({
     [rows],
   );
 
+  // ---------------------------------------------------------------------------
+  // THERE IS NO SORT CONTROL ON THIS PAGE, AND THAT IS A DECISION.
+  // ---------------------------------------------------------------------------
+  // One shipped briefly, offering "Needs attention first" beside the four filters. It was removed
+  // on 2026-08-29 after the walk: a calendar has ONE order, and a reader who has just been handed
+  // a date grid does not then want the list beneath it in a different sequence. It also read as a
+  // fifth filter rather than as a different kind of control.
+  //
+  // The uncovered events are not lost with it — the banner above NAMES them, which is the thing a
+  // leader actually acts on and is why youth-c replaced a count with a sentence in the first
+  // place. Ranking the whole list to surface one or two events was solving a problem the banner
+  // had already solved.
+  //
+  // Rows stay in the fetch's date order, which is what the month grids are built from too.
+
   // NAMED, UP TO THREE. Beyond that the names stop being a list somebody reads and become a
-  // paragraph they skip, so the rest are counted instead. The events are already in date order,
-  // so the three named are the three soonest — which are the ones there is least time to fix.
+  // paragraph they skip, so the rest are counted instead. `rows` is in the fetch's date order, so
+  // the three named are the three soonest — the ones there is least time to fix.
   const uncoveredSentence = useMemo(() => {
     const uncovered = rows.filter((row) => row.coverage.state === "uncovered");
     if (uncovered.length === 0) return null;
@@ -199,7 +313,10 @@ export function ActivityCalendar({
     const rest = uncovered.length - named.length;
 
     const names = named
-      .map((row) => `${row.event.title}, ${formatShortWhen(row.event.eventDate, row.event.allDay)}`)
+      .map(
+        (row) =>
+          `${row.event.title}, ${formatShortWhen(row.event.eventDate, row.event.allDay)}`,
+      )
       .join("; ");
 
     const lead =
@@ -250,8 +367,18 @@ export function ActivityCalendar({
       }));
   }, [rows]);
 
+  const errorMessage = profilesQuery.isError
+    ? (profilesQuery.error as Error).message
+    : eventsQuery.isError
+      ? (eventsQuery.error as Error).message
+      : attendeesQuery.isError
+        ? (attendeesQuery.error as Error).message
+        : undefined;
+
   return (
     <div className="flex flex-col gap-4">
+      <FormError message={errorMessage} />
+
       {/* A SENTENCE, NOT A NUMBER IN A CHIP. The uncovered count is the reason this page exists,
           and "3" beside a coloured dot is something a leader skims past.
 
@@ -292,7 +419,7 @@ export function ActivityCalendar({
             onChange={(input) => setProfileId(input.target.value)}
           >
             <option value={ANY}>Everybody</option>
-            {youth.map((option) => (
+            {youthOptions.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.label}
               </option>
@@ -356,6 +483,7 @@ export function ActivityCalendar({
             ))}
           </select>
         </div>
+
       </div>
 
       <p className="text-sm text-muted">
@@ -382,9 +510,22 @@ export function ActivityCalendar({
         </Card>
       ) : (
         <ul className="flex flex-col gap-3">
-          {rows.map(({ event, coverage }) => (
-            <li key={event.id}>
-              <EventCard event={event} coverage={coverage} />
+          {rows.map((row) => (
+            <li key={row.event.id}>
+              <EventCard
+                row={row}
+                currentUserId={currentUserId}
+                canAssign={canAssign}
+                assignableUsers={assignableUsers}
+                // Only when the profile is actually in the list. The card already reads "An
+                // activity that is no longer listed" there, and a link to a card that will not
+                // open is worse than none.
+                youthHref={
+                  row.event.profileId !== null && row.memberName !== null
+                    ? `/youth?youth=${row.event.profileId}`
+                    : null
+                }
+              />
             </li>
           ))}
         </ul>
@@ -394,12 +535,20 @@ export function ActivityCalendar({
 }
 
 function EventCard({
-  event,
-  coverage,
+  row,
+  currentUserId,
+  canAssign,
+  assignableUsers,
+  youthHref,
 }: {
-  event: CalendarEvent;
-  coverage: EventCoverage;
+  row: CalendarRow;
+  currentUserId: string;
+  canAssign: boolean;
+  assignableUsers: { id: string; label: string }[];
+  youthHref: string | null;
 }) {
+  const { event, coverage, memberName, activityName, attendees } = row;
+
   // The same rule EventList follows: where the coverage badge already says a card is unclassified,
   // the type chip would be a second, vaguer copy of it. Kept when the badge is absent — a past or
   // cancelled event — because then the chip is the only thing carrying the fact.
@@ -426,25 +575,53 @@ function EventCard({
         {formatWhen(event.eventDate, event.allDay)}
       </p>
 
-      <p className="mt-1 text-sm text-muted">
-        {event.memberName === null || event.activityName === null
-          ? "An activity that is no longer listed"
-          : `${event.memberName} · ${event.activityName}`}
-      </p>
+      {/* THE YOUNG PERSON IS A LINK TO THEIR OWN CARD. The calendar answers "what is happening";
+          the overview answers "how is this person doing", and a leader reading one wants the
+          other. The card opens already expanded — /youth resolves ?youth= on the server against
+          the profiles it fetched, so an id naming nothing resolves to no expansion rather than to
+          a card that never opens. */}
+      {memberName === null || activityName === null ? (
+        <p className="mt-1 text-sm text-muted">An activity that is no longer listed</p>
+      ) : youthHref === null ? (
+        <p className="mt-1 text-sm text-muted">{`${memberName} · ${activityName}`}</p>
+      ) : (
+        <p className="mt-1 text-sm text-muted">
+          <Link href={youthHref} className="text-primary underline underline-offset-4">
+            {memberName}
+          </Link>
+          {` · ${activityName}`}
+        </p>
+      )}
 
       {event.location === null ? null : (
         <p className="text-sm text-muted">{event.location}</p>
       )}
 
-      {/* WHO IS GOING, WITHOUT THE CONTROLS. This page is the ward-wide overview; changing who is
-          going happens on /youth, where the event's own card carries the buttons. Showing a
-          control here would mean a second copy of two permission gates, which is exactly how
-          youth-a-D1 happened. */}
-      <p className="mt-1 text-sm text-muted">
-        {event.attendeeNames.length === 0
-          ? "Nobody is down for this yet."
-          : `Going: ${event.attendeeNames.join(", ")}`}
-      </p>
+      {/* ---------------------------------------------------------------
+          WHO IS GOING, WITH THE CONTROLS — AND THERE IS NO SECOND COPY OF ANY GATE
+          ---------------------------------------------------------------
+          This card used to render a read-only "Going:" line, with a comment saying that showing a
+          control here would mean a second copy of two permission gates and that this is exactly
+          how youth-a-D1 happened. The concern was right; what resolved it is that AttendeeControls
+          is ONE COMPONENT rendered by both screens, so there is no second copy to disagree.
+
+          The gates it carries: "I'll go" needs `youth_activities.view`, which everybody reading
+          this page holds, and the route writes the CALLER'S OWN id and can write no other. "Ask
+          someone to go" is bishopric-only, resolved once on the server and passed down as
+          `canAssign` — absent for everybody else rather than present-and-refusing.
+
+          It renders the "Going:" line itself, which is why that paragraph is gone rather than
+          duplicated above it.
+
+          This only works because the page composes its rows from the shared cache: the mutation
+          invalidates ATTENDEE_MUTATION_INVALIDATES, and both of those keys are read here. */}
+      <AttendeeControls
+        eventId={event.id}
+        attendees={attendees}
+        currentUserId={currentUserId}
+        canAssign={canAssign}
+        assignableUsers={assignableUsers}
+      />
     </Card>
   );
 }

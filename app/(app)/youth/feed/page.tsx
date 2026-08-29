@@ -87,17 +87,25 @@ export default async function YouthFeedPage() {
 
       {/* Tiles carry ONE LINE of the shared note, and this says where the rest is — honestly.
           There is no per-follow-up detail view in this slice, so this does NOT link to a page that
-          would not show the note. Your own follow-ups open in full from the schedule; somebody
-          else's whole note has no screen yet, and saying so is better than a link that disappoints.
+          would not show the note. Your own follow-ups open in full on the youth activities page;
+          somebody else's whole note has no screen yet, and saying so is better than a link that
+          disappoints.
+
+          THE WORDS CHANGED IN youth-e, THE HREF DID NOT. This used to say "from the schedule on
+          the youth activities page", and the schedule moved to /youth/profiles. But a follow-up is
+          not opened from the schedule any more — it is opened from the panel at the top of /youth,
+          or from a young person's own card there. So the sentence names those two places rather
+          than pointing at the page the schedule went to (youth-b and youth-c both shipped copy
+          defects a green suite could not see).
 
           The ward-council agenda that a flagged follow-up is meant to land on is Phase 9's. */}
       <p className="text-sm text-muted">
-        Notes are shortened to one line here. You can open and change your own follow-ups from the
-        schedule on the{" "}
+        Notes are shortened to one line here. Your own follow-ups open from{" "}
         <Link href="/youth" className="font-medium text-primary underline underline-offset-4">
-          youth activities page
+          Waiting on your follow-up
         </Link>
-        . There is no screen yet that shows somebody else&rsquo;s whole note.
+        , or from a young person&rsquo;s card on the same page. There is no screen yet that shows
+        somebody else&rsquo;s whole note.
       </p>
     </div>
   );

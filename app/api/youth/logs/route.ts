@@ -7,7 +7,7 @@ import { notifyOrgLeadership } from "@/lib/notifications/notifyOrgLeadership";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createActivityLogSchema, listActivityEventsQuerySchema } from "@/lib/validation/youth";
 import { createActivityLog, listOwnLogsForEvents } from "@/lib/youth/activityLogs";
-import { setConfirmedAttendance } from "@/lib/youth/attendees";
+import { addAttendee, setConfirmedAttendance } from "@/lib/youth/attendees";
 import { getActivityEvent, getActivityProfile, listActivityEvents } from "@/lib/youth/queries";
 
 // Filing a follow-up: what happened at a game that has already been played.
@@ -24,9 +24,12 @@ import { getActivityEvent, getActivityProfile, listActivityEvents } from "@/lib/
 // themselves down beforehand is exactly the person whose account is worth having, and refusing it
 // would be a workflow rule enforced in a route pretending to be a boundary (CLAUDE.md rule 2).
 //
-// What attendance decides is only whether the FORM shows the confirm-attendance control: no
-// attendee row, no such question to answer, and `attended` absent means the attendee row is left
-// exactly as it is.
+// THE FORM NOW ASKS "DID YOU GO?" WHETHER OR NOT THERE IS AN ATTENDEE ROW, which reverses
+// youth-d, and the POST below CREATES the row when the answer is "I went". youth-d hid the
+// question because with no row there was "no such question to answer"; the support percentage on
+// /youth counts confirmed attendance, so there is one now, and without this the app would report
+// neglect that did not happen. `attended` ABSENT still means the attendee row is left exactly as
+// it is — a distinction createActivityLogSchema draws on purpose.
 //
 // The real boundary is migration 057c's INSERT policy — `logged_by = auth.uid()` and the event
 // must be in the caller's organization (or they must be bishopric). Nothing below restates it.
@@ -166,6 +169,8 @@ export async function POST(request: Request) {
     // not worth failing the follow-up over: the account itself is the thing being recorded, and
     // the audit row below says whether the attendance write was even attempted.
     let attendanceRecorded: boolean | null = null;
+    let attendeeCreated = false;
+
     if (input.attended !== undefined) {
       attendanceRecorded = await setConfirmedAttendance(
         user.wardId,
@@ -174,6 +179,49 @@ export async function POST(request: Request) {
         input.attended,
         supabase,
       );
+
+      // ---------------------------------------------------------------------
+      // "I WENT" ON AN EVENT NOBODY SIGNED UP FOR CREATES THE ROW — youth-f
+      // ---------------------------------------------------------------------
+      // This REVERSES youth-d, and the reason is that the support percentage on /youth counts
+      // CONFIRMED attendance. Without this, a leader who turned up to Ethan's game without
+      // putting themselves down and wrote a warm follow-up about it left that game reading
+      // UNSUPPORTED — the app reporting neglect that did not happen, which is the one failure
+      // mode the whole metric has to be safe from.
+      //
+      // youth-d's reasoning was sound when it was written: with no attendee row there was "no
+      // such question to answer". There is one now. And this route's decision 5 already says the
+      // person who turned up unplanned is the one whose account is worth having.
+      //
+      // ONLY ON `true`. "I did not go" must NEVER create a row: it would put somebody on an
+      // attendee list in order to record that they were absent, and the coverage badge counts
+      // that list — so a leader saying they stayed home would make the game read as covered.
+      //
+      // `assignedBy: null` IS LOAD-BEARING, not a default. Null means THEY ADDED THEMSELVES,
+      // which is exactly what happened. Never stamp it with the session: youth-c records that
+      // reading the nullable `assigned_by` where `user_id` is meant is the talks-d hole, and this
+      // would be its fourth sighting.
+      //
+      // addAttendee() returns null on a unique violation, which is a benign race — two saves from
+      // a slow phone. Re-running setConfirmedAttendance() is what turns that into the right
+      // answer rather than a lie, and its result is the one reported.
+      if (input.attended === true && !attendanceRecorded) {
+        const added = await addAttendee(
+          user.wardId,
+          { eventId: event.id, userId: user.id, assignedBy: null },
+          supabase,
+        );
+
+        attendeeCreated = added !== null;
+
+        attendanceRecorded = await setConfirmedAttendance(
+          user.wardId,
+          event.id,
+          user.id,
+          true,
+          supabase,
+        );
+      }
     }
 
     await writeAuditLog(
@@ -195,6 +243,10 @@ export async function POST(request: Request) {
           changed: Object.keys(input),
           attended: input.attended ?? null,
           attendanceRecorded,
+          // WHETHER A ROW WAS CREATED, so the log distinguishes confirming an existing plan from
+          // joining and confirming in one step. Two different things happened and the audit
+          // trail is where the difference has to survive.
+          attendeeCreated,
         },
       },
       supabase,

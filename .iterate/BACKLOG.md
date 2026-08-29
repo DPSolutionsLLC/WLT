@@ -7,8 +7,6 @@ _Last updated: 2026-08-29_
 ## In Progress
 Items currently being planned or actively worked.
 
-_None._
-
 ---
 
 ## Grouped Work
@@ -71,21 +69,23 @@ Each of these is large or complex enough to tackle on its own.
   seen, not so a leader is measured. The "before" half fires from the clock, which would make
   **seven** clock-driven things deferred to Phase 11; computing it on read avoids an eighth._
 
-- [ ] ITER-020 — The youth module needs two views it does not have → [scope](.iterate/scopes/ITER-020.md)
-  _Raised by the user 2026-08-28 reviewing the `youth-d` walkthrough. Phase 8 shipped four slices
-  and the module's **front door is wrong**: the follow-up feed is a record, not a workspace, and
-  the user could not say what it was for. What they want instead is a calendar of events you can
-  commit yourself from, and **an overview by young person** ranked so that a youth with an event
-  nobody has signed up for floats to the top. **Most of the first view already exists and was never
-  shown during the walk** — `/youth/calendar` has the filters, the month grid, the coverage
-  ranking, and a strip naming the events nobody is going to. Two real gaps: you cannot attend from
-  the calendar (`AttendeeControls` is on `/youth` only, verified in the browser), and nothing lists
-  all youth by need. **No schema change expected** — both views are presentation over data that
-  already exists, so nothing built in slices A–D is wasted. Settled in conversation and not to be
-  re-litigated: "commit to make contact with that youth" needs no new state (one event → one
-  profile → one youth already), it is a copy change on the button; and the feed gets demoted, not
-  deleted. **Open:** which view is the landing page, and a second more pastoral signal the user's
-  sort does not capture — "which young person has quietly had nobody turn up all season"._
+- [ ] ITER-028 — Closing out a season, and the history that outlives it → [scope](.iterate/scopes/ITER-028.md)
+  _Raised by the user 2026-08-29 reviewing the scenario 057 walk: "we need to be able to close out a
+  season so the stats do not show anymore… it would still be very nice to be able to look at their
+  history." **`youth-f`'s support percentage never forgets** — a basketball season that finished in
+  February still ranks Ethan in October, and a ward two years in is ranking its youth on games
+  nobody remembers. Three separable pieces: a `closed_at` on `youth_activity_profiles` (nullable, so
+  a mistake is reopenable, and a **timestamp not a boolean** because the history page asks when);
+  `/youth` reading running profiles only; a "see their history" link per card. A ward-wide historical
+  overview is listed last and may be cut — nobody has said what question it answers yet.
+  **This REVERSES CLAUDE.md §9's "no season boundary is introduced"**, whose test was "wait until a
+  ward reuses a profile across years" — superseded by a direct request, which is a better reason
+  than the one it was waiting for. Record the reversal rather than quietly contradicting it.
+  **The one real design question** is whether a closed season's number is stored at close or
+  recomputed with `closed_at` as the clock; recomputing keeps "nothing in this project refreshes
+  anything" intact and is almost certainly right. **The trap:** a young person whose every season is
+  closed must not vanish from the ward or read as somebody with no activities.
+  **Blocks on nothing** — independent of ITER-024 → ITER-027._
 
 - [ ] ITER-017 — Token counts are redacted out of every AI audit row → [scope](.iterate/scopes/ITER-017.md)
   _Found 2026-08-24 walking scenario 027 for `ai-d`. Every AI route logs `outputTokens` so spend is
@@ -246,6 +246,7 @@ _None._
 
 ## Completed
 
+- [x] ITER-020 — The youth module needs two views it does not have _(completed 2026-08-29, 3a33109 — the UNBLOCKED half; the **event-detail view stays with ITER-024 → ITER-027**, not built)_
 - [x] ITER-021 — "Say how it went" is offered on another organization's event _(completed 2026-08-29, 17032a9)_
 - [x] ITER-022 — The follow-up form communicates by appearance alone _(completed 2026-08-29, 17032a9 — items 1 and 2; **item 3 moved to ITER-026**, not built)_
 - [x] ITER-023 — A third hand-maintained copy of the notification trigger keys _(completed 2026-08-28, b2b8aab)_

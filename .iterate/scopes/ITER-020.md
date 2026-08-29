@@ -1,8 +1,28 @@
 # ITER-020: The Youth Module Needs Two Views It Does Not Have
 
 **Type:** Feature
-**Status:** Backlog
-**Plan:** _none yet_
+**Status:** Completed — the UNBLOCKED half. See **What shipped, and what did not** below.
+**Completed:** 2026-08-29
+**Commit:** 3a33109
+**Plan:** plans/youth-e-overview-and-cross-navigation.md — the UNBLOCKED half only
+(the youth overview, the sort buttons, committing from the calendar, the youth detail). The
+event-detail view stays out, blocked by ITER-024.
+
+## What shipped, and what did not
+
+**Shipped:** the youth overview at `/youth` (one card per young person since `youth-f`), activity
+management moved to `/youth/profiles`, sign-up from `/youth/calendar` without leaving the month, a
+link per calendar card into the young person, and the `?youth=` deep link.
+
+**Not shipped, and it is not an oversight:** the **event-detail view listing every youth at that
+event**. An `activity_events` row belongs to exactly one profile, so the view's whole premise has no
+answer until **ITER-024**'s occasion link exists. It is tracked there and in **ITER-027**, whose own
+Sequencing section asks to be planned together with the view that reads the column. This scope is
+closed rather than left open indefinitely, following ITER-022's precedent of naming the part that
+moved elsewhere.
+
+**Superseded by `youth-f`:** the three need-rankings this scope asked for became two sorts plus a
+direction toggle, and a card became a young person rather than a young person and one activity.
 **Created:** 2026-08-28
 **Depends on:** Phase 8 slices A–D (all shipped 2026-08-28). No schema change is expected — see
 **Why this is cheap** below.

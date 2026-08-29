@@ -31,6 +31,12 @@
 //    rather than guessed (CLAUDE.md §8): `music_coordinator` holds none of the three youth keys,
 //    and `ward_council_member` holds all three.
 //
+// 6. "I WENT" FROM SOMEBODY WITH NO ATTENDEE ROW CREATES ONE, AND "I DID NOT GO" NEVER DOES.
+//    youth-f reverses youth-d here, because the support percentage on /youth counts confirmed
+//    attendance and the app was reporting neglect that did not happen. The refusal half is the
+//    part worth pinning: a row created to record an absence would put somebody on the list the
+//    coverage badge counts.
+//
 // See tests/helpers/routeClient.ts for why this needs no server and what exactly is mocked — only
 // the client factory, so every query below still runs as a genuinely authenticated user against
 // the hosted project and a pass means RLS allowed it.
@@ -408,6 +414,171 @@ describe("/api/youth/logs", () => {
 
       expect((upcoming.body.logs as Record<string, unknown>)[eqPastEventId]).toBeUndefined();
       expect((everything.body.logs as Record<string, unknown>)[eqPastEventId]).toBeDefined();
+    });
+  });
+
+
+  // ---------------------------------------------------------------------------
+  // "I WENT" FROM SOMEBODY WHO NEVER SIGNED UP CREATES THE ATTENDEE ROW — youth-f
+  // ---------------------------------------------------------------------------
+  // This is what makes the support percentage on /youth safe to build. Without it, a leader who
+  // turned up to a game without putting themselves down and wrote a warm follow-up about it left
+  // that game reading UNSUPPORTED — the app reporting neglect that did not happen.
+  //
+  // It REVERSES youth-d, which hid the question because with no row there was "no such question
+  // to answer". These four cases are the boundary of the reversal, and the second one is the
+  // reason it is a boundary rather than a rule: "I did not go" must NEVER create a row, because
+  // the coverage badge counts that list and a leader recording their absence would make the game
+  // read as covered.
+  describe("POST — attendance for somebody who never signed up", () => {
+    let unsignedEventId: string;
+    let refusedEventId: string;
+    let signedUpEventId: string;
+
+    const attendeeRowFor = async (eventId: string, userId: string) => {
+      const { data, error } = await fixtures.service
+        .from("activity_attendees")
+        .select("id, user_id, assigned_by, confirmed_attendance")
+        .eq("event_id", eventId)
+        .eq("user_id", userId);
+
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    };
+
+    beforeAll(async () => {
+      const { data: profile, error: profileError } = await fixtures.service
+        .from("youth_activity_profiles")
+        .select("id")
+        .eq("ward_id", fixtures.wardAId)
+        .eq("org_id", fixtures.eldersQuorumId)
+        .single();
+      if (profileError) throw new Error(profileError.message);
+
+      // THREE SEPARATE EVENTS, because `activity_logs` is unique on (event_id, logged_by) and a
+      // second follow-up is a 409 by design. Sharing one event between these cases would make
+      // them fail for a reason that has nothing to do with attendance.
+      const { data: events, error: eventError } = await fixtures.service
+        .from("activity_events")
+        .insert([
+          {
+            ward_id: fixtures.wardAId,
+            profile_id: profile.id,
+            title: `EQ unsigned ${fixtures.runId}`,
+            event_type: "home",
+            event_date: "2020-03-01T19:30:00-07:00",
+            status: "upcoming",
+          },
+          {
+            ward_id: fixtures.wardAId,
+            profile_id: profile.id,
+            title: `EQ refused ${fixtures.runId}`,
+            event_type: "home",
+            event_date: "2020-03-08T19:30:00-07:00",
+            status: "upcoming",
+          },
+          {
+            ward_id: fixtures.wardAId,
+            profile_id: profile.id,
+            title: `EQ signed up ${fixtures.runId}`,
+            event_type: "home",
+            event_date: "2020-03-15T19:30:00-07:00",
+            status: "upcoming",
+          },
+        ])
+        .select("id, title");
+      if (eventError) throw new Error(eventError.message);
+
+      unsignedEventId = events.find((row) => row.title.startsWith("EQ unsigned"))!.id;
+      refusedEventId = events.find((row) => row.title.startsWith("EQ refused"))!.id;
+      signedUpEventId = events.find((row) => row.title.startsWith("EQ signed up"))!.id;
+
+      // The third case's author IS already down for the game, so the route has a row to update
+      // rather than create — and must not end up with two.
+      const { error: attendeeError } = await fixtures.service
+        .from("activity_attendees")
+        .insert({
+          ward_id: fixtures.wardAId,
+          event_id: signedUpEventId,
+          user_id: fixtures.user("eqPresident").id,
+          assigned_by: null,
+          confirmed_attendance: null,
+        });
+      if (attendeeError) throw new Error(attendeeError.message);
+    }, 60_000);
+
+    it("creates the attendee row when the author says they went", async () => {
+      await actAs(fixtures, "eqSecretary");
+
+      const { status } = await createLog({
+        eventId: unsignedEventId,
+        sharedNotes: "I turned up without putting myself down, and I am saying so.",
+        attended: true,
+      });
+
+      expect(status).toBe(201);
+
+      const rows = await attendeeRowFor(unsignedEventId, fixtures.user("eqSecretary").id);
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.confirmed_attendance).toBe(true);
+      // NULL MEANS THEY ADDED THEMSELVES, which is exactly what happened. Stamping `assigned_by`
+      // with the session would read as somebody having asked them — and comparing the nullable
+      // `assigned_by` where `user_id` is meant is the talks-d hole, third sighting (youth-c).
+      expect(rows[0]?.assigned_by).toBeNull();
+    });
+
+    // THE BOUNDARY. A row created to record an ABSENCE would put somebody on the attendee list
+    // the coverage badge counts, so a leader saying they stayed home would make the game read as
+    // covered by them.
+    it("creates NOTHING when the author says they did not go", async () => {
+      await actAs(fixtures, "eqPresident");
+
+      const { status } = await createLog({
+        eventId: refusedEventId,
+        sharedNotes: "I could not make this one.",
+        attended: false,
+      });
+
+      expect(status).toBe(201);
+      expect(await attendeeRowFor(refusedEventId, fixtures.user("eqPresident").id)).toHaveLength(
+        0,
+      );
+    });
+
+    it("updates in place, and does not add a second row, when the author is already down", async () => {
+      await actAs(fixtures, "eqPresident");
+
+      const { status } = await createLog({
+        eventId: signedUpEventId,
+        sharedNotes: "I said I would go, and I did.",
+        attended: true,
+      });
+
+      expect(status).toBe(201);
+
+      const rows = await attendeeRowFor(signedUpEventId, fixtures.user("eqPresident").id);
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.confirmed_attendance).toBe(true);
+    });
+
+    // `attended` ABSENT still creates nothing, even now that an answer would. The reversal is
+    // about an ANSWER, not about filing a follow-up — a leader who says nothing about whether
+    // they went has not joined the attendee list, and the sibling case above proves the same
+    // absence leaves an EXISTING row alone.
+    it("creates nothing when `attended` is absent", async () => {
+      await actAs(fixtures, "eqSecretary");
+
+      const { status } = await createLog({
+        eventId: refusedEventId,
+        sharedNotes: "Said nothing about whether I went.",
+      });
+
+      expect(status).toBe(201);
+      expect(
+        await attendeeRowFor(refusedEventId, fixtures.user("eqSecretary").id),
+      ).toHaveLength(0);
     });
   });
 

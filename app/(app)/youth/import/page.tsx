@@ -42,11 +42,14 @@ export default async function YouthCalendarImportPage() {
         <p className="mt-1 text-sm text-muted">
           Two steps — choose the activity and the file, then check the preview and confirm.
         </p>
+        {/* /youth/profiles, NOT /youth. This link means "back to where the schedule is", and the
+            schedule moved there in youth-e — /youth is now the young people themselves, which is
+            not where somebody who has just imported a file wants to land. */}
         <Link
-          href="/youth"
+          href="/youth/profiles"
           className="mt-2 inline-block text-sm text-primary underline underline-offset-4"
         >
-          Back to youth activities
+          Back to the activities and schedule
         </Link>
       </div>
 

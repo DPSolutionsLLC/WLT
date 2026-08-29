@@ -83,6 +83,17 @@ export type EventListProps = {
   // never re-derives a permission.
   canAssign: boolean;
   assignableUsers: { id: string; label: string }[];
+  // When set, only these profiles' events are RENDERED. A LIST where youth-e had a single id:
+  // one card on /youth is now one YOUNG PERSON, who may be in several activities at once —
+  // `youth_activity_profiles` holds one row per (member, activity) with no uniqueness on the
+  // member.
+  //
+  // The three cache entries this component seeds and reads stay WHOLE: `initialEvents` is a seed
+  // shared with FollowUpPanel and YouthOverview, and seeding it PRE-FILTERED would poison that
+  // entry for every other reader on the page. Filter on the way OUT, never on the way in.
+  profileIds?: readonly string[];
+  // "Schedule" on /youth/profiles; the young person's name inside an expanded overview card.
+  heading?: string;
 };
 
 const CHIP_CLASSES =
@@ -174,6 +185,8 @@ export function EventList({
   currentUserOrgId,
   canAssign,
   assignableUsers,
+  profileIds,
+  heading,
 }: EventListProps) {
   const queryClient = useQueryClient();
 
@@ -274,7 +287,19 @@ export function EventList({
     });
   }
 
-  const events = eventsQuery.data ?? [];
+  // FILTERED ON THE WAY OUT. The query above still holds — and still seeds — the WHOLE ward's
+  // list, which is the entry FollowUpPanel and YouthOverview read from the same keys. Narrowing
+  // the seed instead would leave those two rendering one young person's events and calling it the
+  // ward's.
+  //
+  // `eventCount()` reads `events.length`, so the heading's number follows this filter
+  // automatically. That is the property to preserve rather than a convenience: a count beside a
+  // list that answers a different question is the ITER-022 defect.
+  const events = (eventsQuery.data ?? []).filter(
+    (event) =>
+      profileIds === undefined ||
+      (event.profileId !== null && profileIds.includes(event.profileId)),
+  );
   const attendeesByEvent = attendeesQuery.data ?? {};
   const followUpsByEvent = followUpsQuery.data ?? {};
 
@@ -282,7 +307,7 @@ export function EventList({
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-base font-semibold text-foreground">
-          Schedule ({eventCount(events.length, includePast)})
+          {heading ?? "Schedule"} ({eventCount(events.length, includePast)})
         </h2>
         <Button variant="secondary" onClick={() => setIncludePast((current) => !current)}>
           {includePast ? "Upcoming only" : "Show past events"}
@@ -304,10 +329,25 @@ export function EventList({
 
       {events.length === 0 ? (
         <Card>
+          {/* FOUR SENTENCES, BECAUSE THE FILTER CHANGES WHAT IS TRUE. "No events have been
+              entered for any activity yet" is false inside a card for one young person who has
+              none, and "add one below" is false on a page with no form beneath it. A label can be
+              correct in one place and nonsense in another, and no type can tell the difference
+              (youth-c).
+
+              THE FILTERED PAIR SAYS "YOUNG PERSON", NOT "ACTIVITY", and that changed with the
+              prop. `profileIds` is set by exactly one caller — an expanded card on /youth, which
+              is now a PERSON and may cover several activities at once. "No events for this
+              activity" inside Ethan's card was true of neither one activity nor all of them
+              (Task 7's copy pass). */}
           <p className="text-sm text-muted">
-            {includePast
-              ? "No events have been entered for any activity yet."
-              : "Nothing coming up. Add a game or a concert below, or show past events."}
+            {profileIds === undefined
+              ? includePast
+                ? "No events have been entered for any activity yet."
+                : "Nothing coming up. Add a game or a concert below, or show past events."
+              : includePast
+                ? "No events have been entered for this young person yet."
+                : "Nothing coming up for this young person. Show past events, or add one from the activities page."}
           </p>
         </Card>
       ) : (

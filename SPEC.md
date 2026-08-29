@@ -1396,10 +1396,31 @@ PATCH  /api/admin/ward-settings  Update ward settings (with bishopric notificati
                                visits.view AND (bishopric OR cross-org visibility) — the link on
                                /visits is ABSENT rather than present-and-refusing (ITER-007).
   /youth/
-    /page.tsx                  Youth activity dashboard
-    /profiles/page.tsx         Activity profiles
-    /calendar/page.tsx         Activity calendar
-    /events/[id]/page.tsx      Event detail
+    /page.tsx                  Youth overview — ONE CARD PER YOUNG PERSON, searchable, with one
+                               pill per activity carrying that activity's SUPPORT PERCENTAGE:
+                               confirmed attendance over past HOME games that were not cancelled,
+                               PLUS the next such game counted on whether anybody is signed up for
+                               it — the history of support plus the plan for the next event, never
+                               the whole remaining season. Two sorts — `priority` (the young
+                               person's LOWEST activity percentage) and `name` — each with a
+                               direction toggle. A young person with no home games played has a
+                               NULL percentage: it renders as an em dash, never 0%, and sorts LAST
+                               in BOTH directions. Each card expands in place to that person's
+                               events across every activity. Carries the "Waiting on your
+                               follow-up" panel. `?youth=<profileId>` still names a PROFILE and
+                               opens the card of the young person who owns it; an id naming no
+                               profile resolves to no expansion.
+    /profiles/page.tsx         Activities and schedule — activity profiles, the home-venue panel
+                               (bishopric), the whole ward's schedule, and the add-event form
+    /calendar/page.tsx         Activity calendar — ward-wide, filtered and sorted client-side,
+                               with attendance controls and a link per card to /youth
+    /feed/page.tsx             Follow-up feed (reuses components/visits/ReportFeed)
+    /import/page.tsx           ICS schedule import
+    /events/[id]/page.tsx      Event detail — NOT BUILT. Blocked by ITER-024: an `activity_events`
+                               row belongs to exactly one profile, so "every youth tied to this
+                               event" has no answer yet. ITER-024 is decided (an explicit stored
+                               occasion link) and its Sequencing section asks for the column and
+                               this view to be planned together.
   /tithing/page.tsx            Tithing calculator — lives under app/(tithing)/, NOT app/(app)/.
                                Its header and tab bar are sticky at the top of the viewport, which
                                cannot be true beneath the app sidebar and TopNav. Its components

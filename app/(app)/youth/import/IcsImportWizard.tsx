@@ -238,8 +238,10 @@ export function IcsImportWizard({ initialProfiles }: IcsImportWizardProps) {
               by this import
             </li>
           </ul>
+          {/* /youth/profiles, NOT /youth. It means "go and look at what you just imported", and
+              the schedule moved there in youth-e. */}
           <Link
-            href="/youth"
+            href="/youth/profiles"
             className="mt-4 inline-block text-sm text-primary underline underline-offset-4"
           >
             Go to the schedule

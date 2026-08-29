@@ -53,7 +53,8 @@ export type FollowUpFormProps = {
   eventTitle: string;
   // The reader's OWN follow-up, when they have already written one. Null means this form creates.
   existingLog: ActivityLog | null;
-  // Whether the reader has an attendee row on this event. NO ROW, NO QUESTION — see below.
+  // Whether the reader has an attendee row on this event. The question is asked EITHER WAY now
+  // (youth-f); this decides only what the sentence beneath it says will happen when they answer.
   isAttendee: boolean;
   // From the reader's own attendee row. Null means they have never said either way.
   confirmedAttendance: boolean | null;
@@ -158,11 +159,16 @@ export function FollowUpForm({
     mutationFn: async () => {
       const trimmedShared = sharedNotes.trim();
 
-      // `attended` is sent ONLY when the reader was actually asked. Absent means "leave the
+      // `attended` is sent ONLY when the reader actually answered. Absent means "leave the
       // attendee row exactly as it is", which is the distinction createActivityLogSchema draws on
-      // purpose — a default would make "the control was never shown" and "they answered no" the
-      // same value, and the second is a fact somebody stated.
-      const attendedField = isAttendee && attended !== null ? { attended } : {};
+      // purpose — a default would make "they were never asked" and "they answered no" the same
+      // value, and the second is a fact somebody stated.
+      //
+      // `isAttendee` IS NO LONGER PART OF THIS CONDITION (youth-f). The question is asked of
+      // everybody, and a "I went" from somebody with no attendee row is exactly the answer the
+      // route creates a row for — dropping it here would leave the form asking a question whose
+      // answer went nowhere.
+      const attendedField = attended !== null ? { attended } : {};
 
       if (existingLog === null) {
         const response = await fetch("/api/youth/logs", {
@@ -234,59 +240,72 @@ export function FollowUpForm({
       </h3>
 
       {/* ---------------------------------------------------------------
-          1. DID YOU GO? — RENDERED ONLY IF THE READER HAS AN ATTENDEE ROW
+          1. DID YOU GO? — ASKED OF EVERYBODY, ATTENDEE ROW OR NOT
           ---------------------------------------------------------------
-          No row, no question. Somebody who never said they were going has nothing to confirm or
-          deny, and asking would invite an answer that writes to a row the app would then have to
-          create — which is a different action from filing a follow-up.
+          THIS REVERSES youth-d, WHICH ASKED ONLY ATTENDEES. Its reasoning was sound at the time:
+          with no attendee row there was "no such question to answer", and answering would write
+          to a row the app would then have to create — a different action from filing a follow-up.
 
-          They may still write the follow-up itself: any `youth_activities.log` holder may, and a
-          leader who turned up without putting themselves down beforehand is exactly the person
-          whose account is worth having (app/api/youth/logs/route.ts argues it). */}
-      {isAttendee ? (
-        <fieldset className="flex flex-col gap-2">
-          <legend className="text-sm font-medium text-foreground">Did you go?</legend>
-          {/* aria-pressed ON BOTH BUTTONS IN EVERY STATE. Without it a screen reader hears two
-              identically named buttons and cannot tell which answer is stored — the fill of
-              the primary variant is the only thing saying so, and it says nothing out loud.
-              The attribute on ONE button and not the other would be worse than neither: the
-              reader is told about one answer and left to infer the other. This is the pattern
-              VisitLogForm uses for the identical question, and MemberPicker, RosterViewToggle,
-              CrossOrgVisibilityToggle and ReportTile all use. ITER-022. */}
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant={attended === true ? "primary" : "secondary"}
-              aria-pressed={attended === true}
-              disabled={isBusy}
-              onClick={() => setAttended(true)}
-            >
-              I went
-            </Button>
-            <Button
-              variant={attended === false ? "primary" : "secondary"}
-              aria-pressed={attended === false}
-              disabled={isBusy}
-              onClick={() => setAttended(false)}
-            >
-              I did not go
-            </Button>
-          </div>
-          {/* ALWAYS RENDERED, naming the stored answer in words. The fill-versus-outline
-              difference between the two button variants is otherwise the only signal that an
-              answer is stored at all, and CoverageBadge, ReportTile and VisitProgressTable each
-              state in this codebase that colour is never the only signal. youth-c found that a
-              badge is a weaker pointer than a sentence; this is the sentence. No tick glyph —
-              youth-c defect 1 is the precedent, where a marker carried less than naming the
-              thing did. */}
-          <p className="text-xs text-muted">
-            {attended === null
+          The support percentage on /youth changed that. It counts CONFIRMED attendance, so a
+          leader who turned up to Ethan's game without putting themselves down and wrote a warm
+          account of it left that game reading UNSUPPORTED — the app reporting neglect that did
+          not happen, which is the one thing the metric cannot be allowed to do. Creating the row
+          IS now part of filing the follow-up, and the route does it (youth-f, Task 5).
+
+          It also finishes a sentence app/api/youth/logs/route.ts was already making: any
+          `youth_activities.log` holder may write a follow-up "precisely because the person who
+          turned up unplanned is the one whose account is worth having". Asking everybody whether
+          they went is the same thought applied to the same person. */}
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-sm font-medium text-foreground">Did you go?</legend>
+        {/* aria-pressed ON BOTH BUTTONS IN EVERY STATE. Without it a screen reader hears two
+            identically named buttons and cannot tell which answer is stored — the fill of
+            the primary variant is the only thing saying so, and it says nothing out loud.
+            The attribute on ONE button and not the other would be worse than neither: the
+            reader is told about one answer and left to infer the other. This is the pattern
+            VisitLogForm uses for the identical question, and MemberPicker, RosterViewToggle,
+            CrossOrgVisibilityToggle and ReportTile all use. ITER-022. */}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant={attended === true ? "primary" : "secondary"}
+            aria-pressed={attended === true}
+            disabled={isBusy}
+            onClick={() => setAttended(true)}
+          >
+            I went
+          </Button>
+          <Button
+            variant={attended === false ? "primary" : "secondary"}
+            aria-pressed={attended === false}
+            disabled={isBusy}
+            onClick={() => setAttended(false)}
+          >
+            I did not go
+          </Button>
+        </div>
+        {/* ALWAYS RENDERED, naming the stored answer in words. The fill-versus-outline
+            difference between the two button variants is otherwise the only signal that an
+            answer is stored at all, and CoverageBadge, ReportTile and VisitProgressTable each
+            state in this codebase that colour is never the only signal. youth-c found that a
+            badge is a weaker pointer than a sentence; this is the sentence. No tick glyph —
+            youth-c defect 1 is the precedent, where a marker carried less than naming the
+            thing did.
+
+            THE UNANSWERED SENTENCE DEPENDS ON WHETHER THERE IS A ROW TO UPDATE, because
+            answering does two different things. A leader already down for the game is CHANGING
+            an answer; one who is not is ADDING THEMSELVES to who went, and a control that
+            quietly creates a record ought to say so before it is tapped rather than after
+            (youth-f). */}
+        <p className="text-xs text-muted">
+          {attended === null
+            ? isAttendee
               ? "You have not said either way. Leaving it is fine — the follow-up saves without it."
-              : attended
-                ? "Recorded: you went."
-                : "Recorded: you did not go."}
-          </p>
-        </fieldset>
-      ) : null}
+              : "You are not down for this one. Saying you went adds you to who was there. Leaving it is fine — the follow-up saves without it."
+            : attended
+              ? "Recorded: you went."
+              : "Recorded: you did not go."}
+        </p>
+      </fieldset>
 
       {/* 2. THE SHARED NOTE, labelled with WHO CAN READ IT. */}
       <div className="flex flex-col gap-1.5">

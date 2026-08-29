@@ -86,15 +86,39 @@ describe("FollowUpForm — did you go?", () => {
     expect(screen.getByText("Recorded: you did not go.")).toBeInTheDocument();
   });
 
-  // NO ROW, NO QUESTION — the rule that predates this change and has to survive it. Somebody who
-  // never said they were going has nothing to confirm or deny, and they may still write the
-  // follow-up itself.
-  it("does not ask at all when the reader has no attendee row", () => {
+  // ---------------------------------------------------------------------------
+  // THE QUESTION IS ASKED OF EVERYBODY — youth-f REVERSES youth-d, ON PURPOSE
+  // ---------------------------------------------------------------------------
+  // youth-d hid this control from anybody with no attendee row: "no row, no question". The
+  // support percentage on /youth counts CONFIRMED attendance, so a leader who turned up without
+  // signing up and wrote a warm follow-up left the game reading UNSUPPORTED — the app reporting
+  // neglect that did not happen. Answering now CREATES the row (app/api/youth/logs/route.ts).
+  //
+  // These two cases are written as the INVERSION of the one they replace rather than as a fresh
+  // pair, so the reversal reads as a decision rather than as drift.
+  it("asks even when the reader has no attendee row", () => {
     renderForm({ isAttendee: false, confirmedAttendance: null });
 
-    expect(screen.queryByRole("button", { name: "I went" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "I did not go" })).toBeNull();
-    expect(screen.queryByText("Did you go?")).toBeNull();
-    expect(screen.queryByText(/You have not said either way/)).toBeNull();
+    expect(wentButton()).toHaveAttribute("aria-pressed", "false");
+    expect(didNotGoButton()).toHaveAttribute("aria-pressed", "false");
+  });
+
+  // A CONTROL THAT QUIETLY CREATES A RECORD SAYS SO BEFORE IT IS TAPPED. The two unanswered
+  // sentences differ because answering does two different things — changing an answer, versus
+  // adding yourself to who was there.
+  it("says that answering will add them, when they are not down for the event", () => {
+    renderForm({ isAttendee: false, confirmedAttendance: null });
+
+    expect(
+      screen.getByText(/Saying you went adds you to who was there/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^You have not said either way/)).toBeNull();
+  });
+
+  it("says only that nothing is stored, when they ARE down for the event", () => {
+    renderForm({ isAttendee: true, confirmedAttendance: null });
+
+    expect(screen.getByText(/^You have not said either way/)).toBeInTheDocument();
+    expect(screen.queryByText(/adds you to who was there/)).toBeNull();
   });
 });

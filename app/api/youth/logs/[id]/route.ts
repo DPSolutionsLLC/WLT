@@ -7,7 +7,7 @@ import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { updateActivityLogSchema } from "@/lib/validation/youth";
 import { getActivityLogWithContext, updateActivityLog } from "@/lib/youth/activityLogs";
-import { setConfirmedAttendance } from "@/lib/youth/attendees";
+import { addAttendee, setConfirmedAttendance } from "@/lib/youth/attendees";
 import { notifyYouthWardCouncilFlag } from "@/lib/youth/flagNotification";
 
 // Editing a follow-up: the shared note, whether the author went, and the ward-council flag.
@@ -95,6 +95,8 @@ export async function PATCH(
     // decides whether this caller may write it — a bishopric member may, and nobody else may write
     // somebody else's.
     let attendanceRecorded: boolean | null = null;
+    let attendeeCreated = false;
+
     if (input.attended !== undefined) {
       attendanceRecorded = await setConfirmedAttendance(
         user.wardId,
@@ -103,6 +105,39 @@ export async function PATCH(
         input.attended,
         supabase,
       );
+
+      // ---------------------------------------------------------------------
+      // "I WENT" ON AN EVENT NOBODY SIGNED UP FOR CREATES THE ROW — youth-f
+      // ---------------------------------------------------------------------
+      // The same reversal POST /api/youth/logs makes, and its header argues it in full: the
+      // support percentage on /youth counts CONFIRMED attendance, so a leader who turned up
+      // without putting themselves down left the game reading unsupported. Both halves of the
+      // form save through this route, so a guarantee held in only one of them would depend on
+      // whether the leader had written the follow-up before or after.
+      //
+      // `log.loggedBy` RATHER THAN THE SESSION, exactly as the update above uses it: the
+      // attendance belongs to the follow-up's AUTHOR, and migration 056c decides whether this
+      // caller may write it — a bishopric member may, and nobody else may write somebody else's.
+      //
+      // ONLY ON `true`, and `assignedBy: null` because they added themselves. A row created to
+      // record an absence would make the coverage badge count somebody who stayed home.
+      if (input.attended === true && !attendanceRecorded) {
+        const added = await addAttendee(
+          user.wardId,
+          { eventId: log.eventId, userId: log.loggedBy, assignedBy: null },
+          supabase,
+        );
+
+        attendeeCreated = added !== null;
+
+        attendanceRecorded = await setConfirmedAttendance(
+          user.wardId,
+          log.eventId,
+          log.loggedBy,
+          true,
+          supabase,
+        );
+      }
     }
 
     await writeAuditLog(
@@ -123,6 +158,9 @@ export async function PATCH(
           changed: Object.keys(input),
           attended: input.attended ?? null,
           attendanceRecorded,
+          // WHETHER A ROW WAS CREATED, so the log distinguishes confirming an existing plan from
+          // joining and confirming in one step.
+          attendeeCreated,
           notified: shouldNotify,
         },
       },
