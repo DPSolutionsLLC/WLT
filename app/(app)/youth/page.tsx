@@ -6,6 +6,7 @@ import { BISHOPRIC_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions"
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { readCrossOrgVisibility } from "@/lib/ward/crossOrgVisibility";
+import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import { listOwnLogsForEvents } from "@/lib/youth/activityLogs";
 import { listAttendeesForEvents } from "@/lib/youth/attendees";
 import { listActivityEvents, listActivityProfiles } from "@/lib/youth/queries";
@@ -71,7 +72,7 @@ export default async function YouthActivitiesPage({ searchParams }: YouthPagePro
   // same instant rather than against a fresh Date per query.
   const asOf = new Date();
 
-  const [profiles, events, pastEvents, crossOrgVisibility] = await Promise.all([
+  const [profiles, events, pastEvents, crossOrgVisibility, wardTimeZone] = await Promise.all([
     listActivityProfiles(user.wardId, supabase),
     listActivityEvents(user.wardId, { asOf }, supabase),
     // THE WIDENED LIST, for the follow-up panel AND for the pastoral ranking — "nobody has been
@@ -80,6 +81,10 @@ export default async function YouthActivitiesPage({ searchParams }: YouthPagePro
     // seeding them separately is what stops one view rendering the other's rows (visits-c).
     listActivityEvents(user.wardId, { includePast: true, asOf }, supabase),
     readCrossOrgVisibility(user.wardId, supabase),
+    // Beside the clock and for the same reason: one value for the whole render, so no two rows
+    // are formatted against different answers. EventList.formatInstant says why it is the ward's
+    // zone rather than the reader's.
+    readWardTimezone(user.wardId, supabase),
   ]);
 
   // AFTER the events, because all three need their ids — one query for the whole schedule rather
@@ -183,6 +188,7 @@ export default async function YouthActivitiesPage({ searchParams }: YouthPagePro
         canLog={canLog}
         canAssign={isBishopric}
         assignableUsers={assignableUsers}
+        wardTimeZone={wardTimeZone}
         crossOrgVisibility={crossOrgVisibility}
       />
     </div>

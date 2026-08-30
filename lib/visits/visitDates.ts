@@ -26,8 +26,8 @@ import {
 // ---------------------------------------------------------------------------
 // A visit date is a Postgres `date` — a day with no time and no zone — and must be formatted in
 // UTC or a reader west of UTC sees the previous day (lib/calendar/dates.ts opens on that bug).
-// An appointment is a `timestamptz` — a real instant — and must be formatted in the reader's own
-// zone or it shows a time nobody agreed to meet at.
+// An appointment is a `timestamptz` — a real instant — and must be formatted in the WARD's zone
+// or it shows a time nobody agreed to meet at.
 //
 // One function cannot be right about both. Sharing the year decision is what was actually worth
 // sharing; sharing the timezone would have been a bug.
@@ -48,13 +48,36 @@ export function formatVisitDate(value: DateOnly | null): string {
   return VISIT_DATE_FORMAT.format(parseDateOnly(value));
 }
 
-// The reader's OWN locale and zone, from the browser — undefined locale rather than "en-US",
-// because an appointment is a time somebody has to turn up at.
-export function formatAppointmentInstant(value: string): string {
+// ---------------------------------------------------------------------------
+// THE WARD'S ZONE, NOT THE READER'S — REVERSED 2026-08-29, AND WHY
+// ---------------------------------------------------------------------------
+// This function used to pass `undefined` for both locale and zone, so that an appointment showed
+// in the reader's own zone: "a time somebody has to turn up at". The intent was right and the
+// mechanism could not deliver it.
+//
+// A "use client" component is still SERVER-RENDERED on the first request. On the server there is
+// no reader, so `undefined` resolves to the SERVER's zone — UTC on Vercel — and the browser then
+// re-renders the same instant in its own. The result is a React #418 hydration mismatch and a
+// visible flash of the wrong time, and in production the first paint is simply wrong: the youth
+// calendar shipped "Sat, Jan 16, 2027, 2:30 AM" over a 7:30pm Friday game. Invisible in dev,
+// where both sides are America/Denver — CLAUDE.md §9's "passes every test on the dev machine and
+// ships wrong", arriving through the render path rather than through an ICS file.
+//
+// The ward's zone is deterministic, so the server and the browser agree by construction. It is
+// also the better answer: a ward is one geographic congregation, so for very nearly every reader
+// it IS their zone — and for the one who is travelling, "7:30pm" is the time the appointment was
+// agreed for and the time you would say aloud, not 9:30pm in their hotel.
+//
+// The zone is a PARAMETER, resolved once per page by readWardTimezone() and handed down, the same
+// discipline `asOf` keeps in this module: never read inside, so it stays pure and testable from
+// literals. "en-US" rather than undefined for the same reason — a locale the server does not
+// share with the browser is the identical bug in a second dimension.
+export function formatAppointmentInstant(value: string, timeZone: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
 
-  return parsed.toLocaleString(undefined, {
+  return parsed.toLocaleString("en-US", {
+    timeZone,
     weekday: "short",
     day: "numeric",
     month: "short",

@@ -6,6 +6,17 @@ import { FormError } from "@/components/ui/FormError";
 import type { MemberNote } from "@/lib/roster/memberNotes";
 import { createMemberNoteSchema } from "@/lib/validation/roster";
 
+// UTC, matching formatStamp in VersionHistory.tsx and ContactStagePanel.tsx: the day a note was
+// written must read the same for everyone in the ward. A bare toLocaleDateString() took the
+// SERVER's zone during SSR and the BROWSER's after hydration — a React #418 mismatch, and a wrong
+// day on Vercel, where the server is UTC.
+const NOTE_DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
 export type MemberNotesProps = {
   memberId: string;
   initialNotes: MemberNote[];
@@ -79,7 +90,7 @@ export function MemberNotes({ memberId, initialNotes }: MemberNotesProps) {
             <li key={note.id} className="border-t border-border pt-3 first:border-t-0 first:pt-0">
               <p className="whitespace-pre-wrap text-sm text-foreground">{note.body}</p>
               <p className="mt-1 text-xs text-muted">
-                {new Date(note.createdAt).toLocaleDateString()}
+                {NOTE_DATE_FORMAT.format(new Date(note.createdAt))}
               </p>
             </li>
           ))}

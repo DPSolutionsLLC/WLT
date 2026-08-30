@@ -48,6 +48,11 @@ export type AppointmentPanelProps = {
   appointments: AppointmentRow[];
   households: HouseholdOption[];
   canBook: boolean;
+  // From lib/ward/wardTimezone.ts, resolved once by the page. A client component is still
+  // server-rendered on the first request, so an appointment formatted in "the reader's zone"
+  // is formatted in the SERVER's zone there — UTC on Vercel — and re-formatted in the browser's
+  // after hydration. See formatAppointmentInstant's header for the whole reversal.
+  wardTimeZone: string;
 };
 
 // "Log this visit" puts the appointment in the URL rather than in shared client state, and
@@ -125,6 +130,7 @@ export function AppointmentPanel({
   appointments,
   households,
   canBook,
+  wardTimeZone,
 }: AppointmentPanelProps) {
   const router = useRouter();
 
@@ -270,7 +276,7 @@ export function AppointmentPanel({
                   {appointment.householdName ?? "Unknown household"}
                 </p>
                 <p className="mt-1 text-sm text-muted">
-                  {formatAppointmentInstant(appointment.scheduledFor)}
+                  {formatAppointmentInstant(appointment.scheduledFor, wardTimeZone)}
                   {appointment.madeByName === null ? "" : ` · booked by ${appointment.madeByName}`}
                 </p>
 

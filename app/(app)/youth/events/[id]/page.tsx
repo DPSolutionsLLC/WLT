@@ -145,6 +145,7 @@ export default async function YouthEventPage({ params }: YouthEventPageProps) {
         canManage={canManage}
         canAssign={isBishopric}
         assignableUsers={assignableUsers}
+        wardTimeZone={wardTimeZone}
       />
     </div>
   );

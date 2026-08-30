@@ -10,6 +10,7 @@ import { BISHOPRIC_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions"
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { readCrossOrgVisibility } from "@/lib/ward/crossOrgVisibility";
+import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import { readHomeVenues } from "@/lib/ward/homeVenues";
 import { listAttendeesForEvents } from "@/lib/youth/attendees";
 import { listActivityEvents, listActivityProfiles } from "@/lib/youth/queries";
@@ -77,13 +78,18 @@ export default async function YouthActivityProfilesPage() {
 
   const canLog = can(user, "youth_activities.log", roleAccess);
 
-  const [profiles, events, organizations, homeVenues, crossOrgVisibility] = await Promise.all([
-    listActivityProfiles(user.wardId, supabase),
-    listActivityEvents(user.wardId, { asOf }, supabase),
-    listWardOrganizations(user.wardId, supabase),
-    readHomeVenues(user.wardId, supabase),
-    readCrossOrgVisibility(user.wardId, supabase),
-  ]);
+  const [profiles, events, organizations, homeVenues, crossOrgVisibility, wardTimeZone] =
+    await Promise.all([
+      listActivityProfiles(user.wardId, supabase),
+      listActivityEvents(user.wardId, { asOf }, supabase),
+      listWardOrganizations(user.wardId, supabase),
+      readHomeVenues(user.wardId, supabase),
+      readCrossOrgVisibility(user.wardId, supabase),
+      // Beside the clock and for the same reason: one value for the whole render, so no two rows
+      // are formatted against different answers. EventList.formatInstant says why it is the
+      // ward's zone rather than the reader's.
+      readWardTimezone(user.wardId, supabase),
+    ]);
 
   // AFTER the events, because it needs their ids — one query for the whole schedule rather than
   // one per card (lib/youth/attendees.ts). An empty list short-circuits without a round trip.
@@ -170,6 +176,7 @@ export default async function YouthActivityProfilesPage() {
         currentUserOrgId={user.orgId}
         canAssign={isBishopric}
         assignableUsers={assignableUsers}
+        wardTimeZone={wardTimeZone}
       />
 
       {canManage ? (

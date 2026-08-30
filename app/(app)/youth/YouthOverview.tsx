@@ -110,6 +110,10 @@ export type YouthOverviewProps = {
   canAssign: boolean;
   assignableUsers: { id: string; label: string }[];
   crossOrgVisibility: boolean;
+  // Handed straight through to EventList, which formats every event time with it. Resolved once
+  // on the server: a client component is server-rendered before it is hydrated, so "the reader's
+  // zone" is the server's zone on first paint. EventList.formatInstant carries the full reasoning.
+  wardTimeZone: string;
 };
 
 const WIDENED = true;
@@ -186,6 +190,7 @@ export function YouthOverview({
   canAssign,
   assignableUsers,
   crossOrgVisibility,
+  wardTimeZone,
 }: YouthOverviewProps) {
   // Parsed ONCE, outside the row loop, for the reason the server resolved it once: a `new Date()`
   // per row would judge the bottom of a long list against a later instant than the top
@@ -511,6 +516,7 @@ export function YouthOverview({
                           currentUserOrgId={currentUserOrgId}
                           canAssign={canAssign}
                           assignableUsers={assignableUsers}
+                          wardTimeZone={wardTimeZone}
                         />
                       </div>
                     ) : null}

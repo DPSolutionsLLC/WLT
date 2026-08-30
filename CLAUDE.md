@@ -639,6 +639,37 @@ Flag these when they become relevant; do not silently pick a side.
   cursor's `occurredOn` half therefore carries the LOG's date and must never be taken from
   `tile.occurredOn`.
 
+- **EVERY DATE FORMATTER NAMES ITS ZONE, AND A TURN-UP-AT TIME IS THE WARD'S — DECIDED
+  2026-08-29, REVERSING `visits-b`, `youth-a` AND `youth-c`.** Three files said in their headers
+  that a `timestamptz` renders in **the reader's own zone**, because "a game — or an appointment —
+  is a time somebody has to turn up at". The intent was right and the mechanism could not deliver
+  it: a `"use client"` component is **server-rendered before it is hydrated**, and every one of
+  these is seeded with real rows through `initialData`, so the server formats the dates first. On
+  a server there is no reader. `undefined` resolved to the SERVER's zone — UTC on Vercel — and
+  production served a 7:30pm Friday game as **"Sat, Jan 16, 2027, 2:30 AM"**: wrong day, seven
+  hours out, surfacing as React error #418 and as a visible flash before hydration. It was
+  invisible in dev, where both sides are `America/Denver` — §9's "passes every test on the dev
+  machine and ships wrong", arriving through the RENDER path rather than through an ICS file, and
+  **found by opening the deployed build for the first time** rather than by any of 3262 tests.
+  The rule is now mechanical: **no `Intl.DateTimeFormat` or `toLocale*` call anywhere in `app/`,
+  `components/` or `lib/` may omit an explicit `timeZone`**, enforced by
+  `tests/lib/explicitTimeZone.test.ts`, which reads the source the way `tithingNoFloat.test.ts`
+  does — no assertion about a formatted string can catch this, because a test process has one
+  zone. It was proved able to fail against all seven pre-fix files before being believed.
+  **Which** zone stays a per-case decision and the codebase already had both answers: a
+  turn-up-at `timestamptz` is the **ward's** zone (`readWardTimezone`, resolved once per page
+  beside `asOf` and handed down as a parameter), while a `date` column or a "when did this happen"
+  stamp is **UTC** (`lib/calendar/dates.ts`, `VersionHistory`, `ContactStagePanel`). The ward's
+  zone is not merely the deterministic choice, it is the better one: a ward is one geographic
+  congregation, so for very nearly every reader it IS their zone, and the leader who is travelling
+  wants "7:30pm" — the hour the game starts and the hour you would say aloud — not 9:30pm in their
+  hotel. **`ActivityCalendar`'s "ZONE TRAP" survives intact**: its rule is that a card is bucketed
+  into a day in the SAME zone its own time is printed in, and both halves moved together, so the
+  invariant it protects is unchanged and only its premise did. `lib/ward/wardTimezone.ts` now
+  answers what a floating imported time means AND what day a rendered card belongs to; it used to
+  answer only the first. **Still unfixed and unrelated:** `/agendas` and `/admin/audit-log` 404
+  from the bishop's sidebar (Phases 9 and 11).
+
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

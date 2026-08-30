@@ -34,6 +34,23 @@
 export const EMAILED_PDF_WILL_NOT_CHANGE =
   "This will update the online program. The emailed PDF will not change.";
 
+// UTC, matching formatStamp in VersionHistory.tsx and ContactStagePanel.tsx: when the programme
+// went out must read the same for everyone in the ward.
+//
+// THIS IS A SERVER COMPONENT, so a bare toLocaleString() had no reader to be local TO — it took
+// the server's zone and rendered it to everybody, which on Vercel is UTC. There is no hydration
+// mismatch here to warn you, because nothing re-renders this in the browser; it was simply the
+// wrong time, silently, in production only.
+const SENT_AT_FORMAT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZoneName: "short",
+});
+
 export type PostDistributionNoticeProps = {
   // THREE STATES, NOT TWO, and the third is the reason this is `number | null` rather than a
   // number defaulting to zero.
@@ -102,7 +119,7 @@ export function PostDistributionNotice({
 
       {distributedAt !== null && (
         <p className="mt-2 text-xs text-muted">
-          Sent {new Date(distributedAt).toLocaleString()}.
+          Sent {SENT_AT_FORMAT.format(new Date(distributedAt))}.
         </p>
       )}
     </div>

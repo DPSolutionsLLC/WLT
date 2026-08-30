@@ -95,6 +95,10 @@ export type EventListProps = {
   profileIds?: readonly string[];
   // "Schedule" on /youth/profiles; the young person's name inside an expanded overview card.
   heading?: string;
+  // From lib/ward/wardTimezone.ts, resolved once by the page. See formatInstant's header: this
+  // component is server-rendered before it is hydrated, and on a server there is no reader whose
+  // zone "the reader's zone" could mean.
+  wardTimeZone: string;
 };
 
 const CHIP_CLASSES =
@@ -103,19 +107,40 @@ const CHIP_CLASSES =
 // THE HOUR IS THE POINT. 08-youth-activities.md: "A game showing at the wrong hour makes the
 // whole feature useless."
 //
-// THE READER'S OWN ZONE AND LOCALE, which is the rule lib/visits/visitDates.ts already states for
-// a timestamptz and states the reason for: an appointment — or a game — is a time somebody has to
-// turn up at. `undefined` locale rather than "en-US" for the same reason. The YEAR is carried for
-// the reason recorded there too: without it a 2099 row renders identically to a 2026 one.
+// ---------------------------------------------------------------------------
+// THE WARD'S ZONE, NOT THE READER'S — REVERSED 2026-08-29, AND WHY
+// ---------------------------------------------------------------------------
+// This passed `undefined` for both locale and zone, so a game showed in the reader's own zone —
+// the rule lib/visits/visitDates.ts states for a timestamptz, and the intent was right. The
+// mechanism could not deliver it, and THIS IS THE LINE THAT SHIPPED THE BUG.
+//
+// A "use client" component is still SERVER-RENDERED on the first request, and this one is seeded
+// with real rows through `initialData`, so the server formats every date before the browser ever
+// sees it. On a server there is no reader: `undefined` resolves to the SERVER's zone, which is
+// UTC on Vercel. Production served "Sat, Jan 16, 2027, 2:30 AM" over a 7:30pm Friday game, then
+// hydration rewrote it — a React #418 mismatch and a visible flash of the wrong day. It was
+// invisible in dev, where both sides are America/Denver: CLAUDE.md §9's "passes every test on the
+// dev machine and ships wrong", arriving through the render path rather than through an ICS file.
+//
+// The ward's zone is deterministic, so server and browser agree by construction. It is also the
+// better answer: a ward is one geographic congregation, so for very nearly every reader it IS
+// their zone — and the leader who is travelling wants "7:30pm", the hour the game starts and the
+// hour you would say aloud, not 9:30pm in their hotel. "en-US" rather than undefined for the same
+// reason: a locale the server does not share with the browser is the identical bug in a second
+// dimension.
+//
+// The YEAR is carried for the reason visitDates.ts records: without it a 2099 row renders
+// identically to a 2026 one.
 //
 // Not imported from that module, because it is visit-specific by name and the two would have to
 // move together. The RULE is shared and cited; the four lines are not worth coupling the modules
 // over.
-function formatInstant(instant: string): string {
+function formatInstant(instant: string, timeZone: string): string {
   const parsed = new Date(instant);
   if (!Number.isFinite(parsed.getTime())) return "An unreadable date";
 
-  return parsed.toLocaleString(undefined, {
+  return parsed.toLocaleString("en-US", {
+    timeZone,
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -133,13 +158,14 @@ function formatInstant(instant: string): string {
 // zone, which is the exact bug the whole ICS slice is arranged to prevent. Making a tournament
 // weekend read "All day" is what keeps a real off-by-N-hours bug legible when one happens
 // (migration 055a).
-function formatEventWhen(instant: string, allDay: boolean): string {
-  if (!allDay) return formatInstant(instant);
+function formatEventWhen(instant: string, allDay: boolean, timeZone: string): string {
+  if (!allDay) return formatInstant(instant, timeZone);
 
   const parsed = new Date(instant);
   if (!Number.isFinite(parsed.getTime())) return "An unreadable date";
 
-  const date = parsed.toLocaleDateString(undefined, {
+  const date = parsed.toLocaleDateString("en-US", {
+    timeZone,
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -187,6 +213,7 @@ export function EventList({
   canAssign,
   assignableUsers,
   profileIds,
+  wardTimeZone,
   heading,
 }: EventListProps) {
   const queryClient = useQueryClient();
@@ -506,7 +533,7 @@ export function EventList({
                   </div>
 
                   <p className="mt-1 text-sm text-foreground">
-                    {formatEventWhen(event.eventDate, event.allDay)}
+                    {formatEventWhen(event.eventDate, event.allDay, wardTimeZone)}
                   </p>
 
                   <p className="mt-1 text-sm text-muted">

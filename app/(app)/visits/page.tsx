@@ -29,6 +29,7 @@ import { readStewardshipScope } from "@/lib/visits/stewardship";
 import { compareStewardshipDrift, toStewardshipScope } from "@/lib/visits/stewardshipScope";
 import { canManageVisitLog } from "@/lib/visits/visitOwnership";
 import { readCrossOrgVisibility } from "@/lib/ward/crossOrgVisibility";
+import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import {
   VISIT_ARRANGEMENT_LABELS,
   VISIT_CONDUCTED_PREFIX,
@@ -82,13 +83,18 @@ export default async function VisitsPage({
   // render is judged against the same instant rather than against a fresh `new Date()` per row.
   const asOf = new Date();
 
-  const [visits, goals, organizations, appointments, crossOrgVisibility] = await Promise.all([
-    listVisitLogs(user.wardId, {}, supabase),
-    listVisitGoals(user.wardId, supabase),
-    listWardOrganizations(user.wardId, supabase),
-    listAppointments(user.wardId, {}, asOf, supabase),
-    readCrossOrgVisibility(user.wardId, supabase),
-  ]);
+  // The ward's zone enters ONCE, beside the clock and for the same reason: an appointment is a
+  // timestamptz, and formatting one in "the reader's zone" is impossible on a server, which is
+  // where a client component renders first. formatAppointmentInstant's header has the whole story.
+  const [visits, goals, organizations, appointments, crossOrgVisibility, wardTimeZone] =
+    await Promise.all([
+      listVisitLogs(user.wardId, {}, supabase),
+      listVisitGoals(user.wardId, supabase),
+      listWardOrganizations(user.wardId, supabase),
+      listAppointments(user.wardId, {}, asOf, supabase),
+      readCrossOrgVisibility(user.wardId, supabase),
+      readWardTimezone(user.wardId, supabase),
+    ]);
 
   const organizationOptions = organizations.map((organization) => ({
     id: organization.id,
@@ -350,6 +356,7 @@ export default async function VisitsPage({
           appointments={appointmentRows}
           households={householdOptions}
           canBook={canLog}
+          wardTimeZone={wardTimeZone}
         />
       </CollapsibleSection>
 

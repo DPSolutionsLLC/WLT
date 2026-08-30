@@ -65,17 +65,24 @@ import {
 // ---------------------------------------------------------------------------
 // THE ZONE TRAP — READ THIS BEFORE CHANGING HOW A CARD IS BUCKETED INTO A DAY
 // ---------------------------------------------------------------------------
-// Every card is bucketed into a day using the READER'S OWN ZONE, in the client, so the day a card
-// sits under always matches the time printed on it.
+// Every card is bucketed into a day in the SAME ZONE its own time is printed in, so the day a
+// card sits under always matches the time on it. That invariant is the whole of this warning and
+// it has not moved: mixing the two puts an 11pm game under the wrong date on the grid while its
+// own card says otherwise — a bug that appears for a few hours a day and only for some readers,
+// which is the worst kind to find.
 //
-// Do NOT bucket by the ward's zone. EventList.formatInstant already renders in the reader's zone,
-// and mixing the two puts an 11pm game under the wrong date on the grid while its own card says
-// otherwise — a bug that appears for a few hours a day and only for some readers, which is the
-// worst kind to find.
+// WHAT DID MOVE, 2026-08-29: the shared zone is the WARD'S, not the reader's. Both halves changed
+// together, which is what keeps the invariant true.
 //
-// lib/ward/wardTimezone.ts decides what a FLOATING IMPORTED TIME MEANS. It does not decide what
-// day a rendered card belongs to. Those are two different questions and the ward's zone is the
-// answer to only the first.
+// The reader's zone was unreachable, not merely unwise. This component is server-rendered before
+// it is hydrated and is seeded with real rows through `initialData`, so the server formats and
+// buckets every event first — and on a server there is no reader. `undefined` took the SERVER's
+// zone, UTC on Vercel, and production served a 7:30pm Friday game as "Sat, Jan 16, 2027, 2:30 AM"
+// before hydration rewrote it: a React #418 mismatch, a visible flash, and a wrong day in the
+// grid. EventList.formatInstant carries the full reasoning.
+//
+// So lib/ward/wardTimezone.ts now answers BOTH questions — what a floating imported time means,
+// and what day a rendered card belongs to. It used to answer only the first.
 
 // An ActivityEvent with its profile and its attendees resolved. Derived here rather than on the
 // server, so it moves when the cache does.
@@ -97,6 +104,9 @@ export type ActivityCalendarProps = {
   initialProfiles: ActivityProfile[];
   initialEvents: ActivityEvent[];
   initialAttendees: Record<string, ActivityAttendee[]>;
+  // From lib/ward/wardTimezone.ts, resolved once by the page. Both the printed time and the day
+  // a card is bucketed into are computed from it — see the zone trap above.
+  wardTimeZone: string;
   organizations: { id: string; label: string }[];
   // ONE INSTANT for the whole render, resolved on the server. An ISO string because a Date does
   // not survive the server-to-client boundary as itself.
@@ -117,18 +127,18 @@ const SELECT_CLASSES =
 
 const ANY = "";
 
-// THE READER'S OWN ZONE AND LOCALE — `undefined` locale rather than "en-US", the rule
-// lib/visits/visitDates.ts states for a timestamptz and EventList.tsx follows: a game is a time
-// somebody has to turn up at. The YEAR is carried so a 2099 row does not render identically to a
-// 2026 one.
-function formatWhen(instant: string, allDay: boolean): string {
+// THE WARD'S ZONE AND AN EXPLICIT LOCALE — see the zone trap above and EventList.formatInstant.
+// A game is a time somebody has to turn up at, and the ward's zone is the one every reader of
+// this page shares. The YEAR is carried so a 2099 row does not render identically to a 2026 one.
+function formatWhen(instant: string, allDay: boolean, timeZone: string): string {
   const parsed = new Date(instant);
   if (!Number.isFinite(parsed.getTime())) return "An unreadable date";
 
   if (allDay) {
     // Never "12:00am" — an all-day entry is stored at ward midnight and rendering it as a time is
     // indistinguishable from an off-by-N-hours bug (migration 055a).
-    return `${parsed.toLocaleDateString(undefined, {
+    return `${parsed.toLocaleDateString("en-US", {
+      timeZone,
       weekday: "short",
       day: "numeric",
       month: "short",
@@ -136,7 +146,8 @@ function formatWhen(instant: string, allDay: boolean): string {
     })} · All day`;
   }
 
-  return parsed.toLocaleString(undefined, {
+  return parsed.toLocaleString("en-US", {
+    timeZone,
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -151,12 +162,13 @@ const MAX_NAMED_UNCOVERED = 3;
 
 // SHORTER THAN THE CARD'S OWN LINE, because this one appears inside a sentence listing several
 // events and the year is already obvious from the cards below. Same zone and locale rule as
-// formatWhen: the reader's own.
-function formatShortWhen(instant: string, allDay: boolean): string {
+// formatWhen: the ward's.
+function formatShortWhen(instant: string, allDay: boolean, timeZone: string): string {
   const parsed = new Date(instant);
   if (!Number.isFinite(parsed.getTime())) return "an unreadable date";
 
-  const day = parsed.toLocaleDateString(undefined, {
+  const day = parsed.toLocaleDateString("en-US", {
+    timeZone,
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -164,22 +176,41 @@ function formatShortWhen(instant: string, allDay: boolean): string {
 
   if (allDay) return `${day}, all day`;
 
-  return `${day}, ${parsed.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+  return `${day}, ${parsed.toLocaleTimeString("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "2-digit",
+  })}`;
 }
 
-// THE READER'S ZONE, expressed as a YYYY-MM-DD key. Built from the locale-independent `en-CA`
+// THE WARD'S ZONE, expressed as a YYYY-MM-DD key — the same zone formatWhen prints, which is the
+// invariant the zone trap above exists to protect. Built from the locale-independent `en-CA`
 // short date rather than from `toISOString()`, which would be UTC and put a 6pm game on the wrong
-// day for every reader west of Greenwich.
-const DAY_KEY_FORMAT = new Intl.DateTimeFormat("en-CA", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
+// day for every ward west of Greenwich.
+//
+// Cached per zone, following lib/youth/occasionDay.ts: a render resolves one zone and constructing
+// the formatter is the expensive half.
+const DAY_KEY_FORMATS = new Map<string, Intl.DateTimeFormat>();
 
-function dayKey(instant: string): DateOnly | null {
+function dayKeyFormatFor(timeZone: string): Intl.DateTimeFormat {
+  const existing = DAY_KEY_FORMATS.get(timeZone);
+  if (existing !== undefined) return existing;
+
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  DAY_KEY_FORMATS.set(timeZone, formatter);
+  return formatter;
+}
+
+function dayKey(instant: string, timeZone: string): DateOnly | null {
   const parsed = new Date(instant);
   if (!Number.isFinite(parsed.getTime())) return null;
-  return DAY_KEY_FORMAT.format(parsed);
+  return dayKeyFormatFor(timeZone).format(parsed);
 }
 
 export function ActivityCalendar({
@@ -191,6 +222,7 @@ export function ActivityCalendar({
   currentUserId,
   canAssign,
   assignableUsers,
+  wardTimeZone,
 }: ActivityCalendarProps) {
   const asOfInstant = useMemo(() => new Date(asOf), [asOf]);
 
@@ -338,7 +370,11 @@ export function ActivityCalendar({
     const names = named
       .map(
         (row) =>
-          `${row.event.title}, ${formatShortWhen(row.event.eventDate, row.event.allDay)}`,
+          `${row.event.title}, ${formatShortWhen(
+            row.event.eventDate,
+            row.event.allDay,
+            wardTimeZone,
+          )}`,
       )
       .join("; ");
 
@@ -348,9 +384,9 @@ export function ActivityCalendar({
         : `${uncovered.length} home events in the next week with nobody going:`;
 
     return rest === 0 ? `${lead} ${names}.` : `${lead} ${names}; and ${rest} more.`;
-  }, [rows]);
+  }, [rows, wardTimeZone]);
 
-  const today = useMemo(() => dayKey(asOf), [asOf]);
+  const today = useMemo(() => dayKey(asOf, wardTimeZone), [asOf, wardTimeZone]);
 
   // One grid per month present in the filtered rows, so a season spanning November to February
   // renders four months rather than one arbitrary one.
@@ -358,7 +394,7 @@ export function ActivityCalendar({
     const byMonth = new Map<string, Map<DateOnly, ActivityMonthGridDay>>();
 
     for (const { event, coverage } of rows) {
-      const date = dayKey(event.eventDate);
+      const date = dayKey(event.eventDate, wardTimeZone);
       if (date === null) continue;
 
       const month = monthOf(date);
@@ -388,7 +424,7 @@ export function ActivityCalendar({
         month: `${month}-01` as DateOnly,
         days: [...days.values()].sort((left, right) => left.date.localeCompare(right.date)),
       }));
-  }, [rows]);
+  }, [rows, wardTimeZone]);
 
   const errorMessage = profilesQuery.isError
     ? (profilesQuery.error as Error).message
@@ -540,6 +576,7 @@ export function ActivityCalendar({
                 currentUserId={currentUserId}
                 canAssign={canAssign}
                 assignableUsers={assignableUsers}
+                wardTimeZone={wardTimeZone}
                 // MINUS ONE — the count is of the OTHERS, and this row is in the map too.
                 siblingCount={
                   row.event.occasionId === null
@@ -570,12 +607,14 @@ function EventCard({
   assignableUsers,
   youthHref,
   siblingCount,
+  wardTimeZone,
 }: {
   row: CalendarRow;
   currentUserId: string;
   canAssign: boolean;
   assignableUsers: { id: string; label: string }[];
   youthHref: string | null;
+  wardTimeZone: string;
   // How many OTHER young people are at this same game. Computed from the UNFILTERED list by the
   // caller — see the comment on `occasionCounts`.
   siblingCount: number;
@@ -614,7 +653,7 @@ function EventCard({
       </div>
 
       <p className="mt-1 text-sm text-foreground">
-        {formatWhen(event.eventDate, event.allDay)}
+        {formatWhen(event.eventDate, event.allDay, wardTimeZone)}
       </p>
 
       {/* THE YOUNG PERSON IS A LINK TO THEIR OWN CARD. The calendar answers "what is happening";

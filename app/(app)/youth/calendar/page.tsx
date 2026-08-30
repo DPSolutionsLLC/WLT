@@ -6,6 +6,7 @@ import { BISHOPRIC_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions"
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { listAttendeesForEvents } from "@/lib/youth/attendees";
+import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import { listActivityEvents, listActivityProfiles } from "@/lib/youth/queries";
 
 // The whole ward's youth calendar, at /youth/calendar.
@@ -56,13 +57,17 @@ export default async function YouthCalendarPage() {
   // same instant rather than against a clock that moves down the list.
   const asOf = new Date();
 
-  const [profiles, events, organizations] = await Promise.all([
+  const [profiles, events, organizations, wardTimeZone] = await Promise.all([
     listActivityProfiles(user.wardId, supabase),
     // `includePast: false` — a calendar that opens on last season is a calendar nobody opens
     // twice, the same rule /youth follows. It is also what makes these the NARROW cache entries,
     // [.., false], which is the pair the component reads.
     listActivityEvents(user.wardId, { includePast: false, asOf }, supabase),
     listWardOrganizations(user.wardId, supabase),
+    // Beside the clock and for the same reason: one value for the whole render, so no two cards
+    // are printed or bucketed against different answers. ActivityCalendar's zone trap says why it
+    // is the ward's zone rather than the reader's.
+    readWardTimezone(user.wardId, supabase),
   ]);
 
   const attendeesByEvent = await listAttendeesForEvents(
@@ -110,6 +115,7 @@ export default async function YouthCalendarPage() {
         currentUserId={user.id}
         canAssign={isBishopric}
         assignableUsers={assignableUsers}
+        wardTimeZone={wardTimeZone}
       />
     </div>
   );

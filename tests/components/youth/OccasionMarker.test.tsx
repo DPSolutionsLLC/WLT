@@ -102,6 +102,7 @@ function renderList(options: {
         canAssign={false}
         assignableUsers={[]}
         profileIds={options.profileIds}
+        wardTimeZone="America/Denver"
       />
     </QueryClientProvider>,
   );

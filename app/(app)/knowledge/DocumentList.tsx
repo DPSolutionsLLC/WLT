@@ -78,12 +78,19 @@ function NotFilterableBadge() {
   );
 }
 
+// UTC, matching formatStamp in VersionHistory.tsx and ContactStagePanel.tsx: the day a document
+// was uploaded must read the same for everyone in the ward. An implicit zone read the SERVER's
+// zone during SSR and the BROWSER's after hydration, which is a React #418 mismatch and, on
+// Vercel, a wrong day.
+const UPLOADED_AT_FORMAT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
 function formatUploadedAt(value: string): string {
-  return new Date(value).toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  return UPLOADED_AT_FORMAT.format(new Date(value));
 }
 
 export function DocumentList({ initialDocuments, canManage }: DocumentListProps) {

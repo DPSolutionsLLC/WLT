@@ -82,6 +82,9 @@ export type EventDetailProps = {
   canManage: boolean;
   canAssign: boolean;
   assignableUsers: { id: string; label: string }[];
+  // From lib/ward/wardTimezone.ts. The page already resolved it for wardDayBounds() — the
+  // picker's candidates and the printed times are now the same zone, which they were not before.
+  wardTimeZone: string;
 };
 
 type OccasionRow = {
@@ -96,15 +99,22 @@ type OccasionRow = {
 const CHIP_CLASSES =
   "rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted";
 
-// THE READER'S OWN ZONE AND LOCALE, the rule EventList.formatInstant states and states the reason
-// for: a game is a time somebody has to turn up at. The ward's zone decides what a floating
-// IMPORTED time means and what day the picker's candidates are drawn from; it does not decide
-// what a rendered card says.
-function formatWhen(instant: string, allDay: boolean): string {
+// THE WARD'S ZONE AND AN EXPLICIT LOCALE, the rule EventList.formatInstant states and states the
+// reason for: a game is a time somebody has to turn up at, and the ward's zone is the one every
+// reader of this page shares.
+//
+// This comment used to say the opposite — that the ward's zone decides what a floating IMPORTED
+// time means and what day the picker's candidates are drawn from, but "does not decide what a
+// rendered card says". REVERSED 2026-08-29: it could not decide what a rendered card said,
+// because a "use client" component is server-rendered first and a server has no reader whose
+// zone `undefined` could mean. It took the SERVER's zone, UTC on Vercel. So the ward's zone now
+// answers all three questions rather than two.
+function formatWhen(instant: string, allDay: boolean, timeZone: string): string {
   const parsed = new Date(instant);
   if (!Number.isFinite(parsed.getTime())) return "An unreadable date";
 
-  const date = parsed.toLocaleDateString(undefined, {
+  const date = parsed.toLocaleDateString("en-US", {
+    timeZone,
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -115,18 +125,23 @@ function formatWhen(instant: string, allDay: boolean): string {
   // indistinguishable from an off-by-N-hours bug (migration 055a).
   if (allDay) return `${date} · All day`;
 
-  return `${date}, ${parsed.toLocaleTimeString(undefined, {
+  return `${date}, ${parsed.toLocaleTimeString("en-US", {
+    timeZone,
     hour: "numeric",
     minute: "2-digit",
   })}`;
 }
 
-function shortWhen(instant: string, allDay: boolean): string {
+function shortWhen(instant: string, allDay: boolean, timeZone: string): string {
   const parsed = new Date(instant);
   if (!Number.isFinite(parsed.getTime())) return "an unreadable time";
   if (allDay) return "All day";
 
-  return parsed.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return parsed.toLocaleTimeString("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 export function EventDetail({
@@ -141,6 +156,7 @@ export function EventDetail({
   canManage,
   canAssign,
   assignableUsers,
+  wardTimeZone,
 }: EventDetailProps) {
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -291,12 +307,12 @@ export function EventDetail({
             //
             // Both facts earn their place: the activity says whose season this belongs to, the
             // title says which event. Neither is sufficient alone.
-            label: `${shortWhen(event.eventDate, event.allDay)} · ${
+            label: `${shortWhen(event.eventDate, event.allDay, wardTimeZone)} · ${
               profile?.memberName ?? "An activity that is no longer listed"
             } · ${profile?.activityName ?? "Activity not listed"} · ${event.title}`,
           };
         }),
-    [sameDayEvents, occasionEventIds, profilesById],
+    [sameDayEvents, occasionEventIds, profilesById, wardTimeZone],
   );
 
   const addableProfiles = useMemo(
@@ -393,7 +409,7 @@ export function EventDetail({
                 {row.event.title}
               </p>
               <p className="text-sm text-muted">
-                {formatWhen(row.event.eventDate, row.event.allDay)}
+                {formatWhen(row.event.eventDate, row.event.allDay, wardTimeZone)}
               </p>
               {row.event.location === null ? null : (
                 <p className="text-sm text-muted">{row.event.location}</p>
