@@ -46,10 +46,18 @@ have something to be wrong about.
 
 1. `npm run seed -- youth/scenario-049-entering-an-activity-that-is-not-yours`
 2. `npm run dev`, then open http://localhost:3000
-3. Sign in as `ym-president@…`. Open **/youth** from the sidebar.
-4. Note which activities are listed and who each belongs to. Press **Edit** on *Chamber choir*
-   (the Young Women's) and try to save a change.
-5. Sign in as `yw-president@…` and do the mirror: try to edit *Varsity basketball*.
+3. Sign in as `ym-president@…`. Open **Youth Activities** from the sidebar, then follow
+   **Activities and schedule** to **/youth/profiles**.
+   CORRECTED 2026-08-29: slice `youth-e` moved the activity list off `/youth`, which is now the
+   ranked list of young people. Every step below named `/youth` and was written before that move.
+4. Note which activities are listed, who each belongs to, and **which ones carry Edit and Remove**.
+   CORRECTED 2026-08-29: this step used to read "Press **Edit** on *Chamber choir* (the Young
+   Women's) and try to save a change." That state is NO LONGER REACHABLE — the control is absent
+   on another organization's activity, which is the fix for `youth-a-D1`. What this step checks now
+   is the ABSENCE; that the write is still refused underneath is proved against the API, because a
+   hidden button is not a security boundary (CLAUDE.md rule 2).
+5. Sign in as `yw-president@…` and do the mirror: confirm Edit and Remove are present on
+   *Chamber choir* and *Debate team* and absent on *Varsity basketball*.
 6. Sign in as `bishop@…`. Press **Add an activity** and look at the form.
 7. Sign in as `council-member@…`. Press **Add an activity**, enter one for Ethan, and save.
 
@@ -57,7 +65,8 @@ have something to be wrong about.
 
 ### Machine-checkable
 
-- [ ] All four accounts see **all four** activities on `/youth`, grouped under three youth.
+- [ ] All four accounts see **all four** activities on `/youth/profiles`, grouped under three
+      youth. They also appear as pills on `/youth`, which is a different page since `youth-e`.
 - [ ] **The Edit and Remove controls are ABSENT on an activity this account may not change** —
       not present and failing. RESTORED 2026-08-27 during the walk: this line was in the source
       plan ("is told why in a sentence — *not shown a control that fails*") and was weakened when
@@ -88,8 +97,12 @@ have something to be wrong about.
 
 ### Needs a human eye
 
-- [ ] When the Young Men president cannot save somebody else's activity, does the message **say
-      why**, in a sentence a leader would understand — or does it read as the app breaking?
+- [ ] REPLACED 2026-08-29. This asked whether the refusal MESSAGE says why. There is no longer a
+      message, because there is no longer a control to press — `youth-a-D1` was fixed by removing
+      it. The question that matters now: **does the absence explain itself?** A Young Men president
+      sees Edit and Remove on *Varsity basketball* and nothing at all on the other three, with no
+      sentence anywhere saying why. Does that read as "not yours to change", or as buttons that
+      failed to load?
 - [ ] Does **Ward-wide** read as a deliberate state ("this belongs to no one presidency") rather
       than as a field somebody forgot to fill in?
 - [ ] Is it obvious at a glance which activities are *yours* and which you are only reading? Or do
@@ -112,6 +125,107 @@ have something to be wrong about.
       `tests/rls/youth-activity-scope.test.ts`.
 
 ## Walkthrough record
+
+**2026-08-29 — driven by Claude in a real browser (Playwright), against the hosted project.**
+Re-walked after slices `youth-e`, `youth-f` and `youth-g` moved this module's furniture. Every
+machine-checkable line was performed in the running app and verified by re-reading the row with the
+service client. The "needs a human eye" lines are NOT walked — they were captured for review.
+
+**`youth-a-D1` IS FIXED, and this walk is the confirmation.** The 2026-08-27 record found Edit and
+Remove offered on every organization's activity. They are now offered on exactly the rows
+`canManageActivityProfile()` permits, and the mirror proves it is not an artifact of seed order:
+
+| Account | Varsity basketball (YM) | Chamber choir (YW) | Debate team (YW) | Community orchestra (ward-wide) |
+|---|---|---|---|---|
+| `ym-president` | **Edit · Remove** | — | — | — |
+| `yw-president` | — | **Edit · Remove** | **Edit · Remove** | — |
+| `bishop` | **Edit · Remove** | **Edit · Remove** | **Edit · Remove** | **Edit · Remove** |
+| `council-member` (org_id null) | — | — | — | **Edit · Remove** (its author) |
+
+The council member's row is the null-equals-null guard doing its job: they reach it through the
+`enteredBy` arm, not through a null `org_id` matching a null `org_id`.
+
+**No defects found.**
+
+Observed values:
+
+- **The list moved, and three checklist lines described the old page.** `/youth` is now `youth-f`'s
+  ranked list of young people; the activities live at `/youth/profiles`. Corrected in Steps and in
+  the checklist — see the CORRECTED / REPLACED notes above.
+- **A hidden control is not a boundary, so the API was probed directly.** As `ym-president`:
+  `PATCH /api/youth/profiles/{Chamber choir}` → **404** *"That activity could not be changed. It may
+  belong to another organization. Reload and try again."*; `DELETE` on the same row → **404**;
+  `PATCH` on the ward-wide row → **404**. As `yw-president`, the mirror on *Varsity basketball* →
+  **404**, and `POST` naming another organization's `orgId` → **403** *"You can only enter
+  activities for your own organization."* Service-client re-read after all of it: still exactly
+  **4 rows**, names unchanged (`Chamber choir`, `Community orchestra`, `Debate team`,
+  `Varsity basketball`), `org_id` unchanged. A control the account DOES own still worked
+  (`PATCH` on *Varsity basketball* → 200), so the 404s are a scope refusal rather than a dead route.
+- **DELETE was exercised across every row, not just one.** As `yw-president`, deleting all six
+  profiles then present returned 200 for her own three and 404 for the other three.
+- **The organization select is absent, not disabled.** `#activity-org` missing entirely for
+  `ym-president`, `yw-president` and `council-member`; present for `bishop` with 8 options
+  (`The whole ward`, Bishopric, Elders Quorum, Primary, Relief Society, Sunday School, Young Men,
+  Young Women), defaulting to *The whole ward*.
+- **The `talks-d` hole stays closed.** As `council-member`, added *Ward youth service project* for
+  Ethan Brooks. Heading went **"Activities (4 activities)" → "(5 activities)"** with no reload, the
+  row appeared under Ethan (now "2 activities") reading **Ward-wide** and carrying Edit · Remove.
+  Stored row: `org_id = null`, `entered_by = 7bc6d140…` (Dana Okonkwo).
+- **Audit.** `youth_activity_profile_created`, module `youth_activities`, `user_id 7bc6d140…`,
+  detail `{"orgId":null,"memberId":"f1792107…","profileId":"3ed58c9e…","activityType":"community"}`.
+  Ids only — no member name in the row (rule 8). The refused writes left **no** audit rows, which is
+  correct: nothing happened.
+- **Notification, both directions.** The ward-wide profile emitted **zero**. Adding a second Young
+  Women leader (`yw-counselor`, `org_counselor`, `3d70362b…`) and creating *Track and field* as
+  `yw-president` emitted **exactly one**: `trigger_key youth_activity_added`, recipient
+  `3d70362b…` — the counselor, **not** the actor `30ce4b01…` — title *"A youth activity was added"*,
+  body *"Sela Tuione — Track and field (Sport)"*. The seed STILL cannot reach this on its own; a
+  second organization leader must be added by hand, as the checklist line says.
+- **Grouping and plurals.** Ethan "1 activity", Malia ONE heading with TWO cards "2 activities",
+  Sela "1 activity". Empty state reads "Activities (0 activities)".
+- **Past events.** Default "Schedule (3 upcoming events)", *Game against Jefferson* absent; after
+  **Show past events**, "Schedule (4 events)" with Jefferson first.
+- **Layout.** 375px: `scrollWidth === clientWidth` (360 = 360), zero elements past the viewport,
+  **all 19 buttons ≥ 44×44**, no uuid in `main`. Desktop 1420px: no overflow.
+
+Two things recorded for a human rather than settled here:
+
+1. **Six text links are 20px tall at 375px** — "Back to the young people", "Open the ward activity
+   calendar", "Import a schedule", and the three event-title links. The checklist line says
+   "every **button** is at least 44×44" and every button is; inline links are conventionally exempt
+   from the 44px target. But the event-title links are the ONLY route from this page to
+   `/youth/events/[id]` (`youth-g`), so on a phone the main navigation into the event detail is a
+   20px target. Not called a defect; put to the user.
+2. **Events have no ownership gate at all, and that is deliberate.** Every account is offered
+   **Edit** and **Cancel** on every organization's event. `lib/youth/activityOwnership.ts` says so
+   explicitly ("THERE IS DELIBERATELY NO canManageActivityEvent()") because `activity_events` keeps
+   migration 019's ward-wide write policies. **Verified rather than assumed:** as `ym-president`,
+   `PATCH /api/youth/events/{Winter concert}` (a Young Women event) → **200**. So the UI and the
+   policy agree and this is NOT `youth-a-D1` again. It is still a product asymmetry worth a
+   decision: you cannot rename another presidency's activity, but you can cancel their concert.
+
+**The "needs a human eye" lines WERE answered, by the user, on 2026-08-29** — reviewing the
+screenshots rather than using the app. Four passed outright:
+
+- **Does the absence explain itself?** Yes. "Looks good."
+- **Does "Ward-wide" read as deliberate?** Yes — "lands as a real state".
+- **Do the empty states explain, or look broken?** They explain.
+- **Legible one-handed at 375px, both themes?** Yes.
+
+**"Is it obvious which activities are yours?" passed on the words and raised two enhancements**:
+*"the label makes it obvious. However it could be more easily browsed for your own if the labels
+were colour coded. Maybe a filter to show only your own organization's youth would be good too?"*
+Neither is a defect — the page answers the question, it is the BROWSING that is being asked about.
+Recorded as ITER-029 rather than fixed here, because the colour half is not the small change it
+looks like (see that scope: `ACTIVITY_TYPE_TONES` and `ORGANIZATION_TYPE_TONES` draw from the same
+seven tones, and `young_men` and `sport` are BOTH teal — so an organization chip added to
+*Varsity basketball* would sit beside the type chip in the same colour meaning something else).
+
+The ward was **re-seeded at the end of this walk**, so it is clean — unlike the 2026-08-27 walk,
+which left it dirty.
+
+---
+
 
 **2026-08-27 — driven by Claude in a real browser (Playwright), against the hosted project.** Every
 machine-checkable line below was performed in the running app and verified by re-reading the row

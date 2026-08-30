@@ -61,6 +61,25 @@ Each of these is large or complex enough to tackle on its own.
   seen, not so a leader is measured. The "before" half fires from the clock, which would make
   **seven** clock-driven things deferred to Phase 11; computing it on read avoids an eighth._
 
+- [ ] ITER-029 — Browsing the activity list for your own → [scope](.iterate/scopes/ITER-029.md)
+  _Raised by the user 2026-08-29 reviewing the scenario 049 walk: the ownership label "makes it
+  obvious", but the list "could be more easily browsed for your own if the labels were colour
+  coded", plus "maybe a filter to show only your own organization's youth". **Not a defect** — the
+  page answers the question it was walked for; this is about browsing forty rows instead of four.
+  **The colour half is NOT the small change it looks like.** `ORGANIZATION_TYPE_TONES` already
+  exists and already colours the visits feed, but it shares the seven `CONTEXT_TONES` with
+  `ACTIVITY_TYPE_TONES`, which is ALREADY on every card: `sport` and `young_men` are both **teal**,
+  so *Varsity basketball* would carry two teal chips meaning different things. That map's own
+  comment ("two contexts sharing a hue is a smaller cost than a seventh hue") was written assuming
+  one tone map per card, and this would be the first screen rendering two. The cheapest option that
+  answers the actual ask is to mark only the rows you own rather than colour all seven.
+  **The filter half is cheap and has a shipped precedent** — `ReportFeed`'s organization filter with
+  `allContextsLabel` — and `ActivityProfileList` has no search or filter at all today. Its one trap
+  is the module-wide one: a ward-wide activity belongs to no organization and `ward_council_member`
+  has none, so "only my organization" resolves to empty for the widest role in the app. Reading off
+  `canManageActivityProfile()` instead — a filter labelled **"Only what I can change"** — is correct
+  by construction for every account, and is probably the whole item._
+
 - [ ] ITER-028 — Closing out a season, and the history that outlives it → [scope](.iterate/scopes/ITER-028.md)
   _Raised by the user 2026-08-29 reviewing the scenario 057 walk: "we need to be able to close out a
   season so the stats do not show anymore… it would still be very nice to be able to look at their
