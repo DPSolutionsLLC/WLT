@@ -1,6 +1,6 @@
 # Backlog
 
-_Last updated: 2026-08-29_
+_Last updated: 2026-08-30_
 
 ---
 
@@ -21,6 +21,49 @@ is what the grouping asked for._
 
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
+
+- [ ] ITER-030 — Nobody could have gone: recording that the young person missed it → [scope](.iterate/scopes/ITER-030.md)
+  _Raised by the user 2026-08-30 reviewing the scenario 050 re-walk: "we probably should add an
+  option to report that a youth did not go to a particular event… in that case, the event is removed
+  from that youths statistics all together. shouldn't be counted as attented or missed."
+  **A gap, not a new idea.** `youth-f`'s support percentage already excludes three kinds of event
+  from the denominator — `away`, `cancelled`, and `tbd` — and all three are the same sentence: this
+  game could not have been a chance to support them. "The young person was not there" belongs in
+  that list and is missing from it, so a youth who misses six games with a broken ankle is measured
+  all winter on games nobody could have attended them at. That is CLAUDE.md §9's own `visits-f`
+  argument ("0% would put the one person nobody could possibly have supported at the top") arriving
+  by a slower route. **The insertion point is one function** — `carriesCoverageExpectation()` in
+  `lib/youth/profileNeed.ts`, whose header says a second copy is what would let somebody retune one
+  of them — plus a check of `lib/youth/coverage.ts` in the same change. **A STORED column is right
+  here**, and `cancelled` is the precedent by name: a fact a person knows and nothing else can
+  express, so none of the computed-on-read reasoning applies against it. **The design question to
+  settle first:** not a fourth `status` value — a missed game still happened, and other youth may
+  have been at it — but a separate nullable column, three states, null meaning nobody has said.
+  **Do not infer it** from an empty attendee list or anything else (`classifyLocation.ts`'s refusal,
+  third sighting). Read alongside ITER-028, which removes events from the same number by a different
+  route._
+
+- [ ] ITER-031 — Removing an activity destroys a cascade nobody was warned about → [scope](.iterate/scopes/ITER-031.md)
+  _Found 2026-08-30 walking scenario 050 (`050-D1`) — not a checklist line, the walk found it.
+  `ActivityProfileList.tsx:317` is a bare `onClick={() => deleteMutation.mutate(profile.id)}`: no
+  confirm, no undo, red danger button, fires on one click. Migration 009 cascades
+  `youth_activity_profiles → activity_events → {activity_attendees, activity_logs →
+  activity_private_notes}`, so that click destroys a season of games, every sign-up, every pastoral
+  follow-up **and the private notes rule 5 calls private forever**. Fired twice during the walk
+  (3 → 2 events, then 3 → 0), and the audit row records `orgId`/`memberId`/`profileId` only — so
+  nothing anywhere says what was lost. The codebase already has the missing pattern: twelve
+  `window.confirm` sites, and `DocumentList.tsx:133` states the house rule ("Worded by CONSEQUENCE,
+  not by action… naming the passage count and saying what is NOT affected") for the structurally
+  identical case. **The user's rule is stronger than a confirm and is the substantial part: REFUSE
+  the delete once anybody has written a follow-up**, with a sentence naming the alternative —
+  `visits-f`'s empty-bulk-replace precedent. The check runs server-side against a count the reader
+  is not shown, because `activity_logs` reads are org-scoped (057c). **Also a clarity defect, and
+  the confusion is the finding:** the user could not tell whether Remove takes the event from the
+  individual or globally. It is per-individual — `profile_id` is a single FK, and a `youth-g`
+  occasion links rows without joining them — but the button gives the reader no way to know, and
+  both readings are available from the same word. **Read with ITER-028:** if closing a season ships
+  first, Remove may only need to become Close, and the destructive path narrows to "created by
+  mistake, nothing attached"._
 
 - [ ] ITER-025 — Should being there earn the right to comment? → [scope](.iterate/scopes/ITER-025.md)
   _Raised by the user 2026-08-29: "anyone should be able to click on the event and add their comment
@@ -96,7 +139,9 @@ Each of these is large or complex enough to tackle on its own.
   recomputed with `closed_at` as the clock; recomputing keeps "nothing in this project refreshes
   anything" intact and is almost certainly right. **The trap:** a young person whose every season is
   closed must not vanish from the ward or read as somebody with no activities.
-  **Blocks on nothing** — independent of ITER-024 → ITER-027._
+  **Blocks on nothing** — independent of ITER-024 → ITER-027. **Read with ITER-030 and ITER-031**
+  (both added 2026-08-30): ITER-030 removes events from the same number by a different route, and
+  ITER-031's destructive "Remove" may only need to become this item's "Close"._
 
 - [ ] ITER-017 — Token counts are redacted out of every AI audit row → [scope](.iterate/scopes/ITER-017.md)
   _Found 2026-08-24 walking scenario 027 for `ai-d`. Every AI route logs `outputTokens` so spend is
@@ -251,7 +296,27 @@ Each of these is large or complex enough to tackle on its own.
 ## Deferred
 _Items that need testing or further exploration before scoping. Each entry should include enough context to restart the conversation in a future session._
 
-_None._
+- [ ] ITER-032 — The date input still reads the reader's clock → [scope](.iterate/scopes/ITER-032.md)
+  _Found 2026-08-30 walking scenario 050 (`050-D2`), and **deferred by the user the same day, on a
+  correct reading**: "another ward in another timezone is not going to be even interacting with a
+  ward's data." `c24d52b` moved the DISPLAY half of a turn-up-at time to the ward's zone and left
+  the INPUT half in the reader's. With the ward on `Pacific/Honolulu` and the browser on
+  `America/Denver` the card read `Fri, Jan 15, 2027, 4:30 PM` while the edit field prefilled
+  `19:30`; on the create path a leader typed 19:30 and the card came back 4:30 PM — the hour on the
+  card is not the hour they typed. Cause: `lib/youth/eventInstant.ts` resolves the zone from ambient
+  process state (`new Date()` + `getTimezoneOffset()`) and takes no zone parameter, which was
+  correct under the rule `c24d52b` reversed. **A save left untouched is idempotent** (byte-identical
+  across three writes, since prefill and submit share the same wrong zone), so it is a
+  wrong-number-on-screen bug, not drift. **Unreachable today:** every ward is `America/Denver`,
+  `FALLBACK_WARD_TIMEZONE` is `America/Denver`, and there is no UI to change it. **What makes it
+  live — and both are on the roadmap:** a Phase 11 admin screen for `wards.settings.timezone`, or
+  Phase 12 multi-ward. Whoever builds either must fix this in the same change or ship a control that
+  makes another screen wrong. **Do not confuse this with the rule it came from** — `c24d52b` fixed a
+  bug about the SERVER having no zone (Vercel is UTC; production served this ward's own 7:30pm game
+  as 2:30 AM), which is not reopened. **One piece worth doing sooner and independently:**
+  `tests/lib/explicitTimeZone.test.ts` matches `Intl.DateTimeFormat` and `.toLocale*` but not
+  `getTimezoneOffset`, so it guards only the read half of the round trip; widening it is cheap and
+  is the only thing that stops a third instance._
 
 ---
 

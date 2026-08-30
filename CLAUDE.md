@@ -663,12 +663,22 @@ Flag these when they become relevant; do not silently pick a side.
   zone is not merely the deterministic choice, it is the better one: a ward is one geographic
   congregation, so for very nearly every reader it IS their zone, and the leader who is travelling
   wants "7:30pm" — the hour the game starts and the hour you would say aloud — not 9:30pm in their
-  hotel. **`ActivityCalendar`'s "ZONE TRAP" survives intact**: its rule is that a card is bucketed
+  hotel. **No zone MARKER is rendered beside the time, and that was asked and answered rather than
+  overlooked** (2026-08-30, confirming this reversal on the deployed build): "it is to be assumed
+  that it is according to that ward's time zone". A marker is not owed and should not be added —
+  the ward's clock is the assumption the whole rule rests on, and labelling it would suggest the
+  reader might be looking at some other zone, which is exactly what this decision rules out. **`ActivityCalendar`'s "ZONE TRAP" survives intact**: its rule is that a card is bucketed
   into a day in the SAME zone its own time is printed in, and both halves moved together, so the
   invariant it protects is unchanged and only its premise did. `lib/ward/wardTimezone.ts` now
   answers what a floating imported time means AND what day a rendered card belongs to; it used to
-  answer only the first. **Still unfixed and unrelated:** `/agendas` and `/admin/audit-log` 404
-  from the bishop's sidebar (Phases 9 and 11).
+  answer only the first. **Still unfixed and unrelated — and it is THREE links, not
+  two:** the sidebar is gated on the **permission a reader holds, never on whether the page
+  exists** (`lib/auth/navigation.ts`), so a bishop is offered `/agendas` and `/admin/audit-log`
+  (both 404) plus `/sacrament`, which answers 307 and **silently returns them to `/dashboard`** —
+  the click just does nothing. Phases 9, 10 and 11. **Left deliberately** on the user's instruction
+  2026-08-30 ("expected, haven't gotten there yet"); the standing cost is two console errors on
+  every page a bishop opens, because Next.js prefetches the two 404s. Any future phase that ships a
+  permission before its page will repeat this.
 
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.

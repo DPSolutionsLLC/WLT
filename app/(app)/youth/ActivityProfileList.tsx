@@ -207,6 +207,40 @@ export function ActivityProfileList({
     onError: (error: Error) => setListError(error.message),
   });
 
+  // WORDED BY CONSEQUENCE, not by action — DocumentList.tsx's rule, for the same shape of problem:
+  // deleting a parent that cascades to children. "Are you sure?" tells somebody nothing they did
+  // not already know.
+  //
+  // Removing an activity used to fire on ONE CLICK with no confirm at all (050-D1, found walking
+  // scenario 050). Migration 009 cascades youth_activity_profiles → activity_events →
+  // {activity_attendees, activity_logs → activity_private_notes}, so that click took a season of
+  // games, every sign-up, every follow-up, and private notes rule 5 calls private forever. The
+  // audit row records three ids and nothing about what went with them.
+  //
+  // NO COUNT, DELIBERATELY, and this is the one place the rule is not followed to the letter.
+  // The page loads UPCOMING events only (listActivityEvents without includePast), so the only
+  // number available on this client would understate a finished season — "deletes 2 games" over 14.
+  // An undercount is worse than no count here, because the whole point is conveying magnitude. A
+  // true count means an embedded count on a shared query plus its type, mapper and route; that
+  // belongs with ITER-031's refusal-and-unlink, not bolted on here.
+  //
+  // "Other young people…are not affected" is the what-is-NOT-affected half, and it is the specific
+  // thing a reader cannot work out for themselves: profile_id is a single foreign key, so two
+  // team-mates at one game are two rows, and a youth-g occasion links them without joining them.
+  // Not knowing that is what the scenario 050 review surfaced.
+  function removeProfile(profile: ActivityProfile): void {
+    const confirmed = window.confirm(
+      `Remove ${profile.activityName} from ${profile.memberName}? ` +
+        "This also deletes every game and concert on it, past ones included, along with anyone " +
+        "signed up and any follow-ups written about them. Other young people at the same events " +
+        "are not affected. This cannot be undone.",
+    );
+
+    if (!confirmed) return;
+
+    deleteMutation.mutate(profile.id);
+  }
+
   const profiles = profilesQuery.data ?? [];
   const groups = groupByYouth(profiles);
   const organizationNames = new Map(organizations.map((org) => [org.id, org.label]));
@@ -317,7 +351,7 @@ export function ActivityProfileList({
                           <Button
                             variant="danger"
                             disabled={deleteMutation.isPending}
-                            onClick={() => deleteMutation.mutate(profile.id)}
+                            onClick={() => removeProfile(profile)}
                           >
                             Remove
                           </Button>
