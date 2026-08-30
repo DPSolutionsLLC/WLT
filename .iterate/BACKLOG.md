@@ -238,8 +238,8 @@ _None._
 
 ## Completed
 
-- [x] ITER-024 — One event, one youth, or one occasion, many youth? _(completed 2026-08-29, 668debb — Option A′: an explicit stored occasion, identity only, plus `/youth/events/[id]`. **Completes ITER-020's parked event-detail half**, unblocks ITER-027, answers ITER-025's sequencing question)_
-- [x] ITER-020 — The youth module needs two views it does not have _(completed 2026-08-29, 5cb14a2 — the UNBLOCKED half; the **event-detail view shipped separately in ITER-024**, 668debb)_
+- [x] ITER-024 — One event, one youth, or one occasion, many youth? _(completed 2026-08-29, 43a10c9 — Option A′: an explicit stored occasion, identity only, plus `/youth/events/[id]`. **Completes ITER-020's parked event-detail half**, unblocks ITER-027, answers ITER-025's sequencing question)_
+- [x] ITER-020 — The youth module needs two views it does not have _(completed 2026-08-29, 5cb14a2 — the UNBLOCKED half; the **event-detail view shipped separately in ITER-024**, 43a10c9)_
 - [x] ITER-021 — "Say how it went" is offered on another organization's event _(completed 2026-08-29, 17032a9)_
 - [x] ITER-022 — The follow-up form communicates by appearance alone _(completed 2026-08-29, 17032a9 — items 1 and 2; **item 3 moved to ITER-026**, not built)_
 - [x] ITER-023 — A third hand-maintained copy of the notification trigger keys _(completed 2026-08-28, b2b8aab)_

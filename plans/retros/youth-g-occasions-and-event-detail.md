@@ -2,7 +2,7 @@
 id: youth-g-occasions-and-event-detail
 type: feature
 iter: [ITER-024, ITER-020]
-commits: [668debb]
+commits: [43a10c9]
 date: 2026-08-29
 files:
   - supabase/migrations/059_activity_occasions.sql

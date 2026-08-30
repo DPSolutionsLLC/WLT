@@ -4,7 +4,7 @@
 **Status:** Completed — **DECIDED 2026-08-29: Option A′**, and shipped as Phase 8 slice `youth-g`
 together with ITER-020's parked event-detail half, as Sequencing below required.
 **Completed:** 2026-08-29
-**Commit:** 668debb
+**Commit:** 43a10c9
 **Plan:** plans/youth-g-occasions-and-event-detail.md
 **Retro:** plans/retros/youth-g-occasions-and-event-detail.md
 
