@@ -44,8 +44,9 @@ names anything visit-specific in its parameters — `lastCompletedOn`, not `last
 exactly this reason. If a third module wants them, that is the moment to lift `cadence.ts` out of
 `lib/visits/`; not before.
 
-**Phase 8 ships in four slices**, the same way Phase 7 shipped as `visits-a` … `visits-f`. The
-phase file stays the specification; each slice gets its own plan and its own retro entry.
+**Phase 8 ships as a sequence of slices**, the same way Phase 7 shipped as `visits-a` …
+`visits-f`. It was planned as four and has run to seven, because walking each slice produced the
+next. The phase file stays the specification; each slice gets its own plan and its own retro entry.
 
 | Slice | Covers | Plan | Status |
 |---|---|---|---|
@@ -53,6 +54,9 @@ phase file stays the specification; each slice gets its own plan and its own ret
 | youth-b | ICS upload: `ical.js`, preview-then-confirm, timezones, `RRULE`, idempotent re-import, `activity_calendars` | [youth-b-ics-import.md](youth-b-ics-import.md) | **Built 2026-08-27** — migration 055 applied; scenarios 051/052 not yet walked |
 | youth-c | Home/away classification, attendees, coverage computed on read, `/youth/calendar` | [youth-c-coverage-and-calendar.md](youth-c-coverage-and-calendar.md) | **Built 2026-08-28** — migration 056 applied (`completed` dropped, attendee writes narrowed); scenarios 053/054 not yet walked |
 | youth-d | `activity_logs`, the shared/private split, ward-council flagging, the report feed | [youth-d-followup-and-report-feed.md](youth-d-followup-and-report-feed.md) | **Built 2026-08-28** — migrations 057 and 058 applied (`activity_logs` reads narrowed to the owning organization; 058 corrects 057c's UPDATE check); the report feed is REUSED, not forked; scenarios 055/056 not yet walked |
+| youth-e | ITER-020's unblocked half: `/youth` as a ranked list of young people, `/youth/profiles`, sign-up on the calendar | [youth-e-overview-and-cross-navigation.md](youth-e-overview-and-cross-navigation.md) | **Built 2026-08-29** — no migration; the event-detail half stayed out, blocked by ITER-024 |
+| youth-f | One card per YOUNG PERSON, one pill per activity, the support percentage, two sorts plus a direction toggle | [youth-f-support-percentage-and-youth-cards.md](youth-f-support-percentage-and-youth-cards.md) | **Built 2026-08-29** — no migration; walked with no defects; closing out a season became ITER-028 |
+| youth-g | Migration 059, the occasion link, `/youth/events/[id]`, the "+N others at this game" marker | [youth-g-occasions-and-event-detail.md](youth-g-occasions-and-event-detail.md) | **Built 2026-08-29** — migration 059 applied (`activity_occasions`, ward-wide on all four verbs); closes ITER-024 and the parked event-detail half of ITER-020; **unblocks ITER-027**; scenario 059 not yet walked |
 
 Three decisions were taken at the start of `youth-a` planning and apply to the whole phase.
 **Activity reads are ward-wide and only writes are org-scoped** (`org_id` on

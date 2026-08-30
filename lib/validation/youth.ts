@@ -148,17 +148,40 @@ const eventLocationSchema = z
 //
 // The column keeps its own `default 'tbd'` in the database (migration 054c), so a row written by
 // anything that skips this schema is still valid.
+//
+// ---------------------------------------------------------------------------
+// `occasionWithEventId` NAMES AN EVENT, NOT AN OCCASION, AND THAT IS THE WHOLE POINT
+// ---------------------------------------------------------------------------
+// ABSENT MEANS THIS GAME IS ONLY THIS YOUNG PERSON'S — the ordinary case, and the same
+// absent-means-default idiom `eventType` above uses. PRESENT means the caller is adding a young
+// person to a game that already exists as somebody else's row.
+//
+// It names the OTHER EVENT rather than an occasion id because when a leader adds a missing young
+// person to a game that is not yet an occasion, NO OCCASION ID EXISTS for the client to send. A
+// client holding one would have to either make two calls that can half-succeed — an occasion
+// created, the second row never written — or invent an id. Naming the other event keeps WHICH
+// OCCASION a server decision and removes an impossible client state entirely.
+//
+// It is the same reasoning joinOccasionSchema rests on: a body that could name its own occasion
+// is a body that can put a row somewhere nobody looked at.
 export const createActivityEventSchema = z.object({
   profileId: z.uuid("Choose which activity this event belongs to."),
   title: eventTitleSchema,
   eventDate: eventInstantSchema,
   location: eventLocationSchema.nullable().optional(),
   eventType: z.enum(EVENT_TYPES).optional(),
+  occasionWithEventId: z.uuid("That event is not valid.").optional(),
 });
 export type CreateActivityEventInput = z.infer<typeof createActivityEventSchema>;
 
 // `profileId` is not patchable, for the reason `memberId` is not: an event that moved between
 // activities is a different event.
+//
+// NEITHER IS THE OCCASION, on the same precedent. Joining and unjoining a game is its own action
+// with its own route and its own audit row (`youth_activity_occasion_joined` /
+// `_left`), and a partial patch that silently moved a row between occasions would be recorded as
+// an ordinary edit — which is exactly the thing somebody asks about when the link turns out to be
+// wrong.
 export const updateActivityEventSchema = z
   .object({
     title: eventTitleSchema.optional(),
@@ -183,6 +206,10 @@ export type UpdateActivityEventInput = z.infer<typeof updateActivityEventSchema>
 // depending on where the server happens to run.
 export const listActivityEventsQuerySchema = z.object({
   profileId: z.uuid("That activity is not valid.").optional(),
+  // A READ, so it takes the occasion id itself — which certainly exists by the time anybody is
+  // reading it. The asymmetry with createActivityEventSchema's `occasionWithEventId` is
+  // deliberate and is explained there: on a WRITE the occasion may not exist yet.
+  occasionId: z.uuid("That occasion is not valid.").optional(),
   from: eventInstantSchema.optional(),
   to: eventInstantSchema.optional(),
   // A query string carries no booleans. "true" widens the list to past events; anything else,
@@ -208,6 +235,21 @@ export const assignAttendeeSchema = z.object({
   userId: z.uuid("Choose who is going."),
 });
 export type AssignAttendeeInput = z.infer<typeof assignAttendeeSchema>;
+
+// ---------------------------------------------------------------------------
+// Two young people, one game
+// ---------------------------------------------------------------------------
+// NO `occasionId` IN THE BODY. The caller names the OTHER EVENT — "this is the same game as that
+// one" — and the route decides whether that means creating an occasion or joining an existing
+// one. A body that could name its own occasion is a body that can put a row somewhere nobody
+// looked at, which is the rule this file's header already states for `wardId` and `enteredBy`
+// wearing a different hat.
+//
+// NO `eventId` either: it is the route parameter.
+export const joinOccasionSchema = z.object({
+  otherEventId: z.uuid("Choose which event is the same game."),
+});
+export type JoinOccasionInput = z.infer<typeof joinOccasionSchema>;
 
 // ---------------------------------------------------------------------------
 // The follow-up: what happened after the game

@@ -1,8 +1,27 @@
 # ITER-024: One Event, One Youth — Or One Occasion, Many Youth?
 
 **Type:** Decision (schema)
-**Status:** Backlog — **DECIDED 2026-08-29: Option A′.** Not yet built; see Sequencing below.
-**Plan:** _none yet_
+**Status:** Completed — **DECIDED 2026-08-29: Option A′**, and shipped as Phase 8 slice `youth-g`
+together with ITER-020's parked event-detail half, as Sequencing below required.
+**Completed:** 2026-08-29
+**Commit:** 668debb
+**Plan:** plans/youth-g-occasions-and-event-detail.md
+**Retro:** plans/retros/youth-g-occasions-and-event-detail.md
+
+**What shipped:** migration 059 (`activity_occasions`, identity only, ward-wide on all four verbs;
+`activity_events.occasion_id` nullable with `on delete set null (occasion_id)`),
+`/youth/events/[id]`, the join and unlink route, `occasionWithEventId` on event creation, and a
+"+N others at this game" marker counted from the unfiltered list. Walked as scenario 059; three
+defects found and fixed, none in the data layer. **ITER-027 is unblocked and ITER-025's sequencing
+question is answered** — neither was built here.
+
+**Answers taken at planning time**, all three from the Open section below:
+`activity_occasions` is **identity only** (no name); the **ICS import does not create occasions**
+in this slice; **cross-organization occasions are supported** and an RLS test asserts one, since
+they fall out of A′ rather than being engineered. Two further decisions the scope did not settle:
+a leader may **both** join two existing rows and add a missing young person, and `/youth/calendar`
+**marks rather than collapses** — an occasion spans youth, organizations and activity types, so
+collapsing would leave all four of that page's filters without a single answer.
 **Created:** 2026-08-29
 **Raised by:** the user, 2026-08-29, reviewing the ITER-021/022 walk
 **Blocks:** ITER-020 (the useful half), ITER-027 (entirely)

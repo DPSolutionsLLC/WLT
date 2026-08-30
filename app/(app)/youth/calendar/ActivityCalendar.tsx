@@ -237,6 +237,29 @@ export function ActivityCalendar({
     [profilesQuery.data],
   );
 
+  // ---------------------------------------------------------------------------
+  // COUNTED FROM THE UNFILTERED LIST, AND THAT IS THE WHOLE POINT
+  // ---------------------------------------------------------------------------
+  // Filter the calendar to Ethan and Josh's row disappears — but the honest answer to "who else
+  // is at this game" is still two. A count computed AFTER the filter answers a different question
+  // from the one the words beside it claim, which is roster-b, restated by visits-b and visits-f.
+  //
+  // So this is built from `eventsQuery.data` directly, BEFORE the four client-side filters below
+  // are applied, and it must stay that way.
+  //
+  // NO EXTRA REQUEST, and no N+1 is needed later either: siblings share an instant and this
+  // page's fetch is date-bounded, so every sibling of a fetched event is in the same fetch.
+  const occasionCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    for (const event of eventsQuery.data ?? []) {
+      if (event.occasionId === null) continue;
+      counts.set(event.occasionId, (counts.get(event.occasionId) ?? 0) + 1);
+    }
+
+    return counts;
+  }, [eventsQuery.data]);
+
   const rows: CalendarRow[] = useMemo(() => {
     const events = eventsQuery.data ?? [];
     const attendeesByEvent = attendeesQuery.data ?? {};
@@ -517,6 +540,12 @@ export function ActivityCalendar({
                 currentUserId={currentUserId}
                 canAssign={canAssign}
                 assignableUsers={assignableUsers}
+                // MINUS ONE — the count is of the OTHERS, and this row is in the map too.
+                siblingCount={
+                  row.event.occasionId === null
+                    ? 0
+                    : (occasionCounts.get(row.event.occasionId) ?? 1) - 1
+                }
                 // Only when the profile is actually in the list. The card already reads "An
                 // activity that is no longer listed" there, and a link to a card that will not
                 // open is worse than none.
@@ -540,12 +569,16 @@ function EventCard({
   canAssign,
   assignableUsers,
   youthHref,
+  siblingCount,
 }: {
   row: CalendarRow;
   currentUserId: string;
   canAssign: boolean;
   assignableUsers: { id: string; label: string }[];
   youthHref: string | null;
+  // How many OTHER young people are at this same game. Computed from the UNFILTERED list by the
+  // caller — see the comment on `occasionCounts`.
+  siblingCount: number;
 }) {
   const { event, coverage, memberName, activityName, attendees } = row;
 
@@ -557,7 +590,16 @@ function EventCard({
   return (
     <Card className={COVERAGE_EDGE_CLASSES[coverage.state]}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium text-foreground">{event.title}</span>
+        {/* THE TITLE IS THE WAY IN TO THE EVENT ITSELF, which is where the occasion — every young
+            person at this same game — is read and built. ITER-020 asked for exactly this
+            crossing: any card → the event → the occasion's young people → a young person's
+            card. */}
+        <Link
+          href={`/youth/events/${event.id}`}
+          className="text-sm font-medium text-primary underline underline-offset-4"
+        >
+          {event.title}
+        </Link>
         {showTypeChip ? (
           <span className="rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted">
             {EVENT_TYPE_LABELS[event.eventType]}
@@ -595,6 +637,25 @@ function EventCard({
 
       {event.location === null ? null : (
         <p className="text-sm text-muted">{event.location}</p>
+      )}
+
+      {/* NOTHING AT ALL AT ZERO, which is nearly every card. "+0 others at this game" is noise on
+          the ordinary row — talks-c's render-nothing-rather-than-"Never" rule.
+
+          SINGULAR AND PLURAL BOTH WRITTEN OUT. youth-b's walk found "1 events updated" shipped
+          past a green suite, because a plural bug is invisible to every test that does not read
+          the sentence. */}
+      {siblingCount === 0 ? null : (
+        <p className="mt-1 text-sm">
+          <Link
+            href={`/youth/events/${event.id}`}
+            className="text-primary underline underline-offset-4"
+          >
+            {siblingCount === 1
+              ? "+1 other at this game"
+              : `+${siblingCount} others at this game`}
+          </Link>
+        </p>
       )}
 
       {/* ---------------------------------------------------------------

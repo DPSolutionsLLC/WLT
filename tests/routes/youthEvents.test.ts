@@ -42,6 +42,7 @@ type EventBody = {
   eventDate: string;
   location: string | null;
   status: string;
+  occasionId: string | null;
 };
 
 async function callGet(query = "") {
@@ -90,16 +91,24 @@ describe("/api/youth/events", () => {
   let upcomingEventId: string;
 
   const created: string[] = [];
+  // Occasions outlive the events that made them until afterAll, because deleting an event does
+  // not delete the occasion it was in (migration 059b is `set null`, deliberately).
+  const createdOccasions: string[] = [];
 
   const eventFrom = (body: Record<string, unknown>): EventBody => body.event as EventBody;
   const eventsFrom = (body: Record<string, unknown>): EventBody[] => body.events as EventBody[];
 
   const storedEvent = async (
     eventId: string,
-  ): Promise<{ event_date: string; status: string; calendar_id: string | null } | null> => {
+  ): Promise<{
+    event_date: string;
+    status: string;
+    calendar_id: string | null;
+    occasion_id: string | null;
+  } | null> => {
     const { data, error } = await fixtures.service
       .from("activity_events")
-      .select("event_date, status, calendar_id")
+      .select("event_date, status, calendar_id, occasion_id")
       .eq("id", eventId)
       .maybeSingle();
 
@@ -209,6 +218,9 @@ describe("/api/youth/events", () => {
   afterAll(async () => {
     if (created.length > 0) {
       await fixtures.service.from("activity_events").delete().in("id", created);
+    }
+    if (createdOccasions.length > 0) {
+      await fixtures.service.from("activity_occasions").delete().in("id", createdOccasions);
     }
     await fixtures?.cleanup();
   });
@@ -385,6 +397,166 @@ describe("/api/youth/events", () => {
       });
 
       expect(status).toBe(403);
+    });
+
+    // ---------------------------------------------------------------------------
+    // ADDING A YOUNG PERSON TO A GAME THAT ALREADY EXISTS (slice G)
+    // ---------------------------------------------------------------------------
+    // `occasionWithEventId` names ANOTHER EVENT rather than an occasion, because when the game is
+    // not yet an occasion no id exists for a client to send. The route resolves or creates it and
+    // STAMPS BOTH ROWS in one request — so the two come out of it either both linked or neither,
+    // which is the state a client making two calls could not guarantee.
+    it("creates an occasion and stamps both rows when the source has none", async () => {
+      await actAs(fixtures, "eqPresident");
+      const { body: sourceBody } = await callPost({
+        profileId,
+        title: `Occasion source ${fixtures.runId}`,
+        eventDate: "2027-09-20T19:30:00-06:00",
+      });
+      const sourceId = eventFrom(sourceBody).id;
+      created.push(sourceId);
+
+      expect((await storedEvent(sourceId))!.occasion_id).toBeNull();
+
+      const { status, body } = await callPost({
+        profileId,
+        title: `Occasion joiner ${fixtures.runId}`,
+        eventDate: "2027-09-20T19:30:00-06:00",
+        occasionWithEventId: sourceId,
+      });
+
+      expect(status).toBe(201);
+      const joiner = eventFrom(body);
+      created.push(joiner.id);
+      createdOccasions.push(joiner.occasionId as string);
+
+      expect(joiner.occasionId).not.toBeNull();
+      expect((await storedEvent(sourceId))!.occasion_id).toBe(joiner.occasionId);
+    });
+
+    it("joins the source's existing occasion rather than creating a second", async () => {
+      await actAs(fixtures, "eqPresident");
+      const { body: firstBody } = await callPost({
+        profileId,
+        title: `Existing source ${fixtures.runId}`,
+        eventDate: "2027-09-21T19:30:00-06:00",
+      });
+      const sourceId = eventFrom(firstBody).id;
+      created.push(sourceId);
+
+      const { body: secondBody } = await callPost({
+        profileId,
+        title: `Existing joiner ${fixtures.runId}`,
+        eventDate: "2027-09-21T19:30:00-06:00",
+        occasionWithEventId: sourceId,
+      });
+      const occasionId = eventFrom(secondBody).occasionId as string;
+      created.push(eventFrom(secondBody).id);
+      createdOccasions.push(occasionId);
+
+      const { status, body: thirdBody } = await callPost({
+        profileId,
+        title: `Existing third ${fixtures.runId}`,
+        eventDate: "2027-09-21T19:30:00-06:00",
+        occasionWithEventId: sourceId,
+      });
+
+      expect(status).toBe(201);
+      created.push(eventFrom(thirdBody).id);
+      expect(eventFrom(thirdBody).occasionId).toBe(occasionId);
+    });
+
+    // A SENTENCE, AND NO ROW WRITTEN. Resolving before the insert is what turns the composite
+    // foreign key's constraint violation into something a person can act on.
+    it("returns 404 for a source event in another ward and creates nothing", async () => {
+      const { data: theirs } = await fixtures.service
+        .from("activity_events")
+        .insert({
+          ward_id: fixtures.wardBId,
+          profile_id: wardBProfileId,
+          title: `Ward B source ${fixtures.runId}`,
+          event_type: "home",
+          event_date: yearsFromNow(2),
+        })
+        .select("id")
+        .single();
+
+      await actAs(fixtures, "eqPresident");
+      const before = eventsFrom((await callGet("?includePast=true")).body).length;
+
+      const { status, body } = await callPost({
+        profileId,
+        title: `Cross ward occasion ${fixtures.runId}`,
+        eventDate: "2027-09-22T19:30:00-06:00",
+        occasionWithEventId: theirs!.id,
+      });
+
+      expect(status).toBe(404);
+      expect(errorMessage(body)).toContain("not in your ward");
+      expect(eventsFrom((await callGet("?includePast=true")).body)).toHaveLength(before);
+
+      await fixtures.service.from("activity_events").delete().eq("id", theirs!.id);
+    });
+
+    // ---------------------------------------------------------------------------
+    // `away` IS ALWAYS A HUMAN'S WORD, AND IT IS NOT COPIED ACROSS AN OCCASION
+    // ---------------------------------------------------------------------------
+    // The source row is hand-corrected to `away` with a location matching no venue on the ward's
+    // list. The new row must be classified from ITS OWN location and come out `tbd`, which
+    // renders "Home or away?" and asks somebody. Copying the source's `away` would silently
+    // remove the new young person from the coverage model — an away game carries no coverage
+    // expectation by design — and nothing anywhere would say so (youth-c). This pins the rule
+    // against exactly the shortcut a later reader would take.
+    it("classifies the new row from its own location rather than copying the source", async () => {
+      await actAs(fixtures, "eqPresident");
+      const { body: sourceBody } = await callPost({
+        profileId,
+        title: `Away source ${fixtures.runId}`,
+        eventDate: "2027-09-23T19:30:00-06:00",
+        location: `Nowhere anybody listed ${fixtures.runId}`,
+        eventType: "away",
+      });
+      const source = eventFrom(sourceBody);
+      created.push(source.id);
+      expect(source.eventType).toBe("away");
+
+      const { status, body } = await callPost({
+        profileId,
+        title: `Away joiner ${fixtures.runId}`,
+        eventDate: "2027-09-23T19:30:00-06:00",
+        location: `Nowhere anybody listed ${fixtures.runId}`,
+        occasionWithEventId: source.id,
+      });
+
+      expect(status).toBe(201);
+      const joiner = eventFrom(body);
+      created.push(joiner.id);
+      createdOccasions.push(joiner.occasionId as string);
+
+      expect(joiner.eventType).toBe("tbd");
+      expect(joiner.occasionId).toBe((await storedEvent(source.id))!.occasion_id);
+    });
+
+    it("refuses an org secretary from adding a young person to a game", async () => {
+      await actAs(fixtures, "eqPresident");
+      const { body: sourceBody } = await callPost({
+        profileId,
+        title: `Gate source ${fixtures.runId}`,
+        eventDate: "2027-09-24T19:30:00-06:00",
+      });
+      const sourceId = eventFrom(sourceBody).id;
+      created.push(sourceId);
+
+      await actAs(fixtures, "eqSecretary");
+      const { status } = await callPost({
+        profileId,
+        title: `Gate joiner ${fixtures.runId}`,
+        eventDate: "2027-09-24T19:30:00-06:00",
+        occasionWithEventId: sourceId,
+      });
+
+      expect(status).toBe(403);
+      expect((await storedEvent(sourceId))!.occasion_id).toBeNull();
     });
 
     it("writes an audit row", async () => {

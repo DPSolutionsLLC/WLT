@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   graphql_public: {
     Tables: {
@@ -213,6 +213,7 @@ export type Database = {
           event_type: string
           id: string
           location: string | null
+          occasion_id: string | null
           profile_id: string | null
           source_recurrence_id: string | null
           source_uid: string | null
@@ -228,6 +229,7 @@ export type Database = {
           event_type?: string
           id?: string
           location?: string | null
+          occasion_id?: string | null
           profile_id?: string | null
           source_recurrence_id?: string | null
           source_uid?: string | null
@@ -243,6 +245,7 @@ export type Database = {
           event_type?: string
           id?: string
           location?: string | null
+          occasion_id?: string | null
           profile_id?: string | null
           source_recurrence_id?: string | null
           source_uid?: string | null
@@ -256,6 +259,13 @@ export type Database = {
             columns: ["calendar_id", "ward_id"]
             isOneToOne: false
             referencedRelation: "activity_calendars"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "activity_events_occasion_id_ward_id_fkey"
+            columns: ["occasion_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "activity_occasions"
             referencedColumns: ["id", "ward_id"]
           },
           {
@@ -325,6 +335,42 @@ export type Database = {
           },
           {
             foreignKeyName: "activity_logs_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activity_occasions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          ward_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          ward_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_occasions_created_by_ward_id_fkey"
+            columns: ["created_by", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "activity_occasions_ward_id_fkey"
             columns: ["ward_id"]
             isOneToOne: false
             referencedRelation: "wards"

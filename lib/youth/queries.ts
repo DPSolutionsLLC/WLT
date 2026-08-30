@@ -160,6 +160,11 @@ export type ActivityEvent = {
   // null for a one-off.
   sourceUid: string | null;
   sourceRecurrenceId: string | null;
+  // Migration 059. NULL MEANS THIS GAME IS ONLY THIS YOUNG PERSON'S, and that is the ordinary
+  // state of nearly every row — the same absent-means-default idiom as `org_id` on a profile.
+  // A non-null id says two or more rows are the SAME EVENING, recorded explicitly by a person
+  // rather than inferred from a matching title and date.
+  occasionId: string | null;
   createdAt: string;
 };
 
@@ -191,7 +196,7 @@ const ACTIVITY_PROFILE_COLUMNS =
 // select list, silently degrading every row to something untyped
 // (plans/retros/calendar-a-rules-and-api.md).
 const ACTIVITY_EVENT_COLUMNS =
-  "id, profile_id, calendar_id, title, event_type, event_date, location, status, all_day, source_uid, source_recurrence_id, created_at";
+  "id, profile_id, calendar_id, title, event_type, event_date, location, status, all_day, source_uid, source_recurrence_id, occasion_id, created_at";
 
 const ACTIVITY_CALENDAR_COLUMNS =
   "id, profile_id, source_type, source_url, last_synced_at, created_at";
@@ -222,6 +227,7 @@ type ActivityEventRow = {
   all_day: boolean;
   source_uid: string | null;
   source_recurrence_id: string | null;
+  occasion_id: string | null;
   created_at: string;
 };
 
@@ -273,6 +279,7 @@ function mapActivityEventRow(row: ActivityEventRow): ActivityEvent {
     allDay: row.all_day,
     sourceUid: row.source_uid,
     sourceRecurrenceId: row.source_recurrence_id,
+    occasionId: row.occasion_id,
     createdAt: row.created_at,
   };
 }
@@ -453,6 +460,12 @@ export type ListActivityEventsOptions = {
   // diffs against — a hand-entered event (calendar_id null) is invisible to this filter by
   // construction, and that is exactly the guarantee the re-import needs.
   calendarId?: string;
+  // Slice G. Narrows to the rows sharing ONE OCCASION — every young person at the same game.
+  // Filtered in the DATABASE like the others below, and carried by
+  // listActivityEventsQuerySchema too: a filter parameter the route's schema does not carry is
+  // silently ignored, and the page looks filtered without being
+  // (plans/retros/roster-b-picker-and-orgs.md).
+  occasionId?: string;
   from?: string;
   to?: string;
   includePast?: boolean;
@@ -478,6 +491,7 @@ export async function listActivityEvents(
 
   if (options.profileId !== undefined) query = query.eq("profile_id", options.profileId);
   if (options.calendarId !== undefined) query = query.eq("calendar_id", options.calendarId);
+  if (options.occasionId !== undefined) query = query.eq("occasion_id", options.occasionId);
   if (options.from !== undefined) query = query.gte("event_date", options.from);
   if (options.to !== undefined) query = query.lte("event_date", options.to);
 
@@ -537,10 +551,16 @@ export async function getActivityEvent(
 // runs classifyEventLocation over the ward's home venues. Taking it here rather than reading
 // `input.eventType` means EXACTLY ONE PLACE decides classification, and a caller that forgot is a
 // type error rather than a row silently written `tbd`.
+//
+// `occasionId` ARRIVES ALREADY RESOLVED TOO, and for exactly that reason. The schema carries
+// `occasionWithEventId` — the id of ANOTHER EVENT to share a game with — and the route is what
+// turns that into an occasion, creating one and stamping the source row when there is none. Null
+// means this game is only this young person's, which is the ordinary case.
 export async function createActivityEvent(
   wardId: string,
   input: CreateActivityEventInput,
   eventType: EventType,
+  occasionId: string | null,
   client?: SupabaseClient<Database>,
 ): Promise<ActivityEvent> {
   const supabase = await resolveClient(client);
@@ -556,6 +576,7 @@ export async function createActivityEvent(
       event_date: input.eventDate,
       location: input.location ?? null,
       status: "upcoming",
+      occasion_id: occasionId,
     })
     .select(ACTIVITY_EVENT_COLUMNS)
     .single();

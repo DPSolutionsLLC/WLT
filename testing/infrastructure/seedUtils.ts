@@ -1140,6 +1140,24 @@ export async function createYouthActivityProfile(options: {
 // past is completed by the clock too. What is left is the pair a PERSON knows: it is coming up,
 // or it was called off. A called-off game stays on the list, marked, because the record that it
 // was ever scheduled is what "why did nobody go?" needs.
+// TWO YOUNG PEOPLE, ONE GAME (migration 059a). An occasion is IDENTITY AND NOTHING ELSE — no
+// title, no date, no place — because all three already live on the event rows it links and a
+// second copy could disagree with the first.
+//
+// A scenario builds one here when it needs to START from a joined game. The ordinary state of
+// every event in a ward is `occasionId` absent, which means "this game is only this young
+// person's" — there is no sentinel occasion meaning "alone".
+export async function createActivityOccasion(options: {
+  id?: string;
+  createdBy?: string;
+} = {}): Promise<string> {
+  return insertRow("activity_occasions", {
+    id: options.id ?? testUuid(`occasion:${options.createdBy ?? "ward"}`),
+    ward_id: TEST_WARD_ID,
+    created_by: options.createdBy ?? null,
+  });
+}
+
 export async function createActivityEvent(options: {
   id?: string;
   profileId?: string;
@@ -1148,6 +1166,9 @@ export async function createActivityEvent(options: {
   eventType?: "home" | "away" | "tbd";
   location?: string;
   status?: "upcoming" | "cancelled";
+  // Migration 059b. ABSENT MEANS THIS GAME IS ONLY THIS YOUNG PERSON'S, which is the ordinary
+  // state of nearly every row — the same absent-means-default idiom `org` uses on a profile.
+  occasionId?: string;
   // Migration 055. Leaving all four at their defaults produces a HAND-ENTERED event, which is
   // what createActivityEvent has always meant — `calendar_id` and `source_uid` both null is
   // exactly the shape slice B's re-import is forbidden from matching.
@@ -1173,6 +1194,7 @@ export async function createActivityEvent(options: {
     all_day: options.allDay ?? false,
     source_uid: options.sourceUid ?? null,
     source_recurrence_id: options.sourceRecurrenceId ?? null,
+    occasion_id: options.occasionId ?? null,
   });
 }
 

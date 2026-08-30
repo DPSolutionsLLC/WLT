@@ -10,8 +10,10 @@ import {
 } from "@/lib/validation/youth";
 import { readHomeVenues } from "@/lib/ward/homeVenues";
 import { classifyEventLocation } from "@/lib/youth/classifyLocation";
+import { createOccasion, setEventOccasion } from "@/lib/youth/occasions";
 import {
   createActivityEvent,
+  getActivityEvent,
   getActivityProfile,
   listActivityEvents,
 } from "@/lib/youth/queries";
@@ -41,6 +43,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const query = listActivityEventsQuerySchema.parse({
       profileId: url.searchParams.get("profileId") ?? undefined,
+      occasionId: url.searchParams.get("occasionId") ?? undefined,
       from: url.searchParams.get("from") ?? undefined,
       to: url.searchParams.get("to") ?? undefined,
       includePast: url.searchParams.get("includePast") ?? undefined,
@@ -99,7 +102,60 @@ export async function POST(request: Request) {
       chosenEventType ??
       classifyEventLocation(input.location, await readHomeVenues(user.wardId, supabase));
 
-    const event = await createActivityEvent(user.wardId, input, eventType, supabase);
+    // ---------------------------------------------------------------------------
+    // ADDING A YOUNG PERSON TO A GAME THAT ALREADY EXISTS
+    // ---------------------------------------------------------------------------
+    // `occasionWithEventId` names ANOTHER EVENT, not an occasion, and lib/validation/youth.ts
+    // argues why: when the game is not yet an occasion there is no id for a client to hold, so
+    // naming the other event is what removes an impossible client state and keeps WHICH OCCASION
+    // a server decision.
+    //
+    // THIS BRANCH REQUIRES `youth_activities.manage`, WHICH THIS ROUTE ALREADY ASSERTED. Adding a
+    // young person to somebody else's game is the same coordination decision
+    // POST /api/youth/events/[id]/occasion gates, and the two must not disagree.
+    //
+    // AND `eventType` IS NOT COPIED FROM THE SOURCE ROW. The rule above stands unchanged: absent
+    // means classify from the location, present means a person decided. A row added to an
+    // occasion whose location matches no venue becomes `tbd` — `away` IS ALWAYS A HUMAN'S WORD
+    // (youth-c), and spreading one leader's hand correction onto a row they never looked at is
+    // exactly what that rule refuses. `tbd` is loud: it renders "Home or away?" and asks somebody.
+    let occasionId: string | null = null;
+
+    if (input.occasionWithEventId !== undefined) {
+      // Resolved before the write for the reason the profile check directly above is: the
+      // composite foreign key would otherwise answer with a constraint violation nobody can act
+      // on.
+      const sourceEvent = await getActivityEvent(
+        user.wardId,
+        input.occasionWithEventId,
+        supabase,
+      );
+
+      if (!sourceEvent) {
+        return NextResponse.json(
+          { error: "That event is not in your ward." },
+          { status: 404 },
+        );
+      }
+
+      if (sourceEvent.occasionId !== null) {
+        occasionId = sourceEvent.occasionId;
+      } else {
+        // CREATED AND STAMPED IN THE SAME REQUEST, so the two rows come out of it either both
+        // linked or neither — rather than leaving a leader with a brand-new event that shares
+        // nothing with the game they added it to.
+        occasionId = (await createOccasion(user.wardId, user.id, supabase)).id;
+        await setEventOccasion(user.wardId, sourceEvent.id, occasionId, supabase);
+      }
+    }
+
+    const event = await createActivityEvent(
+      user.wardId,
+      input,
+      eventType,
+      occasionId,
+      supabase,
+    );
 
     await writeAuditLog(
       {
@@ -113,6 +169,8 @@ export async function POST(request: Request) {
           orgId: profile.orgId,
           eventDate: event.eventDate,
           eventType: event.eventType,
+          // Null on the ordinary case — a game that is only this young person's.
+          occasionId: event.occasionId,
           // WHETHER A PERSON CHOSE IT OR THE VENUE LIST DID. Without this, the audit row cannot
           // answer "why is this marked home?" and a reader has to guess — which is the question
           // somebody asks precisely when the classification turns out to be wrong.

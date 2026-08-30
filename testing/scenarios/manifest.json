@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 58,
+  "scenarioCount": 59,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -2422,6 +2422,50 @@
         "Legible one-handed at 375px, in both light and dark mode?"
       ],
       "seedCommand": "npm run seed -- youth/scenario-058-signing-up-from-the-calendar"
+    },
+    {
+      "id": "youth:scenario-059-two-young-people-one-game",
+      "path": "youth/scenario-059-two-young-people-one-game",
+      "name": "Two young people, one game",
+      "scope": "youth",
+      "part": 9,
+      "tags": [
+        "youth",
+        "full",
+        "occasions",
+        "event-detail",
+        "cross-org"
+      ],
+      "prerequisites": "none",
+      "purpose": "`activity_events.profile_id` is a single foreign key, so **an event belongs to exactly one young\nperson**. Ethan Brooks and Josh Kim on the same basketball team, at the same game on Friday, are\n**two rows**, two calendar cards, and nothing anywhere records that they are the same evening in\nthe same gym.\n\nThis scenario proves that one real game held as two rows can be **joined by a person**, that\n`/youth/events/[id]` answers *\"who else is in that gym\"*, and that an occasion where **one** young\nperson has nobody committed reads as an **alert** while the others read as covered.\n\nSeeding matters because the honest starting state is *two rows a school feed produced weeks apart,\nin two different organizations* — twenty minutes of clicking to build by hand, and wrong the moment\nthe clock moves. The two titles differ on purpose (*\"Game against Roosevelt\"* and *\"Game vs\nRoosevelt\"*), which is exactly why the link is **explicit and stored** rather than matched on title\nand date.\n\nA green suite cannot see the two things this walk is for: whether the count beside *\"+N others\"*\nsurvives a filter, and whether the occasion badge moves when somebody signs up **without a\nreload**.",
+      "checklist": [
+        "Before step 6, `/youth/calendar` shows **two separate Roosevelt cards** with **no marker** on",
+        "Every event card's **title is a link** to `/youth/events/<id>`, and following it opens the",
+        "The join picker offers only events on **the same day**, and **Game against Jefferson**",
+        "The picker does **not** offer the event you are already on.",
+        "Every option names the **time, the young person and the activity** — not the title alone.",
+        "After joining, the detail page lists **both** Ethan and Josh, each with their own coverage",
+        "With Josh covered and Ethan not, the **occasion badge reads `Nobody going`** and a sentence",
+        "Pressing **I'll go** on Ethan's row changes the occasion badge **without a reload**.",
+        "Adding **Ava Reyes** creates a row on the same occasion, owned by **Young Women**, and the",
+        "Ava's new row is chipped **Home** (its location matches the ward's venue list). If the seed's",
+        "Ava's row carries **no** *\"From a schedule feed\"* chip; the two imported rows still do.",
+        "Back on `/youth/calendar`, all three cards read **\"+2 others at this game\"** and each links to",
+        "**Filtered to Ethan only, his card still reads \"+2 others at this game\"** — not \"+0\". This is",
+        "A card with no occasion renders **no marker at all** — not \"+0 others\".",
+        "Singular reads correctly too: unlink down to two rows and the marker says **\"+1 other at this",
+        "The **past** Madison occasion renders in full at `/youth/events/<id>`; its rows are **not**",
+        "**Not the same game** removes one row and leaves the others intact; re-joining restores it.",
+        "Unlinking down to a **single** row leaves that row with **no marker**, and the occasion is",
+        "Every event still exists after an unlink — `set null`, never `cascade`.",
+        "At 375px nothing overflows, and every control is at least 44px tall.",
+        "**Does the detail page answer \"who else is in that gym\" at a glance?** The occasion badge is",
+        "Is *\"This is the same game as…\"* a sentence a leader would understand without being told what",
+        "Does *\"+2 others at this game\"* invite a tap, or read as decoration?",
+        "In **dark** mode, does the occasion panel read as a panel rather than as a hole? `--surface`",
+        "With three rows and two build controls, is the page still scannable on a phone, or has it"
+      ],
+      "seedCommand": "npm run seed -- youth/scenario-059-two-young-people-one-game"
     }
   ]
 }

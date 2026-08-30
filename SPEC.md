@@ -555,6 +555,7 @@ event_type      text  -- 'home' | 'away' | 'tbd'
 event_date      timestamptz
 location        text
 status          text DEFAULT 'upcoming'  -- 'upcoming' | 'cancelled' | 'completed'
+occasion_id     uuid REFERENCES activity_occasions(id)  -- null = only this young person's
 created_at      timestamptz DEFAULT now()
 ```
 
@@ -568,6 +569,36 @@ The status set changed there too, and the two halves are separate decisions. **`
 in this project refreshes anything. **`cancelled` was added** because a called-off game is a fact a
 person knows and nothing else can express; without it the only way off the list is a delete, which
 loses the record that it was ever scheduled.
+
+`occasion_id` was added by migration 059b. **Null means this game is only this young person's**,
+which is the ordinary state of nearly every row — the same absent-means-default idiom as `org_id`
+on a profile, with no sentinel occasion meaning "alone". The foreign key is composite and carries
+`ON DELETE SET NULL (occasion_id)`: the **column list is not optional**, because a bare `SET NULL`
+on a composite key nulls `ward_id` too and the cascade raises (migrations 046/047).
+
+### `activity_occasions`
+```sql
+id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
+created_by      uuid REFERENCES users(id)
+created_at      timestamptz DEFAULT now()
+UNIQUE (id, ward_id)
+```
+
+**An identity and nothing else** — no title, no date, no location. All three already live on the
+event rows the occasion links, and a second copy could disagree with the first. Two rows carrying
+the same `occasion_id` are the same evening; the link is **explicit and stored, never inferred
+from a matching title and date** (two school feeds write one fixture as "Game against Roosevelt"
+and "Game vs Roosevelt", which is the same reasoning `classifyLocation.ts` refuses near-miss
+matching on).
+
+**Ward-wide policies on all four verbs** (migration 059c), matching `activity_events` rather than
+the profile's org-scoped writes. A **cross-organization occasion is the point, not an edge case**:
+one occasion holds a Young Men row and a Young Women row, and a write policy comparing
+`current_org_id()` would make exactly that unwritable. The read must also be uniformly evaluable —
+"who else is at this game" cannot have two answers from the same data.
+
+**The ICS import does not create occasions.** A leader joins imported rows by hand.
 
 ### `activity_attendees`
 ```sql
@@ -1222,10 +1253,13 @@ GET    /api/youth/profiles       List activity profiles
 POST   /api/youth/profiles       Create profile
 PATCH  /api/youth/profiles/[id]  Update profile
 POST   /api/youth/calendars      Import calendar (ICS or Google URL)
-GET    /api/youth/events         List events
+GET    /api/youth/events         List events (?occasionId narrows to one shared game)
+POST   /api/youth/events         Create event (occasionWithEventId adds a youth to an existing game)
 PATCH  /api/youth/events/[id]    Update event (type, status)
 POST   /api/youth/events/[id]/attend    Add self as attendee
 POST   /api/youth/events/[id]/assign    Assign attendee (bishopric only)
+POST   /api/youth/events/[id]/occasion  Record this event as the same game as another
+DELETE /api/youth/events/[id]/occasion  Take this event out of its game
 POST   /api/youth/logs           Log post-activity report
 ```
 
@@ -1416,11 +1450,18 @@ PATCH  /api/admin/ward-settings  Update ward settings (with bishopric notificati
                                with attendance controls and a link per card to /youth
     /feed/page.tsx             Follow-up feed (reuses components/visits/ReportFeed)
     /import/page.tsx           ICS schedule import
-    /events/[id]/page.tsx      Event detail — NOT BUILT. Blocked by ITER-024: an `activity_events`
-                               row belongs to exactly one profile, so "every youth tied to this
-                               event" has no answer yet. ITER-024 is decided (an explicit stored
-                               occasion link) and its Sequencing section asks for the column and
-                               this view to be planned together.
+    /events/[id]/page.tsx      Event detail — every young person tied to this OCCASION, each with
+                               their own coverage badge and their own AttendeeControls, under one
+                               occasion-level badge that is worst-of across the rows
+                               (`worstCoverage()`, reduced with `coverageRank()`). Two build
+                               controls, both gated on `youth_activities.manage`: "This is the
+                               same game as…" (a picker over the event's own day, bounded in the
+                               WARD's zone so every reader is offered the same candidates) and
+                               "Another young person was at this". An event with no occasion opens
+                               here and shows one row, which is where a leader goes to join it to
+                               something. `/youth/calendar` and `/youth` link in from every card
+                               title and from a "+N others at this game" marker, counted from the
+                               UNFILTERED list.
   /tithing/page.tsx            Tithing calculator — lives under app/(tithing)/, NOT app/(app)/.
                                Its header and tab bar are sticky at the top of the viewport, which
                                cannot be true beneath the app sidebar and TopNav. Its components

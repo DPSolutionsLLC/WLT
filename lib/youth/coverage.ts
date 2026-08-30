@@ -1,5 +1,6 @@
 import {
   COVERAGE_STATES,
+  coverageRank,
   type CoverageState,
   type EventStatus,
   type EventType,
@@ -147,4 +148,61 @@ export function summariseCoverage(
   }
 
   return summary;
+}
+
+// THE WORST STATE ACROSS AN OCCASION — every young person at the same game, reduced to the one
+// badge that goes above them.
+//
+// ---------------------------------------------------------------------------
+// IT RETURNS THE WHOLE EventCoverage, NEVER JUST ITS STATE
+// ---------------------------------------------------------------------------
+// This is youth-e written as a signature. That walk found every covered card reading
+// `Covered · 0` above an event card reading `Covered · 1`, because the value being carried held
+// the STATE and the DATE but not the COUNT of the event it described — and the existing check
+// pinned the state, so the wrong number sailed through it. The badge, the count and the date the
+// occasion renders all come off this ONE object, so there is nothing left for a second lookup to
+// disagree with.
+//
+// Reduced by coverageRank(), where lower is more urgent. THAT IS THE SAME RULE
+// ActivityCalendar applies to a day cell and profileNeed() applies across a profile, expressed
+// over a different return type: the day cell reduces to a `CoverageState`, so switching it to
+// call this is not a pure substitution and is deliberately not attempted here (CLAUDE.md §7).
+//
+// TIES BREAK ON THE SOONEST `daysUntil`, matching how profileNeed() resolves "the soonest event
+// holding the worst state" — two games with nobody going are not equally urgent. A null
+// `daysUntil` (a past or cancelled event) NEVER wins a tie against a real one: there is nothing
+// left to act on.
+//
+// AN EMPTY LIST RETURNS null — NO SIGNAL, NOT "FINE". Returning a `covered` would say something
+// nobody has established, which is visits-f's comparator lesson and the shape
+// `ProfileNeed.worstUpcoming` already uses.
+export function worstCoverage(
+  coverages: readonly EventCoverage[],
+): EventCoverage | null {
+  let worst: EventCoverage | null = null;
+
+  for (const coverage of coverages) {
+    if (worst === null) {
+      worst = coverage;
+      continue;
+    }
+
+    const rank = coverageRank(coverage.state);
+    const worstRank = coverageRank(worst.state);
+
+    if (rank < worstRank) {
+      worst = coverage;
+      continue;
+    }
+
+    if (rank > worstRank) continue;
+
+    // Same state. The sooner one wins, and a null never beats a number.
+    if (coverage.daysUntil === null) continue;
+    if (worst.daysUntil === null || coverage.daysUntil < worst.daysUntil) {
+      worst = coverage;
+    }
+  }
+
+  return worst;
 }

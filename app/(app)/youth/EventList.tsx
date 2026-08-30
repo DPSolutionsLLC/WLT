@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FollowUpForm } from "@/app/(app)/youth/FollowUpForm";
 import {
@@ -300,6 +301,24 @@ export function EventList({
       profileIds === undefined ||
       (event.profileId !== null && profileIds.includes(event.profileId)),
   );
+
+  // ---------------------------------------------------------------------------
+  // COUNTED FROM THE UNFILTERED LIST, ABOVE — NOT FROM `events`
+  // ---------------------------------------------------------------------------
+  // `events` is narrowed to one young person inside an expanded card on /youth, and their
+  // team-mate's row is exactly what the narrowing removes. The honest answer to "who else is at
+  // this game" is still two, so the count is built from the query's whole list. A count computed
+  // after the filter answers a different question from the one the words beside it claim, which
+  // is roster-b, restated by visits-b and visits-f.
+  //
+  // NO EXTRA REQUEST: siblings share an instant, and this list is date-bounded by `includePast`
+  // rather than by profile, so every sibling of a fetched event is already in the same fetch.
+  const occasionCounts = new Map<string, number>();
+  for (const event of eventsQuery.data ?? []) {
+    if (event.occasionId === null) continue;
+    occasionCounts.set(event.occasionId, (occasionCounts.get(event.occasionId) ?? 0) + 1);
+  }
+
   const attendeesByEvent = attendeesQuery.data ?? {};
   const followUpsByEvent = followUpsQuery.data ?? {};
 
@@ -434,11 +453,26 @@ export function EventList({
               event.eventType === "tbd" && coverage.state === "needs_type"
             );
 
+            // MINUS ONE — the count is of the OTHERS, and this row is in the map too.
+            const siblingCount =
+              event.occasionId === null
+                ? 0
+                : (occasionCounts.get(event.occasionId) ?? 1) - 1;
+
             return (
               <li key={event.id}>
                 <Card className={COVERAGE_EDGE_CLASSES[coverage.state]}>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-foreground">{event.title}</span>
+                    {/* THE TITLE IS THE WAY IN TO THE EVENT ITSELF, where the occasion — every
+                        young person at this same game — is read and built. ITER-020 asked for
+                        exactly this crossing: any card → the event → the occasion's young people
+                        → a young person's card. */}
+                    <Link
+                      href={`/youth/events/${event.id}`}
+                      className="text-sm font-medium text-primary underline underline-offset-4"
+                    >
+                      {event.title}
+                    </Link>
                     {showTypeChip ? (
                       <span className={CHIP_CLASSES}>{EVENT_TYPE_LABELS[event.eventType]}</span>
                     ) : null}
@@ -483,6 +517,26 @@ export function EventList({
 
                   {event.location === null ? null : (
                     <p className="text-sm text-muted">{event.location}</p>
+                  )}
+
+                  {/* NOTHING AT ALL AT ZERO, which is nearly every card. "+0 others at this game"
+                      is noise on the ordinary row — talks-c's render-nothing-rather-than-"Never"
+                      rule.
+
+                      SINGULAR AND PLURAL BOTH WRITTEN OUT. youth-b's walk found "1 events
+                      updated" shipped past a green suite, because a plural bug is invisible to
+                      every test that does not read the sentence. */}
+                  {siblingCount === 0 ? null : (
+                    <p className="mt-1 text-sm">
+                      <Link
+                        href={`/youth/events/${event.id}`}
+                        className="text-primary underline underline-offset-4"
+                      >
+                        {siblingCount === 1
+                          ? "+1 other at this game"
+                          : `+${siblingCount} others at this game`}
+                      </Link>
+                    </p>
                   )}
 
                   {/* SHOWN ON EVERY EVENT, INCLUDING CANCELLED AND PAST ONES. The gate is

@@ -32,6 +32,7 @@ export const YOUTH_PROFILES_QUERY_KEY = "youth-activity-profiles";
 export const YOUTH_EVENTS_QUERY_KEY = "youth-activity-events";
 export const YOUTH_ATTENDEES_QUERY_KEY = "youth-activity-attendees";
 export const YOUTH_FOLLOW_UP_QUERY_KEY = "youth-activity-follow-up";
+export const YOUTH_OCCASION_QUERY_KEY = "youth-activity-occasion";
 
 export async function readJson(response: Response): Promise<Record<string, unknown>> {
   try {
@@ -163,6 +164,46 @@ export async function fetchOwnFollowUps(
 //     confirmed they went.
 export const FOLLOW_UP_MUTATION_INVALIDATES = [
   [YOUTH_FOLLOW_UP_QUERY_KEY],
+  [YOUTH_EVENTS_QUERY_KEY],
+  [YOUTH_ATTENDEES_QUERY_KEY],
+] as const;
+
+// EVERY YOUNG PERSON AT ONE GAME. The occasion id is PART OF THE KEY, for the reason
+// `includePast` is part of the events key: every view is its own cache entry, and visits-c found
+// a row made under one filter invisible under another until a reload because two views shared
+// one. Two occasions sharing an entry would be that defect with a worse blast radius — one game's
+// rows rendered under another game's heading.
+//
+// `includePast=true` ALWAYS, and it is not a parameter. An occasion somebody is reading may
+// already have happened — the whole point of the detail page is that it works on a game that is
+// over — and the page must not empty out the moment the last event passes.
+export async function fetchOccasionEvents(occasionId: string): Promise<ActivityEvent[]> {
+  const response = await fetch(
+    `/api/youth/events?includePast=true&occasionId=${encodeURIComponent(occasionId)}`,
+  );
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(errorFrom(payload, "Could not load who else is at this game."));
+  }
+
+  return payload.events as ActivityEvent[];
+}
+
+// WHAT AN OCCASION MUTATION HAS TO INVALIDATE, AND THE ANSWER IS ALL THREE. This module has now
+// been bitten three times by somebody reasonably assuming it was one (youth-a-D2, then
+// ATTENDEE_MUTATION_INVALIDATES, then FOLLOW_UP_MUTATION_INVALIDATES), so once again it is
+// written down BEFORE the bug rather than after it.
+//
+//   * The OCCASION itself, obviously — the detail page is a list of its rows.
+//   * The EVENTS, because the "+N others at this game" marker on /youth and /youth/calendar is
+//     derived from `occasionId` on the event rows. Without this, joining a game would change the
+//     detail page and leave both card lists still saying the rows are unrelated.
+//   * The ATTENDEES, because adding a young person CREATES AN EVENT ROW whose attendee list the
+//     detail page renders immediately — and an event absent from the attendee map reads as
+//     "nobody is down for this yet" whether or not that is true.
+export const OCCASION_MUTATION_INVALIDATES = [
+  [YOUTH_OCCASION_QUERY_KEY],
   [YOUTH_EVENTS_QUERY_KEY],
   [YOUTH_ATTENDEES_QUERY_KEY],
 ] as const;

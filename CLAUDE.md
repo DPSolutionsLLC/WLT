@@ -553,6 +553,45 @@ Flag these when they become relevant; do not silently pick a side.
   did not happen. **This is an interim, not the destination.** When ITER-024 lands, revisit it —
   and do not invent a half-trigger that guesses in the meantime.
 
+- **An occasion is an explicit, stored IDENTITY, and it is the only thing the link carries —
+  DECIDED 2026-08-29.** `activity_events.profile_id` is a single foreign key, so an event belongs
+  to exactly ONE young person; two team-mates at one game are two rows. Migration 059 adds
+  `activity_occasions` — `id`, `ward_id`, `created_by`, `created_at` and **nothing else** — plus a
+  nullable `activity_events.occasion_id`. **No name, no date, no place on the occasion**: all three
+  already live on the rows, and a second copy could disagree with the first (ITER-024's first open
+  question, answered as its own text recommends). Null means "this game is only this young
+  person's", the same absent-means-default idiom as `household_stewardships` and 054a's `org_id`,
+  with no sentinel occasion meaning "alone".
+  **THE LINK IS NEVER INFERRED FROM A MATCHING TITLE AND DATE.** Two school feeds write one fixture
+  as "Game against Roosevelt" and "Game vs Roosevelt"; a matcher that caught that would also join
+  two different games at the same school on one evening. This is `classifyLocation.ts`'s refusal of
+  near-miss matching, in a second place: a near-miss a clever matcher would catch is exactly the
+  case where a person should be asked. The ROUTE does not even enforce the same-day rule — an
+  all-day tournament entry and a 7:30pm game genuinely can be one occasion — and the picker narrows
+  what is *offered* rather than second-guessing an answer somebody gave.
+  **`activity_occasions` carries WARD-WIDE policies on all four verbs**, matching `activity_events`
+  and pointedly NOT the profile's org-scoped writes (054d). A **cross-organization occasion is the
+  point, not an edge case**: an occasion holds a Young Men row and a Young Women row, each leader
+  writes about their own organization's young person, and a write policy comparing
+  `current_org_id()` would make exactly that unwritable. The read must also be **uniformly
+  evaluable** (056c's rule again) — "who else is at this game" cannot have two answers from the
+  same data at the same instant, because the occasion's badge is computed from that list.
+  **No fourth mirror is added to `lib/youth/activityOwnership.ts`**, which says deliberately that
+  there is no `canManageActivityEvent()`: a helper would either restate `true` or invent a rule the
+  policy does not enforce. The linking controls gate on `youth_activities.manage` and nothing else.
+  **Merging two occasions is REFUSED**, with a sentence naming the alternative — absorbing one into
+  the other would move rows nobody named and the audit row would call it an ordinary join
+  (`visits-f`'s empty-bulk-replace precedent).
+  **`/youth/calendar` MARKS, it does not COLLAPSE.** One card per young person still, with a quiet
+  "+N others at this game" line linking to `/youth/events/[id]`. An occasion spans youth,
+  organizations and activity types, so collapsing would leave all four of that page's filters
+  without a single answer. **The count is computed from the UNFILTERED rows** — filter to Ethan and
+  the honest answer is still "+2 others", not "+0" (`roster-b`, restated by `visits-b` and
+  `visits-f`); `tests/components/youth/OccasionMarker.test.tsx` is the only place a test can catch
+  that rather than a walk.
+  **The ICS import does not create occasions**, handed forward from ITER-024 as answerable later.
+  Do not build a matching key for it.
+
 - **Closing out a season is ITER-028, and it REVERSES the "no season boundary" decision below.**
   Raised by the user 2026-08-29: once a season ends its stats should stop showing on `/youth`,
   while the history stays reachable — a link on the young person's card, and possibly a ward-wide

@@ -70,6 +70,15 @@ to comment on the young person they actually spoke to may find that person is si
 row — one their own organization owns — and the problem partly dissolves without a policy change.
 Deciding this one first risks widening a policy that did not need widening.
 
+**DONE 2026-08-29.** ITER-024 shipped as slice `youth-g`, and a cross-organization occasion is
+supported: `activity_occasions` carries ward-wide policies on all four verbs, and
+`tests/rls/activity-occasions.test.ts` asserts one organization's president linking another
+organization's event. So the partial dissolution above is now **true and testable** — a leader on a
+shared occasion can often find the young person they spoke to as a row their own organization owns,
+and write about that row under the existing policy. What that does NOT settle is the case where it
+is not their row, which is what this scope is still for. **No policy was widened by `youth-g`, and
+none should be widened here without deciding this scope on its own merits.**
+
 ## Not in scope
 
 **Private notes do not move.** Whatever is decided here, `activity_private_notes` stays readable

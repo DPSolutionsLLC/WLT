@@ -7,6 +7,8 @@ _Last updated: 2026-08-29_
 ## In Progress
 Items currently being planned or actively worked.
 
+_Nothing in progress._
+
 ---
 
 ## Grouped Work
@@ -20,20 +22,6 @@ is what the grouping asked for._
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
 
-- [ ] ITER-024 — One event, one youth, or one occasion, many youth? → [scope](.iterate/scopes/ITER-024.md) — **DECIDED: A′**
-  _Raised by the user 2026-08-29 reviewing the ITER-021/022 walk. **A schema decision, and it blocks
-  the useful half of ITER-020.** The user wants to click an event and see *every* youth tied to it,
-  with coverage meaning "every youth has at least one leader committed **for that youth**". That is
-  not expressible: `activity_events.profile_id` is a single FK, so an event belongs to exactly one
-  young person and two team-mates at one game are two rows. Three options are written up with what
-  actually happens under each. **Recommended: A′** — keep one row per youth and add an explicit link
-  saying which rows share a real-world occasion. The module's atom is already right (a commitment is
-  to a young person on an occasion); what is missing is only that two atoms can share an evening. A′
-  costs one nullable column and leaves the ITER-021 org gate, per-youth coverage, the ICS import and
-  the follow-up shape all untouched — where the full many-to-many (Option B) would rework all four,
-  three of which shipped in the last week. **Do not group by matching title and date** —
-  `classifyLocation.ts` refuses near-miss matching by name, for the reason that applies here too._
-
 - [ ] ITER-025 — Should being there earn the right to comment? → [scope](.iterate/scopes/ITER-025.md)
   _Raised by the user 2026-08-29: "anyone should be able to click on the event and add their comment
   after they confirm that they were present." **A policy decision, not a bug** — ITER-021 was right
@@ -45,7 +33,9 @@ Each of these is large or complex enough to tackle on its own.
   **self-asserted**, so "anyone who says they were there may write" is "anyone may write" reached in
   two steps. **Sequence after ITER-024** — if an occasion can hold rows from two organizations, the
   young person a leader wants to write about may simply be a row their own organization owns, and
-  the problem partly dissolves without widening anything. Private notes do not move either way._
+  the problem partly dissolves without widening anything. **DONE 2026-08-29:** `youth-g` shipped
+  cross-organization occasions and an RLS test asserts one, so that dissolution is now true and
+  testable — and no policy was widened to get it. Private notes do not move either way._
 
 - [ ] ITER-026 — A leader's own page: what I committed to, what I owe → [scope](.iterate/scopes/ITER-026.md)
   _Raised by the user 2026-08-29. Every youth screen is organised around the youth or the event;
@@ -57,13 +47,15 @@ Each of these is large or complex enough to tackle on its own.
   **Open:** youth-only page or a personal dashboard, given `/dashboard` exists and visits raise the
   same need. If both this and `/youth` render the waiting list, both must read ONE computation._
 
-- [ ] ITER-027 — Who else is in that gym → [scope](.iterate/scopes/ITER-027.md) — **blocked by ITER-024**
+- [ ] ITER-027 — Who else is in that gym → [scope](.iterate/scopes/ITER-027.md) — **UNBLOCKED 2026-08-29** by Phase 8 slice `youth-g`
   _Raised by the user 2026-08-29, and the most human idea in the batch. Two halves. **Before:** you
   committed to see Ethan on Friday; three other ward youth are at the same game, so tell you, to
   "help them feel seen and loved". **After:** you were there, you may well have spoken to them —
   offer to record it rather than lose it. Both need "which other young people share this occasion",
-  which is exactly what ITER-024 decides; under Option A′ both become straightforward. **Two things
-  to hold on to when it unblocks:** the "after" half must OFFER and never write on its own (a
+  which is exactly what ITER-024 decided — and slice `youth-g` shipped it, so the input now exists:
+  `activity_events.occasion_id`, and `app/(app)/youth/events/[id]/` already composing the list.
+  **It was deliberately NOT built there**; both halves are their own scope. **Two things
+  to hold on to now that it is unblocked:** the "after" half must OFFER and never write on its own (a
   recorded pastoral contact that did not happen is rule 3 broken), and it must read as a prompt
   rather than a checklist of people you failed to greet — the module exists so a young person is
   seen, not so a leader is measured. The "before" half fires from the clock, which would make
@@ -246,7 +238,8 @@ _None._
 
 ## Completed
 
-- [x] ITER-020 — The youth module needs two views it does not have _(completed 2026-08-29, 5cb14a2 — the UNBLOCKED half; the **event-detail view stays with ITER-024 → ITER-027**, not built)_
+- [x] ITER-024 — One event, one youth, or one occasion, many youth? _(completed 2026-08-29, 668debb — Option A′: an explicit stored occasion, identity only, plus `/youth/events/[id]`. **Completes ITER-020's parked event-detail half**, unblocks ITER-027, answers ITER-025's sequencing question)_
+- [x] ITER-020 — The youth module needs two views it does not have _(completed 2026-08-29, 5cb14a2 — the UNBLOCKED half; the **event-detail view shipped separately in ITER-024**, 668debb)_
 - [x] ITER-021 — "Say how it went" is offered on another organization's event _(completed 2026-08-29, 17032a9)_
 - [x] ITER-022 — The follow-up form communicates by appearance alone _(completed 2026-08-29, 17032a9 — items 1 and 2; **item 3 moved to ITER-026**, not built)_
 - [x] ITER-023 — A third hand-maintained copy of the notification trigger keys _(completed 2026-08-28, b2b8aab)_
