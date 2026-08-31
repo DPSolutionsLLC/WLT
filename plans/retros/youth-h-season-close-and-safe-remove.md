@@ -2,7 +2,7 @@
 id: youth-h-season-close-and-safe-remove
 type: feature
 iter: [ITER-028, ITER-031]
-commits: [cb43666]
+commits: [637cfbc]
 date: 2026-08-31
 files:
   - supabase/migrations/060_activity_profile_close.sql
