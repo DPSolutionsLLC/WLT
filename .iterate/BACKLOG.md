@@ -1,56 +1,13 @@
 # Backlog
 
-_Last updated: 2026-08-30_
+_Last updated: 2026-08-31_
 
 ---
 
 ## In Progress
 Items currently being planned or actively worked.
 
-**Planned together as one scope, 2026-08-30** — Close and Remove are the same button.
-ITER-028 ships the control; ITER-031 is what that control makes safe. One plan:
-[plans/youth-h-season-close-and-safe-remove.md](plans/youth-h-season-close-and-safe-remove.md).
-
-- [ ] ITER-028 — Closing out a season, and the history that outlives it → [scope](.iterate/scopes/ITER-028.md) | [plan](plans/youth-h-season-close-and-safe-remove.md)
-  _Raised by the user 2026-08-29 reviewing the scenario 057 walk: "we need to be able to close out a
-  season so the stats do not show anymore… it would still be very nice to be able to look at their
-  history." **`youth-f`'s support percentage never forgets** — a basketball season that finished in
-  February still ranks Ethan in October, and a ward two years in is ranking its youth on games
-  nobody remembers. Three separable pieces: a `closed_at` on `youth_activity_profiles` (nullable, so
-  a mistake is reopenable, and a **timestamp not a boolean** because the history page asks when);
-  `/youth` reading running profiles only; a "see their history" link per card. A ward-wide historical
-  overview is listed last and may be cut — nobody has said what question it answers yet.
-  **This REVERSES CLAUDE.md §9's "no season boundary is introduced"**, whose test was "wait until a
-  ward reuses a profile across years" — superseded by a direct request, which is a better reason
-  than the one it was waiting for. Record the reversal rather than quietly contradicting it.
-  **The one real design question** is whether a closed season's number is stored at close or
-  recomputed with `closed_at` as the clock; recomputing keeps "nothing in this project refreshes
-  anything" intact and is almost certainly right. **The trap:** a young person whose every season is
-  closed must not vanish from the ward or read as somebody with no activities.
-  **Blocks on nothing** — independent of ITER-024 → ITER-027. **Read with ITER-030 and ITER-031**
-  (both added 2026-08-30): ITER-030 removes events from the same number by a different route, and
-  ITER-031's destructive "Remove" may only need to become this item's "Close"._
-
-- [ ] ITER-031 — Removing an activity destroys a cascade nobody was warned about → [scope](.iterate/scopes/ITER-031.md) | [plan](plans/youth-h-season-close-and-safe-remove.md)
-  _Found 2026-08-30 walking scenario 050 (`050-D1`) — not a checklist line, the walk found it.
-  `ActivityProfileList.tsx:317` is a bare `onClick={() => deleteMutation.mutate(profile.id)}`: no
-  confirm, no undo, red danger button, fires on one click. Migration 009 cascades
-  `youth_activity_profiles → activity_events → {activity_attendees, activity_logs →
-  activity_private_notes}`, so that click destroys a season of games, every sign-up, every pastoral
-  follow-up **and the private notes rule 5 calls private forever**. Fired twice during the walk
-  (3 → 2 events, then 3 → 0), and the audit row records `orgId`/`memberId`/`profileId` only — so
-  nothing anywhere says what was lost. The codebase already has the missing pattern: twelve
-  `window.confirm` sites, and `DocumentList.tsx:133` states the house rule ("Worded by CONSEQUENCE,
-  not by action… naming the passage count and saying what is NOT affected") for the structurally
-  identical case. **The user's rule is stronger than a confirm and is the substantial part: REFUSE
-  the delete once anybody has written a follow-up**, with a sentence naming the alternative —
-  `visits-f`'s empty-bulk-replace precedent. The check runs server-side against a count the reader
-  is not shown, because `activity_logs` reads are org-scoped (057c). **Also a clarity defect, and
-  the confusion is the finding:** the user could not tell whether Remove takes the event from the
-  individual or globally. It is per-individual — `profile_id` is a single FK, and a `youth-g`
-  occasion links rows without joining them — but the button gives the reader no way to know, and
-  both readings are available from the same word. **Read with ITER-028:** if closing a season ships
-  first, Remove may only need to become Close, and the destructive path narrows to "created by
+_Nothing in progress._
 
 ---
 
@@ -324,6 +281,8 @@ _Items that need testing or further exploration before scoping. Each entry shoul
 
 ## Completed
 
+- [x] ITER-028 — Closing out a season, and the history that outlives it _(completed 2026-08-31, 637cfbc — migration 060's nullable `closed_at`, `/youth/history/[member_id]` with the final number **recomputed against `closed_at`**, and a fully-closed young person who stays on `/youth` with a named `· Finished` pill. **REVERSES CLAUDE.md §9's "no season boundary"**; the ward-wide historical overview was CUT)_
+- [x] ITER-031 — Removing an activity destroys a cascade nobody was warned about _(completed 2026-08-31, 637cfbc — `Remove` renders only at zero events and the server answers **409 naming Close**, disclosing neither the count nor any content; audit detail now records what was lost. The "unlink from the occasion" reading was NOT built — `youth-g` already ships that where it belongs)_
 - [x] ITER-024 — One event, one youth, or one occasion, many youth? _(completed 2026-08-29, 43a10c9 — Option A′: an explicit stored occasion, identity only, plus `/youth/events/[id]`. **Completes ITER-020's parked event-detail half**, unblocks ITER-027, answers ITER-025's sequencing question)_
 - [x] ITER-020 — The youth module needs two views it does not have _(completed 2026-08-29, 5cb14a2 — the UNBLOCKED half; the **event-detail view shipped separately in ITER-024**, 43a10c9)_
 - [x] ITER-021 — "Say how it went" is offered on another organization's event _(completed 2026-08-29, 17032a9)_

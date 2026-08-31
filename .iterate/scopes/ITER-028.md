@@ -1,7 +1,9 @@
 # ITER-028: Closing Out a Season, and the History That Outlives It
 
 **Type:** Feature
-**Status:** In Progress
+**Status:** Completed
+**Completed:** 2026-08-31
+**Commit:** 637cfbc
 **Plan:** plans/youth-h-season-close-and-safe-remove.md
 **Created:** 2026-08-29
 **Raised by:** the user, 2026-08-29, reviewing the scenario 057 walk: *"we need to be able to close
