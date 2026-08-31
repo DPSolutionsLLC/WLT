@@ -25,6 +25,7 @@ import {
   YOUTH_SORT_LABELS,
   compareYouth,
   describeActivitySupport,
+  describeNothingRunning,
   youthNeed,
   type ActivitySupport,
   type SupportEvent,
@@ -125,6 +126,13 @@ const SELECT_CLASSES =
 
 const PILL_CLASSES =
   "rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted";
+
+// A FINISHED SEASON'S PILL. Same shape and same place as a running one — only the border is dashed
+// and the trailing value is a word rather than a percentage. Tailwind scans source text for
+// COMPLETE class strings, so this is a second literal rather than an interpolation onto
+// PILL_CLASSES (ActivityProfileList's TONE_CLASSES records the same trap).
+const CLOSED_PILL_CLASSES =
+  "rounded-full border border-dashed border-border px-2 py-0.5 text-xs font-medium text-muted";
 
 // Case- and whitespace-insensitive, because a leader typing on a phone types "ethan brooks" and
 // sometimes "ethan  brooks".
@@ -273,6 +281,14 @@ export function YouthOverview({
 
     // GROUPED BY MEMBER, in first-seen order — the sort below decides what a reader sees, and a
     // second ordering here would only be a tie-break nobody asked for.
+    //
+    // ---------------------------------------------------------------------------
+    // BUILT FROM **EVERY** PROFILE, CLOSED ONES INCLUDED — THIS IS THE ONE LINE ITER-028 TURNS ON
+    // ---------------------------------------------------------------------------
+    // Filter closed profiles out here and a young person whose every season has finished produces
+    // no group at all and VANISHES FROM THE WARD, which is exactly what ITER-028 says must not
+    // happen. youthNeed() does the running/closed partition instead, so the pills, the percentage,
+    // the badge, the sort AND the finished-season pills all come out of one value.
     const byMember = new Map<string, { name: string; profiles: ActivityProfile[] }>();
     for (const profile of profiles) {
       const existing = byMember.get(profile.memberId);
@@ -291,6 +307,11 @@ export function YouthOverview({
       // THE PROFILE IDS THE EXPANDED CARD FILTERS ON, off the same grouping the pills came from.
       // A card showing "1 of 8" must expand to a list where eight home games are findable
       // (ITER-022, the count-and-list rule).
+      //
+      // ALL OF THEM, INCLUDING CLOSED SEASONS. The RANKING excludes a closed season; the SCHEDULE
+      // is a record of what happened and must not develop a hole. Expanding a card is how a leader
+      // finds the game they are looking for, and a game does not stop having taken place because
+      // its season was closed out.
       profileIds: group.profiles.map((profile) => profile.id),
       // The member's name AND every activity name, so searching "choir" still finds Maya.
       searchText: normalise(
@@ -411,6 +432,11 @@ export function YouthOverview({
             {visibleRows.map(({ need, profileIds }) => {
               const isExpanded = expandedMemberId === need.memberId;
               const panelId = `youth-card-${need.memberId}`;
+              // OFF THE SAME `need` THE PILLS AND THE SORT CAME FROM. Deriving it from the raw
+              // profile list here would be a second answer to "how many of these are finished",
+              // and the two could disagree — the summariseCoverage rule, which this module states
+              // in five other places.
+              const nothingRunning = describeNothingRunning(need);
 
               return (
                 <li key={need.memberId}>
@@ -463,6 +489,29 @@ export function YouthOverview({
                           </span>
                         ))}
 
+                        {/* A FINISHED SEASON IS STILL A PILL — added after the walk on 2026-08-31
+                            answered "does a fully-closed card read as deliberate?" with NO.
+                            Without these, such a card was the ONLY one on the page with no pills
+                            at all, so beside its neighbours it read as data that had failed to
+                            load — and it never said WHICH activity the young person does.
+
+                            THE DIFFERENCE IS THE PILL'S TREATMENT, NOT ITS ABSENCE: a dashed
+                            border and the word "Finished". Same shape, same place, same
+                            name-order. A state rather than a variant.
+
+                            AND NO PERCENTAGE, DELIBERATELY. Putting a closed season's number back
+                            on /youth is exactly what ITER-028 removed. The pill says the season
+                            happened; how it went lives on the history page and nowhere else. */}
+                        {need.closedActivities.map((closed) => (
+                          <span
+                            key={closed.profileId}
+                            className={CLOSED_PILL_CLASSES}
+                            title={`${closed.activityName} has been closed out. Its games and follow-ups are still readable.`}
+                          >
+                            {closed.activityName} &middot; Finished
+                          </span>
+                        ))}
+
                         {/* Renders NOTHING for `not_expected`, so a young person whose only
                             upcoming games are cancelled is quiet rather than badged. */}
                         {need.worstUpcoming === null ? null : (
@@ -480,14 +529,43 @@ export function YouthOverview({
                         )}
                       </span>
 
-                      <span className="text-sm text-muted">
-                        {upcomingCount(need.upcomingCount)}
-                      </span>
+                      {/* THE UPCOMING COUNT DESCRIBES THE RUNNING SEASONS, so it is absent
+                          rather than "0 events coming up" when there are none. A zero here would
+                          be a true number answering a question nobody asked — the sentence below
+                          answers the one they did. */}
+                      {need.hasRunning ? (
+                        <span className="text-sm text-muted">
+                          {upcomingCount(need.upcomingCount)}
+                        </span>
+                      ) : null}
+
+                      {nothingRunning === null ? null : (
+                        <span className="text-sm text-muted">{nothingRunning}</span>
+                      )}
 
                       <span className="text-sm text-primary underline underline-offset-4">
                         {isExpanded ? "Hide the events" : "Show the events"}
                       </span>
                     </button>
+
+                    {/* OUTSIDE THE BUTTON, because a link inside a button is invalid HTML and
+                        keyboard users get two conflicting activations from one element.
+
+                        IT RENDERS ON EVERY CARD WITH AT LEAST ONE CLOSED SEASON, not only on a
+                        fully-closed one: a young person with one season running and one finished
+                        has history worth reaching, and hiding it there would make the page's
+                        answer to "how was he supported last winter" depend on whether he happens
+                        to be playing anything this week. */}
+                    {need.closedActivities.length === 0 ? null : (
+                      <p className="mt-2 text-sm">
+                        <Link
+                          href={`/youth/history/${need.memberId}`}
+                          className="text-primary underline underline-offset-4"
+                        >
+                          See {need.memberName}&rsquo;s history
+                        </Link>
+                      </p>
+                    )}
 
                     {isExpanded ? (
                       <div id={panelId} className="mt-3 border-t border-border pt-3">

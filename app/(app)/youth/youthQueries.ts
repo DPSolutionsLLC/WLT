@@ -82,6 +82,26 @@ export const PROFILE_MUTATION_INVALIDATES = [
   [YOUTH_EVENTS_QUERY_KEY],
 ] as const;
 
+// WHAT CLOSING OR REOPENING A SEASON HAS TO INVALIDATE.
+//
+// The PROFILES entry is the one that actually changes: `closedAt` lives on the profile, and it is
+// what moves the pills, the priority ranking, the "Nothing running" sentence and the history link
+// on /youth. The other two are refetched with it because every one of those numbers is computed
+// from all three entries together in a single pass (YouthOverview's `rows`), and reasoning per
+// mutation about which of three interdependent entries a derived number reads is the thing this
+// module has now got wrong three times — youth-a-D2, then ATTENDEE_MUTATION_INVALIDATES, then
+// FOLLOW_UP_MUTATION_INVALIDATES. The cost is two cached requests.
+//
+// SEPARATE FROM PROFILE_MUTATION_INVALIDATES rather than folded into it, because they are not the
+// same rule: creating and deleting a profile moves the EVENT ROWS (migration 009 cascades), while
+// closing one moves only what is DERIVED from them. Widening the older constant would erase that
+// distinction for the next reader.
+export const PROFILE_CLOSE_INVALIDATES = [
+  [YOUTH_PROFILES_QUERY_KEY],
+  [YOUTH_EVENTS_QUERY_KEY],
+  [YOUTH_ATTENDEES_QUERY_KEY],
+] as const;
+
 // Who is going, keyed back by event id — ONE REQUEST FOR A WHOLE SCREEN rather than one per
 // card. The server side (lib/youth/attendees.ts) enforces the same rule and its header records
 // why.

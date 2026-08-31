@@ -49,6 +49,8 @@ function profile(id: string, memberName: string): ActivityProfile {
     seasonSchedule: null,
     notes: null,
     enteredBy: null,
+    closedAt: null,
+    eventCount: 0,
     createdAt: "2027-01-01T00:00:00Z",
   };
 }

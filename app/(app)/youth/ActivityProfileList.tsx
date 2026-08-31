@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import { Modal } from "@/components/ui/Modal";
 import {
+  PROFILE_CLOSE_INVALIDATES,
   PROFILE_MUTATION_INVALIDATES,
   YOUTH_PROFILES_QUERY_KEY,
   errorFrom,
@@ -36,9 +37,15 @@ import {
 // visits-d's "Log this visit" flow silently dead. The shared cache keys live in
 // app/(app)/youth/youthQueries.ts, which the server never imports.
 //
-// WHICH activities carry Edit and Remove is decided by canManageActivityProfile(), which mirrors
-// migration 054d. Gating on `canManage` alone put both buttons on every organization's work and
-// is defect youth-a-D1 (plans/retros, scenario 049).
+// WHICH activities carry Edit, Close and Remove is decided by canManageActivityProfile(), which
+// mirrors migration 054d. Gating on `canManage` alone put those buttons on every organization's
+// work and is defect youth-a-D1 (plans/retros, scenario 049). Close is inside the SAME gate, and
+// deliberately so: a control the policy refuses is still a bug, four times over in this module.
+//
+// CLOSE IS THE PRIMARY ACTION; REMOVE IS THE EXCEPTION (ITER-028 / ITER-031). Closing a season
+// destroys nothing and is reversible; removing an activity cascades to its events, its sign-ups,
+// its follow-ups and the private notes rule 5 calls private forever — so `Remove` renders only
+// when the activity has no events at all, and the server refuses one over a follow-up regardless.
 
 export type ActivityProfileListProps = {
   initialProfiles: ActivityProfile[];
@@ -135,12 +142,16 @@ export function ActivityProfileList({
   // BOTH, because a profile write moves the events too: deleting one cascades to its events
   // (migration 009), and creating one changes what the event form may offer. Invalidating only the
   // profiles key was defect youth-a-D2.
-  async function refresh(): Promise<void> {
+  async function invalidate(
+    keys: readonly (readonly string[])[],
+  ): Promise<void> {
     await Promise.all(
-      PROFILE_MUTATION_INVALIDATES.map((queryKey) =>
-        queryClient.invalidateQueries({ queryKey: [...queryKey] }),
-      ),
+      keys.map((queryKey) => queryClient.invalidateQueries({ queryKey: [...queryKey] })),
     );
+  }
+
+  async function refresh(): Promise<void> {
+    await invalidate(PROFILE_MUTATION_INVALIDATES);
   }
 
   const createMutation = useMutation({
@@ -194,6 +205,26 @@ export function ActivityProfileList({
     },
   });
 
+  // CLOSING AND REOPENING ARE ONE MUTATION AND ONE ROUTE, which is what makes a mistake
+  // recoverable: the control on a closed season reads `Reopen` and sends `{ closed: false }`.
+  const closeMutation = useMutation({
+    mutationFn: async ({ id, closed }: { id: string; closed: boolean }) => {
+      const response = await fetch(`/api/youth/profiles/${id}/close`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ closed }),
+      });
+
+      const payload = await readJson(response);
+      if (!response.ok) throw new Error(errorFrom(payload, "Could not close that activity."));
+    },
+    onSuccess: async () => {
+      setListError(undefined);
+      await invalidate(PROFILE_CLOSE_INVALIDATES);
+    },
+    onError: (error: Error) => setListError(error.message),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const response = await fetch(`/api/youth/profiles/${id}`, { method: "DELETE" });
@@ -207,33 +238,55 @@ export function ActivityProfileList({
     onError: (error: Error) => setListError(error.message),
   });
 
-  // WORDED BY CONSEQUENCE, not by action — DocumentList.tsx's rule, for the same shape of problem:
-  // deleting a parent that cascades to children. "Are you sure?" tells somebody nothing they did
-  // not already know.
+  // CLOSE IS THE ORDINARY ACTION AND ITS CONFIRM IS A MILD ONE, because closing destroys nothing.
   //
+  // "THEY", NEVER "HE OR SHE". This read "how well he or she is supported" until the walk on
+  // 2026-08-31 (defect 060-D1). `ActivityProfile` carries no gender — nothing in this module does —
+  // so the app has no pronoun for a member and must not imply one; "he or she" both guessed and
+  // excluded. `members.gender` exists on the roster and is deliberately not plumbed here: a
+  // sentence about coordination has no business asking.
+  // It is still WORDED BY CONSEQUENCE rather than by action — DocumentList.tsx's house rule — and
+  // it names the one thing a leader cannot see for themselves: that the season stops counting
+  // towards how well this young person is supported. The last clause is what makes it a mild
+  // dialog rather than a warning: it can be undone.
+  function closeProfile(profile: ActivityProfile): void {
+    const confirmed = window.confirm(
+      `Close ${profile.activityName} for ${profile.memberName}? ` +
+        "Its games and follow-ups stay readable, and it stops counting towards how well they " +
+        "are supported. You can reopen it.",
+    );
+
+    if (!confirmed) return;
+
+    closeMutation.mutate({ id: profile.id, closed: true });
+  }
+
+  // NO CONFIRM ON REOPENING. It restores a state, destroys nothing and is itself undone by the
+  // button beside it — a dialog here would be the "Are you sure?" the house rule refuses.
+  function reopenProfile(profile: ActivityProfile): void {
+    closeMutation.mutate({ id: profile.id, closed: false });
+  }
+
+  // ---------------------------------------------------------------------------
+  // REMOVE IS NOW THE EXCEPTION, AND IT ONLY EVER APPEARS AT ZERO
+  // ---------------------------------------------------------------------------
   // Removing an activity used to fire on ONE CLICK with no confirm at all (050-D1, found walking
-  // scenario 050). Migration 009 cascades youth_activity_profiles → activity_events →
-  // {activity_attendees, activity_logs → activity_private_notes}, so that click took a season of
-  // games, every sign-up, every follow-up, and private notes rule 5 calls private forever. The
-  // audit row records three ids and nothing about what went with them.
+  // scenario 050), and then with a confirm that could be clicked through. Migration 009 cascades
+  // youth_activity_profiles → activity_events → {activity_attendees, activity_logs →
+  // activity_private_notes}, so that press took a season of games, every sign-up, every follow-up
+  // and the private notes rule 5 calls private forever (ITER-031).
   //
-  // NO COUNT, DELIBERATELY, and this is the one place the rule is not followed to the letter.
-  // The page loads UPCOMING events only (listActivityEvents without includePast), so the only
-  // number available on this client would understate a finished season — "deletes 2 games" over 14.
-  // An undercount is worse than no count here, because the whole point is conveying magnitude. A
-  // true count means an embedded count on a shared query plus its type, mapper and route; that
-  // belongs with ITER-031's refusal-and-unlink, not bolted on here.
+  // The control is now rendered only when `profile.eventCount === 0`, so this sentence is written
+  // for the empty case and no other — the old paragraph about "every game and concert on it, past
+  // ones included" described a press that can no longer happen from this page.
   //
-  // "Other young people…are not affected" is the what-is-NOT-affected half, and it is the specific
-  // thing a reader cannot work out for themselves: profile_id is a single foreign key, so two
-  // team-mates at one game are two rows, and a youth-g occasion links them without joining them.
-  // Not knowing that is what the scenario 050 review surfaced.
+  // THE SERVER REFUSES INDEPENDENTLY. DELETE /api/youth/profiles/[id] answers 409 when any
+  // follow-up exists, naming Close as the alternative. The gate and the refusal are two
+  // expressions of one rule and neither is the boundary on its own (CLAUDE.md rule 2).
   function removeProfile(profile: ActivityProfile): void {
     const confirmed = window.confirm(
       `Remove ${profile.activityName} from ${profile.memberName}? ` +
-        "This also deletes every game and concert on it, past ones included, along with anyone " +
-        "signed up and any follow-ups written about them. Other young people at the same events " +
-        "are not affected. This cannot be undone.",
+        "Nothing has been recorded against it yet. This cannot be undone.",
     );
 
     if (!confirmed) return;
@@ -314,6 +367,20 @@ export function ActivityProfileList({
                         >
                           {ACTIVITY_TYPE_LABELS[profile.activityType]}
                         </span>
+
+                        {/* SAID OUT LOUD ON THE CARD, because the only other sign a season is
+                            finished is that its button reads `Reopen`, and a state a reader has
+                            to infer from a control is not a state they have been told about.
+
+                            NO DATE HERE. When it closed is the history page's question, and
+                            formatting an instant on this screen would need the ward's zone
+                            threaded through a component that has no other use for it
+                            (tests/lib/explicitTimeZone.test.ts). */}
+                        {profile.closedAt === null ? null : (
+                          <span className={`${CHIP_CLASSES} border-border text-muted`}>
+                            Season closed
+                          </span>
+                        )}
                       </div>
 
                       {profile.schoolOrg === null ? null : (
@@ -348,13 +415,40 @@ export function ActivityProfileList({
                           <Button variant="secondary" onClick={() => setEditing(profile)}>
                             Edit
                           </Button>
+
+                          {/* CLOSE IS THE PRIMARY ANSWER TO "I want this off my list", and it is
+                              the same control in both directions — a season closed by mistake is
+                              reopened by pressing what is now `Reopen`. It sits inside the SAME
+                              ownership gate Edit and Remove are in: a control the policy refuses
+                              is still a bug, which this module has shipped four times
+                              (youth-a-D1, visits-d, youth-d). */}
                           <Button
-                            variant="danger"
-                            disabled={deleteMutation.isPending}
-                            onClick={() => removeProfile(profile)}
+                            variant="secondary"
+                            disabled={closeMutation.isPending}
+                            onClick={() =>
+                              profile.closedAt === null
+                                ? closeProfile(profile)
+                                : reopenProfile(profile)
+                            }
                           >
-                            Remove
+                            {profile.closedAt === null ? "Close the season" : "Reopen"}
                           </Button>
+
+                          {/* ABSENT AT ANY EVENT COUNT ABOVE ZERO, and the gate is EXACT rather
+                              than an approximation — do not "improve" it into a heuristic.
+                              `activity_logs.event_id` has been NOT NULL since migration 057a and
+                              references `activity_events`, so an activity with no events HAS no
+                              follow-ups, and this is precisely the set the server's 409 would let
+                              through. Anything with a game on it is closed, never removed. */}
+                          {profile.eventCount === 0 ? (
+                            <Button
+                              variant="danger"
+                              disabled={deleteMutation.isPending}
+                              onClick={() => removeProfile(profile)}
+                            >
+                              Remove
+                            </Button>
+                          ) : null}
                         </div>
                       ) : null}
                     </li>

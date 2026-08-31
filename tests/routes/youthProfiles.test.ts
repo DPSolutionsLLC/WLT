@@ -21,11 +21,27 @@
 //    was checked against lib/auth/permissions.ts rather than guessed; `music_coordinator` holds
 //    none of the three and is the 403 case.
 //
+// 4. A DELETE CANNOT DESTROY A PASTORAL RECORD (ITER-031). This is the assertion the whole item
+//    exists for, and it is asserted by RE-READING the profile, its events AND its logs after the
+//    409.
+//
+//    THE FIXTURE IS THE ONE CASE WHERE THE TWO POLICIES DIVERGE, and it took a failing test to
+//    find it. 054d admits a DELETE on `entered_by = auth.uid()`; 057c's log SELECT admits
+//    `activity_event_is_in_caller_org(...)`, which is the EVENT's organization and NOT the
+//    author's — so an Elders Quorum president reads a Relief Society leader's follow-up on an
+//    Elders Quorum activity perfectly well, and a fixture built that way proves nothing.
+//    What genuinely diverges is a profile whose `org_id` is one organization and whose
+//    `entered_by` is a leader now in ANOTHER: the shape a release and a recall produce, because
+//    the profile keeps the org it was created with and the user's org moves. That leader may
+//    delete it and cannot read a word written on it — which is why the count is migration 060b's
+//    `security definer` RPC rather than an ordinary query.
+//
 // See tests/helpers/routeClient.ts for why this needs no server and what exactly is mocked — only
 // the client factory, so every query below still runs as a genuinely authenticated user against
 // the hosted project and a pass means RLS allowed it.
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { asRole } from "@/tests/helpers/asRole";
 import { actAs, errorMessage, jsonRequest, readResponse } from "@/tests/helpers/routeClient";
 import { seedFixtures, type Fixtures } from "@/tests/helpers/seed";
 
@@ -490,6 +506,193 @@ describe("/api/youth/profiles", () => {
       const { status } = await callDelete(rsProfileId);
 
       expect(status).toBe(403);
+    });
+  });
+
+  // =========================================================================
+  // ITER-031 — A REMOVE THAT CANNOT DESTROY AN ACCOUNT
+  // =========================================================================
+  // Migration 009 cascades youth_activity_profiles → activity_events → {activity_attendees,
+  // activity_logs → activity_private_notes}, so one DELETE used to take a season of games, every
+  // sign-up, every follow-up and the private notes CLAUDE.md rule 5 calls private forever. A
+  // confirm dialog was added first and can be clicked through; this is the protection.
+  describe("refusing to delete a profile that carries follow-ups", () => {
+    let withFollowUpId: string;
+    let withEventsOnlyId: string;
+    let emptyId: string;
+    let followUpEventId: string;
+
+    // Seeded with the SERVICE client, which bypasses RLS — the honest way to build a state where
+    // one organization's leader has written about another organization's activity. Doing it
+    // through the API would need the very policy this state is arranged to defeat.
+    beforeAll(async () => {
+      const { data: profiles, error: profileError } = await fixtures.service
+        .from("youth_activity_profiles")
+        .insert([
+          {
+            // THE DIVERGENCE, SEEDED. `org_id` is the Relief Society and `entered_by` is the
+            // Elders Quorum president — the state a reorganisation leaves behind, and the only
+            // one in which a leader may delete an activity whose follow-ups are hidden from them.
+            // 054d's DELETE admits them through `entered_by`; 057c's SELECT does not mention it.
+            ward_id: wardId,
+            org_id: fixtures.reliefSocietyId,
+            member_id: youthId,
+            activity_name: `Reassigned with follow-up ${fixtures.runId}`,
+            activity_type: "sport",
+            entered_by: fixtures.user("eqPresident").id,
+          },
+          {
+            ward_id: wardId,
+            org_id: fixtures.eldersQuorumId,
+            member_id: youthId,
+            activity_name: `EQ events only ${fixtures.runId}`,
+            activity_type: "sport",
+          },
+          {
+            ward_id: wardId,
+            org_id: fixtures.eldersQuorumId,
+            member_id: youthId,
+            activity_name: `EQ empty ${fixtures.runId}`,
+            activity_type: "sport",
+          },
+        ])
+        .select("id, activity_name");
+      if (profileError) throw new Error(profileError.message);
+
+      const byName = (fragment: string) =>
+        profiles!.find((row) => row.activity_name.includes(fragment))!.id;
+
+      withFollowUpId = byName("Reassigned with follow-up");
+      withEventsOnlyId = byName("events only");
+      emptyId = byName("empty");
+      created.push(withFollowUpId, withEventsOnlyId, emptyId);
+
+      const { data: events, error: eventError } = await fixtures.service
+        .from("activity_events")
+        .insert([
+          {
+            ward_id: wardId,
+            profile_id: withFollowUpId,
+            title: `Game with a follow-up ${fixtures.runId}`,
+            event_type: "home",
+            event_date: "2026-12-04T02:30:00Z",
+            status: "upcoming",
+          },
+          {
+            ward_id: wardId,
+            profile_id: withEventsOnlyId,
+            title: `Game nobody wrote about ${fixtures.runId}`,
+            event_type: "home",
+            event_date: "2026-12-05T02:30:00Z",
+            status: "upcoming",
+          },
+        ])
+        .select("id, profile_id");
+      if (eventError) throw new Error(eventError.message);
+
+      followUpEventId = events!.find((row) => row.profile_id === withFollowUpId)!.id;
+
+      // WRITTEN BY THE RELIEF SOCIETY PRESIDENT, on the Relief Society's activity — the one the
+      // Elders Quorum president entered and may therefore still delete. 057c scopes the read by
+      // the EVENT's organization, so this row is invisible to them, which is precisely why the
+      // count is an RPC rather than an ordinary query.
+      const { error: logError } = await fixtures.service.from("activity_logs").insert({
+        ward_id: wardId,
+        event_id: followUpEventId,
+        logged_by: fixtures.user("rsPresident").id,
+        shared_notes: `He played well and seemed happier ${fixtures.runId}`,
+      });
+      if (logError) throw new Error(logError.message);
+    }, 180_000);
+
+    // THE PROOF THAT THE `security definer` COUNTER IS NECESSARY RATHER THAN TIDY. If this ever
+    // starts returning the row, the refusal below could have been an ordinary query and this whole
+    // arrangement is over-built — and if it returns nothing while the delete succeeds, the
+    // follow-up was destroyed by somebody who could not even read it.
+    it("hides that follow-up from the leader who may nonetheless delete the activity", async () => {
+      const eqClient = await asRole(fixtures, "eqPresident");
+
+      const { data, error } = await eqClient
+        .from("activity_logs")
+        .select("id")
+        .eq("event_id", followUpEventId);
+
+      expect(error).toBeNull();
+      expect(data ?? []).toEqual([]);
+    });
+
+    // THE ASSERTION THE WHOLE ITEM EXISTS FOR.
+    it("refuses with 409 and destroys nothing", async () => {
+      const auditBefore = await countAuditRows("youth_activity_profile_deleted");
+      await actAs(fixtures, "eqPresident");
+
+      const { status, body } = await callDelete(withFollowUpId);
+
+      expect(status).toBe(409);
+
+      // THE SENTENCE NAMES THE ALTERNATIVE — visits-f's empty-bulk-replace precedent. A refusal
+      // that leaves somebody with no way forward is a dead end.
+      expect(errorMessage(body)).toContain("Close it instead");
+
+      // NEITHER THE COUNT NOR ANY CONTENT IS DISCLOSED. The deleter may not be entitled to know
+      // whose follow-ups those are or how many (CLAUDE.md rule 5).
+      expect(errorMessage(body)).not.toContain("1");
+      expect(errorMessage(body)).not.toContain(fixtures.runId);
+
+      // RE-READ WITH THE SERVICE CLIENT — the profile, its event AND its log.
+      expect(await storedName(withFollowUpId)).not.toBeNull();
+
+      const { data: events } = await fixtures.service
+        .from("activity_events")
+        .select("id")
+        .eq("profile_id", withFollowUpId);
+      expect((events ?? []).length).toBe(1);
+
+      const { data: logs } = await fixtures.service
+        .from("activity_logs")
+        .select("id")
+        .eq("event_id", followUpEventId);
+      expect((logs ?? []).length).toBe(1);
+
+      // NO AUDIT ROW FOR A REFUSED WRITE. A refusal is not a mutation, which scenario 049's walk
+      // established; a row here would make the audit log disagree with that.
+      expect(await countAuditRows("youth_activity_profile_deleted")).toBe(auditBefore);
+    });
+
+    // CLOSE IS ADVICE, NOT A LOCK. Only a WRITTEN ACCOUNT is protected — that is the thing nobody
+    // can reconstruct. An activity full of imported fixtures and no follow-ups still deletes.
+    it("still deletes an activity that has events but no follow-ups", async () => {
+      await actAs(fixtures, "eqPresident");
+
+      const { status } = await callDelete(withEventsOnlyId);
+
+      expect(status).toBe(200);
+      expect(await storedName(withEventsOnlyId)).toBeNull();
+    });
+
+    // THE AUDIT ROW NOW RECORDS WHAT WAS LOST. Three bare ids was the other half of ITER-031's
+    // defect: a reader could not tell a mistyped activity removed the same afternoon from a season
+    // of fixtures.
+    it("deletes an empty activity and records its name and event count", async () => {
+      await actAs(fixtures, "eqPresident");
+
+      const { status } = await callDelete(emptyId);
+      expect(status).toBe(200);
+
+      const { data, error } = await fixtures.service
+        .from("audit_log")
+        .select("detail")
+        .eq("ward_id", wardId)
+        .eq("action", "youth_activity_profile_deleted")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+
+      const detail = data?.detail as { activityName?: string; eventCount?: number } | null;
+
+      expect(detail?.activityName).toBe(`EQ empty ${fixtures.runId}`);
+      expect(detail?.eventCount).toBe(0);
     });
   });
 });

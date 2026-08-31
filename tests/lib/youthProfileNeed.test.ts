@@ -31,6 +31,7 @@ import {
   activitySupport,
   compareYouth,
   describeActivitySupport,
+  describeNothingRunning,
   describeSeasonNeed,
   profileNeed,
   youthNeed,
@@ -346,8 +347,11 @@ function supportEvent(overrides: Partial<SupportEvent> = {}): SupportEvent {
   };
 }
 
-const BASKETBALL = { id: "profile-basketball", activityName: "Varsity basketball" };
-const TRACK = { id: "profile-track", activityName: "Track and field" };
+// `closedAt: null` MEANS THE SEASON IS RUNNING, which is what every one of these fixtures is.
+// The closed cases build their own profiles inline, beside the assertion, so a reader can see
+// which half of the partition each test is about.
+const BASKETBALL = { id: "profile-basketball", activityName: "Varsity basketball", closedAt: null };
+const TRACK = { id: "profile-track", activityName: "Track and field", closedAt: null };
 
 describe("activitySupport — the history half", () => {
   // THREE MEANINGS OF ONE COLUMN, ASSERTED SEPARATELY. `confirmed_attendance` is
@@ -876,6 +880,257 @@ describe("youthNeed", () => {
 });
 
 // ===========================================================================
+// A CLOSED SEASON LEAVES THE RANKING, AND THE YOUNG PERSON DOES NOT
+// ===========================================================================
+// ITER-028. `/youth` ranked young people on every past home game a profile had ever held, so a
+// basketball season that finished in February kept contributing to Ethan's number in October.
+// Migration 060's `closed_at` ends that — and the trap the whole item turns on is that ending it
+// must NOT make anybody disappear.
+//
+// EVERY PROFILE IS HANDED TO youthNeed(), RUNNING AND CLOSED. The partition happens inside, so the
+// pills, the percentage, the badge, the sort and the "Nothing running" sentence come out of one
+// pass. A caller that pre-filtered would produce no group at all for a fully-closed young person,
+// which is exactly the vanishing ITER-028 refuses.
+
+const CLOSED_BASKETBALL = {
+  id: "profile-basketball",
+  activityName: "Varsity basketball",
+  closedAt: "2027-01-01T00:00:00Z",
+};
+
+const CLOSED_TRACK = {
+  id: "profile-track",
+  activityName: "Track and field",
+  closedAt: "2026-11-20T00:00:00Z",
+};
+
+describe("youthNeed — closed seasons", () => {
+  // Each of the three computations is asserted on its own, because they are three different reads
+  // of `running` and somebody retuning one of them must not be able to keep a green suite.
+  it("counts a closed season towards NOTHING it is ranked on", () => {
+    const result = youthNeed(
+      ETHAN,
+      [CLOSED_BASKETBALL],
+      eventsFor({
+        [CLOSED_BASKETBALL.id]: [
+          // Eight played, one attended — 12.5%, which would lead "least supported" if it counted.
+          supportEvent({ eventDate: daysFrom(-30), confirmedAttendeeCount: 1 }),
+          supportEvent({ eventDate: daysFrom(-27) }),
+          supportEvent({ eventDate: daysFrom(-24) }),
+          supportEvent({ eventDate: daysFrom(-21) }),
+          supportEvent({ eventDate: daysFrom(-18) }),
+          supportEvent({ eventDate: daysFrom(-15) }),
+          supportEvent({ eventDate: daysFrom(-12) }),
+          supportEvent({ eventDate: daysFrom(-9) }),
+          // And a game still to come, which would otherwise appear in upcomingCount and drive the
+          // coverage badge.
+          supportEvent({ eventDate: daysFrom(4), attendeeCount: 0 }),
+        ],
+      }),
+      ASOF,
+    );
+
+    expect(result.activities).toEqual([]);
+    expect(result.lowestSupport).toBeNull();
+    expect(result.upcomingCount).toBe(0);
+    expect(result.worstUpcoming).toBeNull();
+    expect(result.worstUpcomingAttendees).toBe(0);
+    expect(result.soonestNeedOn).toBeNull();
+  });
+
+  it("ranks a youth with one running and one closed season on the running one alone", () => {
+    const result = youthNeed(
+      ETHAN,
+      [CLOSED_BASKETBALL, TRACK],
+      eventsFor({
+        // Closed, and dreadful — 0 of 4. If it leaked in, lowestSupport would be 0.
+        [CLOSED_BASKETBALL.id]: [
+          supportEvent({ eventDate: daysFrom(-30) }),
+          supportEvent({ eventDate: daysFrom(-23) }),
+          supportEvent({ eventDate: daysFrom(-16) }),
+          supportEvent({ eventDate: daysFrom(-9) }),
+        ],
+        // Running, and healthy — 2 of 2.
+        [TRACK.id]: [
+          supportEvent({ eventDate: daysFrom(-8), confirmedAttendeeCount: 1 }),
+          supportEvent({ eventDate: daysFrom(-4), confirmedAttendeeCount: 2 }),
+        ],
+      }),
+      ASOF,
+    );
+
+    expect(result.activities.map((activity) => activity.activityName)).toEqual([
+      "Track and field",
+    ]);
+    expect(result.lowestSupport).toBe(1);
+    expect(result.closedActivities.map((a) => a.activityName)).toEqual(["Varsity basketball"]);
+    expect(result.hasRunning).toBe(true);
+  });
+
+  // THE ASSERTION ITER-028 EXISTS FOR. A young person whose every season has finished must still
+  // produce a YouthNeed, or /youth's grouping yields no card and they are gone from the ward.
+  it("still produces a YouthNeed when every season is closed", () => {
+    const result = youthNeed(
+      ETHAN,
+      [CLOSED_BASKETBALL, CLOSED_TRACK],
+      eventsFor({
+        [CLOSED_BASKETBALL.id]: [supportEvent({ confirmedAttendeeCount: 1 })],
+        [CLOSED_TRACK.id]: [supportEvent({ confirmedAttendeeCount: 1 })],
+      }),
+      ASOF,
+    );
+
+    expect(result.memberId).toBe(ETHAN.id);
+    expect(result.memberName).toBe(ETHAN.name);
+    expect(result.hasRunning).toBe(false);
+    // THE NAMES, NOT A COUNT. A card renders one pill per finished season, so losing the names
+    // here would put defect 060-D1 back: a card with nothing on it naming the activity at all.
+    expect(result.closedActivities.map((a) => a.activityName)).toEqual([
+      "Track and field",
+      "Varsity basketball",
+    ]);
+    expect(result.activities).toEqual([]);
+    expect(result.lowestSupport).toBeNull();
+  });
+
+  it("reports closedCount as zero and hasRunning as true for an ordinary young person", () => {
+    const result = youthNeed(
+      ETHAN,
+      [BASKETBALL, TRACK],
+      eventsFor({ [BASKETBALL.id]: [supportEvent()], [TRACK.id]: [supportEvent()] }),
+      ASOF,
+    );
+
+    expect(result.closedActivities).toEqual([]);
+    expect(result.hasRunning).toBe(true);
+  });
+
+  // ---------------------------------------------------------------------------
+  // AND THEY SORT LAST IN **BOTH** DIRECTIONS — ASSERTED, NEVER ASSUMED
+  // ---------------------------------------------------------------------------
+  // It comes for free: `running` is empty, so `lowestSupport` is null, and compareYouth already
+  // sorts null last both ways. NO BRANCH WAS ADDED FOR IT AND NONE SHOULD BE. But this module has
+  // TWO null rules that look identical and are opposite — `nobody_all_season` sorted its null
+  // FIRST — so the free behaviour is written down rather than trusted.
+  it("sorts a fully-closed young person LAST in both directions", () => {
+    const closedOut = youthNeed(
+      ETHAN,
+      [CLOSED_BASKETBALL],
+      eventsFor({ [CLOSED_BASKETBALL.id]: [supportEvent({ confirmedAttendeeCount: 1 })] }),
+      ASOF,
+    );
+
+    const worst = youth("Zoe", { lowestSupport: 0 });
+    const best = youth("Aaron", { lowestSupport: 1 });
+
+    expect(compareYouth("priority", true, closedOut, worst)).toBeGreaterThan(0);
+    expect(compareYouth("priority", false, closedOut, best)).toBeGreaterThan(0);
+  });
+});
+
+describe("describeNothingRunning", () => {
+  const closed = (...names: string[]) =>
+    names.map((activityName, index) => ({ profileId: `p${index}`, activityName }));
+
+  it("says nothing for a young person with no closed seasons", () => {
+    expect(describeNothingRunning(youth("Ana", { hasRunning: true }))).toBeNull();
+  });
+
+  // ---------------------------------------------------------------------------
+  // NO COUNT IN THIS SENTENCE, AND THAT IS THE FIX RATHER THAN AN OMISSION
+  // ---------------------------------------------------------------------------
+  // It read "Nothing running. 2 closed seasons." until the walk on 2026-08-31 answered "does this
+  // card read as deliberate?" with NO. The finished seasons are PILLS now, naming themselves, so
+  // a count here would duplicate a list sitting directly above it — this codebase's oldest defect
+  // (summariseCoverage, describeHouseholdForVisits, ITER-022).
+  it("states the state, without counting what the pills already name", () => {
+    expect(
+      describeNothingRunning(
+        youth("Ana", { hasRunning: false, closedActivities: closed("Concert choir") }),
+      ),
+    ).toBe("No activity running just now.");
+
+    // AND IT DOES NOT MOVE WITH THE NUMBER, which is what makes it a state rather than a tally.
+    expect(
+      describeNothingRunning(
+        youth("Ana", {
+          hasRunning: false,
+          closedActivities: closed("Concert choir", "Track and field"),
+        }),
+      ),
+    ).toBe("No activity running just now.");
+  });
+
+  // That card shows its upcoming-event count in this slot instead, and its finished pills sit
+  // beside its live ones needing no sentence at all.
+  it("says nothing when a season is still running", () => {
+    expect(
+      describeNothingRunning(
+        youth("Ana", { hasRunning: true, closedActivities: closed("Concert choir") }),
+      ),
+    ).toBeNull();
+  });
+});
+
+// ===========================================================================
+// THE HISTORY PAGE'S FROZEN NUMBER
+// ===========================================================================
+// /youth/history/[member_id] recomputes a closed season's final percentage with `closed_at` as the
+// clock rather than storing it — ITER-028's one real design question, answered the way this module
+// has answered every stored-versus-computed question: NOTHING IN THIS PROJECT REFRESHES ANYTHING,
+// so a stored number goes stale and a computed one cannot.
+//
+// The number is frozen because its INPUT is frozen. Asserted by judging one season against two
+// clocks a month apart — the shape a walk cannot check, because a walk happens on one day.
+
+describe("activitySupport against a season's closing instant", () => {
+  const CLOSED_ON = new Date("2027-01-01T00:00:00Z");
+
+  const SEASON: SupportEvent[] = [
+    supportEvent({ eventDate: "2026-12-04T02:30:00Z", confirmedAttendeeCount: 1 }),
+    supportEvent({ eventDate: "2026-12-11T02:30:00Z" }),
+    supportEvent({ eventDate: "2026-12-18T02:30:00Z", confirmedAttendeeCount: 2 }),
+    supportEvent({ eventDate: "2026-12-27T02:30:00Z" }),
+  ];
+
+  it("returns the same value however long afterwards it is computed", () => {
+    const atClosing = activitySupport(BASKETBALL, SEASON, CLOSED_ON);
+    const aMonthLater = activitySupport(BASKETBALL, SEASON, CLOSED_ON);
+
+    expect(atClosing.supportedFraction).toBe(0.5);
+    expect(aMonthLater).toEqual(atClosing);
+  });
+
+  // AND IT DIFFERS FROM THE LIVE ANSWER, which is what makes the frozen one worth having: a
+  // fixture the school feed published for February would otherwise still be moving the number
+  // about long after anybody stopped playing.
+  it("differs from the same season judged against a later clock", () => {
+    const withAFutureFixture: SupportEvent[] = [
+      ...SEASON,
+      supportEvent({ eventDate: "2027-02-05T02:30:00Z", attendeeCount: 0 }),
+    ];
+
+    const frozen = activitySupport(BASKETBALL, withAFutureFixture, CLOSED_ON);
+    const live = activitySupport(
+      BASKETBALL,
+      withAFutureFixture,
+      new Date("2027-03-01T00:00:00Z"),
+    );
+
+    // At closing, the February game was the NEXT one: counted, and nobody down for it — 2 of 5.
+    expect(frozen.playedCount).toBe(4);
+    expect(frozen.supportedFraction).toBe(0.4);
+
+    // A month after it was played it is history nobody attended, and the denominator is a
+    // different five. The point is that the frozen value never moved with it.
+    expect(live.playedCount).toBe(5);
+    expect(live.supportedFraction).toBe(0.4);
+    expect(frozen.nextEvent).not.toBeNull();
+    expect(live.nextEvent).toBeNull();
+  });
+});
+
+// ===========================================================================
 // THE COMPARATOR — EVERY KEY ASSERTED ON ITS OWN
 // ===========================================================================
 
@@ -884,6 +1139,8 @@ function youth(memberName: string, overrides: Partial<YouthNeed> = {}): YouthNee
     memberId: `member-${memberName}`,
     memberName,
     activities: [],
+    closedActivities: [],
+    hasRunning: true,
     lowestSupport: null,
     upcomingCount: 0,
     worstUpcoming: null,

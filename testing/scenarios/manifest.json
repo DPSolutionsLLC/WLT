@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 59,
+  "scenarioCount": 60,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -1986,7 +1986,7 @@
       "prerequisites": "none",
       "purpose": "Migration 054 makes **reads ward-wide and writes org-scoped**, and that asymmetry is the one\ndecision in this slice that cannot be seen from a single account. From one login the two rules look\nlike one rule: whatever you can see, you can probably also change. It takes four people signing in\nat different times, three differently-owned activities, and a youth who has two of them — which is\nexactly what seeding is for.\n\nIt also covers the phase plan's **\"ward council member scope confusion\"** pitfall, which it\ndescribes as *two different rules that must both be checked*. The ward council member here has\n`org_id` deliberately null, which is the `talks-d` hole seen from the outside: they write a\nward-wide activity, the write succeeds, and the only thing that proves the policy is right is\nwhether it then appears in their own list.\n\nA route test proves each of these against the database. What it cannot answer is whether an org\nleader who cannot edit somebody else's activity is **told why in a sentence**, or is simply handed a\ncontrol that fails — and whether \"Ward-wide\" reads as a deliberate state rather than as missing\ndata.",
       "checklist": [
-        "All four accounts see **all four** activities on `/youth`, grouped under three youth.",
+        "All four accounts see **all four** activities on `/youth/profiles`, grouped under three",
         "**The Edit and Remove controls are ABSENT on an activity this account may not change** —",
         "The Young Men president's attempt to save a change to *Chamber choir* does not change the",
         "The Young Women president's mirror attempt on *Varsity basketball* likewise changes nothing.",
@@ -2002,7 +2002,7 @@
         "The past event (*Game against Jefferson*) is absent until **Show past events** is pressed.",
         "No horizontal overflow at 375px. Every button is at least 44×44.",
         "No raw uuid appears anywhere on screen.",
-        "When the Young Men president cannot save somebody else's activity, does the message **say",
+        "REPLACED 2026-08-29. This asked whether the refusal MESSAGE says why. There is no longer a",
         "Does **Ward-wide** read as a deliberate state (\"this belongs to no one presidency\") rather",
         "Is it obvious at a glance which activities are *yours* and which you are only reading? Or do",
         "Does the empty-state sentence (sign in before seeding, or remove every activity) explain what",
@@ -2034,13 +2034,16 @@
         "`activity_events.calendar_id` is **null** on every row entered here.",
         "**After adding an activity, the \"Add an event\" form offers it without a reload.** ADDED",
         "**After removing an activity, its cascade-deleted events leave the Schedule without a",
-        "The home/away field defaults to **\"Not yet known\"**, spelled out — not `tbd`.",
+        "The home/away field defaults to **\"Decide from the location\"**, and the explicit",
+        "**The card's hour is the WARD's zone, not the reader's.** With the ward on",
+        "**The edit form's date field agrees with the card it sits under.** Open Edit while the two",
         "An `audit_log` row with action `youth_activity_event_created` exists for each event.",
         "No horizontal overflow at 375px. Every button is at least 44×44.",
         "Does the empty schedule (\"Nothing coming up…\") read as a deliberate state rather than as a",
-        "After changing your machine's zone in step 10, does the shift read as *correct* — you have",
+        "After changing **the ward's** zone in step 10, does the shift read as *correct* — this is the",
         "Does a **cancelled** event read as *called off* rather than as *something went wrong*?",
-        "Is \"Not yet known\" clearly something a person is expected to come back and settle?",
+        "Is \"Home or away not set\" clearly something a person is expected to come back and settle?",
+        "Should **Remove** on an activity ask first? It deletes the activity, every event on it, every",
         "Legible one-handed at 375px, in both light and dark mode?"
       ],
       "seedCommand": "npm run seed -- youth/scenario-050-a-game-added-by-hand"
@@ -2058,7 +2061,7 @@
         "smoke"
       ],
       "prerequisites": "none",
-      "purpose": "The hour is the thing this slice most likely gets wrong, and no unit test can answer whether the\nhour a leader **reads on the card** is the hour the school published. There are four conversions\nbetween the file and the screen — the ICS wall clock resolved against a zone, the instant stored as\na `timestamptz`, the instant read back, and the instant rendered in the reader's own zone — and\n`tests/lib/icsTimezone.test.ts` only proves the first two.\n\n08-youth-activities.md is blunt about the cost: *\"A game showing at the wrong hour makes the whole\nfeature useless.\"* The failure mode worth fearing is the one that **passes on the dev machine and\nships wrong** — `ICAL.Time.toJSDate()` resolves a floating time against the process's own zone,\nwhich is `America/Denver` here and UTC on Vercel.\n\nSeeding matters because the fixture needs a genuine multi-timezone `.ics` file that takes twenty\nminutes to build by hand and that a tester would quietly build half of.",
+      "purpose": "The hour is the thing this slice most likely gets wrong, and no unit test can answer whether the\nhour a leader **reads on the card** is the hour the school published. There are four conversions\nbetween the file and the screen — the ICS wall clock resolved against a zone, the instant stored as\na `timestamptz`, the instant read back, and the instant rendered in the ward's zone — and\n`tests/lib/icsTimezone.test.ts` only proves the first two.\n\n08-youth-activities.md is blunt about the cost: *\"A game showing at the wrong hour makes the whole\nfeature useless.\"* The failure mode worth fearing is the one that **passes on the dev machine and\nships wrong** — `ICAL.Time.toJSDate()` resolves a floating time against the process's own zone,\nwhich is `America/Denver` here and UTC on Vercel.\n\nSeeding matters because the fixture needs a genuine multi-timezone `.ics` file that takes twenty\nminutes to build by hand and that a tester would quietly build half of.",
       "checklist": [
         "The preview names every event **with the day, date and hour** it will be created at — not a",
         "The `TZID` game, the UTC game and the floating game each show the hour the fixture's own",
@@ -2077,7 +2080,7 @@
         "An `audit_log` row with action `youth_calendar_imported` exists, carrying the counts and",
         "**No notification was emitted** — `notifications` for this ward is unchanged.",
         "Imported rows carry a *From a schedule feed* marker on `/youth`; nothing entered by hand does.",
-        "Change the machine's time zone, reload, and every game still reads at the hour the school",
+        "**REWRITTEN 2026-08-30, for the reason in step 10.** Change **the ward's** zone, reload, and",
         "No horizontal overflow at 375px, and every **button and form control** at least 44×44.",
         "Does the preview read as a **description of what will happen**, or as a table dump?",
         "Could a leader who has never seen an ICS file tell from the screen what is about to be",
@@ -2466,6 +2469,52 @@
         "With three rows and two build controls, is the page still scannable on a phone, or has it"
       ],
       "seedCommand": "npm run seed -- youth/scenario-059-two-young-people-one-game"
+    },
+    {
+      "id": "youth:scenario-060-the-season-is-over",
+      "path": "youth/scenario-060-the-season-is-over",
+      "name": "The season is over",
+      "scope": "youth",
+      "part": 10,
+      "tags": [
+        "youth",
+        "full",
+        "close",
+        "delete"
+      ],
+      "prerequisites": "none",
+      "purpose": "Two things that are the same button.\n\n`/youth` ranks young people on a support percentage computed from **every past home game on a\nprofile plus the next one**, and until now **nothing ever left that computation**. A basketball\nseason that finished in February kept contributing to Ethan's number in October, and a ward two\nyears in would be ranking its youth on games nobody remembers.\n\n`Remove` on an activity deleted **unconditionally**. Migration 009 cascades\n`youth_activity_profiles → activity_events → {activity_attendees, activity_logs →\nactivity_private_notes}`, so one press took a season, every sign-up, every pastoral follow-up **and\nthe private notes rule 5 calls private forever**. A confirm dialog was added first; a dialog can be\nclicked through and is not protection.\n\nThey resolve together. Once a season can be **closed**, *\"I want this off my list\"* has an answer\nthat destroys nothing — and the destructive path narrows to what it should always have been: an\nactivity created by mistake with nothing recorded against it.\n\nSeeding is what makes the central check **observable at all**. The refusal has to fire over a\nfollow-up written by *another organization's* leader — precisely the row the person pressing Remove\nis not entitled to read, and therefore cannot check for. And a season worth closing means twelve\ngames already played with a real percentage attached, which is an afternoon of clicking and wrong\nthe moment the clock moves.",
+      "checklist": [
+        "Before step 6, Ethan's card shows **two pills** — *Varsity basketball · 8%* and",
+        "Closing a season removes its pill from the young person's `/youth` card **without a reload**.",
+        "`closed_at` is **non-null** in `youth_activity_profiles`, and an audit row",
+        "Ethan's **track** percentage is **unchanged** by closing basketball, and his upcoming-event",
+        "**See Ethan Brooks's history** appears on his card once he has one closed season — while he",
+        "**Maya Diaz still appears on `/youth`** with **no pills**, *\"Nothing running. 1 closed",
+        "Maya sorts **last** under Priority, and **still last** when the direction is reversed.",
+        "The history page shows the closed season's final percentage (**50%** for Maya, **8%** for",
+        "Maya's history page shows **four concerts**; Ethan's basketball history shows **twelve games**",
+        "Reopening restores the pill and writes `youth_activity_profile_reopened`, and `closed_at` is",
+        "Expanding Ethan's card with basketball CLOSED still shows the **basketball games** in the",
+        "**`Remove` is not rendered** on Varsity basketball (12 events), on Track and field (3), on",
+        "`DELETE` on Varsity basketball **by direct API call** → **409**; the sentence names **Close**",
+        "After that 409, the profile, its **12 events** and its **1 follow-up** are all still present",
+        "**No audit row** was written for the refused delete.",
+        "`Remove` **is** rendered on Josh Kim's **Debate club**, removing it succeeds, and the audit",
+        "The `yw-president`'s follow-up blocks the delete **even though `ym-president` cannot read",
+        "The `ward-council` account (**no organization**) can close and reopen the **ward-wide**",
+        "A closed season's unwritten follow-up **still appears** in *Waiting on your follow-up* — the",
+        "Neither **Close** nor **Remove** renders on another organization's activity — check Maya's",
+        "Every activity card that is closed carries a **Season closed** chip, so the state is stated",
+        "No horizontal overflow at 375px, and every button and form control is at least 44×44.",
+        "**Does \"Nothing running. 1 closed season.\" read as deliberate, or as a young person the app",
+        "**Does the 409 sentence make the alternative obvious, or does it read as a dead end?** A",
+        "**Is it clear that Close is the ordinary action and Remove the exception?** They sit side by",
+        "Does the history page answer *\"how well was he supported last season\"* **at a glance**, or",
+        "Is *\"Close the season\"* the right words for a **choir** and a **service crew**, or does it",
+        "Does the close dialog feel proportionate — mild enough that closing is easy, clear enough"
+      ],
+      "seedCommand": "npm run seed -- youth/scenario-060-the-season-is-over"
     }
   ]
 }

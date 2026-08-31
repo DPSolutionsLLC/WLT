@@ -2,10 +2,16 @@ import { BISHOPRIC_ROLES } from "@/lib/auth/permissions";
 import type { SessionUser } from "@/types/domain";
 
 // WHO MAY WRITE TO AN ACTIVITY PROFILE, mirroring migration 054d's `youth_activity_profiles_update`
-// USING clause exactly:
+// — BOTH HALVES OF IT, which is a correction made on 2026-08-31 (defect 060-D2):
 //
-//   using (ward_id = current_ward_id()
-//          and (is_bishopric() or entered_by = auth.uid() or org_id = current_org_id()))
+//   using      (ward_id = current_ward_id()
+//               and (is_bishopric() or entered_by = auth.uid() or org_id = current_org_id()))
+//   with check (ward_id = current_ward_id()
+//               and (is_bishopric() or org_id is null or org_id = current_org_id()))
+//
+// AN UPDATE NEEDS BOTH TO PASS, and this mirrored only the first. USING says which rows you may
+// TOUCH; WITH CHECK says what you may LEAVE BEHIND. The gap between them is real and reachable —
+// see the second block below.
 //
 // The ward half is not restated here — every caller has already been narrowed to one ward by the
 // query that fetched the profile. What this answers is the rest.
@@ -38,13 +44,38 @@ export function isBishopricRole(role: SessionUser["role"]): boolean {
   return (BISHOPRIC_ROLES as readonly string[]).includes(role);
 }
 
-// THREE WAYS IN, AND THE ORDER MATTERS ONLY FOR READABILITY: the bishopric, the person who entered
-// it, or the organization that owns it.
+// ---------------------------------------------------------------------------
+// THE GAP BETWEEN USING AND WITH CHECK, AND WHY IT IS NOT HYPOTHETICAL — 060-D2
+// ---------------------------------------------------------------------------
+// USING carries `entered_by = auth.uid()`; WITH CHECK deliberately does NOT, because 054d refuses
+// to let you move a profile into somebody else's organization ("handing the Young Women an
+// activity they never agreed to own is not an edit"). So there is exactly one shape where the two
+// disagree:
 //
-// THE NULL-EQUALS-NULL TRAP IS THE ONE THING TO GET RIGHT HERE. JavaScript disagrees with SQL:
-// `null === null` is `true`, so without the explicit guards an org leader whose account has no
-// organization would match every ward-wide profile and be handed controls the policy refuses —
-// and a ward-wide profile is the ORDINARY case for this module, not an edge one.
+//     org_id = ANOTHER organization   AND   entered_by = me
+//
+// USING admits the row, WITH CHECK refuses the result, and — unlike every other refusal in this
+// module — a failed WITH CHECK **RAISES** rather than returning zero rows. This function returned
+// `true` for that shape, so `Edit` and `Close the season` were rendered and both produced a 500.
+//
+// IT IS NOT AN EXOTIC ROW. It is what a release and a recall leave behind: the profile keeps the
+// organization it was created under and the leader's own `org_id` moves. Walking scenario 060 on
+// 2026-08-31 hit it on the first press.
+//
+// So the controls are now ABSENT there, which is this file's whole reason for existing — a control
+// the policy refuses is still a bug, and this was that bug in its fourth sighting, inside the
+// helper written to prevent it.
+//
+// THE DELETE POLICY HAS NO WITH CHECK, so the database would still permit a DELETE on such a row.
+// Hiding `Remove` there too is deliberate and is the conservative direction: the UI declining
+// something the API would allow is recoverable and quiet, while the reverse is the defect above.
+// CLAUDE.md rule 2 still holds — the route refuses independently and is the boundary.
+//
+// THE NULL-EQUALS-NULL TRAP IS THE OTHER THING TO GET RIGHT. JavaScript disagrees with SQL:
+// `null === null` is `true`, so a leader with no organization would otherwise match every
+// ward-wide profile — and a ward-wide profile is the ORDINARY case for this module, not an edge
+// one. `sameOrganization` below is the only place the comparison happens, and it refuses a null on
+// either side exactly as `org_id = current_org_id()` evaluates to NULL rather than true.
 //
 // `enteredBy` is nullable because migration 009 lets it be: a profile survives the deletion of the
 // user who entered it. A null there matches nobody, which is what the policy does too.
@@ -54,12 +85,22 @@ export function canManageActivityProfile(
 ): boolean {
   if (isBishopricRole(user.role)) return true;
 
-  if (profile.enteredBy !== null && profile.enteredBy === user.id) return true;
+  const sameOrganization =
+    user.orgId !== null && profile.orgId !== null && user.orgId === profile.orgId;
 
-  if (user.orgId === null) return false;
-  if (profile.orgId === null) return false;
+  // Satisfies USING and WITH CHECK at once: the organization that owns it may change it and leave
+  // it where it is.
+  if (sameOrganization) return true;
 
-  return user.orgId === profile.orgId;
+  // A WARD-WIDE profile passes WITH CHECK on its `org_id is null` arm, so all that is left is
+  // USING — and with `sameOrganization` already false, the only way in is having entered it.
+  if (profile.orgId === null) {
+    return profile.enteredBy !== null && profile.enteredBy === user.id;
+  }
+
+  // ANOTHER ORGANIZATION'S profile. WITH CHECK refuses the result whatever USING says, so having
+  // entered it is not enough — this is the 060-D2 shape, and returning true here is the defect.
+  return false;
 }
 
 // WHO MAY EDIT A FOLLOW-UP, mirroring migration 057c's `activity_logs_update` USING clause

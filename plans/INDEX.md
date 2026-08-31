@@ -45,7 +45,7 @@ exactly this reason. If a third module wants them, that is the moment to lift `c
 `lib/visits/`; not before.
 
 **Phase 8 ships as a sequence of slices**, the same way Phase 7 shipped as `visits-a` …
-`visits-f`. It was planned as four and has run to seven, because walking each slice produced the
+`visits-f`. It was planned as four and has run to eight, because walking each slice produced the
 next. The phase file stays the specification; each slice gets its own plan and its own retro entry.
 
 | Slice | Covers | Plan | Status |
@@ -57,6 +57,7 @@ next. The phase file stays the specification; each slice gets its own plan and i
 | youth-e | ITER-020's unblocked half: `/youth` as a ranked list of young people, `/youth/profiles`, sign-up on the calendar | [youth-e-overview-and-cross-navigation.md](youth-e-overview-and-cross-navigation.md) | **Built 2026-08-29** — no migration; the event-detail half stayed out, blocked by ITER-024 |
 | youth-f | One card per YOUNG PERSON, one pill per activity, the support percentage, two sorts plus a direction toggle | [youth-f-support-percentage-and-youth-cards.md](youth-f-support-percentage-and-youth-cards.md) | **Built 2026-08-29** — no migration; walked with no defects; closing out a season became ITER-028 |
 | youth-g | Migration 059, the occasion link, `/youth/events/[id]`, the "+N others at this game" marker | [youth-g-occasions-and-event-detail.md](youth-g-occasions-and-event-detail.md) | **Built 2026-08-29** — migration 059 applied (`activity_occasions`, ward-wide on all four verbs); closes ITER-024 and the parked event-detail half of ITER-020; **unblocks ITER-027**; **scenario 059 walked 2026-08-29**, three defects found and fixed |
+| youth-h | Migration 060, `closed_at` on a profile, `/youth/history/[member_id]`, and a `Remove` that cannot destroy a follow-up | [youth-h-season-close-and-safe-remove.md](youth-h-season-close-and-safe-remove.md) | **Built 2026-08-30** — migration 060 applied (nullable `closed_at`, plus a `security definer` follow-up counter); closes ITER-028 and ITER-031; REVERSES "no season boundary in the schema"; `Remove` now renders only at zero events and the server refuses a delete over any follow-up with a 409 |
 
 Three decisions were taken at the start of `youth-a` planning and apply to the whole phase.
 **Activity reads are ward-wide and only writes are org-scoped** (`org_id` on

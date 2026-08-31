@@ -137,6 +137,24 @@ export type ActivityProfile = {
   seasonSchedule: string | null;
   notes: string | null;
   enteredBy: string | null;
+  // Migration 060. NULL MEANS THE SEASON IS RUNNING, which is the ordinary state of every profile
+  // and the state every row already in the database reads as — the same absent-means-default
+  // idiom as `org_id` (054a) and `occasion_id` (059b), so no ward's /youth moved when it shipped.
+  //
+  // A TIMESTAMP RATHER THAN A BOOLEAN, because the history page asks WHEN the season ended: the
+  // final percentage is recomputed against this instant rather than stored. Setting it back to
+  // null reopens the season, which is what makes a mistake recoverable and is why closing is
+  // offered where deleting used to be.
+  closedAt: string | null;
+  // THE TRUE COUNT OF EVENTS ON THIS ACTIVITY, past ones included — an embedded PostgREST count,
+  // not the length of whatever list the page happened to load.
+  //
+  // IT IS WHAT GATES `Remove`. ActivityProfileList renders that control only at zero, and the gate
+  // is EXACT rather than approximate: `activity_logs.event_id` has been NOT NULL since migration
+  // 057a and references `activity_events`, so no events implies no follow-ups. The comment in
+  // ActivityProfileList predicted this field by name — "a true count means an embedded count on a
+  // shared query plus its type, mapper and route" — and deferred it to ITER-031, which is here.
+  eventCount: number;
   createdAt: string;
 };
 
@@ -188,8 +206,12 @@ export type ActivityCalendar = {
 // ONE STRING LITERAL ON ONE LINE. A concatenation widens the type to `string` and defeats
 // supabase-js's literal parsing of the select list, degrading every row to something untyped
 // (plans/retros/calendar-a-rules-and-api.md).
+// THE EMBEDDED COUNT IS NAMED TOO, for the same reason the member embed is: there is exactly one
+// foreign key from `activity_events` to this table today, and a second one added later would make
+// an inferred embed silently mean something else. It counts EVERY event on the profile, past ones
+// included, because that is what the Remove gate has to be exact about.
 const ACTIVITY_PROFILE_COLUMNS =
-  "id, member_id, org_id, activity_name, school_org, activity_type, season_schedule, notes, entered_by, created_at, members!youth_activity_profiles_member_id_ward_id_fkey (first_name, last_name)";
+  "id, member_id, org_id, activity_name, school_org, activity_type, season_schedule, notes, entered_by, closed_at, created_at, members!youth_activity_profiles_member_id_ward_id_fkey (first_name, last_name), activity_events!activity_events_profile_id_ward_id_fkey (count)";
 
 // ONE STRING LITERAL ON ONE LINE, still, now that it has grown three columns. A `+`
 // concatenation widens the type to `string` and defeats supabase-js's literal parsing of the
@@ -211,8 +233,13 @@ type ActivityProfileRow = {
   season_schedule: string | null;
   notes: string | null;
   entered_by: string | null;
+  closed_at: string | null;
   created_at: string;
   members: { first_name: string; last_name: string } | null;
+  // PostgREST returns an aggregate embed as an ARRAY of one object, and as an EMPTY ARRAY for a
+  // profile with no events at all. Both shapes are spelled out here so the mapper handles the
+  // empty case on purpose rather than by a `?? 0` that would also swallow a shape change.
+  activity_events: { count: number }[];
 };
 
 type ActivityEventRow = {
@@ -262,6 +289,12 @@ function mapActivityProfileRow(row: ActivityProfileRow): ActivityProfile {
     seasonSchedule: row.season_schedule,
     notes: row.notes,
     enteredBy: row.entered_by,
+    closedAt: row.closed_at,
+    // MAPPED EXPLICITLY FROM THE EMPTY ARRAY RATHER THAN DEFAULTED. An activity with no events
+    // yields `[]`, which is a real and expected answer — the one this field exists to detect —
+    // and writing it out means a change in PostgREST's aggregate shape surfaces as a wrong number
+    // here rather than as a silent zero that unlocks a destructive control.
+    eventCount: row.activity_events[0]?.count ?? 0,
     createdAt: row.created_at,
   };
 }
@@ -295,6 +328,35 @@ function mapActivityCalendarRow(row: ActivityCalendarRow): ActivityCalendar {
   };
 }
 
+// A WRITE THE POLICY REFUSED BY RAISING, RATHER THAN BY MATCHING NOTHING.
+//
+// ---------------------------------------------------------------------------
+// TWO SHAPES OF RLS REFUSAL, AND ONLY ONE OF THEM IS QUIET
+// ---------------------------------------------------------------------------
+// A row the USING clause excludes is simply not seen: the UPDATE matches nothing and returns a
+// zero-row SUCCESS (plans/retros/foundation-c-services.md, which every write in this file follows).
+// A row that passes USING and then fails WITH CHECK is different — PostgreSQL RAISES
+// `new row violates row-level security policy`, SQLSTATE **42501**, and supabase-js surfaces it as
+// an ordinary error.
+//
+// Both mean the same thing to the person who pressed the button: NOT YOURS TO CHANGE. Until
+// 2026-08-31 only the quiet one was handled, so migration 054d's one divergent shape — a profile
+// owned by another organization but entered by the caller, which USING admits and WITH CHECK
+// refuses — came back as a **500** reading "Please try again", which was untrue: trying again
+// cannot work (defect 060-D2, found walking scenario 060).
+//
+// Mapping it to `null` puts it on the SAME path as the zero-row refusal, and the route's existing
+// sentence is already exactly right — "It may belong to another organization." Distinguishing the
+// two would tell a caller which kind of row they may not touch, which is the thing the 404 exists
+// to avoid saying.
+//
+// NARROW ON PURPOSE. Only 42501, and only on these two updates. Every other error still throws and
+// still surfaces, because "the policy said no" and "the database is broken" must not become one
+// message (CLAUDE.md rule 7).
+function isPolicyRefusal(error: { code?: string } | null): boolean {
+  return error?.code === "42501";
+}
+
 async function resolveClient(
   client?: SupabaseClient<Database>,
 ): Promise<SupabaseClient<Database>> {
@@ -304,6 +366,12 @@ async function resolveClient(
 // Ordered by activity name, because the page groups by youth and then lists that youth's
 // activities. The grouping itself is the page's job — this is the order WITHIN a group, and
 // putting it here means the list arrives in a stable order rather than in insertion order.
+//
+// EVERY PROFILE, RUNNING AND CLOSED, and it must stay that way. Filtering closed seasons out here
+// would remove them from every caller at once — and a young person whose every season is finished
+// would then produce no group on /youth and VANISH FROM THE WARD, which is the one thing ITER-028
+// says must not happen. The READ PATH decides what to show: YouthOverview groups from all of them
+// and computes from the running ones (lib/youth/profileNeed.ts).
 export async function listActivityProfiles(
   wardId: string,
   client?: SupabaseClient<Database>,
@@ -415,6 +483,13 @@ export async function updateActivityProfile(
     .select(ACTIVITY_PROFILE_COLUMNS)
     .maybeSingle();
 
+  // The WITH CHECK refusal joins the zero-row one rather than becoming a 500 — see
+  // isPolicyRefusal(). Logged before it is swallowed, so a policy change still leaves a trace.
+  if (isPolicyRefusal(error)) {
+    console.warn(`Policy refused an activity profile update`, { wardId, profileId });
+    return null;
+  }
+
   if (error) {
     console.error(`Could not update an activity profile — ${error.message}`, {
       wardId,
@@ -424,6 +499,87 @@ export async function updateActivityProfile(
   }
 
   return data === null ? null : mapActivityProfileRow(data);
+}
+
+// CLOSING A SEASON, AND REOPENING ONE — the same function and the same route, which is what makes
+// a mistake recoverable.
+//
+// `closedAt` is an ISO string to close and NULL to reopen. There is no boolean anywhere on this
+// path: the history page recomputes a closed season's final percentage against this instant, so
+// the moment is the value rather than a fact about it.
+//
+// FOLLOWS updateActivityProfile()'S SHAPE EXACTLY, including the zero-row handling — an RLS-denied
+// UPDATE is a zero-row success, not an error (plans/retros/foundation-c-services.md), and the
+// route turns the null into a 404. Migration 054d's policy is what decides WHICH profiles this
+// reaches; there is no branch here and there must not be one (CLAUDE.md rule 2).
+export async function closeActivityProfile(
+  wardId: string,
+  profileId: string,
+  closedAt: string | null,
+  client?: SupabaseClient<Database>,
+): Promise<ActivityProfile | null> {
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("youth_activity_profiles")
+    .update({ closed_at: closedAt })
+    .eq("ward_id", wardId)
+    .eq("id", profileId)
+    .select(ACTIVITY_PROFILE_COLUMNS)
+    .maybeSingle();
+
+  if (isPolicyRefusal(error)) {
+    console.warn(`Policy refused an activity profile close`, {
+      wardId,
+      profileId,
+      closing: closedAt !== null,
+    });
+    return null;
+  }
+
+  if (error) {
+    console.error(`Could not close an activity profile — ${error.message}`, {
+      wardId,
+      profileId,
+      closing: closedAt !== null,
+    });
+    throw new Error(`Could not save that activity: ${error.message}`);
+  }
+
+  return data === null ? null : mapActivityProfileRow(data);
+}
+
+// HOW MANY PASTORAL FOLLOW-UPS ARE WRITTEN AGAINST THIS ACTIVITY — the one question the DELETE
+// route has to answer before it destroys anything.
+//
+// IT IS AN RPC RATHER THAN A QUERY, AND THAT IS THE WHOLE POINT. The DELETE policy (054d) and the
+// log SELECT policy (057c) are scoped differently — `entered_by = auth.uid()` admits a delete and
+// appears nowhere in the read — so a leader who created an activity and has since been recalled to
+// a different organization may delete it while being unable to read one follow-up written on it.
+// Counting through their client would return zero. Beyond that one case, whether an activity may
+// be destroyed is a fact about the ACTIVITY and must not depend on who is looking (migration 056c's
+// uniform-evaluability rule). Migration 060b's `security definer` function answers it the same way
+// for everybody, returns a COUNT and never a row, and is ward-scoped by `current_ward_id()`.
+//
+// THE NUMBER IS NEVER DISCLOSED. The route turns "greater than zero" into a 409 naming Close as
+// the alternative and stops there: the deleter may not be entitled to know whose follow-ups those
+// are or how many (CLAUDE.md rule 5).
+export async function countActivityProfileFollowUps(
+  profileId: string,
+  client?: SupabaseClient<Database>,
+): Promise<number> {
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase.rpc("activity_profile_followup_count", {
+    target_profile_id: profileId,
+  });
+
+  if (error) {
+    console.error(`Could not count follow-ups on an activity — ${error.message}`, { profileId });
+    throw new Error(`Could not check that activity's follow-ups: ${error.message}`);
+  }
+
+  return data ?? 0;
 }
 
 // False when nothing was deleted, which is again a refused row rather than an error. Deleting a

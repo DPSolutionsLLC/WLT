@@ -7,6 +7,7 @@ import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { updateActivityProfileSchema } from "@/lib/validation/youth";
 import {
+  countActivityProfileFollowUps,
   deleteActivityProfile,
   getActivityProfile,
   updateActivityProfile,
@@ -84,9 +85,49 @@ export async function PATCH(
   }
 }
 
+// REMOVING AN ACTIVITY IS NOW THE EXCEPTION, AND IT CANNOT DESTROY A PASTORAL RECORD.
+//
+// ---------------------------------------------------------------------------
+// WHAT THIS DELETE USED TO DO
+// ---------------------------------------------------------------------------
+// It deleted unconditionally. Migration 009 cascades youth_activity_profiles → activity_events →
+// {activity_attendees, activity_logs → activity_private_notes}, so one press destroyed a season,
+// every sign-up, every follow-up AND the private notes CLAUDE.md rule 5 calls private forever.
+// `2809aef` added a confirm dialog; a dialog can be clicked through and is not protection for a
+// record somebody else wrote (ITER-031).
+//
+// ---------------------------------------------------------------------------
+// THE REFUSAL, AND WHY IT NEEDS A `security definer` COUNT
+// ---------------------------------------------------------------------------
+// The DELETE policy (054d) and the log SELECT policy (057c) are scoped differently: `entered_by =
+// auth.uid()` admits a delete and appears nowhere in the read. So a leader who created an activity
+// and has since been recalled to a different organization may delete it while being unable to read
+// one follow-up written on it, and a count through their own client would return zero. More
+// generally, whether an activity may be destroyed is a fact about the ACTIVITY and must not depend
+// on who is asking (migration 056c's uniform-evaluability rule). Migration 060b's
+// `activity_profile_followup_count` answers it the same way for everybody, returns a COUNT and
+// never a row, and is ward-scoped so it cannot probe another ward.
+//
+// THE COUNT IS NOT DISCLOSED, AND NEITHER IS ANY CONTENT. The deleter may not be entitled to know
+// whose follow-ups those are or how many — that is rule 5, and it is a judgement rather than an
+// obvious call, so it is written down here. "Has follow-ups recorded against it" is the right
+// amount to say.
+//
+// REFUSED, NOT CONFIRMED, and the sentence NAMES THE ALTERNATIVE in the same breath. That is
+// visits-f's empty-bulk-replace precedent: a refusal that leaves somebody with no way forward is
+// a dead end, and Close is the way forward — it destroys nothing and it is what they wanted.
+//
+// NO AUDIT ROW FOR THE REFUSAL. A refused write is not a mutation; scenario 049's walk established
+// that refused calls leave no audit rows, and a row here would make the audit log disagree.
+//
+// AN ACTIVITY WITH EVENTS BUT NO FOLLOW-UPS STILL DELETES. Close is advice, not a lock: only a
+// WRITTEN ACCOUNT is protected, because that is the thing nobody can reconstruct.
+const HAS_FOLLOW_UPS =
+  "This activity has follow-ups recorded against it, so it cannot be removed. Close it instead — " +
+  "its history stays readable and it leaves the support ranking.";
+
 // Deleting a profile CASCADES to its events (migration 009), and that is correct rather than
-// surprising: a game has no meaning without the season it belongs to. The audit row records the
-// profile, which is the thing a person chose to remove.
+// surprising: a game has no meaning without the season it belongs to.
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -108,6 +149,13 @@ export async function DELETE(
       return NextResponse.json({ error: "That activity is not in your ward." }, { status: 404 });
     }
 
+    // BEFORE ANYTHING IS DESTROYED. The client-side gate in ActivityProfileList only renders
+    // `Remove` at `eventCount === 0`, but the UI gate and this one are two expressions of one rule
+    // and neither is the boundary on its own (CLAUDE.md rule 2).
+    if ((await countActivityProfileFollowUps(profileId, supabase)) > 0) {
+      return NextResponse.json({ error: HAS_FOLLOW_UPS }, { status: 409 });
+    }
+
     const removed = await deleteActivityProfile(user.wardId, profileId, supabase);
 
     if (!removed) {
@@ -120,10 +168,16 @@ export async function DELETE(
         userId: user.id,
         action: "youth_activity_profile_deleted",
         module: "youth_activities",
+        // WHAT WAS LOST, not only which row. Three bare ids was ITER-031's other half of the
+        // defect: an audit reader could not tell a mistyped activity removed the same afternoon
+        // from a season of fixtures. `eventCount` is the embedded count on the profile that was
+        // read a moment ago, so it is the number that actually went.
         detail: {
           profileId,
           orgId: existing.orgId,
           memberId: existing.memberId,
+          activityName: existing.activityName,
+          eventCount: existing.eventCount,
         },
       },
       supabase,

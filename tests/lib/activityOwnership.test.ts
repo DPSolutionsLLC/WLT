@@ -70,12 +70,39 @@ describe("canManageActivityProfile", () => {
     ).toBe(false);
   });
 
-  it("lets the creator manage what they entered, whatever organization owns it", () => {
+  // ---------------------------------------------------------------------------
+  // THE ONE SHAPE WHERE USING AND WITH CHECK DISAGREE — AND THIS ASSERTION IS AN INVERSION
+  // ---------------------------------------------------------------------------
+  // This test used to read "lets the creator manage what they entered, whatever organization owns
+  // it" and expect TRUE. That mirrored 054d's USING clause, which does carry
+  // `entered_by = auth.uid()` — but an UPDATE must also satisfy WITH CHECK, and WITH CHECK
+  // deliberately omits `entered_by` so that nobody can move a profile into another organization.
+  //
+  // So the write was admitted and then refused, and a failed WITH CHECK **RAISES** rather than
+  // returning zero rows: `Edit` and `Close the season` were both rendered and both produced a
+  // 500. Walking scenario 060 on 2026-08-31 hit it on the first press (defect 060-D2).
+  //
+  // It is written as an INVERSION rather than deleted and replaced, so it reads as a decision
+  // rather than as a test that never existed — the shape tests/rls/visit-cross-org.test.ts uses
+  // for the ITER-018 reversal.
+  //
+  // THE ROW IS NOT EXOTIC: it is what a release and a recall leave behind. The profile keeps the
+  // organization it was created under and the leader's own org_id moves.
+  it("refuses the creator a profile that now belongs to another organization", () => {
     expect(
       canManageActivityProfile(eqPresident, {
         orgId: RELIEF_SOCIETY,
         enteredBy: EQ_PRESIDENT,
       }),
+    ).toBe(false);
+  });
+
+  // The other side of the same coin, and the reason the `entered_by` arm is still here at all:
+  // on a WARD-WIDE profile, WITH CHECK passes on its `org_id is null` arm, so having entered it is
+  // enough. Deleting the arm to "simplify" the function would break this.
+  it("still lets the creator manage a ward-wide profile they entered", () => {
+    expect(
+      canManageActivityProfile(eqPresident, { orgId: null, enteredBy: EQ_PRESIDENT }),
     ).toBe(true);
   });
 
@@ -125,6 +152,9 @@ describe("canManageActivityProfile", () => {
 
     const seeded = [
       { name: "Varsity basketball", orgId: youngMen, enteredBy: EQ_PRESIDENT, expected: true },
+      // Scenario 060's divergent fixture: entered by this president, owned by the Young Women.
+      // WITH CHECK refuses the result, so the controls must be absent (060-D2).
+      { name: "Reassigned season", orgId: youngWomen, enteredBy: EQ_PRESIDENT, expected: false },
       { name: "Chamber choir", orgId: youngWomen, enteredBy: BISHOP, expected: false },
       { name: "Debate team", orgId: youngWomen, enteredBy: BISHOP, expected: false },
       { name: "Community orchestra", orgId: null, enteredBy: COUNCIL_MEMBER, expected: false },

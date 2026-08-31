@@ -250,11 +250,13 @@ export function describeSeasonNeed(need: ProfileNeed): string | null {
 //                          on purpose, and describeActivitySupport() names the two halves
 //                          separately rather than reporting one blended fraction.
 //
-//                          THERE IS STILL NO SEASON BOUNDARY IN THE SCHEMA.
-//                          `youth_activity_profiles.season_schedule` is free text ("November to
-//                          February") and nothing can compute against it, so "past" here means
-//                          past on this profile — the profile is still the season. Closing a
-//                          season out is asked for and NOT built (see CLAUDE.md §9).
+//                          THE SEASON BOUNDARY IS NOW `closed_at`, AND IT IS THE PROFILE'S, NOT
+//                          THE EVENT'S. `season_schedule` is still free text ("November to
+//                          February") and nothing can compute against it — so a CLOSED profile
+//                          leaves the ranking WHOLE rather than a date filtering its events.
+//                          "Past" still means past on this profile; what changed (migration 060,
+//                          ITER-028) is that a profile can now stop being one of the profiles the
+//                          ranking reads. youthNeed() does that partition, once, below.
 //
 //   NULL IS NOT ZERO     — see supportedFraction. This is the whole trap in this slice.
 //
@@ -413,12 +415,40 @@ export function describeActivitySupport(support: ActivitySupport): string | null
 // it does not display — summariseCoverage(), describeHouseholdForVisits() and ITER-022, the same
 // rule for the fifth time in this codebase.
 
+// A finished season, as a card renders it: a name and the profile it belongs to, and nothing else.
+export type ClosedActivity = {
+  profileId: string;
+  activityName: string;
+};
+
 export type YouthNeed = {
   memberId: string;
   memberName: string;
-  // One per profile, in ACTIVITY-NAME ORDER so two renders of the same card never disagree about
-  // which pill comes first.
+  // One per RUNNING profile, in ACTIVITY-NAME ORDER so two renders of the same card never disagree
+  // about which pill comes first. A closed season contributes no pill, because it contributes no
+  // number — see the partition in youthNeed().
   activities: ActivitySupport[];
+  // HOW MANY OF THIS YOUNG PERSON'S SEASONS ARE FINISHED, and whether any is still running.
+  //
+  // THEY COME OUT OF THE SAME PASS EVERYTHING ELSE DOES, which is this module's standing rule
+  // (summariseCoverage, describeHouseholdForVisits, ITER-022). A card that reads "Nothing running"
+  // while the sort ranked it on a season that finished in February is that defect a sixth time,
+  // and it is exactly what a second filter somewhere in the page would produce.
+  // ONE ENTRY PER FINISHED SEASON, in activity-name order — the same order the running pills use,
+  // so a card's two rows of pills read as one list rather than two orderings.
+  //
+  // THE NAMES ARE CARRIED, NOT JUST A COUNT, AND THAT IS THE WHOLE POINT. Walking scenario 060 on
+  // 2026-08-31 asked whether a fully-closed card reads as deliberate; the answer was NO. It was the
+  // only card on the page with no pills at all, so beside its neighbours it read as data that had
+  // failed to load — and it did not even say WHICH activity the young person does. A closed season
+  // now renders as a pill like any other, marked finished, and the difference is carried by the
+  // pill's treatment rather than by the absence of one.
+  //
+  // NO PERCENTAGE COMES WITH THEM, deliberately. Putting a closed season's number back on /youth is
+  // precisely what ITER-028 removed; the number lives on /youth/history/[member_id] and nowhere
+  // else. The pill says the season happened, not how it went.
+  closedActivities: ClosedActivity[];
+  hasRunning: boolean;
   // The LOWEST non-null fraction across their activities — what the priority sort reads.
   //
   // An activity with nothing played CONTRIBUTES NOTHING to it. It is not a zero dragging the
@@ -439,13 +469,31 @@ export type YouthNeed = {
   soonestNeedOn: string | null;
 };
 
+// EVERY PROFILE IS HANDED IN, RUNNING AND CLOSED, AND THE PARTITION HAPPENS HERE.
+//
+// The caller must NOT pre-filter. YouthOverview groups its cards from the full list, because a
+// young person whose every season is finished has to keep producing a card — filtering upstream
+// would make them vanish from the ward, which is the one thing ITER-028 says must not happen.
+// Doing the split here is also what keeps the number, the sentence and the sort ONE value.
 export function youthNeed(
   member: { id: string; name: string },
-  profiles: readonly { id: string; activityName: string }[],
+  profiles: readonly { id: string; activityName: string; closedAt: string | null }[],
   eventsByProfile: ReadonlyMap<string, readonly SupportEvent[]>,
   asOf: Date,
 ): YouthNeed {
-  const activities = profiles
+  // PARTITIONED ONCE. Everything below reads `running` and nothing else — the pills, the lowest
+  // percentage, the upcoming count and the coverage badge. A second filter further down is how
+  // the sort and the card would come to disagree.
+  const running = profiles.filter((profile) => profile.closedAt === null);
+
+  // SORTED BY NAME, exactly as `activities` is, so the running pills and the finished ones are one
+  // list in one order rather than two lists in two.
+  const closedActivities: ClosedActivity[] = profiles
+    .filter((profile) => profile.closedAt !== null)
+    .map((profile) => ({ profileId: profile.id, activityName: profile.activityName }))
+    .sort((left, right) => left.activityName.localeCompare(right.activityName));
+
+  const activities = running
     .map((profile) =>
       activitySupport(profile, eventsByProfile.get(profile.id) ?? [], asOf),
     )
@@ -459,7 +507,7 @@ export function youthNeed(
   // THE WHOLE ProfileNeed, not its pieces. See worstUpcomingAttendees above.
   let worst: ProfileNeed | null = null;
 
-  for (const profile of profiles) {
+  for (const profile of running) {
     const need = profileNeed(eventsByProfile.get(profile.id) ?? [], asOf);
     upcomingCount += need.upcomingCount;
 
@@ -495,12 +543,40 @@ export function youthNeed(
     memberId: member.id,
     memberName: member.name,
     activities,
+    closedActivities,
+    hasRunning: running.length > 0,
+    // ---------------------------------------------------------------------------
+    // A YOUNG PERSON WITH EVERY SEASON CLOSED ALREADY LANDS ON NULL, AND THAT IS CORRECT
+    // ---------------------------------------------------------------------------
+    // No branch was added for it and none should be. `running` is empty, so `played` is empty, so
+    // this is null — and compareYouth() already sorts null LAST in both directions, which is
+    // exactly where somebody with nothing running belongs. Writing a special case would be a
+    // second rule that could disagree with the first.
     lowestSupport: played.length === 0 ? null : Math.min(...played),
     upcomingCount,
     worstUpcoming: worst?.worstUpcoming ?? null,
     worstUpcomingAttendees: worst?.worstUpcomingAttendees ?? 0,
     soonestNeedOn: worst?.soonestNeedOn ?? null,
   };
+}
+
+// THE STATUS LINE ON A CARD WITH NOTHING RUNNING — the slot the upcoming-event count occupies on
+// every other card, so the card keeps its shape and only its content changes.
+//
+// REWRITTEN AFTER THE WALK ON 2026-08-31, WHICH ANSWERED "does this read as deliberate?" WITH NO.
+// It used to read "Nothing running. 2 closed seasons." on a card that had no pills at all — a
+// negation, a count, and nothing naming the activity. Beside its neighbours it read as a young
+// person the app had lost track of. THE COUNT IS GONE because the finished seasons are now pills
+// that name themselves, and a number beside a list it duplicates is this codebase's oldest defect
+// (summariseCoverage, describeHouseholdForVisits, ITER-022).
+//
+// NULL WHEN A SEASON IS STILL RUNNING: that card shows its upcoming-event count instead, and the
+// finished pills sit beside the live ones needing no sentence at all.
+export function describeNothingRunning(need: YouthNeed): string | null {
+  if (need.hasRunning) return null;
+  if (need.closedActivities.length === 0) return null;
+
+  return "No activity running just now.";
 }
 
 // ---------------------------------------------------------------------------

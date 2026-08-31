@@ -1115,6 +1115,14 @@ export async function createYouthActivityProfile(options: {
   notes?: string;
   org?: TestOrgKey;
   enteredBy?: string;
+  // Migration 060. ABSENT MEANS THE SEASON IS RUNNING, which is the ordinary state of every
+  // profile and the state every row written before this column existed reads as.
+  //
+  // Setting it produces a FINISHED SEASON: its pills leave /youth, its young person keeps their
+  // card with a "Nothing running" line, and its numbers move to /youth/history/[member_id]. That
+  // is a state a tester cannot build by hand without first playing out a whole season, which is
+  // why a scenario about closing one has to be able to start from an already-closed profile.
+  closedAt?: string;
 }): Promise<string> {
   return insertRow("youth_activity_profiles", {
     id: options.id ?? testUuid(`profile:${options.activityName}`),
@@ -1127,6 +1135,7 @@ export async function createYouthActivityProfile(options: {
     season_schedule: options.seasonSchedule ?? null,
     notes: options.notes ?? null,
     entered_by: options.enteredBy ?? null,
+    closed_at: options.closedAt ?? null,
   });
 }
 

@@ -3202,6 +3202,7 @@ export type Database = {
         Row: {
           activity_name: string
           activity_type: string
+          closed_at: string | null
           created_at: string
           entered_by: string | null
           id: string
@@ -3215,6 +3216,7 @@ export type Database = {
         Insert: {
           activity_name: string
           activity_type: string
+          closed_at?: string | null
           created_at?: string
           entered_by?: string | null
           id?: string
@@ -3228,6 +3230,7 @@ export type Database = {
         Update: {
           activity_name?: string
           activity_type?: string
+          closed_at?: string | null
           created_at?: string
           entered_by?: string | null
           id?: string
@@ -3336,6 +3339,10 @@ export type Database = {
       activity_event_is_in_caller_org: {
         Args: { target_event_id: string }
         Returns: boolean
+      }
+      activity_profile_followup_count: {
+        Args: { target_profile_id: string }
+        Returns: number
       }
       applied_migration_versions: {
         Args: never

@@ -508,7 +508,10 @@ Flag these when they become relevant; do not silently pick a side.
   being **down** for a game is a plan, not an attendance, and `confirmed_attendance` is
   `boolean | null` where null means NOBODY HAS SAID EITHER WAY; and there is **no season boundary
   in the schema** — `season_schedule` is free text, so the convention that a profile is created per
-  activity per season is what makes "played" mean "played on this profile".
+  activity per season is what makes "played" mean "played on this profile". (**Superseded
+  2026-08-30 — see the `closed_at` entry below.** `season_schedule` is still free text and nothing
+  computes against it; what changed is that a whole PROFILE can be closed and leave this
+  computation.)
   **THE HORIZON IS EVERY PAST GAME PLUS THE NEXT ONE — not the whole season.** Decided 2026-08-29
   on the user's instruction after walking scenario 057: the number is *the history of support plus
   the plan of support for the next event*. Counting the whole remaining season would let an
@@ -592,15 +595,108 @@ Flag these when they become relevant; do not silently pick a side.
   **The ICS import does not create occasions**, handed forward from ITER-024 as answerable later.
   Do not build a matching key for it.
 
-- **Closing out a season is ITER-028, and it REVERSES the "no season boundary" decision below.**
-  Raised by the user 2026-08-29: once a season ends its stats should stop showing on `/youth`,
-  while the history stays reachable — a link on the young person's card, and possibly a ward-wide
-  historical overview. The standing decision said to design a season model only once a ward was
-  found reusing one profile across years; that test has been superseded by a direct product
-  request, which is a better reason than the one it was waiting for. It needs schema (`closed_at`
-  on `youth_activity_profiles`, nullable so a mistake is reopenable), a read path that excludes
-  closed profiles without deleting them, and at least one new page. **Do not bolt it onto the
-  support percentage.**
+- **A SEASON CAN BE CLOSED, AND THAT REVERSES "there is no season boundary in the schema" —
+  DECIDED 2026-08-30, BUILT.** The entry above says `season_schedule` is free text, that nothing
+  can compute against it, and that a profile therefore *is* a season. The standing rule was to
+  design a season model only once a ward was found reusing one profile across years. **That test
+  was superseded by a direct product request** (ITER-028), which is a better reason than the one it
+  was waiting for: a ward two years in was ranking its youth on games nobody remembers, because
+  nothing ever left the support computation.
+  Migration 060 adds `youth_activity_profiles.closed_at`, **a timestamp and never a boolean** —
+  "when did this season end" is the question the history page asks, and the final percentage is
+  **recomputed against that instant rather than stored** (`activitySupport(profile, events,
+  new Date(closedAt))`). That is the stored-versus-computed argument this module has now had seven
+  times, answered the same way: nothing in this project refreshes anything, so a number is frozen
+  because its INPUT is frozen. **Nullable, so a mistake is reopenable** — the same route with
+  `{ closed: false }` — and **never a delete**.
+  **`closed_at` is the profile's boundary, not a date filtering events.** A closed season leaves
+  the ranking WHOLE; `youthNeed()` partitions running from closed once, and the pills, the
+  percentage, the badge, the sort and the "Nothing running" sentence all come out of that one pass
+  (`youth-f`'s rule, sixth instance).
+  **THE GROUPING ON `/youth` IS BUILT FROM EVERY PROFILE, CLOSED ONES INCLUDED, AND THAT IS THE ONE
+  LINE THE ITEM TURNS ON.** Filter closed profiles out before `byMember` and a young person whose
+  every season has finished produces no group and **vanishes from the ward** — which is exactly
+  what ITER-028 says must not happen. They stay, with no pills, "Nothing running. 2 closed
+  seasons." and a link to `/youth/history/[member_id]`; `lowestSupport` is already null there and
+  `compareYouth` already sorts null **last in both directions**, so they sort last **with no branch
+  added for it**. **The wording of that card was WRONG and the walk caught it** (2026-08-31, defect
+  060-D1): a fully-closed card was the only one on the page **with no pills at all**, so beside its
+  neighbours it read as data that had failed to load and never said *which* activity the young
+  person does. **A finished season is now a PILL like any other** — dashed border, the word
+  *Finished*, `YouthNeed.closedActivities` carrying the NAMES — and the status line is
+  `describeNothingRunning()`'s "No activity running just now." with **no count in it**, because the
+  pills name themselves and a number beside a list it duplicates is ITER-022 again. **The finished
+  pill carries no percentage**, deliberately: putting a closed season's number back on `/youth` is
+  exactly what this item removed. The expanded card's `profileIds` stay ALL of them: the ranking excludes a closed
+  season, the schedule is a record of what happened and must not develop a hole.
+  **`FollowUpPanel` is deliberately NOT modified** — a closed season's unwritten follow-ups still
+  appear in *Waiting on your follow-up*. Closing ends the ranking, not the obligation, or Close
+  becomes a way to dismiss work a leader committed to. **`carriesCoverageExpectation()` is
+  deliberately NOT modified** either; that is ITER-030's single insertion point.
+  **The horizon rule is UNCHANGED on a closed season, confirmed by the user 2026-08-31.** A finished
+  season's frozen number still counts the game that was *next* at the closing instant — Ethan's
+  track reads 33% and says "and nobody is down for the next one" on a page about finished seasons.
+  That was put to the user as a product question and answered **keep it**: it is a faithful snapshot
+  of the moment somebody said the season was over. The clause stays with it, because it is what
+  explains the denominator — drop the clause and the counts on the card stop adding up. **The ward-wide
+  historical overview is CUT** — per-youth history only, because nobody has named the question an
+  overview answers.
+
+- **`Remove` ON AN ACTIVITY CANNOT DESTROY A PASTORAL RECORD — DECIDED 2026-08-30.** It deleted
+  unconditionally. Migration 009 cascades `youth_activity_profiles → activity_events →
+  {activity_attendees, activity_logs → activity_private_notes}`, so one press took a season, every
+  sign-up, every follow-up **and the private notes rule 5 calls private forever**; `2809aef` added
+  a confirm dialog, and **a dialog that can be clicked through is not protection** (ITER-031).
+  **Close is now the primary control and Remove is the exception.** `Remove` renders only when
+  `profile.eventCount === 0` — a true embedded PostgREST count on the shared profile query, which
+  `ActivityProfileList` predicted by name and deferred to this item. **That gate is EXACT, not a
+  heuristic, and a later reader will assume otherwise:** `activity_logs.event_id` has been
+  `NOT NULL` since migration 057a and references `activity_events`, so **no events implies no
+  follow-ups**.
+  **The server refuses independently** (rule 2): `DELETE /api/youth/profiles/[id]` answers **409**
+  when any follow-up exists, with a sentence naming Close as the alternative — `visits-f`'s
+  empty-bulk-replace precedent, refuse *and* name the way forward. **The count is not disclosed and
+  neither is any content**, because `activity_logs` reads are org-scoped (057c) and the deleter may
+  not be entitled to know whose follow-ups those are or how many (rule 5). **No audit row is
+  written for the refusal** — a refused write is not a mutation, which scenario 049's walk
+  established. On the path that *does* delete, the audit detail now carries `activityName` and
+  `eventCount`; three bare ids was the other half of the defect.
+- **AN UPDATE NEEDS *BOTH* HALVES OF A POLICY, AND A MIRROR THAT COPIES ONLY `using` IS WRONG —
+  DECIDED 2026-08-31 (defect 060-D2).** `youth_activity_profiles_update` carries
+  `entered_by = auth.uid()` in **USING** and deliberately **not** in **WITH CHECK**, so that nobody
+  can move a profile into another organization. That leaves exactly one divergent shape —
+  **`org_id` = another organization AND `entered_by` = me**, which is what a release and a recall
+  leave behind — where the row is admitted and the result is refused.
+  **A failed WITH CHECK RAISES; a failed USING returns zero rows.** Every write in this codebase was
+  built for the quiet one, so the loud one escaped as a **500** reading "Please try again", which
+  was untrue. Two fixes, because the UI gate and the route are two expressions of one rule (rule 2):
+  `canManageActivityProfile()` now mirrors **USING ∧ WITH CHECK** so the controls are **absent**
+  there, and `isPolicyRefusal()` maps SQLSTATE **42501** onto the same `null` the zero-row refusal
+  returns, so both kinds of "not yours" give the caller one sentence and a 404. It is applied to
+  `closeActivityProfile()` **and** `updateActivityProfile()` — `PATCH /api/youth/profiles/[id]` had
+  the identical hole since `youth-a`, and leaving one of two identical paths returning 500 is how it
+  comes back. **The mapping is narrow on purpose:** only 42501, so "the policy said no" and "the
+  database is broken" never become one message (rule 7).
+  **The DELETE policy has no WITH CHECK**, so the database would still permit a delete on such a
+  row while refusing an edit; hiding `Remove` there as well is deliberate and is the conservative
+  direction — the UI declining what the API would allow is quiet and recoverable, the reverse is
+  `youth-a-D1`. **Any future mirror of a policy with a WITH CHECK clause must copy both halves.**
+
+  The refusal needs migration 060b's `activity_profile_followup_count`, a **`security definer`**
+  function, for two reasons. **The DELETE policy and the log READ policy are scoped differently and
+  they diverge today:** 054d admits a delete on `entered_by = auth.uid()`, and `entered_by` appears
+  nowhere in 057c's SELECT — so a leader who created an activity and has since been recalled to
+  another organization may delete it while being unable to read one follow-up on it, and a count
+  through their own client would return zero. **And the refusal must be uniformly evaluable**
+  (056c's rule, 059c's third reason): whether an activity may be destroyed is a fact about the
+  ACTIVITY, not about who is looking, or the same DELETE succeeds for one leader and fails for
+  another from the same data. The function is safe for three reasons that must all stay true:
+  **it returns a COUNT and never a row**, it is **used only to refuse a write**, and
+  `current_ward_id()` keeps it **ward-scoped**.
+  **An activity with events but no follow-ups still deletes** — Close is advice, not a lock; only a
+  written account is protected. **ITER-031's "unlink from the occasion" reading was NOT built**:
+  `youth-g` already ships an unlink on `/youth/events/[id]`, and a second entry point would be a
+  second meaning of the same word.
 
 - **Phase 11 now inherits SIX clock-driven things, not five.** `youth_followup_prompt` joins
   `youth_event_uncovered`, the Monday away-digest, `visit_overdue`, `refresh_goal_status()` and ICS

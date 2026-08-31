@@ -117,6 +117,19 @@ export const updateActivityProfileSchema = z
   });
 export type UpdateActivityProfileInput = z.infer<typeof updateActivityProfileSchema>;
 
+// CLOSING A SEASON HAS ITS OWN SCHEMA AND ITS OWN ROUTE, and neither is a field on the patch
+// above. Closing is a distinct decision that deserves its own audit action — the precedent
+// `approve` sets on assignments and programs — and a partial patch would record it as an ordinary
+// edit. That is the reasoning updateActivityProfileSchema already gives for keeping `memberId` and
+// `orgId` unpatchable, applied to a third field.
+//
+// A BOOLEAN, NOT AN INSTANT. The caller says WHETHER the season is finished; the server decides
+// WHEN, exactly as no request body in this app carries its own `recordedBy` or `createdAt`. A
+// client-supplied timestamp would let a mistyped clock freeze a history page's final percentage
+// at an instant nobody chose.
+export const closeActivityProfileSchema = z.object({ closed: z.boolean() });
+export type CloseActivityProfileInput = z.infer<typeof closeActivityProfileSchema>;
+
 // ---------------------------------------------------------------------------
 // Activity events
 // ---------------------------------------------------------------------------
