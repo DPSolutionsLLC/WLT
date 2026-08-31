@@ -202,6 +202,14 @@ export const updateActivityEventSchema = z
     location: eventLocationSchema.nullable().optional(),
     eventType: z.enum(EVENT_TYPES).optional(),
     status: z.enum(EVENT_STATUSES).optional(),
+    // Migration 061. `.nullable().optional()` — ABSENT means leave it alone, explicit `null` means
+    // clear it back to "nobody has said". The same three-way shape `location` already uses on this
+    // schema, and the reason the control is reversible without a delete.
+    //
+    // NOT ON createActivityEventSchema, deliberately: a new event is created with `null`, which is
+    // what "nobody has said" means, and a create form asking whether the young person will attend a
+    // game nobody has scheduled yet is a question with no occasion.
+    youthAttended: z.boolean().nullable().optional(),
   })
   .superRefine((value, context) => {
     if (Object.keys(value).length === 0) {

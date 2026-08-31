@@ -220,6 +220,7 @@ export type Database = {
           status: string
           title: string
           ward_id: string
+          youth_attended: boolean | null
         }
         Insert: {
           all_day?: boolean
@@ -236,6 +237,7 @@ export type Database = {
           status?: string
           title: string
           ward_id: string
+          youth_attended?: boolean | null
         }
         Update: {
           all_day?: boolean
@@ -252,6 +254,7 @@ export type Database = {
           status?: string
           title?: string
           ward_id?: string
+          youth_attended?: boolean | null
         }
         Relationships: [
           {

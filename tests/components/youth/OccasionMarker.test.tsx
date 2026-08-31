@@ -74,6 +74,9 @@ function event(
     sourceUid: null,
     sourceRecurrenceId: null,
     occasionId,
+    // Migration 061. Null means nobody has said, which is what every fixture here is about — an
+    // absence is not part of the "+N others" count in either direction.
+    youthAttended: null,
     createdAt: "2027-01-01T00:00:00Z",
   };
 }

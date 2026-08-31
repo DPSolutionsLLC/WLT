@@ -84,6 +84,9 @@ function asStoredEvents(occurrences: readonly IcsOccurrence[]): ActivityEvent[] 
     // Migration 059. Null means this game is only this young person's, which is what an import
     // writes: the ICS import deliberately creates no occasions (ITER-024, handed forward).
     occasionId: null,
+    // Migration 061. Null on an imported row, and the import never writes it — a mark a person
+    // made by hand survives every future import of the same file (Decision 6).
+    youthAttended: null,
     createdAt: "2026-12-01T00:00:00.000Z",
   }));
 }
@@ -201,6 +204,7 @@ describe("what notInFile must never contain", () => {
       sourceUid: null,
       sourceRecurrenceId: null,
       occasionId: null,
+      youthAttended: null,
       createdAt: "2026-12-01T00:00:00.000Z",
     };
 

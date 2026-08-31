@@ -24,7 +24,7 @@ one of its slices has a retro entry with a commit.
 | 5 | AI platform — knowledge base, pgvector, settings | [05-ai-platform.md](05-ai-platform.md) | 4 | Large | Shipped |
 | 6 | Program builder, music, PDF, public pages | [06-program-music.md](06-program-music.md) | 5 | Large | Shipped — M4 waits on a physical fold check (scenarios 034/035) |
 | 7 | Visit tracker & return-and-report feed | [07-visits.md](07-visits.md) | 2 | Medium | **Shipped 2026-08-26** — see the Definition of Done in the phase file for what it deliberately does not close |
-| 8 | Youth activity support | [08-youth-activities.md](08-youth-activities.md) | 7 | Medium | **Seven slices built; scenarios 049–059 all walked** — the last on 2026-08-30. M5 waits only on the confirmation records for `youth-b`/`youth-c`/`youth-d` |
+| 8 | Youth activity support | [08-youth-activities.md](08-youth-activities.md) | 7 | Medium | **Nine slices built; scenarios 049–059 all walked** — the last on 2026-08-30. M5 waits only on the confirmation records for `youth-b`/`youth-c`/`youth-d` |
 | — | ITER-018 — visit cadence and the priority scale | [visits-e-cadence-and-priority.md](visits-e-cadence-and-priority.md) | 7 | Medium | **Built 2026-08-26** — migration 051 waits for the deploy |
 | 9 | Meeting agendas & tithing calculator | [09-meetings-tithing.md](09-meetings-tithing.md) | 1 | Medium | Started — tithing worksheet only |
 | 10 | Sacrament administration & public assignments | [10-sacrament-admin.md](10-sacrament-admin.md) | 3 | Medium | Not started |
@@ -45,7 +45,7 @@ exactly this reason. If a third module wants them, that is the moment to lift `c
 `lib/visits/`; not before.
 
 **Phase 8 ships as a sequence of slices**, the same way Phase 7 shipped as `visits-a` …
-`visits-f`. It was planned as four and has run to eight, because walking each slice produced the
+`visits-f`. It was planned as four and has run to nine, because walking each slice produced the
 next. The phase file stays the specification; each slice gets its own plan and its own retro entry.
 
 | Slice | Covers | Plan | Status |
@@ -58,6 +58,7 @@ next. The phase file stays the specification; each slice gets its own plan and i
 | youth-f | One card per YOUNG PERSON, one pill per activity, the support percentage, two sorts plus a direction toggle | [youth-f-support-percentage-and-youth-cards.md](youth-f-support-percentage-and-youth-cards.md) | **Built 2026-08-29** — no migration; walked with no defects; closing out a season became ITER-028 |
 | youth-g | Migration 059, the occasion link, `/youth/events/[id]`, the "+N others at this game" marker | [youth-g-occasions-and-event-detail.md](youth-g-occasions-and-event-detail.md) | **Built 2026-08-29** — migration 059 applied (`activity_occasions`, ward-wide on all four verbs); closes ITER-024 and the parked event-detail half of ITER-020; **unblocks ITER-027**; **scenario 059 walked 2026-08-29**, three defects found and fixed |
 | youth-h | Migration 060, `closed_at` on a profile, `/youth/history/[member_id]`, and a `Remove` that cannot destroy a follow-up | [youth-h-season-close-and-safe-remove.md](youth-h-season-close-and-safe-remove.md) | **Built 2026-08-30** — migration 060 applied (nullable `closed_at`, plus a `security definer` follow-up counter); closes ITER-028 and ITER-031; REVERSES "no season boundary in the schema"; `Remove` now renders only at zero events and the server refuses a delete over any follow-up with a 409 |
+| youth-i | Migration 061, `youth_attended` on an event, the absence chip, and a fourth exclusion in `carriesCoverageExpectation()` | [youth-i-recording-an-absence.md](youth-i-recording-an-absence.md) | **Built 2026-08-31** — migration 061 applied (nullable three-state column, plus a CHECK tying it to a profile); closes ITER-030; a marked game leaves the support number, the coverage badge and the follow-up prompt while STAYING listed, marked, and open to a follow-up; no policy moved |
 
 Three decisions were taken at the start of `youth-a` planning and apply to the whole phase.
 **Activity reads are ward-wide and only writes are org-scoped** (`org_id` on
@@ -151,7 +152,7 @@ Useful checkpoints for "is this usable yet?"
 | **M2 — Data loaded** | 2 | Full roster imported from LCR; households browsable |
 | **M3 — Plan a month** | 4 | Plan, approve, request, and confirm a month of speakers and prayers |
 | **M4 — Print a program** | 6 | Produce and distribute a real sacrament program PDF with a public link |
-| **M5 — Run the orgs** | 8 | Every organization tracks visits; youth events get covered and reported on. Seven slices built and scenarios 049–059 all walked; the milestone waits on the confirmation records for `youth-b`, `youth-c` and `youth-d` |
+| **M5 — Run the orgs** | 8 | Every organization tracks visits; youth events get covered and reported on. Nine slices built and scenarios 049–059 all walked; the milestone waits on the confirmation records for `youth-b`, `youth-c` and `youth-d` |
 | **M6 — Run the meetings** | 9 | Ward council and bishopric agendas built, emailed, and carried forward |
 | **M7 — Feature complete** | 11 | All 17 modules live, notifications tuned, audit log browsable |
 | **M8 — Shippable** | 12 | Polished, accessible, and safe to onboard a second ward |

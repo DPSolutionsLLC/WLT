@@ -7,7 +7,34 @@ _Last updated: 2026-08-31_
 ## In Progress
 Items currently being planned or actively worked.
 
-_Nothing in progress._
+- [ ] ITER-033 — A team has one schedule and a roster, not one schedule per young person → [scope](.iterate/scopes/ITER-033.md) | [plan](plans/youth-j-team-and-roster.md)
+  _Raised by the user 2026-08-31 while reviewing the `youth-i` walk, and **it supersedes part of
+  ITER-030**. There is no team in this app, only one young person's copy of a team:
+  `activity_events.profile_id` is a single FK and the ICS import takes a `profileId`, so eight
+  players on a twelve-game season means **eight imports and 96 rows for 12 real games**, with
+  `activity_occasions` re-linking the duplicates by hand. The user's model is import once, assign
+  each youth once, and let the app derive youth × event — confirmed as this ward's common case
+  (**several youth share one team schedule**). `activity_occasions` largely stops being necessary
+  under it, which is evidence the shape is right. **Also carries the two things the user asked for
+  that do not exist:** a youth leaving mid-season (belongs on the roster row, not on the activity's
+  `closed_at`), and the fact that `ActivityCalendar` never reads `closed_at` at all, so a closed
+  season's future games still raise "Nobody going".
+  **Planned 2026-08-31** as Phase 8 slice `youth-j` — all seven open questions settled, four with
+  the user and three from the codebase, and recorded in the scope._
+
+- [ ] ITER-030 — Nobody could have gone: recording that the youth missed it → [scope](.iterate/scopes/ITER-030.md) | [plan](plans/youth-i-recording-an-absence.md)
+  _**Built and walked 2026-08-31; NOT closed, and deliberately not committed.** Phase 8 slice
+  **`youth-i`**. Migration 061 adds a nullable three-state `activity_events.youth_attended` plus a
+  CHECK tying it to `profile_id`; the metric, the coverage badge and the follow-up prompt all honour
+  it, and scenario 061 was walked with 27 checks proved against the database (see its Walkthrough
+  record). **The walk surfaced the model gap that became ITER-033**, and the user chose to settle
+  that first. Two consequences: the Yes/No control renders an unanswered fieldset on every event
+  card, so an optional exception **reads as a required question** — a presentation defect to fix
+  against whichever model wins; and `youth_attended` sits **on the event**, which is only correct
+  while an event belongs to exactly one young person, so it moves to a roster×event join under
+  ITER-033. **What survives either way:** the fourth exclusion in `carriesCoverageExpectation()`,
+  the three-state/never-inferred rule, em-dash-never-`0%` with null last in both directions,
+  reversibility, "the prompt stops and the door stays open", and the re-import guarantee._
 
 ---
 
@@ -21,28 +48,6 @@ is what the grouping asked for._
 
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
-
-- [ ] ITER-030 — Nobody could have gone: recording that the young person missed it → [scope](.iterate/scopes/ITER-030.md)
-  _Raised by the user 2026-08-30 reviewing the scenario 050 re-walk: "we probably should add an
-  option to report that a youth did not go to a particular event… in that case, the event is removed
-  from that youths statistics all together. shouldn't be counted as attented or missed."
-  **A gap, not a new idea.** `youth-f`'s support percentage already excludes three kinds of event
-  from the denominator — `away`, `cancelled`, and `tbd` — and all three are the same sentence: this
-  game could not have been a chance to support them. "The young person was not there" belongs in
-  that list and is missing from it, so a youth who misses six games with a broken ankle is measured
-  all winter on games nobody could have attended them at. That is CLAUDE.md §9's own `visits-f`
-  argument ("0% would put the one person nobody could possibly have supported at the top") arriving
-  by a slower route. **The insertion point is one function** — `carriesCoverageExpectation()` in
-  `lib/youth/profileNeed.ts`, whose header says a second copy is what would let somebody retune one
-  of them — plus a check of `lib/youth/coverage.ts` in the same change. **A STORED column is right
-  here**, and `cancelled` is the precedent by name: a fact a person knows and nothing else can
-  express, so none of the computed-on-read reasoning applies against it. **The design question to
-  settle first:** not a fourth `status` value — a missed game still happened, and other youth may
-  have been at it — but a separate nullable column, three states, null meaning nobody has said.
-  **Do not infer it** from an empty attendee list or anything else (`classifyLocation.ts`'s refusal,
-  third sighting). Read alongside ITER-028, which removes events from the same number by a different
-  route._
-
 
 - [ ] ITER-025 — Should being there earn the right to comment? → [scope](.iterate/scopes/ITER-025.md)
   _Raised by the user 2026-08-29: "anyone should be able to click on the event and add their comment

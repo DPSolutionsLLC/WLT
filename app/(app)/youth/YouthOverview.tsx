@@ -269,6 +269,10 @@ export function YouthOverview({
         confirmedAttendeeCount: attendees.filter(
           (attendee) => attendee.confirmedAttendance === true,
         ).length,
+        // WHETHER THE YOUNG PERSON WAS EVEN THERE (migration 061). `false` takes the game out of
+        // carriesCoverageExpectation(), so it leaves both halves of the metric at once — the past
+        // games it is measured over AND the next one it plans for. Null and `true` change nothing.
+        youthAttended: event.youthAttended,
       };
 
       const existing = eventsByProfile.get(event.profileId);

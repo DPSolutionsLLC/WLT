@@ -661,6 +661,56 @@ Flag these when they become relevant; do not silently pick a side.
   written for the refusal** — a refused write is not a mutation, which scenario 049's walk
   established. On the path that *does* delete, the audit detail now carries `activityName` and
   `eventCount`; three bare ids was the other half of the defect.
+- **A YOUNG PERSON CAN BE RECORDED AS NOT TAKING PART, AND THAT IS A FOURTH LINE IN
+  `carriesCoverageExpectation()` — DECIDED 2026-08-31, BUILT.** The support percentage assumed the
+  young person was *at* the game and **nothing in the schema could say they were not**, so a youth
+  who broke an ankle in December was measured all winter on six games nobody could have attended
+  them at. That function already excluded three categories for **one sentence** — *this game could
+  not have been a chance to support them*: `away` (no coverage expectation by design), `cancelled`
+  (it did not happen), `tbd` (not known to be a home game). ITER-030 found the fourth **missing
+  from the list**, not a new idea, and migration 061 is the storage behind it.
+  **THREE STATES, AND `null` MEANS NOBODY HAS SAID.** `activity_events.youth_attended` is
+  `boolean | null` — the same absent-means-default idiom as `confirmed_attendance`, `closed_at`,
+  `occasion_id` and 054a's `org_id`, with no sentinel meaning "present". A `not null default false`
+  column would assert on every row a fact nobody stated. **NEVER INFERRED** — not from an empty
+  attendee list, not from a cancelled sibling, not from a missing follow-up:
+  `classifyLocation.ts`'s refusal of near-miss matching, in a **third** place. `true` is not a
+  no-op even though it behaves like `null` in today's arithmetic; it is what gives the control a
+  way back that is not a delete, and pressing the active answer again clears to `null` rather than
+  to the other claim (060a's rule for `closed_at`, on a column with the same power to move a
+  number).
+  **A SEPARATE COLUMN, NOT A FOURTH `status` VALUE.** `status` answers *did this event happen*; a
+  game the young person missed **still happened**, and under 059 it may share an occasion with rows
+  entirely unaffected. The CHECK (`youth_attended is null or profile_id is not null`) is why this
+  is a constraint and not a comment — a ward-wide event belongs to no young person, so the question
+  has no referent, and `PATCH /api/youth/events/[id]` refuses it with a **400 and a sentence**
+  first because a constraint violation is not something anybody can act on.
+  **WARD-WIDE, ON `youth_activities.manage`, AND NO POLICY MOVED.** Writing it is an ordinary
+  UPDATE under migration 019's ward-wide write policies — the same boundary `Cancel` already runs
+  under. `lib/youth/activityOwnership.ts` still has **no `canManageActivityEvent()`** and should
+  not grow one; narrowing `activity_events` needs a migration **first**. The control gates on the
+  permission alone, so it is never hidden from somebody the API would allow (`youth-a-D1`'s mirror).
+  **A MARKED EVENT LEAVES THREE THINGS AND STAYS VISIBLE.** The support number, the coverage badge
+  (`not_expected` already ranks last and `CoverageBadge` already renders nothing for it) and the
+  follow-up prompt. It stays listed everywhere, carrying a chip whose tone is deliberately **not**
+  `Cancelled`'s `--warning` — two different facts must not read as one — and **`isFollowUpWritable()`
+  is untouched**, so *the prompt stops and the door stays open*: a leader who turned up and found
+  the young person absent is exactly the person whose account is worth having.
+  **THE `FollowUpPanel` CONTRAST WITH `youth-h` IS THE POINT.** That slice deliberately left the
+  panel alone so a **closed season's** unwritten follow-ups keep appearing — closing ends the
+  ranking, not the obligation. Here the obligation **never existed**: nobody was expected to go.
+  Same panel, opposite answers, different reasons. And a follow-up already **written** still reads
+  `logged` — the branch sits *after* `hasLog`, because demoting a written pastoral note behind a
+  fact recorded afterwards would hide the record.
+  **BEFORE THE CLOCK, BESIDE `cancelled`.** The branch in `eventCoverage()` is tested before
+  `new Date()` is called, so a marked game is `not_expected` at *every* distance — three days out
+  and three days past — rather than correct today and wrong next week.
+  **AN ICS RE-IMPORT NEVER CLEARS IT.** `youth_attended` joins `status` and `event_type` in what
+  `ImportedEventPatch` never touches; `ActivityEvent` gains it as a **required** field, so every
+  one of the five construction sites was a compile error until it supplied it (rule 9 enforced by
+  the type checker). A profile whose every home game is marked lands on `countedCount === 0` →
+  `supportedFraction === null` → **an em dash, never `0%`**, sorting **last in both directions**.
+
 - **AN UPDATE NEEDS *BOTH* HALVES OF A POLICY, AND A MIRROR THAT COPIES ONLY `using` IS WRONG —
   DECIDED 2026-08-31 (defect 060-D2).** `youth_activity_profiles_update` carries
   `entered_by = auth.uid()` in **USING** and deliberately **not** in **WITH CHECK**, so that nobody

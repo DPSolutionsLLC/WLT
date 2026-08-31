@@ -1,8 +1,8 @@
 # ITER-030: Nobody Could Have Gone — Recording That the Young Person Missed It
 
 **Type:** Feature
-**Status:** Backlog
-**Plan:** _none yet_
+**Status:** Built and walked 2026-08-31, NOT closed — superseded in part by ITER-033
+**Plan:** plans/youth-i-recording-an-absence.md
 **Created:** 2026-08-30
 **Raised by:** the user, 2026-08-30, reviewing the scenario 050 re-walk: *"we probably should add an
 option to report that a youth did not go to a particular event. maybe they missed it for whatever
@@ -101,6 +101,34 @@ was exactly this argument).
   counted in nothing. Making it vanish loses the record.
 - **Does it interact with ITER-028's season close?** A closed season and a missed game both remove
   events from the live number by different routes; whichever ships second should read the first.
+
+### Answered 2026-08-31, at planning
+
+All four are settled. The first three were put to the user; the fourth was answered by reading the
+code.
+
+- **Who may record it — `youth_activities.manage`, WARD-WIDE.** Not `canWriteFollowUpOn()`. The
+  reasoning above ("pastoral knowledge, not schedule management") was weighed and **not taken**:
+  `activity_events` keeps migration 019's ward-wide write policies and has no `org_id` of its own, so
+  the org-scoped reading would need a migration narrowing that table — which would narrow `Edit` and
+  `Cancel` with it — or a workflow rule enforced in a route pretending to be a boundary (rule 2).
+  `Cancel` is the exact sibling: same table, same effect on the number, ward-wide today. A leader
+  from another organization marking a young person as not taking part is the same trust level as
+  calling off their game, which the app already permits.
+- **Where it is offered — ON THE EVENT ROW, PAST AND FUTURE**, beside `Cancel` in `EventList`; not in
+  the follow-up form. The deciding fact is `youth-f`'s horizon: the number counts every past home
+  game **plus the next one**, so an absence known in advance — the broken ankle in this scope's own
+  summary — has to be recordable **before** the games are played. In the follow-up form it could only
+  be entered after each game had passed, one at a time, while the plan half read wrong for weeks.
+- **Does it show on the card — YES, VISIBLE AND MARKED**, exactly as the `do_not_contact` reading
+  above predicted, and it leaves **three** things rather than one: the support percentage, the
+  coverage badge, and the follow-up **prompt**. `isFollowUpWritable()` is untouched, so a follow-up
+  can still be **written** — the prompt stops, the door stays open.
+- **ITER-028 interaction — they compose, with no extra code.** `closed_at` removes a whole PROFILE
+  from the ranking; this removes an EVENT from a profile's arithmetic. A closed season's frozen
+  number is recomputed against `closedAt` through the same `carriesCoverageExpectation()`, so it
+  excludes absences too — which is correct, since the snapshot should say what was true at the
+  closing instant. Asserted rather than assumed.
 
 ## Deliberately not in scope
 

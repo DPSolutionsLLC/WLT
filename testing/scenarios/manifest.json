@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 60,
+  "scenarioCount": 61,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -2490,9 +2490,11 @@
         "`closed_at` is **non-null** in `youth_activity_profiles`, and an audit row",
         "Ethan's **track** percentage is **unchanged** by closing basketball, and his upcoming-event",
         "**See Ethan Brooks's history** appears on his card once he has one closed season — while he",
-        "**Maya Diaz still appears on `/youth`** with **no pills**, *\"Nothing running. 1 closed",
+        "**Maya Diaz still appears on `/youth`** with a **dashed pill reading *\"Concert choir ·",
+        "**A finished season renders as a NAMED pill, not as an absence.** The card has the same shape",
         "Maya sorts **last** under Priority, and **still last** when the direction is reversed.",
-        "The history page shows the closed season's final percentage (**50%** for Maya, **8%** for",
+        "The history page shows the closed season's final percentage — **50%** for Maya, **8%** for",
+        "**The clock is `closed_at`, not `now`, and a RELOAD CANNOT PROVE THIS.** Every seeded event",
         "Maya's history page shows **four concerts**; Ethan's basketball history shows **twelve games**",
         "Reopening restores the pill and writes `youth_activity_profile_reopened`, and `closed_at` is",
         "Expanding Ethan's card with basketball CLOSED still shows the **basketball games** in the",
@@ -2515,6 +2517,53 @@
         "Does the close dialog feel proportionate — mild enough that closing is easy, clear enough"
       ],
       "seedCommand": "npm run seed -- youth/scenario-060-the-season-is-over"
+    },
+    {
+      "id": "youth:scenario-061-the-young-person-who-was-not-there",
+      "path": "youth/scenario-061-the-young-person-who-was-not-there",
+      "name": "The young person who was not there",
+      "scope": "youth",
+      "part": 11,
+      "tags": [
+        "youth",
+        "full",
+        "absence",
+        "support"
+      ],
+      "prerequisites": "none",
+      "purpose": "The support percentage on `/youth` measures the share of a young person's past **home** games where\nat least one leader confirmed they went. It assumes the young person was **at** the game, and\nnothing in the schema could say they were not.\n\nSo a youth who breaks an ankle in December and misses six games is measured, all winter, on six\ngames **nobody could have attended them at**, and every one counts against them. The number reports\nneglect that did not happen — the same failure `youth-f` refused in the other direction when it\ndeclined to render `0%` for a young person with no home games.\n\n`carriesCoverageExpectation()` already excluded three categories, all for **one sentence** — *this\ngame could not have been a chance to support them*: `away` (no coverage expectation by design),\n`cancelled` (it did not happen), `tbd` (not known to be a home game). ITER-030 found the fourth\nmissing from that list. This scenario is about whether the fourth reads like the three.\n\nSeeding is what makes any of it **observable**. A percentage is a fraction over a season, not\nsomething a screenshot can judge — the thing to prove is that **a number moves in the right\ndirection for the right reason**, which needs a real percentage on the card a moment before the\nmark. It also has to prove the three **absences** (the pill's number, the coverage badge, the\nfollow-up prompt) and the two **presences**: the event stays listed and marked, and the follow-up\ncontrol still works.",
+      "checklist": [
+        "Before anything is marked, Ethan's basketball pill reads a real percentage (**29%**) and its",
+        "Marking a past home game **No** changes the pill's percentage **and its sentence**, together,",
+        "`youth_attended` is **false** on that row when re-read with the **service client**, and an",
+        "Marking the **next** upcoming game moves the plan half to the **following** game — read the",
+        "Marking **every** past home game and the next one leaves the pill showing an **em dash**,",
+        "Ethan's card then sorts **last** under *Priority* in **both** directions, exactly as Noah's",
+        "**Josh's track percentage is unchanged** throughout, and so is the closed cross-country",
+        "A marked game **still appears** in the event list and on `/youth/calendar`, carrying a chip",
+        "A marked game shows **no coverage badge** — check one **30 days out** (mark *game 9*) and one",
+        "The marked past game leaves *Waiting on your follow-up*, and the heading **count** drops with",
+        "***Say how it went* is still offered** on a marked past game, and saving one works.",
+        "The follow-up **`ym-president` already wrote** on game 2 still shows its badge after that game",
+        "The **bishop's** follow-up on game 5 is still readable on `/youth/feed` after game 5 is",
+        "Pressing the active answer again clears to *nobody has said* (`youth_attended` **null** on",
+        "**Yes** works as well as **No**, both buttons carry `aria-pressed`, and the pressed one is",
+        "The control **does render** on Maya's Concert choir — another organization's activity. The",
+        "The control does **not** render on the ward-wide **Ward youth service evening**; a direct",
+        "`{ \"youthAttended\": \"false\" }` → **400**, not a coerced write.",
+        "Every value is read back with the **service client**, never off the screen.",
+        "The chip is legible in **light and dark** and does not overflow at **375px**.",
+        "The chip is visibly **distinct from the `Cancelled` chip** on the same card — two different",
+        "No horizontal overflow at 375px, and every button is at least 44×44.",
+        "No React #418 hydration mismatch in the console on any page touched.",
+        "**Does *\"Is Ethan Brooks taking part?\"* read correctly on a game played last month **and** on",
+        "**Does *\"Ethan Brooks is not taking part\"* read right in both tenses too**, sitting on a past",
+        "**Should this control also appear on `/youth/events/[id]`?** It is deliberately only in the",
+        "**With the prompt gone, is there anything left telling a leader *why* they are no longer being",
+        "Is it clear that **Yes** and **No** are an answer about the *young person*, and not about the",
+        "Does the chip read as **information** rather than as an alarm? The whole point of the feature"
+      ],
+      "seedCommand": "npm run seed -- youth/scenario-061-the-young-person-who-was-not-there"
     }
   ]
 }

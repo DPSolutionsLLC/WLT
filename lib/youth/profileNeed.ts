@@ -69,8 +69,9 @@ export type ProfileNeed = {
 // ---------------------------------------------------------------------------
 // WHICH PAST EVENTS CARRY A COVERAGE EXPECTATION — THE ONE THING TO GET RIGHT
 // ---------------------------------------------------------------------------
-// An `away` event and a `tbd` event are BOTH excluded, and the reasons are different, which is
-// why they are two conditions rather than one and why the test asserts them separately.
+// An `away` event, a `tbd` event and an event the young person is not taking part in are ALL
+// excluded, and the reasons are different, which is why they are separate conditions rather than
+// one and why the test asserts them separately.
 //
 //   AWAY   — an away game with nobody at it is the DESIGNED outcome. 08-youth-activities.md
 //            §Step 4 gives an away event no coverage expectation at all, which is why
@@ -82,17 +83,32 @@ export type ProfileNeed = {
 //            is `tbd`, never `away`" — and `tbd` is already loud where it belongs, as
 //            `needs_type` on the calendar and on every card.
 //
+//   ABSENT — the young person is not taking part, so this game could not have been a chance to
+//            support them. That is the SAME SENTENCE the other three exclusions are; ITER-030
+//            found it missing from the list rather than proposing a new idea. It is a fact a
+//            person stated (migration 061) and never one this code inferred.
+//
 // A CANCELLED event is excluded for the reason lib/youth/coverage.ts tests `cancelled` before it
 // consults the clock: a game called off is not a game nobody went to, at any distance.
 //
 // An UNREADABLE date is excluded from both halves, exactly as eventCoverage() and
 // isFollowUpWritable() both exclude one.
-// THE THREE EXCLUSIONS, IN ONE PLACE, so the past half and the upcoming half cannot drift apart.
+//
+// ---------------------------------------------------------------------------
+// HOW THIS COMPOSES WITH `closed_at` — TWO EXCLUSIONS AT TWO SCALES, AND THEY DO NOT INTERACT
+// ---------------------------------------------------------------------------
+// Migration 060a's `closed_at` removes a WHOLE PROFILE from the ranking; this removes ONE EVENT
+// from a profile's arithmetic. A closed season's frozen number, recomputed against `closedAt` on
+// /youth/history/[member_id], therefore excludes its absences too — and that is correct: the
+// snapshot should say what was true at the closing instant, absences included.
+//
+// THE FOUR EXCLUSIONS, IN ONE PLACE, so the past half and the upcoming half cannot drift apart.
 // Both `isExpectedPast` and `isExpectedNext` are this predicate plus a side of the clock — the
 // support percentage counts a past game and the next one by the same rule, and a second copy of
 // "which events carry an expectation" is exactly what would let somebody retune one of them.
 function carriesCoverageExpectation(event: ProfileNeedEvent): boolean {
   if (event.status === "cancelled") return false;
+  if (event.youthAttended === false) return false;
   if (event.eventType !== "home") return false;
   return Number.isFinite(new Date(event.eventDate).getTime());
 }

@@ -1189,6 +1189,14 @@ export async function createActivityEvent(options: {
   calendarId?: string;
   sourceUid?: string;
   sourceRecurrenceId?: string;
+  // Migration 061. ABSENT MEANS NOBODY HAS SAID whether the young person is taking part — the
+  // ordinary state of every row, and never a defaulted `true`. Setting it reaches a state a walk
+  // would otherwise have to click its way to, which matters where the point is watching a
+  // percentage MOVE from a value that was already on the card.
+  //
+  // The CHECK refuses a non-null value on an event with no profile: a ward-wide event belongs to
+  // no young person, so the question has no referent there.
+  youthAttended?: boolean;
 }): Promise<string> {
   return insertRow("activity_events", {
     id: options.id ?? testUuid(`event:${options.title}:${options.eventDate}`),
@@ -1204,6 +1212,7 @@ export async function createActivityEvent(options: {
     source_uid: options.sourceUid ?? null,
     source_recurrence_id: options.sourceRecurrenceId ?? null,
     occasion_id: options.occasionId ?? null,
+    youth_attended: options.youthAttended ?? null,
   });
 }
 

@@ -148,7 +148,7 @@ describe("/api/youth/calendars/import", () => {
   const storedEvents = async () => {
     const { data, error } = await fixtures.service
       .from("activity_events")
-      .select("id, title, event_date, status, event_type, all_day, source_uid, source_recurrence_id, calendar_id")
+      .select("id, title, event_date, status, event_type, all_day, source_uid, source_recurrence_id, calendar_id, youth_attended")
       .eq("ward_id", wardId)
       .order("event_date");
 
@@ -499,12 +499,24 @@ describe("/api/youth/calendars/import", () => {
       const jefferson = before.find((event) => event.source_uid === "g2@lincoln")!;
       const madison = before.find((event) => event.source_uid === "g3@lincoln")!;
 
-      // What a leader did by hand, and what a re-import must never undo.
+      // What a leader did by hand, and what a re-import must never undo. THREE COLUMNS NOW:
+      // `youth_attended` joins `status` and `event_type` in what ImportedEventPatch never touches
+      // (migration 061, Decision 6) — a young person recorded as not taking part must survive
+      // every future import of the same file, exactly as a hand-cancelled game does.
       const { error: cancelError } = await fixtures.service
         .from("activity_events")
-        .update({ status: "cancelled", event_type: "away" })
+        .update({ status: "cancelled", event_type: "away", youth_attended: false })
         .eq("id", madison.id);
       if (cancelError) throw new Error(cancelError.message);
+
+      // AND ON A ROW THE IMPORT ACTUALLY UPDATES, which is the harder half: the Madison game is
+      // absent from no file but is never written to, while Jefferson IS written to and must keep
+      // its mark through the four columns that do change.
+      const { error: markError } = await fixtures.service
+        .from("activity_events")
+        .update({ youth_attended: true })
+        .eq("id", jefferson.id);
+      if (markError) throw new Error(markError.message);
 
       const march = icsFile([
         vevent("g1@lincoln", "Game against Roosevelt", `${nextYear(1, 15)}T023000Z`),
@@ -546,9 +558,19 @@ describe("/api/youth/calendars/import", () => {
           .toISOString(),
       );
 
-      // Decision 6, and the two assertions this whole slice's trust depends on.
+      // Decision 6, and the assertions this whole slice's trust depends on.
       expect(cancelledGame.status).toBe("cancelled");
       expect(cancelledGame.event_type).toBe("away");
+      expect(cancelledGame.youth_attended).toBe(false);
+
+      // THE ROW THE IMPORT DID WRITE TO kept its mark while its date moved.
+      expect(movedGame.youth_attended).toBe(true);
+
+      // Clean up so the later cases in this describe see the fixture they expect.
+      await fixtures.service
+        .from("activity_events")
+        .update({ youth_attended: null })
+        .in("id", [madison.id, jefferson.id]);
     });
 
     it("leaves an event absent from the file exactly as it was", async () => {

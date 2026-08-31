@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/Input";
 import { AttendeeControls } from "@/components/youth/AttendeeControls";
 import { COVERAGE_EDGE_CLASSES, CoverageBadge } from "@/components/youth/CoverageBadge";
 import { FollowUpBadge } from "@/components/youth/FollowUpBadge";
+import { YouthAbsenceChip } from "@/components/youth/YouthAbsenceChip";
 import { canManageActivityLog, canWriteFollowUpOn } from "@/lib/youth/activityOwnership";
 import type { ActivityAttendee } from "@/lib/youth/attendees";
 import { eventCoverage } from "@/lib/youth/coverage";
@@ -419,6 +420,10 @@ export function EventList({
                 isAttendee: ownAttendee !== null,
                 hasLog: ownLog !== null,
                 confirmedAttendance: ownAttendee?.confirmedAttendance ?? null,
+                // Migration 061. A game the young person is not taking part in asks nobody for an
+                // account of it — but a follow-up ALREADY WRITTEN still reads `logged`, and
+                // isFollowUpWritable() below is deliberately untouched, so the button stays.
+                youthAttended: event.youthAttended,
               },
               asOfInstant,
             );
@@ -466,6 +471,9 @@ export function EventList({
                 eventDate: event.eventDate,
                 status: event.status,
                 attendeeCount: attendees.length,
+                // Migration 061. Resolves to `not_expected` at EVERY distance from the clock, so a
+                // marked game raises no badge three days out and no failure three days past.
+                youthAttended: event.youthAttended,
               },
               asOfInstant,
             );
@@ -520,6 +528,19 @@ export function EventList({
                         {EVENT_STATUS_LABELS.cancelled}
                       </span>
                     ) : null}
+                    {/* A GAME THE YOUNG PERSON IS NOT TAKING PART IN STAYS VISIBLE AND IS MARKED,
+                        exactly as a cancelled one does — and for the same reason. Removing it
+                        would lose the record that it was ever scheduled, which is what somebody
+                        asking "why did nobody go?" needs. It renders NOTHING for `true` and for
+                        `null`, and the tone is deliberately not the Cancelled chip's: two
+                        different facts must not read as one (migration 061).
+
+                        `profile` is already resolved once per row for the labels below; reusing it
+                        is what stops a second lookup answering the same question differently. */}
+                    <YouthAbsenceChip
+                      youthAttended={event.youthAttended}
+                      memberName={profile?.memberName ?? null}
+                    />
                     {/* A LABEL, NOT A CONTROL. An imported row can be edited by hand exactly like
                         any other — but the next import of the same file will overwrite the name,
                         the time, the place and the all-day flag (lib/youth/ics/applyImport.ts,
@@ -683,6 +704,79 @@ export function EventList({
                         {event.status === "cancelled" ? "Not cancelled after all" : "Cancel"}
                       </Button>
                     </div>
+                  ) : null}
+
+                  {/* ---------------------------------------------------------------
+                      IS THE YOUNG PERSON TAKING PART?
+                      ---------------------------------------------------------------
+                      PAST AND FUTURE BOTH, because an absence known in advance has to take the
+                      game out BEFORE it drags the number down: the support metric's horizon is
+                      every past home game plus the NEXT one, so a future answer matters
+                      immediately (migration 061).
+
+                      ONLY WHERE THERE IS A YOUNG PERSON TO ASK ABOUT. A ward-wide event has no
+                      profile, migration 061's CHECK makes such a row a database error, and the
+                      route refuses it with a sentence — so offering the control here would be a
+                      button whose only outcome is a 400.
+
+                      `aria-pressed` PLUS the variant, mirroring FollowUpForm's "Did you go?": the
+                      answer must be conveyed by more than colour (ITER-022), and a screen reader
+                      needs the state rather than the styling.
+
+                      PRESSING THE ACTIVE ANSWER AGAIN SENDS `null`. This is a deliberate
+                      divergence from FollowUpForm, which offers no way back. A CONTROL THAT CAN
+                      SET A VALUE AND NOT UNSET IT IS A ONE-WAY DOOR ON A METRIC. Marking the wrong
+                      game — or the right game for the wrong young person — must be undoable, and
+                      it must be undoable to "nobody has said" rather than to "they were there",
+                      which is a different claim. That is migration 060a's rule for `closed_at`
+                      (nullable so a mistake is reopenable, and never a delete) applied to a column
+                      with the same power to move a number.
+
+                      THE EXISTING patchMutation, so there is no second error surface and no second
+                      invalidation to keep in step. */}
+                  {canManage && editing?.id !== event.id && event.profileId !== null ? (
+                    <fieldset className="mt-3 flex flex-col gap-2">
+                      <legend className="text-sm font-medium text-foreground">
+                        Is {profile?.memberName ?? "the young person"} taking part?
+                      </legend>
+                      {/* aria-pressed ON BOTH BUTTONS IN EVERY STATE, which is FollowUpForm's
+                          pattern for the identical shape of question. Without it a screen reader
+                          hears two identically named buttons and cannot tell which answer is
+                          stored; the attribute on ONE and not the other is worse than neither.
+                          ITER-022. */}
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant={event.youthAttended === true ? "primary" : "secondary"}
+                          aria-pressed={event.youthAttended === true}
+                          disabled={patchMutation.isPending}
+                          onClick={() =>
+                            patchMutation.mutate({
+                              id: event.id,
+                              body: {
+                                youthAttended: event.youthAttended === true ? null : true,
+                              },
+                            })
+                          }
+                        >
+                          Yes
+                        </Button>
+                        <Button
+                          variant={event.youthAttended === false ? "primary" : "secondary"}
+                          aria-pressed={event.youthAttended === false}
+                          disabled={patchMutation.isPending}
+                          onClick={() =>
+                            patchMutation.mutate({
+                              id: event.id,
+                              body: {
+                                youthAttended: event.youthAttended === false ? null : false,
+                              },
+                            })
+                          }
+                        >
+                          No
+                        </Button>
+                      </div>
+                    </fieldset>
                   ) : null}
 
                   {editing?.id === event.id ? (

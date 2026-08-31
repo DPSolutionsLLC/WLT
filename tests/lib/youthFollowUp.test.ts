@@ -28,6 +28,9 @@ function input(overrides: Partial<FollowUpInput> = {}): FollowUpInput {
     isAttendee: true,
     hasLog: false,
     confirmedAttendance: null,
+    // Migration 061. NULL IS THE ORDINARY CASE — nobody has said whether the young person is
+    // taking part — so every existing assertion below is unchanged by the column's arrival.
+    youthAttended: null,
     ...overrides,
   };
 }
@@ -131,6 +134,45 @@ describe("followUpState", () => {
   it("is awaiting for a past event the reader was down for and has not written about", () => {
     expect(followUpState(input(), NOW)).toBe("awaiting");
   });
+
+  // ---------------------------------------------------------------------------
+  // THE YOUNG PERSON WAS NOT THERE (migration 061) — THE PROMPT STOPS, THE RECORD DOES NOT
+  // ---------------------------------------------------------------------------
+  describe("when the young person is not taking part", () => {
+    it("stops asking a reader who was down for it and has written nothing", () => {
+      // Without the mark this is `awaiting`, which is the assertion directly above. Both are here
+      // so the change reads as a change rather than as a new fact.
+      expect(followUpState(input(), NOW)).toBe("awaiting");
+      expect(followUpState(input({ youthAttended: false }), NOW)).toBe("not_due");
+    });
+
+    // AFTER `hasLog`, AND THE ORDER IS THE RULE. An account somebody already wrote is a record of
+    // something that happened, and demoting it to `not_due` would hide a written pastoral note
+    // behind a fact recorded afterwards.
+    it("leaves a follow-up that has ALREADY been written reading logged", () => {
+      expect(
+        followUpState(input({ youthAttended: false, hasLog: true }), NOW),
+      ).toBe("logged");
+    });
+
+    it("leaves a written follow-up reading did_not_attend when its author did not go", () => {
+      expect(
+        followUpState(
+          input({ youthAttended: false, hasLog: true, confirmedAttendance: false }),
+          NOW,
+        ),
+      ).toBe("did_not_attend");
+    });
+
+    // `false` ONLY. Both other states are the ordinary case.
+    it("changes nothing for `true` or `null`", () => {
+      expect(followUpState(input({ youthAttended: true }), NOW)).toBe("awaiting");
+      expect(followUpState(input({ youthAttended: null }), NOW)).toBe("awaiting");
+      expect(
+        followUpState(input({ youthAttended: true, isAttendee: false }), NOW),
+      ).toBe("not_due");
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -178,6 +220,21 @@ describe("isFollowUpWritable", () => {
     expect(
       isFollowUpWritable({ status: "upcoming", eventDate: NOW.toISOString() }, NOW),
     ).toBe(true);
+  });
+
+  // ---------------------------------------------------------------------------
+  // UNCHANGED BY migration 061, AND THIS IS THE LINE THAT KEEPS THE CONTROL REACHABLE
+  // ---------------------------------------------------------------------------
+  // A later "consistency" edit that taught this function about `youthAttended` is exactly what
+  // would remove it. A leader who turned up and found the young person absent is the person whose
+  // account is most worth having; hiding "Say how it went" from them would be a workflow rule
+  // enforced in a component — the mirror of youth-a-D1, which lib/youth/followUp.ts argues at
+  // length. THE PROMPT STOPS; THE DOOR STAYS OPEN.
+  it("is STILL TRUE for a past event the young person is not taking part in", () => {
+    const marked = input({ youthAttended: false });
+
+    expect(followUpState(marked, NOW)).toBe("not_due");
+    expect(isFollowUpWritable(marked, NOW)).toBe(true);
   });
 });
 

@@ -25,6 +25,7 @@ import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import { AttendeeControls } from "@/components/youth/AttendeeControls";
 import { COVERAGE_EDGE_CLASSES, CoverageBadge } from "@/components/youth/CoverageBadge";
+import { YouthAbsenceChip } from "@/components/youth/YouthAbsenceChip";
 import type { ActivityAttendee } from "@/lib/youth/attendees";
 import { eventCoverage, worstCoverage, type EventCoverage } from "@/lib/youth/coverage";
 import type { ActivityEvent, ActivityProfile } from "@/lib/youth/queries";
@@ -251,6 +252,9 @@ export function EventDetail({
             eventDate: event.eventDate,
             status: event.status,
             attendeeCount: attendees.length,
+            // Migration 061. PER ROW, because each row on an occasion is a DIFFERENT young person
+            // with their own answer — one team-mate being ill says nothing about the other.
+            youthAttended: event.youthAttended,
           },
           asOfInstant,
         ),
@@ -398,6 +402,21 @@ export function EventDetail({
                     {EVENT_STATUS_LABELS.cancelled}
                   </span>
                 ) : null}
+                {/* ON EVERY ROW, INCLUDING THIS EVENT'S OWN — the URL-named event is one of these
+                    rows, so the event's block and its occasion siblings are one rendering rather
+                    than two that could word it differently. PER YOUNG PERSON: one team-mate being
+                    ill says nothing about the other, and each row carries its own answer
+                    (migration 061).
+
+                    THE CONTROL IS NOT HERE. It lives in EventList and nowhere else — a second
+                    entry point would be a second meaning of the same word (youth-h's ground for
+                    refusing a second "unlink"). This page is the closest call, and the omission is
+                    recorded rather than left looking like an oversight: if a leader reaches for it
+                    here, adding it is one prop, not a redesign. */}
+                <YouthAbsenceChip
+                  youthAttended={row.event.youthAttended}
+                  memberName={row.memberName}
+                />
                 {/* Same condition EventList uses — an imported row can be edited by hand, but the
                     next import of the same file overwrites the name, the time and the place. */}
                 {row.event.sourceUid === null ? null : (

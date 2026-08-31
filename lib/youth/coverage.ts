@@ -45,6 +45,18 @@ export type EventCoverageInput = {
   eventDate: string;
   status: EventStatus;
   attendeeCount: number;
+  // Migration 061. Whether the YOUNG PERSON this event belongs to is taking part. Null means
+  // NOBODY HAS SAID — a third state, never a defaulted `true`, on the same reasoning
+  // `confirmed_attendance` is nullable.
+  //
+  // NEVER INFERRED. Not from an empty attendee list, not from a cancelled sibling, not from a
+  // missing follow-up. A person knows this and nothing else does — classifyLocation.ts's refusal
+  // of near-miss matching, in a third place.
+  //
+  // REQUIRED, NOT OPTIONAL, AND THAT IS THE MECHANISM. ProfileNeedEvent is this type and
+  // SupportEvent extends it, so every construction site is a compile error until it supplies the
+  // field — which is CLAUDE.md rule 9 enforced by the type checker rather than by review.
+  youthAttended: boolean | null;
 };
 
 export type EventCoverage = {
@@ -74,6 +86,21 @@ export function eventCoverage(
   // clock would give the right answer today and the wrong one for somebody reading the same row
   // next week.
   if (status === "cancelled") {
+    return { state: "not_expected", daysUntil: null, attendeeCount };
+  }
+
+  // ---------------------------------------------------------------------------
+  // 1b. NOT TAKING PART, ALSO BEFORE THE CLOCK. SAME PLACE AS `cancelled`, SAME REASON.
+  // ---------------------------------------------------------------------------
+  // A game the young person is not at cannot be a chance to support them, AT ANY DISTANCE FROM
+  // THE CLOCK — not three days out and not three days past. Testing it here is what makes that
+  // true at every distance at once; testing it after the arithmetic would give the right answer
+  // today and the wrong one for somebody reading the same row next week.
+  //
+  // `false` ONLY. `true` and `null` both fall through, because "they are taking part" and "nobody
+  // has said" are the ordinary case, and the ordinary case is what the rest of this function is
+  // about.
+  if (event.youthAttended === false) {
     return { state: "not_expected", daysUntil: null, attendeeCount };
   }
 
@@ -125,6 +152,28 @@ export function eventCoverage(
     daysUntil,
     attendeeCount,
   };
+}
+
+// THE SENTENCE, BESIDE THE COMPUTATION THAT DECIDES IT — describeSeasonNeed()'s rule, and the
+// reason three renderers cannot word this differently.
+//
+// TENSE-FREE ON PURPOSE. This chip renders on past AND upcoming events, and "wasn't there" reads
+// wrong on next Friday's game while "won't be there" reads wrong on last Friday's. A present-tense
+// sentence about TAKING PART is true of both, and it needs no clock — so this stays a pure function
+// of one field and a name.
+//
+// NULL AND TRUE BOTH RETURN null, and the chip is absent. Taking part is the ordinary case, and a
+// chip on every card saying so is noise — the same argument followUpState() makes for not labelling
+// `confirmedAttendance === true`.
+export function describeYouthAbsence(
+  youthAttended: boolean | null,
+  memberName: string | null,
+): string | null {
+  if (youthAttended !== false) return null;
+
+  // "This young person" beats a blank where the profile is not in the reader's list —
+  // mapActivityProfileRow's rule for a name that did go missing.
+  return `${memberName ?? "This young person"} is not taking part`;
 }
 
 // The count strip at the top of /youth/calendar.

@@ -89,6 +89,10 @@ describe("/api/youth/events", () => {
   let wardBProfileId: string;
   let pastEventId: string;
   let upcomingEventId: string;
+  // profile_id NULL — a ward-wide event, which belongs to no young person. Migration 061's CHECK
+  // makes `youth_attended` on such a row a database error, and the route refuses it with a
+  // sentence first.
+  let wardWideEventId: string;
 
   const created: string[] = [];
   // Occasions outlive the events that made them until afterAll, because deleting an event does
@@ -105,15 +109,34 @@ describe("/api/youth/events", () => {
     status: string;
     calendar_id: string | null;
     occasion_id: string | null;
+    youth_attended: boolean | null;
   } | null> => {
     const { data, error } = await fixtures.service
       .from("activity_events")
-      .select("event_date, status, calendar_id, occasion_id")
+      .select("event_date, status, calendar_id, occasion_id, youth_attended")
       .eq("id", eventId)
       .maybeSingle();
 
     if (error) throw new Error(error.message);
     return data;
+  };
+
+  // THE NEWEST ROW'S DETAIL, so an assertion can read WHAT A WRITE RECORDED rather than only that
+  // it recorded something. "Why did Ethan's number move?" is answerable from the log or it is not.
+  const latestAuditDetail = async (
+    action: string,
+  ): Promise<Record<string, unknown> | null> => {
+    const { data, error } = await fixtures.service
+      .from("audit_log")
+      .select("detail")
+      .eq("ward_id", wardId)
+      .eq("action", action)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    return (data?.detail ?? null) as Record<string, unknown> | null;
   };
 
   const countAuditRows = async (action: string): Promise<number> => {
@@ -133,6 +156,8 @@ describe("/api/youth/events", () => {
       "eqPresident",
       "eqSecretary",
       "musicCoordinator",
+      // A DIFFERENT ORGANIZATION'S president, for the ward-wide gate on migration 061's column.
+      "rsPresident",
       "wardBBishop",
     ]);
     wardId = fixtures.wardAId;
@@ -207,12 +232,21 @@ describe("/api/youth/events", () => {
           event_date: yearsFromNow(2),
           status: "upcoming",
         },
+        {
+          ward_id: wardId,
+          profile_id: null,
+          title: `Ward wide ${fixtures.runId}`,
+          event_type: "home",
+          event_date: yearsFromNow(2),
+          status: "upcoming",
+        },
       ])
       .select("id, title");
     if (eventError) throw new Error(eventError.message);
 
     pastEventId = events!.find((row) => row.title.startsWith("Last season"))!.id;
     upcomingEventId = events!.find((row) => row.title.startsWith("Next season"))!.id;
+    wardWideEventId = events!.find((row) => row.title.startsWith("Ward wide"))!.id;
   }, 180_000);
 
   afterAll(async () => {
@@ -692,6 +726,166 @@ describe("/api/youth/events", () => {
 
       expect(status).toBe(200);
       expect(await countAuditRows("youth_activity_event_updated")).toBe(before + 1);
+    });
+  });
+
+  // ===========================================================================
+  // RECORDING THAT THE YOUNG PERSON WAS NOT THERE (migration 061)
+  // ===========================================================================
+  // EVERY VALUE IS READ BACK WITH THE SERVICE CLIENT, never off the response body. An RLS-denied
+  // UPDATE is a ZERO-ROW SUCCESS rather than an error, so a refusal is proved by re-reading the row
+  // and never by expecting a throw.
+  describe("whether the young person is taking part", () => {
+    let markableId: string;
+
+    beforeAll(async () => {
+      await actAs(fixtures, "eqPresident");
+      const { body } = await callPost({
+        profileId,
+        title: `Markable ${fixtures.runId}`,
+        eventDate: "2027-12-04T19:30:00-07:00",
+      });
+      markableId = eventFrom(body).id;
+      created.push(markableId);
+    });
+
+    it("starts as null — nobody has said", async () => {
+      expect((await storedEvent(markableId))!.youth_attended).toBeNull();
+    });
+
+    it("stores false", async () => {
+      await actAs(fixtures, "eqPresident");
+
+      const { status } = await callPatch(markableId, { youthAttended: false });
+
+      expect(status).toBe(200);
+      expect((await storedEvent(markableId))!.youth_attended).toBe(false);
+    });
+
+    it("stores true", async () => {
+      await actAs(fixtures, "eqPresident");
+
+      const { status } = await callPatch(markableId, { youthAttended: true });
+
+      expect(status).toBe(200);
+      expect((await storedEvent(markableId))!.youth_attended).toBe(true);
+    });
+
+    // A CONTROL THAT CAN SET A VALUE AND NOT UNSET IT IS A ONE-WAY DOOR ON A METRIC. It must clear
+    // back to "nobody has said" rather than to "they were there", which is a different claim.
+    it("clears back to null on an explicit null", async () => {
+      await actAs(fixtures, "eqPresident");
+
+      const { status } = await callPatch(markableId, { youthAttended: null });
+
+      expect(status).toBe(200);
+      expect((await storedEvent(markableId))!.youth_attended).toBeNull();
+    });
+
+    // ABSENT IS A NO-OP, which is what updateActivityEvent()'s `!== undefined` test buys.
+    it("leaves the value alone when the key is absent from the patch", async () => {
+      await actAs(fixtures, "eqPresident");
+      await callPatch(markableId, { youthAttended: false });
+
+      const { status } = await callPatch(markableId, { location: `Gym ${fixtures.runId}` });
+
+      expect(status).toBe(200);
+      expect((await storedEvent(markableId))!.youth_attended).toBe(false);
+
+      await callPatch(markableId, { youthAttended: null });
+    });
+
+    // A SENTENCE, NOT A CONSTRAINT VIOLATION. Migration 061's CHECK is the guarantee behind this;
+    // a caller cannot act on "violates check constraint" (CLAUDE.md rule 7).
+    it("refuses a ward-wide event with a sentence, and writes nothing", async () => {
+      await actAs(fixtures, "eqPresident");
+
+      const { status, body } = await callPatch(wardWideEventId, { youthAttended: false });
+
+      expect(status).toBe(400);
+      expect(errorMessage(body)).toContain("nobody to record as taking part");
+      expect((await storedEvent(wardWideEventId))!.youth_attended).toBeNull();
+    });
+
+    // CLEARING TO NULL ON SUCH A ROW IS A NO-OP AND NEEDS NO REFUSAL — it says nothing about a
+    // young person who is not there, so there is nothing to object to.
+    it("does not refuse an explicit null on a ward-wide event", async () => {
+      await actAs(fixtures, "eqPresident");
+
+      const { status } = await callPatch(wardWideEventId, { youthAttended: null });
+
+      expect(status).toBe(200);
+      expect((await storedEvent(wardWideEventId))!.youth_attended).toBeNull();
+    });
+
+    it("records the value and the field in the audit detail", async () => {
+      await actAs(fixtures, "eqPresident");
+
+      const { status } = await callPatch(markableId, { youthAttended: false });
+      const detail = await latestAuditDetail("youth_activity_event_updated");
+
+      expect(status).toBe(200);
+      expect(detail?.youthAttended).toBe(false);
+      expect(detail?.changed).toEqual(["youthAttended"]);
+
+      await callPatch(markableId, { youthAttended: null });
+    });
+
+    // THE WARD-WIDE GATE, ASSERTED. activity_events keeps migration 019's ward-wide write
+    // policies, so any holder of youth_activities.manage in this ward may mark any event — this is
+    // the same boundary Cancel already runs under, and a test asserting it is what stops somebody
+    // "tightening" it without a migration.
+    it("lets an org president from a DIFFERENT organization mark it", async () => {
+      await actAs(fixtures, "rsPresident");
+
+      const { status } = await callPatch(markableId, { youthAttended: false });
+
+      expect(status).toBe(200);
+      expect((await storedEvent(markableId))!.youth_attended).toBe(false);
+
+      await actAs(fixtures, "eqPresident");
+      await callPatch(markableId, { youthAttended: null });
+    });
+
+    it("returns 404 for an event in another ward and writes nothing", async () => {
+      const { data } = await fixtures.service
+        .from("activity_events")
+        .insert({
+          ward_id: fixtures.wardBId,
+          profile_id: wardBProfileId,
+          title: `Ward B markable ${fixtures.runId}`,
+          event_type: "home",
+          event_date: yearsFromNow(2),
+        })
+        .select("id")
+        .single();
+
+      await actAs(fixtures, "eqPresident");
+      const { status } = await callPatch(data!.id, { youthAttended: false });
+
+      expect(status).toBe(404);
+
+      // RE-READ, never a throw: an RLS-denied UPDATE is a zero-row success.
+      const { data: after } = await fixtures.service
+        .from("activity_events")
+        .select("youth_attended")
+        .eq("id", data!.id)
+        .single();
+
+      expect(after!.youth_attended).toBeNull();
+
+      await fixtures.service.from("activity_events").delete().eq("id", data!.id);
+    });
+
+    it("refuses a string or a number rather than coercing it", async () => {
+      await actAs(fixtures, "eqPresident");
+
+      for (const youthAttended of ["false", 0]) {
+        const { status } = await callPatch(markableId, { youthAttended });
+        expect(status).toBe(400);
+      }
+
+      expect((await storedEvent(markableId))!.youth_attended).toBeNull();
     });
   });
 

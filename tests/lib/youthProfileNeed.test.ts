@@ -55,6 +55,9 @@ function event(overrides: Partial<ProfileNeedEvent> = {}): ProfileNeedEvent {
     eventDate: daysFrom(3),
     status: "upcoming",
     attendeeCount: 0,
+    // Migration 061. NULL IS THE ORDINARY CASE — nobody has said — so every existing assertion in
+    // this suite goes on describing the behaviour it described before the column existed.
+    youthAttended: null,
     ...overrides,
   };
 }
@@ -223,6 +226,23 @@ describe("profileNeed — the pastoral half", () => {
     expect(result.lastAttendedOn).toBeNull();
   });
 
+  // THE FOURTH EXCLUSION, AND ITS OWN CASE for the reason `away` and `tbd` have theirs: deleting
+  // the condition alone must go red. It is the SAME SENTENCE as the other three — this game could
+  // not have been a chance to support them (migration 061).
+  it("does not count a past home game the young person was NOT TAKING PART in", () => {
+    const result = profileNeed(
+      [
+        event({ eventDate: daysFrom(-3), youthAttended: false }),
+        event({ eventDate: daysFrom(-9), youthAttended: false }),
+      ],
+      ASOF,
+    );
+
+    expect(result.expectedPastCount).toBe(0);
+    expect(result.unattendedRun).toBe(0);
+    expect(result.lastAttendedOn).toBeNull();
+  });
+
   it("does not count a cancelled past event, at any distance from the clock", () => {
     const near = profileNeed([event({ eventDate: daysFrom(-1), status: "cancelled" })], ASOF);
     const far = profileNeed([event({ eventDate: daysFrom(-200), status: "cancelled" })], ASOF);
@@ -343,6 +363,7 @@ function supportEvent(overrides: Partial<SupportEvent> = {}): SupportEvent {
     status: "upcoming",
     attendeeCount: 0,
     confirmedAttendeeCount: 0,
+    youthAttended: null,
     ...overrides,
   };
 }
@@ -554,6 +575,71 @@ describe("activitySupport — the exclusions, past and upcoming", () => {
     expect(result.playedCount).toBe(0);
   });
 
+  // ---------------------------------------------------------------------------
+  // THE FOURTH EXCLUSION (migration 061), AND IT LEAVES BOTH HALVES AT ONCE
+  // ---------------------------------------------------------------------------
+  it("excludes a past home game the young person was NOT TAKING PART in", () => {
+    const counted = activitySupport(
+      BASKETBALL,
+      [supportEvent({ eventDate: daysFrom(-3) })],
+      ASOF,
+    );
+    const marked = activitySupport(
+      BASKETBALL,
+      [supportEvent({ eventDate: daysFrom(-3), youthAttended: false })],
+      ASOF,
+    );
+
+    // Both, so the change reads as a change rather than as a new fact.
+    expect(counted.playedCount).toBe(1);
+    expect(marked.playedCount).toBe(0);
+    expect(marked.attendedCount).toBe(0);
+    expect(marked.countedCount).toBe(0);
+  });
+
+  // THE HORIZON MOVES. `isExpectedNext()` is carriesCoverageExpectation() plus a side of the
+  // clock, so the plan half follows the past half by construction — this is what a second copy of
+  // the exclusion rule would break.
+  it("moves the horizon to the game AFTER a marked next one", () => {
+    const result = activitySupport(
+      BASKETBALL,
+      [
+        supportEvent({ eventDate: daysFrom(5), youthAttended: false, attendeeCount: 1 }),
+        supportEvent({ eventDate: daysFrom(12), attendeeCount: 0 }),
+      ],
+      ASOF,
+    );
+
+    expect(result.nextEvent).toEqual({ eventDate: daysFrom(12), planned: false });
+  });
+
+  it("has NO next event when the only upcoming home game is marked", () => {
+    const result = activitySupport(
+      BASKETBALL,
+      [supportEvent({ eventDate: daysFrom(5), youthAttended: false, attendeeCount: 1 })],
+      ASOF,
+    );
+
+    expect(result.nextEvent).toBeNull();
+  });
+
+  it("changes nothing for `true` or `null`", () => {
+    for (const youthAttended of [true, null]) {
+      const result = activitySupport(
+        BASKETBALL,
+        [
+          supportEvent({ eventDate: daysFrom(-3), confirmedAttendeeCount: 1, youthAttended }),
+          supportEvent({ eventDate: daysFrom(5), youthAttended }),
+        ],
+        ASOF,
+      );
+
+      expect(result.playedCount).toBe(1);
+      expect(result.countedCount).toBe(2);
+      expect(result.supportedFraction).toBe(0.5);
+    }
+  });
+
   it("does not treat an upcoming AWAY game as the next event", () => {
     const result = activitySupport(
       BASKETBALL,
@@ -595,6 +681,32 @@ describe("activitySupport — the exclusions, past and upcoming", () => {
     expect(result.countedCount).toBe(0);
     expect(result.supportedFraction).toBeNull();
     expect(result.supportedFraction).not.toBe(0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // THE SAME RULE REACHED THROUGH THE NEW EXCLUSION — THE MOST LIKELY REGRESSION HERE
+  // ---------------------------------------------------------------------------
+  // A profile whose every home game is marked lands on countedCount === 0, which is an EM DASH.
+  // Rendering 0% would put the one young person nobody could possibly have supported at the top of
+  // "least supported", which is visits-f exactly.
+  it("reports NULL, not zero, when every home game is marked as not taking part", () => {
+    const result = activitySupport(
+      BASKETBALL,
+      [
+        supportEvent({ eventDate: daysFrom(-10), youthAttended: false }),
+        supportEvent({ eventDate: daysFrom(-3), youthAttended: false }),
+        supportEvent({ eventDate: daysFrom(5), youthAttended: false }),
+      ],
+      ASOF,
+    );
+
+    expect(result.playedCount).toBe(0);
+    expect(result.countedCount).toBe(0);
+    expect(result.nextEvent).toBeNull();
+    expect(result.supportedFraction).toBeNull();
+    expect(result.supportedFraction).not.toBe(0);
+    // THE SENTENCE AND THE NUMBER FALL OUT OF THE SAME PASS (youth-f, fifth sighting).
+    expect(describeActivitySupport(result)).toBeNull();
   });
 });
 
@@ -904,6 +1016,65 @@ const CLOSED_TRACK = {
   closedAt: "2026-11-20T00:00:00Z",
 };
 
+// ===========================================================================
+// EVERY HOME GAME MARKED — THE END-TO-END SHAPE, THROUGH youthNeed AND THE COMPARATOR
+// ===========================================================================
+// The parts are asserted above; this is the join. It is the visits-f shape and the single most
+// likely regression in this change, so it is proved through the SAME function the page calls and
+// then through the comparator that orders the card.
+describe("youthNeed — a season where the young person is taking part in nothing", () => {
+  it("reports a NULL lowestSupport, never zero, and sorts last in BOTH directions", () => {
+    const result = youthNeed(
+      ETHAN,
+      [BASKETBALL],
+      eventsFor({
+        [BASKETBALL.id]: [
+          supportEvent({ eventDate: daysFrom(-16), youthAttended: false }),
+          supportEvent({ eventDate: daysFrom(-9), youthAttended: false }),
+          supportEvent({ eventDate: daysFrom(6), youthAttended: false }),
+        ],
+      }),
+      ASOF,
+    );
+
+    // THE SEASON IS STILL RUNNING and the pill is still there — what is absent is the NUMBER.
+    // An em dash, never 0%.
+    expect(result.hasRunning).toBe(true);
+    expect(result.activities).toHaveLength(1);
+    expect(result.lowestSupport).toBeNull();
+    expect(result.lowestSupport).not.toBe(0);
+    expect(describeActivitySupport(result.activities[0])).toBeNull();
+
+    // Rendering 0% would put the one young person nobody could possibly have supported at the top
+    // of "least supported". Both directions, because the null rule here is the deliberate
+    // OPPOSITE of the `nobody_all_season` sort it replaced.
+    const worst = youth("Zoe", { lowestSupport: 0 });
+    expect(firstYouth("priority", true, result, worst)).toBe("Zoe");
+    expect(firstYouth("priority", false, result, youth("Zoe", { lowestSupport: 1 }))).toBe(
+      "Zoe",
+    );
+  });
+
+  // `not_expected` ranks LAST in COVERAGE_STATES, so a marked upcoming game cannot outrank a real
+  // one — no second rule was needed anywhere for that, and this is the assertion that says so.
+  it("does not let a marked upcoming game outrank a genuinely uncovered one", () => {
+    const result = youthNeed(
+      ETHAN,
+      [BASKETBALL],
+      eventsFor({
+        [BASKETBALL.id]: [
+          supportEvent({ eventDate: daysFrom(2), youthAttended: false, attendeeCount: 0 }),
+          supportEvent({ eventDate: daysFrom(5), attendeeCount: 0 }),
+        ],
+      }),
+      ASOF,
+    );
+
+    expect(result.worstUpcoming).toBe("uncovered");
+    expect(result.soonestNeedOn).toBe(daysFrom(5));
+  });
+});
+
 describe("youthNeed — closed seasons", () => {
   // Each of the three computations is asserted on its own, because they are three different reads
   // of `running` and somebody retuning one of them must not be able to keep a green suite.
@@ -1099,6 +1270,29 @@ describe("activitySupport against a season's closing instant", () => {
 
     expect(atClosing.supportedFraction).toBe(0.5);
     expect(aMonthLater).toEqual(atClosing);
+  });
+
+  // ---------------------------------------------------------------------------
+  // WHERE ITER-028 AND ITER-030 MEET — ASSERTED RATHER THAN ASSUMED
+  // ---------------------------------------------------------------------------
+  // `closed_at` removes a WHOLE PROFILE from the ranking; migration 061 removes AN EVENT from a
+  // profile's arithmetic. They compose with no extra code, and the snapshot should say what was
+  // true at the closing instant — absences included.
+  it("excludes an absence from a season's frozen number too", () => {
+    const withAnAbsence: SupportEvent[] = [
+      supportEvent({ eventDate: "2026-12-04T02:30:00Z", confirmedAttendeeCount: 1 }),
+      supportEvent({ eventDate: "2026-12-11T02:30:00Z" }),
+      supportEvent({ eventDate: "2026-12-18T02:30:00Z", confirmedAttendeeCount: 2 }),
+      supportEvent({ eventDate: "2026-12-27T02:30:00Z", youthAttended: false }),
+    ];
+
+    const frozen = activitySupport(BASKETBALL, withAnAbsence, CLOSED_ON);
+
+    // Three played rather than four, two of them attended — and the SAME instant the unmarked
+    // season above is judged against, so the difference is the mark and nothing else.
+    expect(frozen.playedCount).toBe(3);
+    expect(frozen.attendedCount).toBe(2);
+    expect(frozen.supportedFraction).toBeCloseTo(2 / 3, 10);
   });
 
   // AND IT DIFFERS FROM THE LIVE ANSWER, which is what makes the frozen one worth having: a

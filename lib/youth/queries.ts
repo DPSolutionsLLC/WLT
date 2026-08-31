@@ -183,6 +183,10 @@ export type ActivityEvent = {
   // A non-null id says two or more rows are the SAME EVENING, recorded explicitly by a person
   // rather than inferred from a matching title and date.
   occasionId: string | null;
+  // Migration 061. Whether the YOUNG PERSON this event belongs to is taking part. NULL MEANS
+  // NOBODY HAS SAID — the ordinary state of nearly every row, and never a defaulted `true`.
+  // It is a fact a person recorded and never one this code inferred.
+  youthAttended: boolean | null;
   createdAt: string;
 };
 
@@ -213,12 +217,12 @@ export type ActivityCalendar = {
 const ACTIVITY_PROFILE_COLUMNS =
   "id, member_id, org_id, activity_name, school_org, activity_type, season_schedule, notes, entered_by, closed_at, created_at, members!youth_activity_profiles_member_id_ward_id_fkey (first_name, last_name), activity_events!activity_events_profile_id_ward_id_fkey (count)";
 
-// ONE STRING LITERAL ON ONE LINE, still, now that it has grown three columns. A `+`
+// ONE STRING LITERAL ON ONE LINE, still, now that it has grown four columns. A `+`
 // concatenation widens the type to `string` and defeats supabase-js's literal parsing of the
 // select list, silently degrading every row to something untyped
 // (plans/retros/calendar-a-rules-and-api.md).
 const ACTIVITY_EVENT_COLUMNS =
-  "id, profile_id, calendar_id, title, event_type, event_date, location, status, all_day, source_uid, source_recurrence_id, occasion_id, created_at";
+  "id, profile_id, calendar_id, title, event_type, event_date, location, status, all_day, source_uid, source_recurrence_id, occasion_id, youth_attended, created_at";
 
 const ACTIVITY_CALENDAR_COLUMNS =
   "id, profile_id, source_type, source_url, last_synced_at, created_at";
@@ -255,6 +259,7 @@ type ActivityEventRow = {
   source_uid: string | null;
   source_recurrence_id: string | null;
   occasion_id: string | null;
+  youth_attended: boolean | null;
   created_at: string;
 };
 
@@ -313,6 +318,7 @@ function mapActivityEventRow(row: ActivityEventRow): ActivityEvent {
     sourceUid: row.source_uid,
     sourceRecurrenceId: row.source_recurrence_id,
     occasionId: row.occasion_id,
+    youthAttended: row.youth_attended,
     createdAt: row.created_at,
   };
 }
@@ -762,6 +768,10 @@ export async function updateActivityEvent(
   if (input.location !== undefined) patch.location = input.location;
   if (input.eventType !== undefined) patch.event_type = input.eventType;
   if (input.status !== undefined) patch.status = input.status;
+  // `!== undefined` RATHER THAN A TRUTHINESS TEST, and that is what makes the control reversible:
+  // an explicit `null` clears the answer back to "nobody has said", while an absent key is a
+  // no-op. `location` above carries the same three-way shape for the same reason (migration 061).
+  if (input.youthAttended !== undefined) patch.youth_attended = input.youthAttended;
 
   const { data, error } = await supabase
     .from("activity_events")
@@ -973,8 +983,11 @@ export type ImportedEventPatch = {
 
 // FOUR COLUMNS AND NO OTHERS (Decision 6). `status` is never touched, so a hand-cancelled game
 // stays cancelled; `event_type` is never touched, so a correction a person made by hand survives
-// every future re-import. The absence is the feature, which is why the patch is written out field
-// by field rather than spread from an input object.
+// every future re-import; and `youth_attended` is never touched (migration 061), so a young person
+// recorded as not taking part stays recorded that way through every future import of the same
+// file. The absence is the feature, which is why the patch is written out field by field rather
+// than spread from an input object, and tests/routes/youthCalendarImport.test.ts asserts all three
+// rather than trusting the shape.
 export async function updateImportedEvent(
   wardId: string,
   eventId: string,

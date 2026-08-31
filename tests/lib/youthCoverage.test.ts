@@ -24,6 +24,7 @@
 import { describe, expect, it } from "vitest";
 import {
   COVERAGE_NOTICE_DAYS,
+  describeYouthAbsence,
   eventCoverage,
   summariseCoverage,
   type EventCoverageInput,
@@ -42,6 +43,9 @@ function event(overrides: Partial<EventCoverageInput> = {}): EventCoverageInput 
     eventDate: daysFrom(3),
     status: "upcoming",
     attendeeCount: 0,
+    // Migration 061. NULL IS THE ORDINARY CASE — nobody has said — so every existing assertion in
+    // this suite goes on describing the behaviour it described before the column existed.
+    youthAttended: null,
     ...overrides,
   };
 }
@@ -180,6 +184,97 @@ describe("eventCoverage", () => {
       0.5,
       5,
     );
+  });
+});
+
+// ===========================================================================
+// THE YOUNG PERSON IS NOT TAKING PART (migration 061)
+// ===========================================================================
+//
+// THE WHOLE POINT OF THIS BLOCK IS THE DISTANCES. The branch sits beside `cancelled` and BEFORE
+// the clock is consulted, and the only way to prove that is to assert it at four distances at
+// once — thirty days out, one day out, exactly `asOf`, and thirty days past. An implementation
+// that tested it after the arithmetic would pass the "past" case and fail these, which is exactly
+// the mistake the ordering exists to prevent.
+describe("eventCoverage — the young person is not taking part", () => {
+  it("reads not_expected at EVERY distance from the clock", () => {
+    for (const days of [30, 1, 0, -30]) {
+      const coverage = eventCoverage(
+        event({ eventDate: daysFrom(days), youthAttended: false }),
+        ASOF,
+      );
+
+      expect(coverage.state).toBe("not_expected");
+      expect(coverage.daysUntil).toBeNull();
+    }
+  });
+
+  // The case that matters most: without the branch this is the loudest state on the page.
+  it("beats an otherwise-uncovered home game inside the notice window", () => {
+    const withoutTheMark = eventCoverage(event({ eventDate: daysFrom(3) }), ASOF);
+    const withTheMark = eventCoverage(
+      event({ eventDate: daysFrom(3), youthAttended: false }),
+      ASOF,
+    );
+
+    expect(withoutTheMark.state).toBe("uncovered");
+    expect(withTheMark.state).toBe("not_expected");
+  });
+
+  // youth-e's carry-the-whole-row lesson: the badge, the count and the date come off ONE object,
+  // so a branch that dropped the count would put "Covered · 0" above a card reading "· 1".
+  it("preserves attendeeCount on the absent branch", () => {
+    const coverage = eventCoverage(event({ youthAttended: false, attendeeCount: 3 }), ASOF);
+
+    expect(coverage.attendeeCount).toBe(3);
+  });
+
+  // `false` ONLY. Both other states are the ordinary case, and the rest of the function is about
+  // the ordinary case.
+  it("changes nothing for `true` or `null`", () => {
+    for (const youthAttended of [true, null]) {
+      expect(
+        eventCoverage(event({ eventDate: daysFrom(3), youthAttended }), ASOF).state,
+      ).toBe("uncovered");
+      expect(
+        eventCoverage(event({ eventDate: daysFrom(30), youthAttended }), ASOF).state,
+      ).toBe("unassigned");
+      expect(
+        eventCoverage(event({ attendeeCount: 1, youthAttended }), ASOF).state,
+      ).toBe("covered");
+      expect(
+        eventCoverage(event({ eventType: "away", youthAttended }), ASOF).state,
+      ).toBe("awareness");
+      expect(
+        eventCoverage(event({ eventType: "tbd", youthAttended }), ASOF).state,
+      ).toBe("needs_type");
+    }
+  });
+});
+
+describe("describeYouthAbsence", () => {
+  it("names the young person", () => {
+    expect(describeYouthAbsence(false, "Ethan Brooks")).toBe(
+      "Ethan Brooks is not taking part",
+    );
+  });
+
+  // "Someone" beats a blank where the profile is not in the reader's list.
+  it("falls back to a truthful placeholder when the name is not known", () => {
+    expect(describeYouthAbsence(false, null)).toBe("This young person is not taking part");
+  });
+
+  // TAKING PART IS THE ORDINARY CASE, and a chip on every card saying so is noise. Asserted as a
+  // PAIR with the case above, so "delete the sentence" is not a passing fix for an over-eager one.
+  it("says nothing at all for `true` or `null`", () => {
+    expect(describeYouthAbsence(true, "Ethan Brooks")).toBeNull();
+    expect(describeYouthAbsence(null, "Ethan Brooks")).toBeNull();
+  });
+
+  // TENSE-FREE ON PURPOSE — it renders on a game played last month and on next Friday's alike, so
+  // it takes no clock at all. A signature that grew one would be the bug.
+  it("is a pure function of one field and a name", () => {
+    expect(describeYouthAbsence.length).toBe(2);
   });
 });
 

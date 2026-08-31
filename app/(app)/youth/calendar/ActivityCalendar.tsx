@@ -16,6 +16,7 @@ import { FormError } from "@/components/ui/FormError";
 import { ActivityMonthGrid, type ActivityMonthGridDay } from "@/components/youth/ActivityMonthGrid";
 import { AttendeeControls } from "@/components/youth/AttendeeControls";
 import { COVERAGE_EDGE_CLASSES, CoverageBadge } from "@/components/youth/CoverageBadge";
+import { YouthAbsenceChip } from "@/components/youth/YouthAbsenceChip";
 import type { DateOnly } from "@/lib/calendar/dates";
 import { monthOf } from "@/lib/calendar/dates";
 import type { ActivityAttendee } from "@/lib/youth/attendees";
@@ -314,6 +315,11 @@ export function ActivityCalendar({
               eventDate: event.eventDate,
               status: event.status,
               attendeeCount: attendees.length,
+              // Migration 061. A game the young person is not taking part in resolves to
+              // `not_expected` at every distance from the clock, so it drops out of the count
+              // strip above and raises no badge below — from the SAME computation, which is what
+              // stops the strip and the cards disagreeing.
+              youthAttended: event.youthAttended,
             },
             asOfInstant,
           ),
@@ -650,6 +656,15 @@ function EventCard({
             Cancelled
           </span>
         ) : null}
+        {/* MARKED, NOT REMOVED. A game the young person is not taking part in stays on the
+            calendar carrying its chip, exactly as a cancelled one does — the record that it was
+            scheduled is what somebody asking "why did nobody go?" needs. Renders nothing for
+            `true` and for `null` (migration 061).
+
+            THE CONTROL IS NOT HERE, deliberately. It lives in EventList and nowhere else: a
+            second entry point would be a second meaning of the same word, which is the ground
+            youth-h refused a second "unlink" on. */}
+        <YouthAbsenceChip youthAttended={event.youthAttended} memberName={memberName} />
       </div>
 
       <p className="mt-1 text-sm text-foreground">

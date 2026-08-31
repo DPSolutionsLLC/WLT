@@ -167,6 +167,12 @@ export function FollowUpPanel({
           isAttendee: own !== null,
           hasLog: log !== null,
           confirmedAttendance: own?.confirmedAttendance ?? null,
+          // Migration 061. A marked game leaves this panel AUTOMATICALLY — it resolves to
+          // `not_due`, and the heading count and the two lists still come out of the ONE split
+          // below. Nobody is chased about a game the young person was never at.
+          //
+          // A follow-up ALREADY WRITTEN still reads `logged`, so the record survives the mark.
+          youthAttended: event.youthAttended,
         },
         asOfInstant,
       ),

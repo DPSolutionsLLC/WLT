@@ -18,6 +18,26 @@ import {
 // mistake.
 const WRITE_REFUSED = "That event could not be changed. Reload and try again.";
 
+// A WARD-WIDE EVENT BELONGS TO NO YOUNG PERSON, so "are they taking part?" has no referent.
+// Migration 061's CHECK is the guarantee; this is the sentence, because a constraint violation is
+// not something anybody can act on (CLAUDE.md rule 7). VALIDATION, NOT A PERMISSION — the caller
+// may edit this event in every other way, and rule 2's boundary is untouched.
+const NO_YOUNG_PERSON =
+  "That event is not on a young person's activity, so there is nobody to record as taking part.";
+
+// ---------------------------------------------------------------------------
+// WHY `youthAttended` RIDES ON THE ORDINARY PATCH RATHER THAN GETTING ITS OWN ROUTE
+// ---------------------------------------------------------------------------
+// A reader will weigh this against `close` and `occasion`, which both got one.
+//
+// `Cancel` is the exact sibling — same table, same gate, same effect on the support number — and it
+// is an ordinary PATCH with its value in the audit detail. POST /api/youth/profiles/[id]/close
+// exists because closing is a DIFFERENT VERB ON A DIFFERENT TABLE; the occasion routes exist
+// because `occasionWithEventId` needs a SERVER-SIDE decision about which occasion a row joins,
+// which no patch body can express. Neither reason applies here. `changed: Object.keys(input)`
+// already names `youthAttended`, and the detail records what it became — so "why did Ethan's
+// number move?" is answerable from the audit log without a second action name.
+
 const eventIdSchema = z.uuid("That event id is not valid.");
 
 export async function PATCH(
@@ -42,6 +62,16 @@ export async function PATCH(
       return NextResponse.json({ error: "That event is not in your ward." }, { status: 404 });
     }
 
+    // Clearing to `null` on such a row is a no-op and needs no refusal — it says nothing about a
+    // young person who is not there, so there is nothing to object to.
+    if (
+      input.youthAttended !== undefined &&
+      input.youthAttended !== null &&
+      existing.profileId === null
+    ) {
+      return NextResponse.json({ error: NO_YOUNG_PERSON }, { status: 400 });
+    }
+
     const event = await updateActivityEvent(user.wardId, eventId, input, supabase);
 
     if (!event) {
@@ -59,6 +89,10 @@ export async function PATCH(
           profileId: event.profileId,
           changed: Object.keys(input),
           status: event.status,
+          // WHAT IT BECAME, beside the status, so "why did Ethan's number move?" is answerable
+          // from the log. `writeAuditLog()` runs redactSensitive() over this object; a boolean
+          // carries no text and no name, so nothing here needs holding back.
+          youthAttended: event.youthAttended,
         },
       },
       supabase,

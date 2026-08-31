@@ -130,6 +130,11 @@ export default async function YouthHistoryPage({ params }: YouthHistoryPageProps
         confirmedAttendeeCount: attendees.filter(
           (attendee) => attendee.confirmedAttendance === true,
         ).length,
+        // Migration 061, AND THIS IS WHERE ITER-028 AND ITER-030 MEET. The frozen number is
+        // recomputed against `closedAt`, and carriesCoverageExpectation() now excludes absences
+        // from that pass too — which is correct: the snapshot should say what was true at the
+        // closing instant, absences included. They compose with no extra code.
+        youthAttended: event.youthAttended,
       };
     });
 

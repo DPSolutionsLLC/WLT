@@ -347,6 +347,54 @@ describe("updateActivityEventSchema", () => {
     expect(updateActivityEventSchema.safeParse({ eventDate: "2026-09-04T16:00" }).success)
       .toBe(false);
   });
+
+  // ---------------------------------------------------------------------------
+  // `youthAttended` — THREE STATES PLUS ABSENCE, WHICH IS FOUR MEANINGS (migration 061)
+  // ---------------------------------------------------------------------------
+  it.each([true, false, null])("accepts %s", (youthAttended) => {
+    const result = updateActivityEventSchema.safeParse({ youthAttended });
+
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.youthAttended).toBe(youthAttended);
+  });
+
+  // ABSENT MEANS LEAVE IT ALONE, and updateActivityEvent()'s `!== undefined` test is what turns
+  // that into a no-op rather than a clear.
+  it("leaves the key ABSENT when it is not sent", () => {
+    const result = updateActivityEventSchema.safeParse({ status: "cancelled" });
+
+    expect(result.success).toBe(true);
+    expect(result.success && "youthAttended" in result.data).toBe(false);
+  });
+
+  // A BOOLEAN, NEVER A STRING OR A NUMBER. `"false"` and `0` are both truthy-or-falsy in the
+  // wrong direction somewhere downstream, and a coercing schema is how one of them arrives.
+  it.each(["false", "true", 0, 1])("refuses %s", (youthAttended) => {
+    expect(updateActivityEventSchema.safeParse({ youthAttended }).success).toBe(false);
+  });
+
+  // EXPLICIT NULL IS A CHANGE. It clears the answer back to "nobody has said", which is what makes
+  // the control reversible — so the "Nothing was changed" refinement must not eat it.
+  it("passes the Nothing-was-changed guard on its own with an explicit null", () => {
+    const result = updateActivityEventSchema.safeParse({ youthAttended: null });
+
+    expect(result.success).toBe(true);
+  });
+
+  // NOT ON THE CREATE SCHEMA, deliberately: a new event is created with null, and a create form
+  // asking whether a young person will attend a game nobody has scheduled is a question with no
+  // occasion.
+  it("is not a field createActivityEventSchema accepts", () => {
+    const result = createActivityEventSchema.safeParse({
+      profileId: "3f8ec7a4-1c6f-4f5b-9c2e-6f1c9a4b7d21",
+      title: "Game against Roosevelt",
+      eventDate: "2027-01-16T02:30:00.000Z",
+      youthAttended: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.success && "youthAttended" in result.data).toBe(false);
+  });
 });
 
 describe("listActivityEventsQuerySchema", () => {

@@ -44,6 +44,10 @@ export type FollowUpInput = {
   hasLog: boolean;
   // From the reader's own attendee row. Null means they never said either way.
   confirmedAttendance: boolean | null;
+  // Migration 061. Whether the YOUNG PERSON is taking part — a different question from every
+  // other field here, all of which are about the READER. Null means nobody has said, and it is
+  // NEVER INFERRED.
+  youthAttended: boolean | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -80,6 +84,12 @@ export type FollowUpInput = {
 //    it is still being played. That is the mirror of the limitation lib/youth/coverage.ts names
 //    from the other side, where the same instant makes a game in progress read `not_expected`.
 //    Saying so in both files is what stops the next reader treating either as a bug.
+// `youthAttended` IS DELIBERATELY NOT READ HERE, AND A LATER "CONSISTENCY" EDIT IS EXACTLY WHAT
+// WOULD BREAK IT (migration 061). This answers "is this past and still a real event", and it is
+// what renders the CONTROL. A leader who turned up and found the young person absent is exactly
+// the person whose account is worth having, and hiding the button from them would be a workflow
+// rule enforced in a component — the mirror of youth-a-D1, which this header argues above at
+// length. THE PROMPT STOPS; THE DOOR STAYS OPEN.
 export function isFollowUpWritable(
   input: Pick<FollowUpInput, "eventDate" | "status">,
   asOf: Date,
@@ -93,7 +103,7 @@ export function isFollowUpWritable(
 }
 
 export function followUpState(input: FollowUpInput, asOf: Date): FollowUpState {
-  const { isAttendee, hasLog, confirmedAttendance } = input;
+  const { isAttendee, hasLog, confirmedAttendance, youthAttended } = input;
 
   // Cancelled, unreadable, or still to come — all three answered in one place, above.
   if (!isFollowUpWritable(input, asOf)) return "not_due";
@@ -103,6 +113,20 @@ export function followUpState(input: FollowUpInput, asOf: Date): FollowUpState {
   // noise. Null — never answered — reads as `logged`, because the account itself is what was
   // being waited on.
   if (hasLog) return confirmedAttendance === false ? "did_not_attend" : "logged";
+
+  // 4b. NOBODY IS BEING ASKED ABOUT A GAME THE YOUNG PERSON WAS NOT AT (migration 061).
+  //
+  // AFTER `hasLog`, AND THE ORDER IS THE RULE. A follow-up somebody ALREADY WROTE still reads
+  // `logged`: the account exists, it is a record of something that happened, and demoting it to
+  // `not_due` would hide a written pastoral note behind a fact recorded afterwards. WHAT STOPS IS
+  // THE PROMPT, NOT THE RECORD.
+  //
+  // THIS DOES NOT CONTRADICT youth-h, and the contrast is worth writing down because it looks like
+  // it does. That slice deliberately left FollowUpPanel alone so a CLOSED SEASON's unwritten
+  // follow-ups keep appearing — closing ends the ranking, not the obligation, or Close becomes a
+  // way to dismiss work a leader committed to. Here the obligation genuinely NEVER EXISTED: nobody
+  // was expected to go, so nobody is being chased. Same panel, opposite answers, different reasons.
+  if (youthAttended === false) return "not_due";
 
   // 5. Nobody is WAITING on somebody who never said they were going.
   //
