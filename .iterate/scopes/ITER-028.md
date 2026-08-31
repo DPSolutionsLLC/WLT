@@ -1,8 +1,8 @@
 # ITER-028: Closing Out a Season, and the History That Outlives It
 
 **Type:** Feature
-**Status:** Backlog
-**Plan:** _none yet_
+**Status:** In Progress
+**Plan:** plans/youth-h-season-close-and-safe-remove.md
 **Created:** 2026-08-29
 **Raised by:** the user, 2026-08-29, reviewing the scenario 057 walk: *"we need to be able to close
 out a season so the stats do not show anymore. it would still be very nice to be able to look at

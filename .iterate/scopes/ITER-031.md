@@ -1,8 +1,8 @@
 # ITER-031: Removing an Activity Destroys a Cascade Nobody Was Warned About
 
 **Type:** Bug
-**Status:** Backlog
-**Plan:** _none yet_
+**Status:** In Progress
+**Plan:** plans/youth-h-season-close-and-safe-remove.md
 **Created:** 2026-08-30
 **Found:** 2026-08-30, walking scenario 050 (`050-D1`). Not a checklist line — the walk found it.
 **Raised to product by:** the user, 2026-08-30: *"it needs to be more clear as to what you are

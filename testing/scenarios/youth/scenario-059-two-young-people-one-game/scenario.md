@@ -259,9 +259,15 @@ user rather than self-assessed. Screenshots in `testing/walk-screenshots/059/`.
   is the viewed event's title rather than the occasion's.
 - **The ICS import does not create occasions.** A leader joins imported rows by hand, which is the
   flow this scenario walks. Re-importing either feed will not link or unlink anything.
-- **The picker's day is bounded in the WARD's zone, not the reader's**, because it is a query bound
-  and must offer the same candidates to every reader. The time printed on a card is still the
-  reader's own zone — those are two different questions.
+- **The picker's day is bounded in the WARD's zone**, because it is a query bound and must offer
+  the same candidates to every reader. **CORRECTED 2026-08-30:** this note used to add *"The time
+  printed on a card is still the reader's own zone — those are two different questions."* They
+  were two different questions, and `c24d52b` gave them the same answer — a turn-up-at
+  `timestamptz` now renders in the ward's zone too, because a `"use client"` component is
+  server-rendered before hydration and on a server there is no reader, so the reader's zone
+  resolved to the server's (UTC on Vercel). The bound and the printed time are therefore now in
+  the same zone. **The reasoning for the bound is untouched** and still stands on its own: a query
+  bound must be uniformly evaluable whatever the rendering rule happens to be.
 - **The calendar marks; it does not collapse.** One card per young person still, because an
   occasion spans youth, organizations and activity types, and collapsing would leave all four of
   that page's filters without a single answer.

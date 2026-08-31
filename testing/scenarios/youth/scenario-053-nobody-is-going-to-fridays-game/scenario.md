@@ -261,8 +261,15 @@ The event-ordering defect was reviewed and **deliberately left alone**.
   stays in the schedule a leader is looking at. What must be true is only that it never registers
   as *unattended* — which is a rule in `lib/youth/coverage.ts`, tested in both directions. This was
   decided rather than overlooked; the `youth-a` retro left it open by name.
-- **The reader's own zone decides which day a card sits under** on the month grid, matching the
-  time printed on the card. The ward's zone decides what a *floating imported time means* and
-  nothing else — see `ActivityCalendar.tsx`'s header. If a card ever appears under a different day
-  from the one its own text names, that is the bug.
+- **The WARD's zone decides which day a card sits under** on the month grid, matching the time
+  printed on the card. **CORRECTED 2026-08-30 — this note said "the reader's own zone" until
+  `c24d52b`,** and cited `ActivityCalendar.tsx`'s header, which now says the opposite in as many
+  words: *"WHAT DID MOVE, 2026-08-29: the shared zone is the WARD'S, not the reader's. Both halves
+  changed together, which is what keeps the invariant true."* **The invariant itself has not
+  moved and is the whole point of the note:** a card is bucketed into a day in the SAME zone its
+  own time is printed in, so if a card ever appears under a different day from the one its own
+  text names, that is the bug. Only the shared zone changed — the reader's was unreachable, since
+  this component is server-rendered before hydration and on a server there is no reader.
+  `lib/ward/wardTimezone.ts` now answers both questions: what a floating imported time means, and
+  what day a rendered card belongs to.
 - Nothing in this scenario imports anything. Classification is scenario 054.

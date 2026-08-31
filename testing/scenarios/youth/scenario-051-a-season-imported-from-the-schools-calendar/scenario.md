@@ -11,7 +11,7 @@ prerequisites: none
 The hour is the thing this slice most likely gets wrong, and no unit test can answer whether the
 hour a leader **reads on the card** is the hour the school published. There are four conversions
 between the file and the screen — the ICS wall clock resolved against a zone, the instant stored as
-a `timestamptz`, the instant read back, and the instant rendered in the reader's own zone — and
+a `timestamptz`, the instant read back, and the instant rendered in the ward's zone — and
 `tests/lib/icsTimezone.test.ts` only proves the first two.
 
 08-youth-activities.md is blunt about the cost: *"A game showing at the wrong hour makes the whole
@@ -67,8 +67,22 @@ seven distinct code paths, and **each one states its own expected local time in 
 8. Follow **Go to the schedule** back to `/youth` — **do not reload the page.**
 9. Reload, and check the rows in Supabase: `activity_events`, `activity_calendars`, `audit_log`,
    `notifications`.
-10. Change your machine's time zone (System Settings → Date & Time), reload, and read the hours
-    again.
+10. **REPLACED 2026-08-30 — this step used to say "change your machine's time zone", and that no
+    longer tests anything.** `c24d52b` reversed the rule this scenario was written against: a
+    turn-up-at `timestamptz` renders in the **ward's** zone, not the reader's, so changing the
+    machine's zone now leaves every card unmoved. Change **the ward's** zone instead —
+    `wards.settings.timezone`, which has no editing UI until a Phase 11 admin screen, so set it
+    with the service client:
+
+    ```
+    update wards set settings = jsonb_set(settings, '{timezone}', '"Pacific/Honolulu"')
+    where id = '11111111-1111-4111-8111-111111111111';
+    ```
+
+    Reload and read the hours again on **both** the preview and `/youth`. They must move
+    **together** — before the reversal they were deliberately different zones, and the whole point
+    of the change is that they no longer can be. Restore `"America/Denver"` afterwards. Pick a zone
+    that differs by a whole number of hours from Denver so a wrong hour is unmistakable.
 
 ## Verification Checklist
 
@@ -106,8 +120,11 @@ seven distinct code paths, and **each one states its own expected local time in 
       **not** the event titles.
 - [ ] **No notification was emitted** — `notifications` for this ward is unchanged.
 - [ ] Imported rows carry a *From a schedule feed* marker on `/youth`; nothing entered by hand does.
-- [ ] Change the machine's time zone, reload, and every game still reads at the hour the school
-      published it **in the new zone** — i.e. the instants did not move, only their rendering.
+- [ ] **REWRITTEN 2026-08-30, for the reason in step 10.** Change **the ward's** zone, reload, and
+      every game still reads at the hour the school published it **as re-expressed in the new
+      ward zone** — i.e. the stored instants did not move, only their rendering. The preview and
+      `/youth` must agree, because both now format in the ward's zone; the previous version of
+      this line changed the *machine's* zone and expected a change the app no longer makes.
 - [ ] No horizontal overflow at 375px, and every **button and form control** at least 44×44.
       CORRECTED 2026-08-28: this line said "every control", which no page in this app can satisfy
       — `/roster` and `/roster/import` both surface their import as a ~20px inline text link, and
@@ -228,6 +245,12 @@ Not walked:
 deliberate difference between the preview (ward zone) and `/youth` (reader zone) was invisible in
 this walk. A tester in a different zone would see them disagree, which is correct but surprising.
 
+> **SUPERSEDED 2026-08-30.** This limitation no longer exists, because the difference it describes
+> no longer exists: `c24d52b` made `/youth` format in the ward's zone too, after the reader's-zone
+> rule was found to be unreachable on a server-rendered component and to be serving wrong hours on
+> Vercel. A tester in a different zone now sees the two screens agree. Left as written because it
+> is the record of what was true on 2026-08-28; see the Notes for the current rule.
+
 ### Addendum — 2026-08-28, the review answered and the defects fixed
 
 The five judgement questions raised from this scenario were answered by the user:
@@ -269,10 +292,16 @@ Exactly one flag on the page, on the one entry that earns it.
   checklist lines still hold, they are just one click further away. Re-dating the fixture would
   invalidate the expected local times written into every `DESCRIPTION`, so the dates are left
   alone deliberately.
-- **The preview formats in the WARD's zone; `/youth` formats in the READER's.** Both are right and
-  the difference is deliberate. On the preview the question is *"will this show at the hour the
-  school published"* — the school and the ward are in the same place. On the schedule the question
-  is *"when do I have to turn up"*, which is the rule `lib/visits/visitDates.ts` already states for
-  a `timestamptz`. If the tester's machine is in `America/Denver` the two agree and this
-  distinction is invisible; step 10 is what makes it visible.
+- **BOTH the preview and `/youth` format in the WARD's zone — and this note said the opposite
+  until 2026-08-30.** It used to read: *"The preview formats in the WARD's zone; `/youth` formats
+  in the READER's. Both are right and the difference is deliberate."* The reasoning was that a
+  preview asks *"will this show at the hour the school published"* while a schedule asks *"when do
+  I have to turn up"*, and `lib/visits/visitDates.ts` gave the second the reader's own zone. That
+  intent was right and the mechanism could not deliver it: these are `"use client"` components
+  server-rendered before hydration, and on a server there is no reader, so `undefined` took the
+  SERVER's zone — UTC on Vercel. Production served a 7:30pm Friday game as "Sat, Jan 16, 2027,
+  2:30 AM". `c24d52b` reversed it; `tests/lib/explicitTimeZone.test.ts` now refuses any formatter
+  that names no zone at all. **The consequence for this scenario is that the two screens can no
+  longer disagree**, which is why step 10 changes the ward's zone and checks that they move
+  together. A tester in any zone now sees the same hours.
 - Nothing here tests re-importing. That is scenario 052.
