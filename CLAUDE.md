@@ -730,8 +730,14 @@ Flag these when they become relevant; do not silently pick a side.
   `activity_occasions` re-linking the duplicates one game at a time by hand. The user's model,
   in their words: *import once, assign each youth once, and everything after that is an exception*.
   Migration **062** adds `activity_roster (profile_id, member_id, started_on, ended_on)` and
-  `activity_event_participation (event_id, member_id, taking_part)`; **063 is HELD BACK** and drops
-  `youth_activity_profiles.member_id` and `activity_events.youth_attended` after the deploy.
+  `activity_event_participation (event_id, member_id, taking_part)`; **063 drops
+  `youth_activity_profiles.member_id` and `activity_events.youth_attended`, and was held back until
+  after the deploy — applied 2026-08-31 once `df25b40` was live and the deployed build had been
+  walked.** That ordering is not a nicety: the running build selects both columns through
+  `ACTIVITY_PROFILE_COLUMNS` and `ACTIVITY_EVENT_COLUMNS`, and PostgREST answers a select naming a
+  missing column with a 400, so applying it early answers **every youth screen** 400 at once. The
+  `HELD_BACK_UNTIL_DEPLOYED` entry in `tests/db/migrations.test.ts` was removed in the same change,
+  and the suite's own stale-entry assertion is what caught that it had outlived its deploy.
   **`youth_activity_profiles` IS NOT RENAMED** — 191 references across 34 files make it churn that
   would bury the real change — but its MEANING is now a team, and every header on it says so.
   **EVERY EXISTING PROFILE BECAME A TEAM WITH A ROSTER OF EXACTLY ONE** (062b), which is lossless

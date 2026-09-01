@@ -111,7 +111,84 @@ that.
 
 ## Walkthrough record
 
-Not yet walked.
+### 2026-08-31 — driven by Claude (agent), screenshots for human review
+
+**The user started this walk themselves** and got as far as signing in, then handed it over. Two
+things tripped them up on the way in and are worth recording, because the next person will hit
+both: the browser autofilled `ym-president` from scenario 062 and this seed does not create that
+account (only `bishop` and `yw-president`), and `/youth/calendar` has **no sidebar entry** — it is
+reached from `/youth` or by URL.
+
+Walked on `localhost:3000` against the hosted project as `yw-president`, then again as
+`yw-secretary`. Every write read back with a service-role client. Evidence in `walk-063/`
+(git-excluded); review page published.
+
+**Ground truth at walk time** — ward zone `America/Denver`, now `2026-08-31 19:48 MDT`, Cross
+Country closed at `2026-08-26T18:00:00+00:00`.
+
+**Both answers were computed from the stored rows through the real `eventCoverage()` and
+`eventYouthAttendance()` BEFORE the browser was opened**, so the screen was compared against an
+expectation rather than allowed to explain itself. Every one matched:
+
+| Event | Computed | On screen |
+|---|---|---|
+| Choir concert 1 | `expected` (empty list) → `uncovered`, 2.0 days | "Nobody going" |
+| Choir concert 2 | `expected` (empty list) → `uncovered`, 5.0 days | "Nobody going" |
+| Choir concert 3 | `expected` (empty list) → `unassigned`, 12.0 days | "Nobody yet" |
+| Choir concert 4 | `expected` (empty list) → `unassigned`, 20.0 days | "Nobody yet" |
+| Cross country meet 3 | `no_expectation / season_closed` → `not_expected` | no badge |
+| Cross country meet 4 | `no_expectation / season_closed` → `not_expected` | no badge |
+
+**Branch 5 is doing its job on a screen.** An empty roster returns `kind: "expected"` with an
+EMPTY list, so the choir's four concerts carry real badges and are counted — and the strip reads
+*"2 home events in the next week with nobody going: Choir concert 1, Wed, Sep 2, 7:00 PM; Choir
+concert 2, Sat, Sep 5, 7:00 PM."* Strip and cards agree, and both name the same events.
+
+**The ITER-033 leak is closed on a screen.** Both post-close meets are upcoming with nobody signed
+up, and both raise nothing.
+
+**Other observed values:**
+
+- `/youth` before adding Clara: *"1 young person shown."* — Sofia with `Cross country · Finished`,
+  no percentage, and a link to `/youth/history/…`. Clara absent.
+- After adding Clara: *"2 young people shown."* — `Clara Brooks · Concert choir · 0%`, tooltip
+  *"No home games played yet, and nobody is down for the next one."* **A genuine 0%**, and Sofia's
+  card byte-identical.
+- Reopen/close proved **in both directions**: strip 2 → 3 → 2, meet 3 gaining then losing a
+  "Nobody going" badge, `closed_at` moving null → timestamp in the database.
+- The create form says *"You can leave this empty and add the young people once the schedule is
+  in."*
+- `Remove` absent on the choir (4 events); only `Close the season`.
+- **Audit rows for every mutation** (rule 6): `youth_activity_roster_added`,
+  `youth_activity_roster_removed`, `youth_activity_profile_reopened`,
+  `youth_activity_profile_closed`, each carrying ids plus member and activity names.
+- **Zero console errors** across the whole walk. No horizontal overflow; every button ≥ 44px.
+
+**0 defects.** Every one of the eight steps was performed as written, and no step described a
+state the app cannot reach — the first Phase 8 scenario for which that is true on a first walk.
+
+**A seed gap was closed mid-walk.** The Failure Behavior checklist asks for an `org_secretary`
+sign-in and no such account existed, so that check had never been performable — **the identical
+gap found in scenario 062 the same day**. `yw-secretary` (Priya Raman) was added and the check
+then walked: the choir card renders with **zero buttons**, `Add a young person` / `Close the
+season` / `Edit` all absent, while the roster, the sentence and `I'll go` stay present — `I'll go`
+correctly, because that is `youth_activities.log`, which the role holds.
+
+**Raised by the walk and NOT fixed — it is a wording judgement, and it is with the user:** the
+empty-roster sentence is unchanged for a reader who cannot act on it. An `org_secretary` sees
+*"…until **you add** the young people who play"* beside no control to add anybody. The gate is
+right; the sentence addresses an action to somebody who has no way to take it.
+
+**One checklist line contradicts itself and was left as written**, pending the user's call: *"Clara's
+pill reads a real percentage or an em dash — **never `0%`**"*, whose own parenthetical then says a
+genuine `0%` is correct here. Both halves are right — the headline is shorthand for "never a
+*meaningless* `0%`" — but read quickly it would score a correct app as a failure.
+
+**Not verified:** the deployed build (this walk was localhost only; `df25b40` was walked on
+production earlier the same evening, but 063's seed data never existed there); no real device —
+and note the mobile shots are **412px, not 375**, because the browser was running Samsung Galaxy
+device emulation which overrode the viewport; the bishopric path; and the `/youth/history` page
+for Sofia, which this scenario does not ask for.
 
 ## Notes
 

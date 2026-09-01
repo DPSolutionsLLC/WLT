@@ -7,7 +7,21 @@ _Last updated: 2026-08-31_
 ## In Progress
 Items currently being planned or actively worked.
 
-_None. ITER-030 and ITER-033 both closed 2026-08-31 in `df25b40`._
+- [ ] ITER-034 — Youth Support: the module the user actually wants → [scope](.iterate/scopes/ITER-034.md)
+  _Raised by the user 2026-08-31 after walking 062 and 063, and **this is the destination Phase 8
+  has been approximating**. The module is renamed **Youth Support**, because ward and church youth
+  activities are a given — this is about the activities OUTSIDE church, and the goal in the user's
+  own words is a leader present at **every home game at least**, making contact with the individual
+  youth while there. Manual entry becomes the primary path (**automatic school-calendar linking is
+  effectively cut**); activities gain a **parent/sub-category** shape (Basketball → Varsity / JV /
+  Freshmen) with season and girls/boys on the parent; a **photo of a schedule read by AI into a
+  draft form a person confirms**; events **lock once commitments or follow-ups exist**; re-uploading
+  a half-season shows a **summary of changes and notifies committed leaders**; seasons are
+  **remembered as recurring, never pre-created**; and the overview is organised around **current
+  activities** with filters and past seasons hidden by default.
+  **The message was INTERRUPTED partway through the navigation section — assume it is incomplete
+  and ask.** Not planned, deliberately: it is larger than youth-a…youth-j combined, and the user's
+  instruction is to stop building against a spec and start iterating inside a working app._
 
 ---
 

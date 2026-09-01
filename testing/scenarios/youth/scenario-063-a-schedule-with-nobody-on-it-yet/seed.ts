@@ -86,6 +86,21 @@ export async function seed(): Promise<void> {
     lastName: "Alvarez",
   });
 
+  // THE ACCOUNT THAT PROVES THE GATE IS A GATE. `org_secretary` holds `youth_activities.view` and
+  // `.log` and NOT `.manage`, so "Add a young person" must be ABSENT for them — not present and
+  // failing, which is the youth-a-D1 shape.
+  //
+  // Added 2026-08-31 during the walk: the Failure Behavior checklist asks for this sign-in and no
+  // such account existed, so the check could not be walked at all. The identical gap was found and
+  // closed in scenario 062 the same day.
+  await createTestUser({
+    handle: "yw-secretary",
+    role: "org_secretary",
+    org: "youngWomen",
+    firstName: "Priya",
+    lastName: "Raman",
+  });
+
   const nash = await createHousehold({ familyName: "Nash", address: "77 Bridger Street" });
   const brooks = await createHousehold({ familyName: "Brooks", address: "2201 Canyon Road" });
 

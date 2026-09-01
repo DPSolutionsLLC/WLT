@@ -7,6 +7,12 @@ open in the four rows below since 2026-08-21. The older rows are left as written
 record of what was true when each was made — but that particular item is no longer outstanding for
 any of them. What the first look found is the new `deployed-build` row.
 
+
+**Phase 8's youth work was CONFIRMED on 2026-08-31** and its rows removed from this table —
+`youth-team-roster`, `deployed-build` and `youth-empty-roster` all have confirmation records. The
+rows that remain below are older areas (talks, visits, the earlier youth slices) and are left
+exactly as written: nothing in this session produced evidence about them.
+
 | Date | Area | Commit | Status | Notes |
 |------|------|--------|--------|-------|
 | 2026-08-21 | talks-planner | 0db037f | best-yet | Scenario 012 re-walked incl. the two-browser realtime check. Closed since: realtime, the Failure Behavior checks, and scenario-008 (walked 2026-08-22, now `confirmed` under roster-picker). Still open: deployed build unopened, `sms:` untested on a real device, scenario 013 not re-walked since trimming. Supersedes the 036698c record |
