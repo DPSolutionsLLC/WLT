@@ -1,7 +1,10 @@
 # ITER-034: Youth Support — the module the user actually wants
 
 **Type:** Architecture / Product direction
-**Status:** Captured, not planned
+**Status:** PARKED 2026-08-31, captured in full
+**Parked because:** the user chose to finish the remaining phases first and refine each tool
+afterwards, from inside a working app — *"i will work on each tool to bring them into my vision."*
+Phase 8 stays exactly as built. Nothing here is cancelled; it is deferred until the build is done.
 **Plan:** none yet
 **Created:** 2026-08-31
 **Raised by:** the user, 2026-08-31, after walking scenarios 062 and 063 — *"i feel like this is

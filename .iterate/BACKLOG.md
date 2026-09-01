@@ -7,7 +7,7 @@ _Last updated: 2026-08-31_
 ## In Progress
 Items currently being planned or actively worked.
 
-- [ ] ITER-034 — Youth Support: the module the user actually wants → [scope](.iterate/scopes/ITER-034.md)
+- [ ] ITER-034 — Youth Support: the module the user actually wants → [scope](.iterate/scopes/ITER-034.md) — **PARKED 2026-08-31**
   _Raised by the user 2026-08-31 after walking 062 and 063, and **this is the destination Phase 8
   has been approximating**. The module is renamed **Youth Support**, because ward and church youth
   activities are a given — this is about the activities OUTSIDE church, and the goal in the user's
@@ -20,8 +20,11 @@ Items currently being planned or actively worked.
   **remembered as recurring, never pre-created**; and the overview is organised around **current
   activities** with filters and past seasons hidden by default.
   **The message was INTERRUPTED partway through the navigation section — assume it is incomplete
-  and ask.** Not planned, deliberately: it is larger than youth-a…youth-j combined, and the user's
-  instruction is to stop building against a spec and start iterating inside a working app._
+  and ask.** Not planned, deliberately: it is larger than youth-a…youth-j combined.
+  **PARKED on the user's instruction 2026-08-31** — *"let's just kind of let things be the way they
+  are for now and move forward with the rest of the build. and then i will work on each tool to
+  bring them into my vision."* Phase 8 stays as built and shipped; this is picked up once the
+  remaining phases are in and the user has driven the whole app themselves._
 
 ---
 
