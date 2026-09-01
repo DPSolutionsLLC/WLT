@@ -45,17 +45,29 @@ export type EventCoverageInput = {
   eventDate: string;
   status: EventStatus;
   attendeeCount: number;
-  // Migration 061. Whether the YOUNG PERSON this event belongs to is taking part. Null means
-  // NOBODY HAS SAID — a third state, never a defaulted `true`, on the same reasoning
-  // `confirmed_attendance` is nullable.
+  // Whether the YOUNG PERSON is taking part. Null means NOBODY HAS SAID — a third state, never a
+  // defaulted `true`, on the same reasoning `confirmed_attendance` is nullable.
+  //
+  // ---------------------------------------------------------------------------
+  // THE NAME, THE TYPE AND THE REQUIRED-NESS ARE UNCHANGED; ONLY THE SOURCE MOVED (youth-j)
+  // ---------------------------------------------------------------------------
+  // Migration 061 stored this as a column on `activity_events`, which was correct only while an
+  // event belonged to exactly ONE young person. A team's game serves a whole roster, so migration
+  // 062d moved the fact onto `activity_event_participation` — one row per (young person, event),
+  // with the ABSENCE of a row meaning "nobody has said".
+  //
+  // On a PER-YOUNG-PERSON read it is that person's own participation row (buildSupportEvents()).
+  // On an EVENT-LEVEL read — a calendar card, which is about the whole team — it is
+  // youthAttendedForEvent()'s answer, ONE function so no screen invents its own mapping.
   //
   // NEVER INFERRED. Not from an empty attendee list, not from a cancelled sibling, not from a
-  // missing follow-up. A person knows this and nothing else does — classifyLocation.ts's refusal
-  // of near-miss matching, in a third place.
+  // missing follow-up, and — since youth-j — NOT FROM AN EMPTY ROSTER. A person knows this and
+  // nothing else does: classifyLocation.ts's refusal of near-miss matching, in a fourth place.
   //
-  // REQUIRED, NOT OPTIONAL, AND THAT IS THE MECHANISM. ProfileNeedEvent is this type and
+  // REQUIRED, NOT OPTIONAL, AND THAT IS STILL THE MECHANISM. ProfileNeedEvent is this type and
   // SupportEvent extends it, so every construction site is a compile error until it supplies the
-  // field — which is CLAUDE.md rule 9 enforced by the type checker rather than by review.
+  // field — CLAUDE.md rule 9 enforced by the type checker rather than by review. It is exactly
+  // what enumerated the sites youth-j had to change.
   youthAttended: boolean | null;
 };
 
@@ -165,6 +177,12 @@ export function eventCoverage(
 // NULL AND TRUE BOTH RETURN null, and the chip is absent. Taking part is the ordinary case, and a
 // chip on every card saying so is noise — the same argument followUpState() makes for not labelling
 // `confirmedAttendance === true`.
+//
+// CALLED ONCE PER ABSENT YOUNG PERSON SINCE youth-j, where it used to be called once per event.
+// An event belongs to a TEAM now, so a game can carry several of these chips — one naming each
+// player who is not taking part — and a card with no chips is a game everybody is at. The
+// tense-free wording is doing more work for it: it already read correctly on a past game and an
+// upcoming one, and it now has to read correctly beside two others.
 export function describeYouthAbsence(
   youthAttended: boolean | null,
   memberName: string | null,

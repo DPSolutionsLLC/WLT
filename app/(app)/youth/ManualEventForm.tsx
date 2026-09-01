@@ -56,11 +56,16 @@ export function ManualEventForm({ initialProfiles }: ManualEventFormProps) {
     initialData: initialProfiles,
   });
 
-  // The label names the youth as well as the activity, because two young people on the same team
-  // would otherwise give two identical options.
+  // THE ACTIVITY AND ITS SCHOOL, and no member name — a profile is a TEAM now (migration 062),
+  // so there is no single young person to name and the roster is what answers "who". The school
+  // is what keeps two options apart where a ward runs "Basketball" in two organizations, which is
+  // the job the member name used to do.
   const profiles = (profilesQuery.data ?? []).map((profile) => ({
     id: profile.id,
-    label: `${profile.memberName} — ${profile.activityName}`,
+    label:
+      profile.schoolOrg === null
+        ? profile.activityName
+        : `${profile.activityName} — ${profile.schoolOrg}`,
   }));
 
   const [profileId, setProfileId] = useState("");

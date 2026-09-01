@@ -662,7 +662,18 @@ Flag these when they become relevant; do not silently pick a side.
   established. On the path that *does* delete, the audit detail now carries `activityName` and
   `eventCount`; three bare ids was the other half of the defect.
 - **A YOUNG PERSON CAN BE RECORDED AS NOT TAKING PART, AND THAT IS A FOURTH LINE IN
-  `carriesCoverageExpectation()` — DECIDED 2026-08-31, BUILT.** The support percentage assumed the
+  `carriesCoverageExpectation()` — DECIDED 2026-08-31, BUILT.**
+  **SUPERSEDED IN PART 2026-08-31 by `youth-j` — see the team-and-roster entry below.** Every
+  RULE in this entry survives unchanged: the fourth exclusion, the three states,
+  never-inferred, reversibility, "the prompt stops and the door stays open", the branch before
+  the clock, and the re-import guarantee. What moved is the STORAGE and one consequence of it.
+  `youth_attended` sat on `activity_events`, which was correct only while an event belonged to
+  exactly ONE young person; a team's game serves a whole roster, so migration 062d moved the
+  fact to `activity_event_participation` and migration 063 drops the column. Two sentences
+  below are therefore no longer literally true and are kept for the record: the CHECK
+  constraint is gone with the column (its successor is that `member_id` is `not null`), and the
+  control is no longer a Yes/No pair on every card — reading as a standing question is exactly
+  what raised ITER-033. The support percentage assumed the
   young person was *at* the game and **nothing in the schema could say they were not**, so a youth
   who broke an ankle in December was measured all winter on six games nobody could have attended
   them at. That function already excluded three categories for **one sentence** — *this game could
@@ -710,6 +721,68 @@ Flag these when they become relevant; do not silently pick a side.
   one of the five construction sites was a compile error until it supplied it (rule 9 enforced by
   the type checker). A profile whose every home game is marked lands on `countedCount === 0` →
   `supportedFraction === null` → **an em dash, never `0%`**, sorting **last in both directions**.
+
+- **A TEAM HAS ONE SCHEDULE AND A ROSTER, AND THAT SUPERSEDES MIGRATION 061'S PLACEMENT —
+  DECIDED 2026-08-31, BUILT.** There was no **team** in this app, only one young person's copy of
+  one: `activity_events.profile_id` is a single FK, `activity_calendars.profile_id` is `NOT NULL`
+  (055c), and the ICS import takes a `profileId` — so eight players on a twelve-game season was
+  **eight profiles, eight imports of the same file and 96 rows for 12 real games**, with
+  `activity_occasions` re-linking the duplicates one game at a time by hand. The user's model,
+  in their words: *import once, assign each youth once, and everything after that is an exception*.
+  Migration **062** adds `activity_roster (profile_id, member_id, started_on, ended_on)` and
+  `activity_event_participation (event_id, member_id, taking_part)`; **063 is HELD BACK** and drops
+  `youth_activity_profiles.member_id` and `activity_events.youth_attended` after the deploy.
+  **`youth_activity_profiles` IS NOT RENAMED** — 191 references across 34 files make it churn that
+  would bury the real change — but its MEANING is now a team, and every header on it says so.
+  **EVERY EXISTING PROFILE BECAME A TEAM WITH A ROSTER OF EXACTLY ONE** (062b), which is lossless
+  and moved no screen on the day it applied. **There is no merge path and that is deliberate:**
+  collapsing a ward's existing duplicates would destroy one profile's events, sign-ups and
+  follow-ups, which is what `youth-h` narrowed `Remove` to prevent and what `visits-f` refused for
+  the empty bulk replace.
+  **ONE WINDOW FUNCTION, THREE INPUTS, ONE ANSWER.** `memberIsExpectedAt(membership, closedAt,
+  eventDate, wardZone)` folds *"the youth left"*, *"the youth joined late"* and *"the season was
+  closed out"* into **one rule at one scale** — and that is what closes ITER-033's
+  `ActivityCalendar` leak **by construction** rather than by remembering a fourth screen. That leak
+  was real and verified: `ActivityCalendar.tsx` and `calendar/page.tsx` contained **no reference to
+  `closedAt` at all**, so a closed team's future games raised "Nobody going" for ever. Neither file
+  mentions it now either; the window owns the rule. A `date` column and a `timestamptz` are
+  reconciled in the **ward's** zone through `wallClockToInstant`, never by
+  `eventDate.slice(0, 10)`, which is UTC and puts a 7:30pm Friday game on Saturday.
+  **THREE STATES, AND THE THIRD IS THE ABSENCE OF THE ROW.** `taking_part` is `NOT NULL` and that
+  is the **contrast** with 061 rather than a departure: 061 needed a nullable column because the
+  fact lived on a row that always exists; here the row is written only when somebody answers, so a
+  nullable column would be a second spelling of one state. **Clearing DELETES the row, and that
+  breaks no rule** — 060a's "never a delete" protects a record somebody *wrote*, and this row holds
+  no text, no account and no author's words.
+  **AN EMPTY ROSTER STAYS LOUD; A CLOSED SEASON GOES QUIET.** Both produce "zero young people
+  expected", and `eventYouthAttendance()` returns a discriminated result so they cannot be
+  collapsed by accident. A team nobody has been assigned to lands on `expected` with an **empty
+  list** and keeps ordinary coverage — because that is a **normal** state in the user's own flow,
+  and answering it "no expectation" would silently remove a freshly imported season from the
+  coverage model with no badge anywhere saying so. That is `classifyLocation.ts`'s refusal of
+  near-miss matching in a **fourth** place, and it is the branch a future tidy-up will invert;
+  `tests/lib/youthRoster.test.ts` names it and scenario 063 walks it.
+  **NO POLICY MOVED.** Both new tables carry ward-wide policies on all four verbs, matching
+  `activity_events`, `activity_calendars` and `activity_occasions` — the organization is answered
+  **once, on the profile** (054d), and 061 had already put `youth_attended` under ward-wide writes.
+  The read must also be **uniformly evaluable** (056c's rule, third sighting): the roster decides a
+  denominator, so if one reader could see a row another could not, the same game would read covered
+  to one leader and uncovered to another from the same data.
+  **`carriesCoverageExpectation()` IS NOT MODIFIED** — its four exclusions are `youth-i`'s exactly,
+  and only the SOURCE of `youthAttended` moved. `activity_occasions` survives untouched for the one
+  thing a roster cannot express: a Young Men game and a Young Women concert on the same evening.
+  **The `Remove` on a roster row is UNCONDITIONAL, unlike `youth-h`'s on an activity**, and the
+  reason is why it can be: follow-ups and private notes hang off **events**, not off a roster row,
+  so it destroys nothing a person wrote. The UI still offers *"Left the team on…"* first, because
+  recording a leaving date keeps the games they did play.
+  **`?youth=` still names a PROFILE and now resolves to the FIRST young person on its roster** — a
+  stated limitation rather than an oversight: a calendar card is a whole team's game and singles
+  nobody out, so there is no better answer to give the link. `/youth/calendar`'s young-person
+  filter became an **activity** filter and its label says so, because a control that cannot do what
+  it says is worse than one that is merely coarse.
+  **`lib/youth/policyRefusal.ts` is a new one-function module**, holding `isPolicyRefusal()` — it
+  had to leave `queries.ts`, which now imports `rosterQueries.ts` to attach a roster in its mapper,
+  and importing back would be a cycle. A second copy is how the two come to map different SQLSTATEs.
 
 - **AN UPDATE NEEDS *BOTH* HALVES OF A POLICY, AND A MIRROR THAT COPIES ONLY `using` IS WRONG —
   DECIDED 2026-08-31 (defect 060-D2).** `youth_activity_profiles_update` carries

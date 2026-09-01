@@ -84,8 +84,24 @@ const activityNotesSchema = z
   .trim()
   .max(MAX_ACTIVITY_NOTES, `Keep the notes to ${MAX_ACTIVITY_NOTES} characters.`);
 
+// ---------------------------------------------------------------------------
+// A LIST, AND AN EMPTY ONE IS ALLOWED (youth-j)
+// ---------------------------------------------------------------------------
+// This was `memberId: z.uuid(...)`, one young person per activity, because a profile WAS one
+// young person's copy of a team. A profile is a TEAM now (migration 062) and several young people
+// are on it, so the create form asks which ones.
+//
+// AN EMPTY ARRAY IS NOT REFUSED, and that is deliberate rather than lax. ITER-033's flow is
+// IMPORT ONCE, THEN ASSIGN — the user's own words — so a team with nobody on it yet is a state
+// every ward passes through on every schedule they import. Refusing it here would force a leader
+// to name the players before they have the schedule in front of them, which is exactly the
+// friction this slice exists to remove. It is made LOUD instead, in a sentence on the roster panel
+// and as ordinary uncovered coverage on the calendar, rather than quietly dropping the team's
+// games out of the coverage model (lib/youth/roster.ts's branch 5).
 export const createActivityProfileSchema = z.object({
-  memberId: z.uuid("Choose which youth this activity belongs to."),
+  memberIds: z
+    .array(z.uuid("Choose which young people are on this team."))
+    .default([]),
   activityName: activityNameSchema,
   activityType: z.enum(ACTIVITY_TYPES),
   schoolOrg: schoolOrgSchema.nullable().optional(),
@@ -95,9 +111,18 @@ export const createActivityProfileSchema = z.object({
 });
 export type CreateActivityProfileInput = z.infer<typeof createActivityProfileSchema>;
 
-// `memberId` is deliberately NOT patchable, on the precedent visit-goals set with `org_id`:
-// moving a profile onto a different youth would silently reassign every event hanging off it,
-// and the audit row would record it as an ordinary edit. Delete it and enter the right one.
+// THE ROSTER IS NOT PATCHABLE HERE, AND IT IS NOW ITS OWN RESOURCE (youth-j).
+//
+// `memberId` used to be a column on this row and was deliberately not patchable, on the precedent
+// visit-goals set with `org_id`: moving a profile onto a different youth would silently reassign
+// every event hanging off it, and the audit row would record it as an ordinary edit.
+//
+// THE SAME REASON, ARRIVING AT A BETTER SHAPE. Who is on a team lives in `activity_roster` with
+// its own routes (POST /api/youth/profiles/[id]/roster, PATCH and DELETE on
+// /api/youth/roster/[id]) and its own audit actions — `youth_activity_roster_added`, `_updated`,
+// `_removed`. So adding a player, recording that one left mid-season and taking one off by
+// mistake are three distinct, separately auditable acts rather than a field on an edit form, and
+// "when did she leave the team?" is answerable from the log.
 //
 // `orgId` is not patchable either, for the same reason and one more: policy 054d's WITH CHECK
 // permits the move, so a partial patch could hand a profile to another organization without the
@@ -202,14 +227,10 @@ export const updateActivityEventSchema = z
     location: eventLocationSchema.nullable().optional(),
     eventType: z.enum(EVENT_TYPES).optional(),
     status: z.enum(EVENT_STATUSES).optional(),
-    // Migration 061. `.nullable().optional()` — ABSENT means leave it alone, explicit `null` means
-    // clear it back to "nobody has said". The same three-way shape `location` already uses on this
-    // schema, and the reason the control is reversible without a delete.
-    //
-    // NOT ON createActivityEventSchema, deliberately: a new event is created with `null`, which is
-    // what "nobody has said" means, and a create form asking whether the young person will attend a
-    // game nobody has scheduled yet is a question with no occasion.
-    youthAttended: z.boolean().nullable().optional(),
+    // NO `youthAttended`. It was here from migration 061 until youth-j, and it moved to
+    // setParticipationSchema on PATCH /api/youth/events/[id]/participation — because it is a fact
+    // about a YOUNG PERSON AT AN EVENT rather than about the event. A team's game serves a whole
+    // roster, so a field on this schema could only ever mark everybody at once.
   })
   .superRefine((value, context) => {
     if (Object.keys(value).length === 0) {
@@ -241,6 +262,90 @@ export const listActivityEventsQuerySchema = z.object({
     .transform((value) => value === "true"),
 });
 export type ListActivityEventsQuery = z.infer<typeof listActivityEventsQuerySchema>;
+
+// ---------------------------------------------------------------------------
+// The roster: who is on a team, and for how long
+// ---------------------------------------------------------------------------
+// NO `wardId` AND NO `addedBy` ON ANY OF THESE, ever — both come from the session, which is the
+// rule this file's header states. NO `profileId` on the add: it is the route parameter.
+
+// A `date`, NEVER an instant, and that is migration 062a's decision rather than this schema's
+// convenience. "She left the team on the 15th" is a DAY — a leader recording it in April must be
+// able to name a day in February, and an instant would demand an hour nobody knows.
+//
+// `.nullable().optional()` — the three-way shape `location` already uses on this file's event
+// patch: ABSENT means leave it alone, explicit `null` means clear it back to "the whole schedule".
+// That is what makes a mistyped leaving date undoable without deleting the roster row.
+export const rosterDateSchema = z
+  .string()
+  .trim()
+  .regex(
+    /^\d{4}-\d{2}-\d{2}$/,
+    "Give the date as a day, like 2027-02-15.",
+  )
+  .nullable()
+  .optional();
+
+export const addRosterMemberSchema = z.object({
+  memberId: z.uuid("Choose which young person is joining."),
+  // Absent means they have been on the team for the whole schedule, which is the ordinary case
+  // and is what keeps assigning somebody to ONE TAP — ITER-033's stated goal. There is no sentinel
+  // date meaning "from the start".
+  startedOn: rosterDateSchema,
+});
+export type AddRosterMemberInput = z.infer<typeof addRosterMemberSchema>;
+
+// A WINDOW THAT CANNOT CONTAIN ANYTHING IS REFUSED WITH A SENTENCE.
+//
+// `endedOn` before `startedOn` would silently zero a young person's percentage — every game would
+// fall outside the window, the denominator would be nothing, and the pill would read as an em
+// dash with no explanation anywhere. That is precisely the class of bug this slice exists to
+// remove, so it is caught at the boundary rather than discovered on a card.
+//
+// THE CHECK ONLY FIRES WHEN BOTH ARE PRESENT IN THE SAME PATCH. A caller setting only `endedOn`
+// against a stored `startedOn` is not validated here — the two dates are compared again by nothing
+// downstream, and that is a deliberate limit rather than an oversight: this schema sees one
+// request, not the row. The route reads the stored row and is where the full comparison happens.
+export const updateRosterMemberSchema = z
+  .object({
+    startedOn: rosterDateSchema,
+    endedOn: rosterDateSchema,
+  })
+  .superRefine((value, context) => {
+    if (Object.keys(value).length === 0) {
+      context.addIssue({ code: "custom", message: "Nothing was changed." });
+      return;
+    }
+
+    if (
+      typeof value.startedOn === "string" &&
+      typeof value.endedOn === "string" &&
+      value.endedOn < value.startedOn
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["endedOn"],
+        message: "They cannot leave the team before they joined it.",
+      });
+    }
+  });
+export type UpdateRosterMemberInput = z.infer<typeof updateRosterMemberSchema>;
+
+// ---------------------------------------------------------------------------
+// Is this young person taking part?
+// ---------------------------------------------------------------------------
+// NO `eventId` — it is the route parameter. NO `recordedBy` — it comes from the session.
+//
+// `takingPart: null` CLEARS THE ROW, and that is the way back that is not the opposite claim.
+// Pressing the active answer again sends `null`, so a mark made on the wrong game — or on the
+// right game for the wrong young person — is undone to "NOBODY HAS SAID" rather than to "they
+// were there", which is a different claim nobody made. Migration 061's reversibility rule kept
+// verbatim, on storage where the third state is the absence of the row (migration 062d).
+export const setParticipationSchema = z.object({
+  memberId: z.uuid("Choose which young person this is about."),
+  takingPart: z.boolean().nullable(),
+});
+export type SetParticipationInput = z.infer<typeof setParticipationSchema>;
 
 // ---------------------------------------------------------------------------
 // Who is going

@@ -35,7 +35,7 @@ const SECOND_UUID = "8a2b4c6d-1e3f-4a5b-8c7d-9e0f1a2b3c4d";
 
 function profile(overrides: Record<string, unknown> = {}) {
   return {
-    memberId: VALID_UUID,
+    memberIds: [VALID_UUID],
     activityName: "Varsity basketball",
     activityType: "sport",
     ...overrides,
@@ -179,7 +179,7 @@ describe("createActivityProfileSchema", () => {
   it("accepts the minimum a profile needs", () => {
     const result = createActivityProfileSchema.parse(profile());
 
-    expect(result.memberId).toBe(VALID_UUID);
+    expect(result.memberIds).toEqual([VALID_UUID]);
     expect(result.activityType).toBe("sport");
   });
 
@@ -198,9 +198,34 @@ describe("createActivityProfileSchema", () => {
       .toBe(false);
   });
 
-  it("refuses a memberId that is not a uuid", () => {
-    expect(createActivityProfileSchema.safeParse(profile({ memberId: "someone" })).success)
+  it("refuses a memberId in memberIds that is not a uuid", () => {
+    expect(createActivityProfileSchema.safeParse(profile({ memberIds: ["someone"] })).success)
       .toBe(false);
+  });
+
+  // A LIST, AND AN EMPTY ONE IS ALLOWED (youth-j). ITER-033's flow is IMPORT ONCE, THEN ASSIGN, so
+  // a team with nobody on it yet is a state every ward passes through — refusing it here would
+  // force a leader to name the players before they have the schedule in front of them.
+  it("accepts an empty memberIds, and defaults to one when the key is absent", () => {
+    expect(createActivityProfileSchema.parse(profile({ memberIds: [] })).memberIds).toEqual([]);
+
+    const { memberIds: _ignored, ...withoutKey } = profile();
+    expect(createActivityProfileSchema.parse(withoutKey).memberIds).toEqual([]);
+  });
+
+  // `memberId` — THE OLD SINGULAR KEY — IS SILENTLY STRIPPED, and that is asserted rather than
+  // left to be discovered. Zod drops unknown keys, so a caller still sending the pre-youth-j shape
+  // gets a 201 and a team with NOBODY on it. That is the right behaviour (an empty roster is
+  // legitimate) but it is a trap worth pinning: the failure is a missing player, not an error.
+  it("ignores the old singular memberId rather than reading it", () => {
+    const { memberIds: _ignored, ...withoutKey } = profile();
+    const result = createActivityProfileSchema.parse({
+      ...withoutKey,
+      memberId: "3f8ec7a4-1c6f-4f5b-9c2e-6f1c9a4b7d21",
+    });
+
+    expect(result.memberIds).toEqual([]);
+    expect("memberId" in result).toBe(false);
   });
 
   it("accepts an explicit null on every optional text field", () => {
@@ -349,51 +374,32 @@ describe("updateActivityEventSchema", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // `youthAttended` — THREE STATES PLUS ABSENCE, WHICH IS FOUR MEANINGS (migration 061)
+  // `youthAttended` IS GONE FROM THIS SCHEMA (youth-j), AND ITS ABSENCE IS ASSERTED
   // ---------------------------------------------------------------------------
-  it.each([true, false, null])("accepts %s", (youthAttended) => {
-    const result = updateActivityEventSchema.safeParse({ youthAttended });
-
-    expect(result.success).toBe(true);
-    expect(result.success && result.data.youthAttended).toBe(youthAttended);
-  });
-
-  // ABSENT MEANS LEAVE IT ALONE, and updateActivityEvent()'s `!== undefined` test is what turns
-  // that into a no-op rather than a clear.
-  it("leaves the key ABSENT when it is not sent", () => {
-    const result = updateActivityEventSchema.safeParse({ status: "cancelled" });
-
-    expect(result.success).toBe(true);
-    expect(result.success && "youthAttended" in result.data).toBe(false);
-  });
-
-  // A BOOLEAN, NEVER A STRING OR A NUMBER. `"false"` and `0` are both truthy-or-falsy in the
-  // wrong direction somewhere downstream, and a coercing schema is how one of them arrives.
-  it.each(["false", "true", 0, 1])("refuses %s", (youthAttended) => {
-    expect(updateActivityEventSchema.safeParse({ youthAttended }).success).toBe(false);
-  });
-
-  // EXPLICIT NULL IS A CHANGE. It clears the answer back to "nobody has said", which is what makes
-  // the control reversible — so the "Nothing was changed" refinement must not eat it.
-  it("passes the Nothing-was-changed guard on its own with an explicit null", () => {
-    const result = updateActivityEventSchema.safeParse({ youthAttended: null });
-
-    expect(result.success).toBe(true);
-  });
-
-  // NOT ON THE CREATE SCHEMA, deliberately: a new event is created with null, and a create form
-  // asking whether a young person will attend a game nobody has scheduled is a question with no
-  // occasion.
-  it("is not a field createActivityEventSchema accepts", () => {
-    const result = createActivityEventSchema.safeParse({
-      profileId: "3f8ec7a4-1c6f-4f5b-9c2e-6f1c9a4b7d21",
-      title: "Game against Roosevelt",
-      eventDate: "2027-01-16T02:30:00.000Z",
+  // It moved to setParticipationSchema, on PATCH /api/youth/events/[id]/participation, because it
+  // is a fact about a YOUNG PERSON AT AN EVENT rather than about the event. A team's game serves a
+  // whole roster (migration 062), so a field here could only ever mark everybody at once.
+  //
+  // ASSERTED RATHER THAN DELETED. A schema that silently ignores a key it used to accept is how a
+  // client goes on sending one and believing it took effect — the roster-b lesson, on a write
+  // path. Zod strips unknown keys, so this proves the value does not reach `data` and the route
+  // therefore cannot write it.
+  it("no longer accepts youthAttended, and drops it rather than writing it", () => {
+    const result = updateActivityEventSchema.safeParse({
+      status: "cancelled",
       youthAttended: false,
     });
 
     expect(result.success).toBe(true);
     expect(result.success && "youthAttended" in result.data).toBe(false);
+  });
+
+  // ON ITS OWN IT IS NOT A CHANGE AT ALL. With the field stripped, the object is empty, and the
+  // Nothing-was-changed guard is what stops a no-op PATCH reporting success.
+  it("refuses a patch carrying ONLY youthAttended", () => {
+    const result = updateActivityEventSchema.safeParse({ youthAttended: false });
+
+    expect(result.success).toBe(false);
   });
 });
 

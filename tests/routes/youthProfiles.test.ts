@@ -54,8 +54,9 @@ const PROFILES_URL = "http://localhost/api/youth/profiles";
 
 type ProfileBody = {
   id: string;
-  memberId: string;
-  memberName: string;
+  // WHO IS ON THE TEAM (youth-j). `memberId`/`memberName` are gone from ActivityProfile —
+  // a profile is a TEAM now and its people live on `activity_roster`.
+  roster: { memberId: string; memberName: string }[];
   orgId: string | null;
   activityName: string;
   activityType: string;
@@ -95,6 +96,9 @@ describe("/api/youth/profiles", () => {
   let wardId: string;
 
   let youthId: string;
+  // A SECOND YOUNG PERSON IN WARD A, so a team of TWO can be created — the shape youth-j exists
+  // for, and one a fixture with a single youth cannot express.
+  let secondYouthId: string;
   let wardBYouthId: string;
   let rsProfileId: string;
   let wardBOrganizationId: string;
@@ -163,6 +167,13 @@ describe("/api/youth/profiles", () => {
           status: "active",
         },
         {
+          ward_id: wardId,
+          first_name: "Cal",
+          last_name: `Youth2${fixtures.runId}`,
+          category: "youth",
+          status: "active",
+        },
+        {
           ward_id: fixtures.wardBId,
           first_name: "Bo",
           last_name: `YouthB${fixtures.runId}`,
@@ -170,11 +181,12 @@ describe("/api/youth/profiles", () => {
           status: "active",
         },
       ])
-      .select("id, ward_id");
+      .select("id, ward_id, first_name");
     if (memberError) throw new Error(memberError.message);
 
-    youthId = members!.find((row) => row.ward_id === wardId)!.id;
-    wardBYouthId = members!.find((row) => row.ward_id === fixtures.wardBId)!.id;
+    youthId = members!.find((row) => row.first_name === "Ada")!.id;
+    secondYouthId = members!.find((row) => row.first_name === "Cal")!.id;
+    wardBYouthId = members!.find((row) => row.first_name === "Bo")!.id;
 
     // A profile owned by an organization the Elders Quorum does not belong to, so the read
     // assertion has something that could only come from a ward-wide policy.
@@ -183,7 +195,6 @@ describe("/api/youth/profiles", () => {
       .insert({
         ward_id: wardId,
         org_id: fixtures.reliefSocietyId,
-        member_id: youthId,
         activity_name: `RS choir ${fixtures.runId}`,
         activity_type: "performance",
       })
@@ -191,6 +202,15 @@ describe("/api/youth/profiles", () => {
       .single();
     if (rsError) throw new Error(rsError.message);
     rsProfileId = rsProfile.id;
+
+    // A TEAM OF ONE, so the roster assertion below has a name to find. This is the shape
+    // migration 062b backfilled onto every profile that already existed.
+    const { error: rsRosterError } = await fixtures.service.from("activity_roster").insert({
+      ward_id: wardId,
+      profile_id: rsProfileId,
+      member_id: youthId,
+    });
+    if (rsRosterError) throw new Error(rsRosterError.message);
   }, 180_000);
 
   afterAll(async () => {
@@ -213,14 +233,19 @@ describe("/api/youth/profiles", () => {
       expect(profiles.some((profile) => profile.id === rsProfileId)).toBe(true);
     });
 
-    it("carries the youth's name from the named embed", async () => {
+    // THE NAME NOW ARRIVES THROUGH THE ROSTER (youth-j), from lib/youth/rosterQueries.ts's named
+    // embed rather than from one on the profile itself. A profile is a TEAM, so the answer is a
+    // LIST — and a team of one is what every pre-youth-j profile became.
+    it("carries the roster, with each young person's name", async () => {
       await actAs(fixtures, "eqPresident");
 
       const { body } = await callGet();
       const profiles = body.profiles as ProfileBody[];
       const found = profiles.find((profile) => profile.id === rsProfileId);
 
-      expect(found?.memberName).toBe(`Ada Youth${fixtures.runId}`);
+      expect(found?.roster.map((member) => member.memberName)).toEqual([
+        `Ada Youth${fixtures.runId}`,
+      ]);
     });
 
     it("refuses a role holding none of the youth permissions", async () => {
@@ -233,11 +258,80 @@ describe("/api/youth/profiles", () => {
   });
 
   describe("creating", () => {
+    // ---------------------------------------------------------------------------
+    // A TEAM, WITH ITS ROSTER, IN ONE REQUEST (youth-j)
+    // ---------------------------------------------------------------------------
+    // `memberId: string` became `memberIds: string[]`, because a profile is a TEAM now. The two
+    // cases below are the two shapes ITER-033's flow produces, and BOTH must work.
+    it("writes a roster row for every memberId, in one request", async () => {
+      await actAs(fixtures, "eqPresident");
+
+      const { status, body } = await callPost({
+        memberIds: [youthId, secondYouthId],
+        activityName: `Two players ${fixtures.runId}`,
+        activityType: "sport",
+      });
+
+      expect(status).toBe(201);
+      const profile = profileFrom(body);
+      created.push(profile.id);
+
+      // THE RESPONSE CARRIES THE ROSTER, so the page that just created the team can render it
+      // without a second fetch.
+      expect(profile.roster.map((member) => member.memberId).sort()).toEqual(
+        [youthId, secondYouthId].sort(),
+      );
+
+      // AND THE ROWS ARE REALLY THERE, read back with the service client rather than trusted off
+      // the response body.
+      const { data: stored } = await fixtures.service
+        .from("activity_roster")
+        .select("member_id")
+        .eq("profile_id", profile.id);
+
+      expect((stored ?? []).map((row) => row.member_id).sort()).toEqual(
+        [youthId, secondYouthId].sort(),
+      );
+    });
+
+    // ---------------------------------------------------------------------------
+    // AN EMPTY ROSTER IS A LEGITIMATE CREATE, AND THE TEAM IS READABLE AFTERWARDS
+    // ---------------------------------------------------------------------------
+    // ITER-033's flow is IMPORT ONCE, THEN ASSIGN — the user's own words — so a team with nobody
+    // on it yet is a state every ward passes through on every schedule they import. Refusing it
+    // would force a leader to name the players before they have the schedule in front of them,
+    // which is exactly the friction this slice exists to remove.
+    //
+    // The state is made LOUD rather than refused: RosterPanel says so in a sentence, and
+    // lib/youth/roster.ts's branch 5 keeps the team's games on ordinary coverage.
+    it("accepts an empty memberIds and leaves the team readable", async () => {
+      await actAs(fixtures, "eqPresident");
+
+      const { status, body } = await callPost({
+        memberIds: [],
+        activityName: `Nobody yet ${fixtures.runId}`,
+        activityType: "sport",
+      });
+
+      expect(status).toBe(201);
+      const profile = profileFrom(body);
+      created.push(profile.id);
+
+      expect(profile.roster).toEqual([]);
+
+      // READABLE, which is the half that matters: a team nobody can find is not a team you can
+      // assign anybody to.
+      const { body: listBody } = await callGet();
+      const profiles = listBody.profiles as ProfileBody[];
+
+      expect(profiles.some((row) => row.id === profile.id)).toBe(true);
+    });
+
     it("stamps an org president's own organization when the body names none", async () => {
       await actAs(fixtures, "eqPresident");
 
       const { status, body } = await callPost({
-        memberId: youthId,
+        memberIds: [youthId],
         activityName: `EQ basketball ${fixtures.runId}`,
         activityType: "sport",
       });
@@ -254,7 +348,7 @@ describe("/api/youth/profiles", () => {
       await actAs(fixtures, "eqPresident");
 
       const { status, body } = await callPost({
-        memberId: youthId,
+        memberIds: [youthId],
         activityName: `EQ track ${fixtures.runId}`,
         activityType: "sport",
         orgId: fixtures.eldersQuorumId,
@@ -273,7 +367,7 @@ describe("/api/youth/profiles", () => {
       await actAs(fixtures, "eqPresident");
 
       const { status, body } = await callPost({
-        memberId: youthId,
+        memberIds: [youthId],
         activityName: `Forged RS ${fixtures.runId}`,
         activityType: "performance",
         orgId: fixtures.reliefSocietyId,
@@ -288,7 +382,7 @@ describe("/api/youth/profiles", () => {
       await actAs(fixtures, "wardCouncilMember");
 
       const { status, body } = await callPost({
-        memberId: youthId,
+        memberIds: [youthId],
         activityName: `Council debate ${fixtures.runId}`,
         activityType: "academic",
       });
@@ -317,7 +411,7 @@ describe("/api/youth/profiles", () => {
       await actAs(fixtures, "bishop");
 
       const { status, body } = await callPost({
-        memberId: youthId,
+        memberIds: [youthId],
         activityName: `Bishop for RS ${fixtures.runId}`,
         activityType: "performance",
         orgId: fixtures.reliefSocietyId,
@@ -334,7 +428,7 @@ describe("/api/youth/profiles", () => {
       await actAs(fixtures, "bishop");
 
       const { status, body } = await callPost({
-        memberId: youthId,
+        memberIds: [youthId],
         activityName: `Bishop ward-wide ${fixtures.runId}`,
         activityType: "community",
       });
@@ -352,7 +446,7 @@ describe("/api/youth/profiles", () => {
       await actAs(fixtures, "bishop");
 
       const { status, body } = await callPost({
-        memberId: youthId,
+        memberIds: [youthId],
         activityName: `Cross ward ${fixtures.runId}`,
         activityType: "sport",
         orgId: wardBOrganizationId,
@@ -366,7 +460,7 @@ describe("/api/youth/profiles", () => {
       await actAs(fixtures, "eqSecretary");
 
       const { status } = await callPost({
-        memberId: youthId,
+        memberIds: [youthId],
         activityName: `Secretary ${fixtures.runId}`,
         activityType: "sport",
       });
@@ -378,7 +472,7 @@ describe("/api/youth/profiles", () => {
       await actAs(fixtures, "eqPresident");
 
       const { status } = await callPost({
-        memberId: wardBYouthId,
+        memberIds: [wardBYouthId],
         activityName: `Ward B youth ${fixtures.runId}`,
         activityType: "sport",
       });
@@ -392,7 +486,7 @@ describe("/api/youth/profiles", () => {
 
       await actAs(fixtures, "eqPresident");
       const { status, body } = await callPost({
-        memberId: youthId,
+        memberIds: [youthId],
         activityName: `Audited ${fixtures.runId}`,
         activityType: "sport",
       });
@@ -410,7 +504,7 @@ describe("/api/youth/profiles", () => {
     beforeAll(async () => {
       await actAs(fixtures, "eqPresident");
       const { body } = await callPost({
-        memberId: youthId,
+        memberIds: [youthId],
         activityName: `Editable ${fixtures.runId}`,
         activityType: "sport",
       });
@@ -477,7 +571,7 @@ describe("/api/youth/profiles", () => {
     it("removes the author's own profile and audits it", async () => {
       await actAs(fixtures, "eqPresident");
       const { body } = await callPost({
-        memberId: youthId,
+        memberIds: [youthId],
         activityName: `Removable ${fixtures.runId}`,
         activityType: "sport",
       });
@@ -536,7 +630,6 @@ describe("/api/youth/profiles", () => {
             // 054d's DELETE admits them through `entered_by`; 057c's SELECT does not mention it.
             ward_id: wardId,
             org_id: fixtures.reliefSocietyId,
-            member_id: youthId,
             activity_name: `Reassigned with follow-up ${fixtures.runId}`,
             activity_type: "sport",
             entered_by: fixtures.user("eqPresident").id,
@@ -544,14 +637,12 @@ describe("/api/youth/profiles", () => {
           {
             ward_id: wardId,
             org_id: fixtures.eldersQuorumId,
-            member_id: youthId,
             activity_name: `EQ events only ${fixtures.runId}`,
             activity_type: "sport",
           },
           {
             ward_id: wardId,
             org_id: fixtures.eldersQuorumId,
-            member_id: youthId,
             activity_name: `EQ empty ${fixtures.runId}`,
             activity_type: "sport",
           },

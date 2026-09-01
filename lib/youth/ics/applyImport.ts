@@ -38,6 +38,24 @@ import type { Database } from "@/types/database";
 //                                          different event (lib/validation/youth.ts says so too)
 //
 // ---------------------------------------------------------------------------
+// PARTICIPATION IS NOW PROTECTED BY THE SCHEMA RATHER THAN BY THIS LIST (youth-j)
+// ---------------------------------------------------------------------------
+// Migration 061 put "is the young person taking part?" on `activity_events`, so keeping it out of
+// `ImportedEventPatch` was a DISCIPLINE — a column somebody had to remember not to add, on a
+// patch that already updates four of its neighbours.
+//
+// Migration 062d moved the fact to `activity_event_participation`, a DIFFERENT TABLE that this
+// module does not write to and cannot reach. So a young person recorded as not taking part
+// survives every future import of the same file BY CONSTRUCTION, not by review. Said here rather
+// than left to be rediscovered: the guarantee got stronger and the list got shorter, and those
+// two facts belong together.
+//
+// A TEAM IS IMPORTED ONCE FOR EVERYBODY ON IT. `profileId` names a TEAM now, so one file against
+// one activity serves its whole roster — which is what removed eight imports of one schedule and
+// is the reason youth-j exists. This module needed no change for it: it already wrote events
+// against a profile and never against a young person.
+//
+// ---------------------------------------------------------------------------
 // THERE IS NO TRANSACTION HERE, AND THAT IS NOT AN OVERSIGHT
 // ---------------------------------------------------------------------------
 // The roster import has `apply_roster_import` (migration 022) because it spanned households,

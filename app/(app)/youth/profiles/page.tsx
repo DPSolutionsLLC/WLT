@@ -14,6 +14,7 @@ import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import { readHomeVenues } from "@/lib/ward/homeVenues";
 import { listAttendeesForEvents } from "@/lib/youth/attendees";
 import { listActivityEvents, listActivityProfiles } from "@/lib/youth/queries";
+import { listParticipationForEvents } from "@/lib/youth/rosterQueries";
 
 // Managing the activities themselves — the screen /youth was until youth-e, moved here unchanged.
 //
@@ -93,11 +94,18 @@ export default async function YouthActivityProfilesPage() {
 
   // AFTER the events, because it needs their ids — one query for the whole schedule rather than
   // one per card (lib/youth/attendees.ts). An empty list short-circuits without a round trip.
-  const attendeesByEvent = await listAttendeesForEvents(
-    user.wardId,
-    events.map((event) => event.id),
-    supabase,
-  );
+  const [attendeesByEvent, participationByEvent] = await Promise.all([
+    listAttendeesForEvents(
+      user.wardId,
+      events.map((event) => event.id),
+      supabase,
+    ),
+    listParticipationForEvents(
+      user.wardId,
+      events.map((event) => event.id),
+      supabase,
+    ),
+  ]);
 
   const organizationOptions = organizations.map((organization) => ({
     id: organization.id,
@@ -161,6 +169,7 @@ export default async function YouthActivityProfilesPage() {
         initialEvents={events}
         initialProfiles={profiles}
         initialAttendees={Object.fromEntries(attendeesByEvent)}
+        initialParticipation={Object.fromEntries(participationByEvent)}
         // Empty by construction on first paint: the server rendered the UPCOMING view, where a
         // follow-up is never due. It seeds the shared query so the widened view fills in from one
         // fetch rather than from a prop that never refetches (youth-a-D2).

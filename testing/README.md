@@ -124,7 +124,16 @@ the actual value — a timestamp, a count, the exact string — not the word "pa
 Two things worth reading back on almost every walk:
 
 - **`audit_log`** filtered to this ward and module. Every mutation writes one (CLAUDE.md rule 6),
-  and it must carry ids and short descriptions — **never a member's name** (rule 8).
+  and it must carry **ids** so the row is traceable. It may also carry a short human-readable
+  description — an activity's name, an event's title, **a member's own name** — and several routes
+  deliberately do, because "why did Ethan's number move?" should be answerable from the log
+  without joining four tables. `writeAuditLog()` runs `redactSensitive()` over the detail either
+  way.
+  **What must never appear is a SECRET** (rule 8): a token, a key, a PIN. Nor anything rule 5
+  calls private forever — the text of a private note.
+  *This line used to read "never a member's name", which no route has obeyed since `youth-h` and
+  which the scenario 062 walk caught contradicting the shipped decision. The rule it was reaching
+  for is the secrets one.*
 - **The row you just wrote**, to prove a replace replaced rather than inserted, or that a refused
   write genuinely wrote nothing. An RLS-denied UPDATE is a zero-row success, not an error.
 

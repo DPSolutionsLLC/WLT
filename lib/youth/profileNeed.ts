@@ -1,5 +1,15 @@
 import { eventCoverage, type EventCoverageInput } from "@/lib/youth/coverage";
-import { coverageRank, type CoverageState } from "@/types/domain";
+import {
+  memberIsExpectedAt,
+  type EventParticipation,
+  type RosterMember,
+} from "@/lib/youth/roster";
+import {
+  coverageRank,
+  type CoverageState,
+  type EventStatus,
+  type EventType,
+} from "@/types/domain";
 
 // One young person's standing, computed from their events.
 //
@@ -106,6 +116,19 @@ export type ProfileNeed = {
 // Both `isExpectedPast` and `isExpectedNext` are this predicate plus a side of the clock — the
 // support percentage counts a past game and the next one by the same rule, and a second copy of
 // "which events carry an expectation" is exactly what would let somebody retune one of them.
+//
+// ---------------------------------------------------------------------------
+// NOT MODIFIED BY youth-j, AND THAT IS THE SINGLE MOST IMPORTANT "DO NOT TOUCH" IN THAT SLICE
+// ---------------------------------------------------------------------------
+// The four exclusions are exactly the ones youth-i left here, unchanged. What moved is only the
+// SOURCE of the `youthAttended` field: it used to be a column on the event
+// (`activity_events.youth_attended`, migration 061) and it is now a PARTICIPATION ROW for this
+// (young person, event) pair (`activity_event_participation`, migration 062d), resolved by
+// buildSupportEvents() below.
+//
+// That is what makes the slice a move rather than a rewrite: an event serves a whole roster now,
+// so one team-mate being ill says nothing about the other — but the question this function asks
+// of a single young person, and every answer it gives, is identical.
 function carriesCoverageExpectation(event: ProfileNeedEvent): boolean {
   if (event.status === "cancelled") return false;
   if (event.youthAttended === false) return false;
@@ -291,6 +314,81 @@ export type SupportEvent = ProfileNeedEvent & {
   // two would make a game nobody has answered for read as a game nobody went to.
   confirmedAttendeeCount: number;
 };
+
+// The shapes buildSupportEvents() reads, declared STRUCTURALLY rather than imported from
+// lib/youth/queries.ts or lib/youth/attendees.ts. Both of those are SERVER-ONLY — they import
+// next/headers — and this module renders in the browser. youth-c recorded that `npm run build`
+// catches exactly that import where lint, typecheck and 2982 tests do not.
+export type SupportEventSource = {
+  id: string;
+  eventType: EventType;
+  eventDate: string;
+  status: EventStatus;
+};
+
+export type SupportAttendeeSource = {
+  confirmedAttendance: boolean | null;
+};
+
+// ---------------------------------------------------------------------------
+// THE ONE PLACE A `SupportEvent[]` IS BUILT. THREE SITES BECOMING ONE IS THE POINT.
+// ---------------------------------------------------------------------------
+// It was constructed in YouthOverview, in /youth/history/[member_id]/page.tsx, and implicitly a
+// third time in the calendar — three copies of one mapping, each free to drift. youth-e is what
+// that costs: a value carried the state and the date but not the COUNT, and every covered card
+// read "Covered · 0" above an event card reading "Covered · 1". ITER-033 Q5 predicted this
+// collapse by name.
+//
+// ---------------------------------------------------------------------------
+// THE MEMBERSHIP WINDOW IS APPLIED HERE, AND IT IS WHAT MAKES TWO TEAM-MATES DIFFERENT
+// ---------------------------------------------------------------------------
+// One team, one schedule, one set of event rows — and two young people on it get two DIFFERENT
+// `SupportEvent[]` out of them, because `memberIsExpectedAt()` filters to each one's own window.
+// A youth who joined in January is not measured on December's games; one who left in February is
+// not measured on March's, and the team's percentage for everybody else does not move. That is
+// the headline behaviour of youth-j and it was unprovable before it.
+//
+// The window rule lives in lib/youth/roster.ts and is called from here rather than restated —
+// one predicate, one place (visits-b, visits-f, ITER-022).
+export function buildSupportEvents(
+  membership: RosterMember,
+  profileClosedAt: string | null,
+  events: readonly SupportEventSource[],
+  attendeesByEvent: ReadonlyMap<string, readonly SupportAttendeeSource[]>,
+  participationByEvent: ReadonlyMap<string, readonly EventParticipation[]>,
+  wardTimeZone: string,
+): SupportEvent[] {
+  return events
+    .filter((event) =>
+      memberIsExpectedAt(membership, profileClosedAt, event.eventDate, wardTimeZone),
+    )
+    .map((event) => {
+      const attendees = attendeesByEvent.get(event.id) ?? [];
+
+      // THIS YOUNG PERSON'S OWN ANSWER, and nobody else's. `undefined` — no row — is "nobody has
+      // said", which is `null` here and the ordinary state of nearly every pair (migration 062d).
+      const own = (participationByEvent.get(event.id) ?? []).find(
+        (entry) => entry.memberId === membership.memberId,
+      );
+
+      return {
+        eventType: event.eventType,
+        eventDate: event.eventDate,
+        status: event.status,
+        // HOW MANY ARE DOWN — what the coverage badge counts and what the upcoming half is about.
+        attendeeCount: attendees.length,
+        // HOW MANY SAID THEY WENT. `=== true` EXPLICITLY, and that is the whole point of the
+        // field: `confirmedAttendance` is `boolean | null`, and null means NOBODY HAS SAID EITHER
+        // WAY. A truthiness check would still be correct here, but writing it out is what stops
+        // somebody later reading null as "did not go" — which it is not, and which would make an
+        // unanswered game read as a game somebody stayed away from.
+        confirmedAttendeeCount: attendees.filter(
+          (attendee) => attendee.confirmedAttendance === true,
+        ).length,
+        youthAttended: own === undefined ? null : own.takingPart,
+      };
+    });
+}
 
 export type ActivitySupport = {
   profileId: string;
@@ -485,18 +583,44 @@ export type YouthNeed = {
   soonestNeedOn: string | null;
 };
 
-// EVERY PROFILE IS HANDED IN, RUNNING AND CLOSED, AND THE PARTITION HAPPENS HERE.
+// EVERY MEMBERSHIP IS HANDED IN, RUNNING AND CLOSED, AND THE PARTITION HAPPENS HERE.
 //
 // The caller must NOT pre-filter. YouthOverview groups its cards from the full list, because a
 // young person whose every season is finished has to keep producing a card — filtering upstream
 // would make them vanish from the ward, which is the one thing ITER-028 says must not happen.
 // Doing the split here is also what keeps the number, the sentence and the sort ONE value.
+//
+// ---------------------------------------------------------------------------
+// A MEMBERSHIP, NOT A PROFILE (youth-j)
+// ---------------------------------------------------------------------------
+// A profile is a TEAM now and several young people are on it, so "this young person's activities"
+// is a list of ROSTER ROWS rather than of profiles. `activityName` and `closedAt` ride along from
+// the team the membership points at, because both are facts about the team rather than about the
+// person, and looking them up again here would be a second answer that could disagree.
+//
+// `eventsByProfile` IS THIS YOUNG PERSON'S OWN MAP, keyed by profile id. The caller builds it with
+// buildSupportEvents() PER MEMBERSHIP, which is what applies each person's window — so two
+// team-mates hand in two different maps drawn from one set of event rows. Handing in a shared map
+// keyed by profile would give both of them the same numbers and silently undo the whole slice.
 export function youthNeed(
   member: { id: string; name: string },
-  profiles: readonly { id: string; activityName: string; closedAt: string | null }[],
+  memberships: readonly {
+    membership: RosterMember;
+    activityName: string;
+    closedAt: string | null;
+  }[],
   eventsByProfile: ReadonlyMap<string, readonly SupportEvent[]>,
   asOf: Date,
 ): YouthNeed {
+  // Flattened to the shape the rest of this function has always read: an id, a name and a closing
+  // instant. Everything below is youth-h's code unchanged, which is the point — the partition, the
+  // null rules and the sort did not move.
+  const profiles = memberships.map((entry) => ({
+    id: entry.membership.profileId,
+    activityName: entry.activityName,
+    closedAt: entry.closedAt,
+  }));
+
   // PARTITIONED ONCE. Everything below reads `running` and nothing else — the pills, the lowest
   // percentage, the upcoming count and the coverage badge. A second filter further down is how
   // the sort and the card would come to disagree.

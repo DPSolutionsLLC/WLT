@@ -29,6 +29,7 @@
 import { describe, expect, it } from "vitest";
 import {
   activitySupport,
+  buildSupportEvents,
   compareYouth,
   describeActivitySupport,
   describeNothingRunning,
@@ -42,6 +43,7 @@ import {
   type YouthNeed,
   type YouthSort,
 } from "@/lib/youth/profileNeed";
+import type { EventParticipation, RosterMember } from "@/lib/youth/roster";
 
 const ASOF = new Date("2027-01-15T12:00:00Z");
 
@@ -371,8 +373,45 @@ function supportEvent(overrides: Partial<SupportEvent> = {}): SupportEvent {
 // `closedAt: null` MEANS THE SEASON IS RUNNING, which is what every one of these fixtures is.
 // The closed cases build their own profiles inline, beside the assertion, so a reader can see
 // which half of the partition each test is about.
-const BASKETBALL = { id: "profile-basketball", activityName: "Varsity basketball", closedAt: null };
-const TRACK = { id: "profile-track", activityName: "Track and field", closedAt: null };
+// A MEMBERSHIP RATHER THAN A PROFILE, since youth-j: a profile is a TEAM and youthNeed() now takes
+// this young person's ROSTER ROWS. `activityName` and `closedAt` ride along from the team, which
+// is where both still live.
+//
+// The window is left WIDE OPEN on these fixtures — both dates null, meaning the whole schedule —
+// because every test in this block is about the arithmetic rather than about the window. The
+// window's own boundaries are asserted in tests/lib/youthRoster.test.ts and in buildSupportEvents
+// below, where the assertion is what the test is for.
+function team(
+  profileId: string,
+  activityName: string,
+  closedAt: string | null = null,
+): { membership: RosterMember; activityName: string; closedAt: string | null } {
+  return {
+    membership: {
+      rosterId: `roster-${profileId}`,
+      profileId,
+      memberId: "member-ethan",
+      memberName: "Ethan Brooks",
+      startedOn: null,
+      endedOn: null,
+    },
+    activityName,
+    closedAt,
+  };
+}
+
+// activitySupport() still takes a PROFILE — an id and a name — because it is about one team's
+// season and knows nothing about who is on it. The window is applied upstream, by
+// buildSupportEvents(), which is what keeps that function unchanged by youth-j.
+function profileOf(entry: {
+  membership: RosterMember;
+  activityName: string;
+}): { id: string; activityName: string } {
+  return { id: entry.membership.profileId, activityName: entry.activityName };
+}
+
+const BASKETBALL = team("profile-basketball", "Varsity basketball");
+const TRACK = team("profile-track", "Track and field");
 
 describe("activitySupport — the history half", () => {
   // THREE MEANINGS OF ONE COLUMN, ASSERTED SEPARATELY. `confirmed_attendance` is
@@ -381,7 +420,7 @@ describe("activitySupport — the history half", () => {
   // make the number report something nobody said.
   it("counts a past event where somebody CONFIRMED they went", () => {
     const result = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       [supportEvent({ attendeeCount: 1, confirmedAttendeeCount: 1 })],
       ASOF,
     );
@@ -393,7 +432,7 @@ describe("activitySupport — the history half", () => {
 
   it("does NOT count a leader who signed up and never answered", () => {
     const result = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       // Down for the game — `attendeeCount` is 1 — and `confirmed_attendance` still null.
       [supportEvent({ attendeeCount: 1, confirmedAttendeeCount: 0 })],
       ASOF,
@@ -405,7 +444,7 @@ describe("activitySupport — the history half", () => {
 
   it("does NOT count a leader who said they did not go", () => {
     const result = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       // A `false` on the row still leaves `confirmedAttendeeCount` at zero, which is the shape
       // YouthOverview builds with an explicit `=== true`.
       [supportEvent({ attendeeCount: 1, confirmedAttendeeCount: 0 })],
@@ -417,7 +456,7 @@ describe("activitySupport — the history half", () => {
 
   it("counts one event once however many leaders confirmed", () => {
     const result = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       [supportEvent({ attendeeCount: 3, confirmedAttendeeCount: 3 })],
       ASOF,
     );
@@ -428,7 +467,7 @@ describe("activitySupport — the history half", () => {
 
   it("reports the fraction over every past game when nothing is coming up", () => {
     const result = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       [
         supportEvent({ eventDate: daysFrom(-30), confirmedAttendeeCount: 1 }),
         supportEvent({ eventDate: daysFrom(-23) }),
@@ -443,7 +482,7 @@ describe("activitySupport — the history half", () => {
     expect(result.nextEvent).toBeNull();
     expect(result.countedCount).toBe(4);
     expect(result.supportedFraction).toBe(0.25);
-    expect(result.profileId).toBe(BASKETBALL.id);
+    expect(result.profileId).toBe(BASKETBALL.membership.profileId);
     expect(result.activityName).toBe(BASKETBALL.activityName);
   });
 });
@@ -458,7 +497,7 @@ describe("activitySupport — the history half", () => {
 describe("activitySupport — the plan half", () => {
   it("adds the next upcoming home event to the denominator", () => {
     const result = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       [
         supportEvent({ eventDate: daysFrom(-10), confirmedAttendeeCount: 1 }),
         supportEvent({ eventDate: daysFrom(5) }),
@@ -477,7 +516,7 @@ describe("activitySupport — the plan half", () => {
   // different question of the same column, and it is the half a leader can act on today.
   it("counts the next event as supported when somebody is SIGNED UP, not confirmed", () => {
     const result = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       [supportEvent({ eventDate: daysFrom(5), attendeeCount: 1, confirmedAttendeeCount: 0 })],
       ASOF,
     );
@@ -492,7 +531,7 @@ describe("activitySupport — the plan half", () => {
   // counted — otherwise importing a fixture list would move every percentage on the page.
   it("counts ONLY the soonest upcoming event, whatever else is scheduled", () => {
     const result = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       [
         supportEvent({ eventDate: daysFrom(-10), confirmedAttendeeCount: 1 }),
         supportEvent({ eventDate: daysFrom(20) }),
@@ -518,12 +557,12 @@ describe("activitySupport — the plan half", () => {
     ];
 
     const before = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       [...played, supportEvent({ eventDate: daysFrom(5), attendeeCount: 0 })],
       ASOF,
     );
     const after = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       [...played, supportEvent({ eventDate: daysFrom(5), attendeeCount: 1 })],
       ASOF,
     );
@@ -534,7 +573,7 @@ describe("activitySupport — the plan half", () => {
 
   it("reports a plan and no history when the season has not started", () => {
     const result = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       [supportEvent({ eventDate: daysFrom(5), attendeeCount: 0 })],
       ASOF,
     );
@@ -551,26 +590,26 @@ describe("activitySupport — the plan half", () => {
 // exclusion is asserted for the past half and again for the next-event half.
 describe("activitySupport — the exclusions, past and upcoming", () => {
   it("excludes an AWAY game — no coverage expectation by design", () => {
-    const result = activitySupport(BASKETBALL, [supportEvent({ eventType: "away" })], ASOF);
+    const result = activitySupport(profileOf(BASKETBALL), [supportEvent({ eventType: "away" })], ASOF);
 
     expect(result.playedCount).toBe(0);
     expect(result.supportedFraction).toBeNull();
   });
 
   it("excludes a `tbd` game — nobody classified it, so nobody could be asked", () => {
-    const result = activitySupport(BASKETBALL, [supportEvent({ eventType: "tbd" })], ASOF);
+    const result = activitySupport(profileOf(BASKETBALL), [supportEvent({ eventType: "tbd" })], ASOF);
 
     expect(result.playedCount).toBe(0);
   });
 
   it("excludes a CANCELLED game — a game called off is not a game nobody went to", () => {
-    const result = activitySupport(BASKETBALL, [supportEvent({ status: "cancelled" })], ASOF);
+    const result = activitySupport(profileOf(BASKETBALL), [supportEvent({ status: "cancelled" })], ASOF);
 
     expect(result.playedCount).toBe(0);
   });
 
   it("excludes an unreadable date", () => {
-    const result = activitySupport(BASKETBALL, [supportEvent({ eventDate: "not a date" })], ASOF);
+    const result = activitySupport(profileOf(BASKETBALL), [supportEvent({ eventDate: "not a date" })], ASOF);
 
     expect(result.playedCount).toBe(0);
   });
@@ -580,12 +619,12 @@ describe("activitySupport — the exclusions, past and upcoming", () => {
   // ---------------------------------------------------------------------------
   it("excludes a past home game the young person was NOT TAKING PART in", () => {
     const counted = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       [supportEvent({ eventDate: daysFrom(-3) })],
       ASOF,
     );
     const marked = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       [supportEvent({ eventDate: daysFrom(-3), youthAttended: false })],
       ASOF,
     );
@@ -602,7 +641,7 @@ describe("activitySupport — the exclusions, past and upcoming", () => {
   // the exclusion rule would break.
   it("moves the horizon to the game AFTER a marked next one", () => {
     const result = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       [
         supportEvent({ eventDate: daysFrom(5), youthAttended: false, attendeeCount: 1 }),
         supportEvent({ eventDate: daysFrom(12), attendeeCount: 0 }),
@@ -615,7 +654,7 @@ describe("activitySupport — the exclusions, past and upcoming", () => {
 
   it("has NO next event when the only upcoming home game is marked", () => {
     const result = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       [supportEvent({ eventDate: daysFrom(5), youthAttended: false, attendeeCount: 1 })],
       ASOF,
     );
@@ -626,7 +665,7 @@ describe("activitySupport — the exclusions, past and upcoming", () => {
   it("changes nothing for `true` or `null`", () => {
     for (const youthAttended of [true, null]) {
       const result = activitySupport(
-        BASKETBALL,
+        profileOf(BASKETBALL),
         [
           supportEvent({ eventDate: daysFrom(-3), confirmedAttendeeCount: 1, youthAttended }),
           supportEvent({ eventDate: daysFrom(5), youthAttended }),
@@ -642,7 +681,7 @@ describe("activitySupport — the exclusions, past and upcoming", () => {
 
   it("does not treat an upcoming AWAY game as the next event", () => {
     const result = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       [supportEvent({ eventDate: daysFrom(5), eventType: "away", attendeeCount: 1 })],
       ASOF,
     );
@@ -653,7 +692,7 @@ describe("activitySupport — the exclusions, past and upcoming", () => {
 
   it("does not treat an upcoming CANCELLED game as the next event", () => {
     const result = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       [
         supportEvent({ eventDate: daysFrom(2), status: "cancelled", attendeeCount: 1 }),
         supportEvent({ eventDate: daysFrom(9), attendeeCount: 0 }),
@@ -673,7 +712,7 @@ describe("activitySupport — the exclusions, past and upcoming", () => {
   // (visits-f).
   it("reports NULL, not zero, when nothing is played and nothing is coming up", () => {
     const result = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       [supportEvent({ eventType: "away" }), supportEvent({ status: "cancelled" })],
       ASOF,
     );
@@ -691,7 +730,7 @@ describe("activitySupport — the exclusions, past and upcoming", () => {
   // "least supported", which is visits-f exactly.
   it("reports NULL, not zero, when every home game is marked as not taking part", () => {
     const result = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       [
         supportEvent({ eventDate: daysFrom(-10), youthAttended: false }),
         supportEvent({ eventDate: daysFrom(-3), youthAttended: false }),
@@ -713,7 +752,7 @@ describe("activitySupport — the exclusions, past and upcoming", () => {
 describe("describeActivitySupport", () => {
   function support(overrides: Partial<ActivitySupport> = {}): ActivitySupport {
     return {
-      profileId: BASKETBALL.id,
+      profileId: BASKETBALL.membership.profileId,
       activityName: BASKETBALL.activityName,
       playedCount: 0,
       attendedCount: 0,
@@ -796,6 +835,249 @@ describe("describeActivitySupport", () => {
 
 
 // ===========================================================================
+// buildSupportEvents — ONE TEAM, ONE SCHEDULE, DIFFERENT NUMBERS PER YOUNG PERSON
+// ===========================================================================
+// THE HEADLINE BEHAVIOUR OF youth-j, AND IT WAS UNPROVABLE BEFORE IT. A profile was one young
+// person's copy of a team, so "two team-mates from one set of event rows" was not a sentence this
+// codebase could express.
+//
+// It is also the collapse of THREE construction sites into one. YouthOverview,
+// /youth/history/[member_id]/page.tsx and the calendar each built a SupportEvent[] by hand;
+// youth-e is what happens when two of three drift.
+
+const WARD_ZONE = "America/Denver";
+
+function sourceEvent(
+  id: string,
+  eventDate: string,
+  overrides: Partial<{ eventType: "home" | "away" | "tbd"; status: "upcoming" | "cancelled" }> = {},
+) {
+  return {
+    id,
+    eventDate,
+    eventType: overrides.eventType ?? ("home" as const),
+    status: overrides.status ?? ("upcoming" as const),
+  };
+}
+
+function rosterMember(overrides: Partial<RosterMember> = {}): RosterMember {
+  return {
+    rosterId: "r-1",
+    profileId: "profile-basketball",
+    memberId: "m-ethan",
+    memberName: "Ethan Brooks",
+    startedOn: null,
+    endedOn: null,
+    ...overrides,
+  };
+}
+
+// Somebody confirmed they went. Enough to make a past home game count as supported.
+const WENT = [{ confirmedAttendance: true }];
+
+describe("buildSupportEvents", () => {
+  it("includes every event when the window is open at both ends", () => {
+    const events = [
+      sourceEvent("e1", daysFrom(-20)),
+      sourceEvent("e2", daysFrom(-10)),
+      sourceEvent("e3", daysFrom(5)),
+    ];
+
+    const result = buildSupportEvents(
+      rosterMember(),
+      null,
+      events,
+      new Map(),
+      new Map(),
+      WARD_ZONE,
+    );
+
+    expect(result).toHaveLength(3);
+  });
+
+  // A YOUTH WHO JOINED IN JANUARY IS NOT MEASURED ON DECEMBER'S GAMES.
+  it("excludes events BEFORE the youth joined", () => {
+    const events = [sourceEvent("december", daysFrom(-40)), sourceEvent("january", daysFrom(-5))];
+
+    const result = buildSupportEvents(
+      // ASOF is 2027-01-15, so -5 days is the 10th and -40 is 6 December.
+      rosterMember({ startedOn: "2027-01-01" }),
+      null,
+      events,
+      new Map(),
+      new Map(),
+      WARD_ZONE,
+    );
+
+    expect(result.map((event) => event.eventDate)).toEqual([daysFrom(-5)]);
+  });
+
+  // AND ONE WHO LEFT IN FEBRUARY IS NOT MEASURED ON MARCH'S.
+  it("excludes events AFTER the youth left", () => {
+    const events = [sourceEvent("before", daysFrom(-20)), sourceEvent("after", daysFrom(20))];
+
+    const result = buildSupportEvents(
+      rosterMember({ endedOn: "2027-01-20" }),
+      null,
+      events,
+      new Map(),
+      new Map(),
+      WARD_ZONE,
+    );
+
+    expect(result.map((event) => event.eventDate)).toEqual([daysFrom(-20)]);
+  });
+
+  // ---------------------------------------------------------------------------
+  // TWO TEAM-MATES, ONE SET OF EVENT ROWS, TWO DIFFERENT ANSWERS
+  // ---------------------------------------------------------------------------
+  // The whole slice, in one assertion. Maya left mid-season, so her denominator stops there; Ethan
+  // played on, and HIS DENOMINATOR DOES NOT MOVE because of hers.
+  it("gives two team-mates different SupportEvent[] from ONE schedule", () => {
+    const events = [
+      sourceEvent("e1", daysFrom(-30)),
+      sourceEvent("e2", daysFrom(-20)),
+      sourceEvent("e3", daysFrom(-10)),
+    ];
+
+    const attendees = new Map([
+      ["e1", WENT],
+      ["e2", WENT],
+      ["e3", WENT],
+    ]);
+
+    const ethan = buildSupportEvents(
+      rosterMember({ memberId: "m-ethan" }),
+      null,
+      events,
+      attendees,
+      new Map(),
+      WARD_ZONE,
+    );
+
+    const maya = buildSupportEvents(
+      // Left before e3, which is 5 January by ASOF's clock.
+      rosterMember({ memberId: "m-maya", endedOn: "2026-12-30" }),
+      null,
+      events,
+      attendees,
+      new Map(),
+      WARD_ZONE,
+    );
+
+    expect(ethan).toHaveLength(3);
+    expect(maya).toHaveLength(2);
+
+    expect(activitySupport(profileOf(BASKETBALL), ethan, ASOF).countedCount).toBe(3);
+    expect(activitySupport(profileOf(BASKETBALL), maya, ASOF).countedCount).toBe(2);
+  });
+
+  // MARKING ONE PLAYER ABSENT MOVES ONLY THAT PLAYER'S NUMBER. This is what migration 062d's
+  // (youth, event) row exists for, and what a column on the event could never do.
+  it("reads each young person's OWN participation row and nobody else's", () => {
+    const events = [sourceEvent("e1", daysFrom(-20)), sourceEvent("e2", daysFrom(-10))];
+    const participation: ReadonlyMap<string, readonly EventParticipation[]> = new Map([
+      ["e1", [{ memberId: "m-ethan", takingPart: false }]],
+    ]);
+
+    const ethan = buildSupportEvents(
+      rosterMember({ memberId: "m-ethan" }),
+      null,
+      events,
+      new Map(),
+      participation,
+      WARD_ZONE,
+    );
+
+    const josh = buildSupportEvents(
+      rosterMember({ memberId: "m-josh" }),
+      null,
+      events,
+      new Map(),
+      participation,
+      WARD_ZONE,
+    );
+
+    expect(ethan.map((event) => event.youthAttended)).toEqual([false, null]);
+    // JOSH IS UNTOUCHED. One team-mate being ill says nothing about the other.
+    expect(josh.map((event) => event.youthAttended)).toEqual([null, null]);
+  });
+
+  // NO ROW MEANS NOBODY HAS SAID, and it must arrive as `null` rather than as `false`. Reading a
+  // missing row as "did not take part" would take every unanswered game out of every denominator.
+  it("maps a missing participation row to null, never to false", () => {
+    const result = buildSupportEvents(
+      rosterMember(),
+      null,
+      [sourceEvent("e1", daysFrom(-10))],
+      new Map(),
+      new Map(),
+      WARD_ZONE,
+    );
+
+    expect(result[0].youthAttended).toBeNull();
+  });
+
+  // `=== true` EXPLICITLY on confirmedAttendance, which is the comment buildSupportEvents carries:
+  // null means NOBODY HAS SAID EITHER WAY, and reading it as "did not go" would make an unanswered
+  // game read as one somebody stayed away from.
+  it("counts only leaders who actively said they went", () => {
+    const result = buildSupportEvents(
+      rosterMember(),
+      null,
+      [sourceEvent("e1", daysFrom(-10))],
+      new Map([
+        [
+          "e1",
+          [
+            { confirmedAttendance: true },
+            { confirmedAttendance: null },
+            { confirmedAttendance: false },
+          ],
+        ],
+      ]),
+      new Map(),
+      WARD_ZONE,
+    );
+
+    expect(result[0].attendeeCount).toBe(3);
+    expect(result[0].confirmedAttendeeCount).toBe(1);
+  });
+
+  // THE THIRD CLAUSE OF THE SAME WINDOW. A closed season excludes its later games here too, which
+  // is what makes /youth/history/[member_id] a snapshot of THEIR season rather than the team's.
+  it("excludes events after the season was closed out", () => {
+    const result = buildSupportEvents(
+      rosterMember(),
+      "2027-01-10T00:00:00.000Z",
+      [sourceEvent("before", daysFrom(-20)), sourceEvent("after", daysFrom(-2))],
+      new Map(),
+      new Map(),
+      WARD_ZONE,
+    );
+
+    expect(result.map((event) => event.eventDate)).toEqual([daysFrom(-20)]);
+  });
+
+  // A WINDOW THAT EXCLUDES EVERYTHING LEAVES `supportedFraction` NULL — an em dash, and NEVER 0%.
+  // A zero would sort the one person nobody could possibly have supported to the top of "least
+  // supported", which is visits-f exactly.
+  it("leaves supportedFraction NULL when the window excludes everything", () => {
+    const result = buildSupportEvents(
+      rosterMember({ startedOn: "2027-06-01" }),
+      null,
+      [sourceEvent("e1", daysFrom(-20)), sourceEvent("e2", daysFrom(-10))],
+      new Map(),
+      new Map(),
+      WARD_ZONE,
+    );
+
+    expect(result).toEqual([]);
+    expect(activitySupport(profileOf(BASKETBALL), result, ASOF).supportedFraction).toBeNull();
+  });
+});
+
+// ===========================================================================
 // ONE YOUNG PERSON, ACROSS SEVERAL ACTIVITIES
 // ===========================================================================
 
@@ -815,8 +1097,8 @@ describe("youthNeed", () => {
       // pill comes first.
       [TRACK, BASKETBALL],
       eventsFor({
-        [BASKETBALL.id]: [supportEvent({ confirmedAttendeeCount: 1 })],
-        [TRACK.id]: [supportEvent({ confirmedAttendeeCount: 1 })],
+        [BASKETBALL.membership.profileId]: [supportEvent({ confirmedAttendeeCount: 1 })],
+        [TRACK.membership.profileId]: [supportEvent({ confirmedAttendeeCount: 1 })],
       }),
       ASOF,
     );
@@ -835,14 +1117,14 @@ describe("youthNeed", () => {
       [BASKETBALL, TRACK],
       eventsFor({
         // 1 of 4 = 0.25
-        [BASKETBALL.id]: [
+        [BASKETBALL.membership.profileId]: [
           supportEvent({ eventDate: daysFrom(-30), confirmedAttendeeCount: 1 }),
           supportEvent({ eventDate: daysFrom(-23) }),
           supportEvent({ eventDate: daysFrom(-16) }),
           supportEvent({ eventDate: daysFrom(-9) }),
         ],
         // 3 of 4 = 0.75
-        [TRACK.id]: [
+        [TRACK.membership.profileId]: [
           supportEvent({ eventDate: daysFrom(-28), confirmedAttendeeCount: 1 }),
           supportEvent({ eventDate: daysFrom(-21), confirmedAttendeeCount: 2 }),
           supportEvent({ eventDate: daysFrom(-14), confirmedAttendeeCount: 1 }),
@@ -869,14 +1151,14 @@ describe("youthNeed", () => {
       ETHAN,
       [BASKETBALL, TRACK],
       eventsFor({
-        [BASKETBALL.id]: [supportEvent({ confirmedAttendeeCount: 1 })],
+        [BASKETBALL.membership.profileId]: [supportEvent({ confirmedAttendeeCount: 1 })],
         // Away, so it carries no coverage expectation on either side.
-        [TRACK.id]: [supportEvent({ eventDate: daysFrom(10), eventType: "away" })],
+        [TRACK.membership.profileId]: [supportEvent({ eventDate: daysFrom(10), eventType: "away" })],
       }),
       ASOF,
     );
 
-    expect(result.activities.find((a) => a.profileId === TRACK.id)?.supportedFraction).toBeNull();
+    expect(result.activities.find((a) => a.profileId === TRACK.membership.profileId)?.supportedFraction).toBeNull();
     expect(result.lowestSupport).toBe(1);
   });
 
@@ -888,13 +1170,13 @@ describe("youthNeed", () => {
       ETHAN,
       [BASKETBALL, TRACK],
       eventsFor({
-        [BASKETBALL.id]: [supportEvent({ confirmedAttendeeCount: 1 })],
-        [TRACK.id]: [supportEvent({ eventDate: daysFrom(10), attendeeCount: 0 })],
+        [BASKETBALL.membership.profileId]: [supportEvent({ confirmedAttendeeCount: 1 })],
+        [TRACK.membership.profileId]: [supportEvent({ eventDate: daysFrom(10), attendeeCount: 0 })],
       }),
       ASOF,
     );
 
-    expect(result.activities.find((a) => a.profileId === TRACK.id)?.supportedFraction).toBe(0);
+    expect(result.activities.find((a) => a.profileId === TRACK.membership.profileId)?.supportedFraction).toBe(0);
     expect(result.lowestSupport).toBe(0);
   });
 
@@ -903,8 +1185,8 @@ describe("youthNeed", () => {
       ETHAN,
       [BASKETBALL, TRACK],
       eventsFor({
-        [BASKETBALL.id]: [supportEvent({ eventType: "away" })],
-        [TRACK.id]: [],
+        [BASKETBALL.membership.profileId]: [supportEvent({ eventType: "away" })],
+        [TRACK.membership.profileId]: [],
       }),
       ASOF,
     );
@@ -917,8 +1199,8 @@ describe("youthNeed", () => {
       ETHAN,
       [BASKETBALL, TRACK],
       eventsFor({
-        [BASKETBALL.id]: [supportEvent({ eventDate: daysFrom(3) })],
-        [TRACK.id]: [
+        [BASKETBALL.membership.profileId]: [supportEvent({ eventDate: daysFrom(3) })],
+        [TRACK.membership.profileId]: [
           supportEvent({ eventDate: daysFrom(4) }),
           supportEvent({ eventDate: daysFrom(20) }),
         ],
@@ -941,10 +1223,10 @@ describe("youthNeed", () => {
       [BASKETBALL, TRACK],
       eventsFor({
         // `covered` — somebody is going, and there are two of them.
-        [BASKETBALL.id]: [supportEvent({ eventDate: daysFrom(3), attendeeCount: 2 })],
+        [BASKETBALL.membership.profileId]: [supportEvent({ eventDate: daysFrom(3), attendeeCount: 2 })],
         // `uncovered` — inside the notice window with nobody down. Worse, so it wins, and the
         // count that travels with it is its own zero rather than basketball's two.
-        [TRACK.id]: [supportEvent({ eventDate: daysFrom(4), attendeeCount: 0 })],
+        [TRACK.membership.profileId]: [supportEvent({ eventDate: daysFrom(4), attendeeCount: 0 })],
       }),
       ASOF,
     );
@@ -959,8 +1241,8 @@ describe("youthNeed", () => {
       ETHAN,
       [BASKETBALL, TRACK],
       eventsFor({
-        [BASKETBALL.id]: [supportEvent({ eventDate: daysFrom(3), attendeeCount: 2 })],
-        [TRACK.id]: [supportEvent({ eventDate: daysFrom(4), attendeeCount: 5 })],
+        [BASKETBALL.membership.profileId]: [supportEvent({ eventDate: daysFrom(3), attendeeCount: 2 })],
+        [TRACK.membership.profileId]: [supportEvent({ eventDate: daysFrom(4), attendeeCount: 5 })],
       }),
       ASOF,
     );
@@ -973,7 +1255,7 @@ describe("youthNeed", () => {
     const result = youthNeed(
       ETHAN,
       [BASKETBALL],
-      eventsFor({ [BASKETBALL.id]: [supportEvent({ eventDate: daysFrom(-3) })] }),
+      eventsFor({ [BASKETBALL.membership.profileId]: [supportEvent({ eventDate: daysFrom(-3) })] }),
       ASOF,
     );
 
@@ -1004,17 +1286,13 @@ describe("youthNeed", () => {
 // pass. A caller that pre-filtered would produce no group at all for a fully-closed young person,
 // which is exactly the vanishing ITER-028 refuses.
 
-const CLOSED_BASKETBALL = {
-  id: "profile-basketball",
-  activityName: "Varsity basketball",
-  closedAt: "2027-01-01T00:00:00Z",
-};
+const CLOSED_BASKETBALL = team(
+  "profile-basketball",
+  "Varsity basketball",
+  "2027-01-01T00:00:00Z",
+);
 
-const CLOSED_TRACK = {
-  id: "profile-track",
-  activityName: "Track and field",
-  closedAt: "2026-11-20T00:00:00Z",
-};
+const CLOSED_TRACK = team("profile-track", "Track and field", "2026-11-20T00:00:00Z");
 
 // ===========================================================================
 // EVERY HOME GAME MARKED — THE END-TO-END SHAPE, THROUGH youthNeed AND THE COMPARATOR
@@ -1028,7 +1306,7 @@ describe("youthNeed — a season where the young person is taking part in nothin
       ETHAN,
       [BASKETBALL],
       eventsFor({
-        [BASKETBALL.id]: [
+        [BASKETBALL.membership.profileId]: [
           supportEvent({ eventDate: daysFrom(-16), youthAttended: false }),
           supportEvent({ eventDate: daysFrom(-9), youthAttended: false }),
           supportEvent({ eventDate: daysFrom(6), youthAttended: false }),
@@ -1062,7 +1340,7 @@ describe("youthNeed — a season where the young person is taking part in nothin
       ETHAN,
       [BASKETBALL],
       eventsFor({
-        [BASKETBALL.id]: [
+        [BASKETBALL.membership.profileId]: [
           supportEvent({ eventDate: daysFrom(2), youthAttended: false, attendeeCount: 0 }),
           supportEvent({ eventDate: daysFrom(5), attendeeCount: 0 }),
         ],
@@ -1083,7 +1361,7 @@ describe("youthNeed — closed seasons", () => {
       ETHAN,
       [CLOSED_BASKETBALL],
       eventsFor({
-        [CLOSED_BASKETBALL.id]: [
+        [CLOSED_BASKETBALL.membership.profileId]: [
           // Eight played, one attended — 12.5%, which would lead "least supported" if it counted.
           supportEvent({ eventDate: daysFrom(-30), confirmedAttendeeCount: 1 }),
           supportEvent({ eventDate: daysFrom(-27) }),
@@ -1115,14 +1393,14 @@ describe("youthNeed — closed seasons", () => {
       [CLOSED_BASKETBALL, TRACK],
       eventsFor({
         // Closed, and dreadful — 0 of 4. If it leaked in, lowestSupport would be 0.
-        [CLOSED_BASKETBALL.id]: [
+        [CLOSED_BASKETBALL.membership.profileId]: [
           supportEvent({ eventDate: daysFrom(-30) }),
           supportEvent({ eventDate: daysFrom(-23) }),
           supportEvent({ eventDate: daysFrom(-16) }),
           supportEvent({ eventDate: daysFrom(-9) }),
         ],
         // Running, and healthy — 2 of 2.
-        [TRACK.id]: [
+        [TRACK.membership.profileId]: [
           supportEvent({ eventDate: daysFrom(-8), confirmedAttendeeCount: 1 }),
           supportEvent({ eventDate: daysFrom(-4), confirmedAttendeeCount: 2 }),
         ],
@@ -1145,8 +1423,8 @@ describe("youthNeed — closed seasons", () => {
       ETHAN,
       [CLOSED_BASKETBALL, CLOSED_TRACK],
       eventsFor({
-        [CLOSED_BASKETBALL.id]: [supportEvent({ confirmedAttendeeCount: 1 })],
-        [CLOSED_TRACK.id]: [supportEvent({ confirmedAttendeeCount: 1 })],
+        [CLOSED_BASKETBALL.membership.profileId]: [supportEvent({ confirmedAttendeeCount: 1 })],
+        [CLOSED_TRACK.membership.profileId]: [supportEvent({ confirmedAttendeeCount: 1 })],
       }),
       ASOF,
     );
@@ -1168,7 +1446,7 @@ describe("youthNeed — closed seasons", () => {
     const result = youthNeed(
       ETHAN,
       [BASKETBALL, TRACK],
-      eventsFor({ [BASKETBALL.id]: [supportEvent()], [TRACK.id]: [supportEvent()] }),
+      eventsFor({ [BASKETBALL.membership.profileId]: [supportEvent()], [TRACK.membership.profileId]: [supportEvent()] }),
       ASOF,
     );
 
@@ -1187,7 +1465,7 @@ describe("youthNeed — closed seasons", () => {
     const closedOut = youthNeed(
       ETHAN,
       [CLOSED_BASKETBALL],
-      eventsFor({ [CLOSED_BASKETBALL.id]: [supportEvent({ confirmedAttendeeCount: 1 })] }),
+      eventsFor({ [CLOSED_BASKETBALL.membership.profileId]: [supportEvent({ confirmedAttendeeCount: 1 })] }),
       ASOF,
     );
 
@@ -1265,8 +1543,8 @@ describe("activitySupport against a season's closing instant", () => {
   ];
 
   it("returns the same value however long afterwards it is computed", () => {
-    const atClosing = activitySupport(BASKETBALL, SEASON, CLOSED_ON);
-    const aMonthLater = activitySupport(BASKETBALL, SEASON, CLOSED_ON);
+    const atClosing = activitySupport(profileOf(BASKETBALL), SEASON, CLOSED_ON);
+    const aMonthLater = activitySupport(profileOf(BASKETBALL), SEASON, CLOSED_ON);
 
     expect(atClosing.supportedFraction).toBe(0.5);
     expect(aMonthLater).toEqual(atClosing);
@@ -1286,7 +1564,7 @@ describe("activitySupport against a season's closing instant", () => {
       supportEvent({ eventDate: "2026-12-27T02:30:00Z", youthAttended: false }),
     ];
 
-    const frozen = activitySupport(BASKETBALL, withAnAbsence, CLOSED_ON);
+    const frozen = activitySupport(profileOf(BASKETBALL), withAnAbsence, CLOSED_ON);
 
     // Three played rather than four, two of them attended — and the SAME instant the unmarked
     // season above is judged against, so the difference is the mark and nothing else.
@@ -1304,9 +1582,9 @@ describe("activitySupport against a season's closing instant", () => {
       supportEvent({ eventDate: "2027-02-05T02:30:00Z", attendeeCount: 0 }),
     ];
 
-    const frozen = activitySupport(BASKETBALL, withAFutureFixture, CLOSED_ON);
+    const frozen = activitySupport(profileOf(BASKETBALL), withAFutureFixture, CLOSED_ON);
     const live = activitySupport(
-      BASKETBALL,
+      profileOf(BASKETBALL),
       withAFutureFixture,
       new Date("2027-03-01T00:00:00Z"),
     );

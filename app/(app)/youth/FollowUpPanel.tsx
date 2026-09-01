@@ -131,7 +131,15 @@ export function FollowUpPanel({
   const profilesById = new Map(
     (profilesQuery.data ?? []).map((profile) => [
       profile.id,
-      { label: `${profile.memberName} · ${profile.activityName}`, orgId: profile.orgId },
+      {
+        // THE ACTIVITY, not a young person — a profile is a TEAM now (migration 062) and its
+        // roster is what answers "who". The school keeps two similarly-named teams apart.
+        label:
+          profile.schoolOrg === null
+            ? profile.activityName
+            : `${profile.activityName} · ${profile.schoolOrg}`,
+        orgId: profile.orgId,
+      },
     ]),
   );
 
@@ -167,12 +175,29 @@ export function FollowUpPanel({
           isAttendee: own !== null,
           hasLog: log !== null,
           confirmedAttendance: own?.confirmedAttendance ?? null,
-          // Migration 061. A marked game leaves this panel AUTOMATICALLY — it resolves to
-          // `not_due`, and the heading count and the two lists still come out of the ONE split
-          // below. Nobody is chased about a game the young person was never at.
+          // ---------------------------------------------------------------
+          // ALWAYS `null` HERE, AND THAT IS A DECISION RATHER THAN A GAP (youth-j)
+          // ---------------------------------------------------------------
+          // youth-i passed `event.youthAttended`, and a marked game left this panel
+          // automatically — nobody chased about a game the young person was never at.
           //
-          // A follow-up ALREADY WRITTEN still reads `logged`, so the record survives the mark.
-          youthAttended: event.youthAttended,
+          // AN EVENT SERVES A WHOLE TEAM NOW, so "was the young person there?" has no single
+          // answer at the event level, and the only honest event-level reading is
+          // youthAttendedForEvent()'s: `false` ONLY when NOBODY on the roster was expected. One
+          // absent player out of four must not silence the prompt, because somebody still went to
+          // that game and their account is still worth having.
+          //
+          // Resolving that here would mean this panel deriving a roster window per row — and the
+          // rows it is built from are the reader's OWN past events, where the useful question is
+          // "did YOU go", not "was anybody expected". A game with nobody expected at all reads
+          // `not_expected` on its card and produces no coverage alarm; leaving it in this panel
+          // costs one line a leader can dismiss by writing what happened, which is the direction
+          // youth-h chose for a closed season: CLOSING ENDS THE RANKING, NOT THE OBLIGATION.
+          //
+          // The contrast with youth-i is deliberate and is the same contrast youth-h drew: there
+          // the obligation existed and was left standing; here it is the event-level answer that
+          // has stopped being single-valued.
+          youthAttended: null,
         },
         asOfInstant,
       ),

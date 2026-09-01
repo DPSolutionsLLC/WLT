@@ -339,13 +339,27 @@ describe("youth activity attendance", () => {
       );
     });
 
-    it("notifies the assignee, naming the youth, the activity and when", async () => {
+    // ---------------------------------------------------------------------------
+    // THE ACTIVITY, NOT THE YOUNG PERSON (youth-j)
+    // ---------------------------------------------------------------------------
+    // This read "naming the youth, the activity and when", and it named the youth because a
+    // profile WAS one young person's copy of a team. A profile is a TEAM now (migration 062) and
+    // several young people are on it, so there is no single name to put in a notification — and
+    // picking one off the roster would tell the reader something that is true of a quarter of the
+    // people at the game.
+    //
+    // WHAT A LEADER NEEDS IS STILL THERE: which event, which activity, and when. Who is playing is
+    // on the card the notification links to, where it can be a list.
+    it("notifies the assignee, naming the event, the activity and when", async () => {
       const received = await notificationsFor(fixtures.user("rsPresident").id);
 
       expect(received).toHaveLength(1);
       expect(received[0]?.body ?? "").toContain("Game three");
-      expect(received[0]?.body ?? "").toContain("Ada");
       expect(received[0]?.body ?? "").toContain("Basketball");
+
+      // AND NOT A YOUNG PERSON'S NAME. Asserted as an ABSENCE, because the failure mode is a
+      // notification that quietly names one player of four as though the game were theirs alone.
+      expect(received[0]?.body ?? "").not.toContain("Ada");
     });
 
     it("notifies nobody else", async () => {

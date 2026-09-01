@@ -10,6 +10,7 @@ import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import { listOwnLogsForEvents } from "@/lib/youth/activityLogs";
 import { listAttendeesForEvents } from "@/lib/youth/attendees";
 import { listActivityEvents, listActivityProfiles } from "@/lib/youth/queries";
+import { listParticipationForEvents } from "@/lib/youth/rosterQueries";
 
 // Youth activity support, at /youth — where lib/auth/navigation.ts has linked
 // `youth_activities.view` holders since auth-a. THE FRONT DOOR DID NOT MOVE, so navigation.ts is
@@ -92,24 +93,33 @@ export default async function YouthActivitiesPage({ searchParams }: YouthPagePro
   //
   // The follow-up map is the CALLER'S OWN, over the PAST events: migration 057 lets a leader read
   // other people's follow-ups, and the panel is about what this reader still owes.
-  const [attendeesByEvent, pastAttendeesByEvent, ownLogsByEvent] = await Promise.all([
-    listAttendeesForEvents(
-      user.wardId,
-      events.map((event) => event.id),
-      supabase,
-    ),
-    listAttendeesForEvents(
-      user.wardId,
-      pastEvents.map((event) => event.id),
-      supabase,
-    ),
-    listOwnLogsForEvents(
-      user.wardId,
-      user.id,
-      pastEvents.map((event) => event.id),
-      supabase,
-    ),
-  ]);
+  const [attendeesByEvent, pastAttendeesByEvent, ownLogsByEvent, participationByEvent] =
+    await Promise.all([
+      listAttendeesForEvents(
+        user.wardId,
+        events.map((event) => event.id),
+        supabase,
+      ),
+      listAttendeesForEvents(
+        user.wardId,
+        pastEvents.map((event) => event.id),
+        supabase,
+      ),
+      listOwnLogsForEvents(
+        user.wardId,
+        user.id,
+        pastEvents.map((event) => event.id),
+        supabase,
+      ),
+      // THE WIDENED SET, matching the events and attendees beside it. The pastoral ranking reads
+      // games already played, so the narrow list would leave every past absence unknown and every
+      // marked game back in a denominator it had been taken out of.
+      listParticipationForEvents(
+        user.wardId,
+        pastEvents.map((event) => event.id),
+        supabase,
+      ),
+    ]);
 
   // ONLY FOR THE BISHOPRIC, because only they can use the control it feeds. Everybody else gets
   // an empty list and no picker — absent rather than present-and-refusing.
@@ -127,17 +137,31 @@ export default async function YouthActivitiesPage({ searchParams }: YouthPagePro
   // the whole overview. Resolving it against the fetched profiles also means an id naming no
   // profile becomes `null` — a card that never opens is worse than no deep link at all.
   //
-  // `?youth=` STILL NAMES A PROFILE, and it is resolved to the MEMBER who owns it. The parameter
-  // is unchanged on purpose: /youth/calendar builds it from `row.event.profileId`, which is the
-  // only id an event carries, and changing the contract would break a link that already works.
-  // What changed is on this side — a card is a young person now, and several profiles can open
-  // the same one.
+  // ---------------------------------------------------------------------------
+  // `?youth=` STILL NAMES A PROFILE, AND A PROFILE IS NOW A TEAM WITH SEVERAL YOUNG PEOPLE
+  // ---------------------------------------------------------------------------
+  // The parameter is unchanged on purpose: /youth/calendar builds it from `row.event.profileId`,
+  // which is still the only id an event carries, and changing the contract would break a link
+  // that already works.
+  //
+  // WHAT CHANGED IS THAT THE ANSWER IS NO LONGER UNIQUE. A profile used to name exactly one young
+  // person; it now names a roster, so this resolves to the FIRST member on it. That is a
+  // deliberate, stated limitation rather than an oversight — the link means "show me this
+  // activity", and one card must be chosen to open.
+  //
+  // THE HONEST FIX IS ON THE OTHER SIDE and belongs to whoever next touches the calendar: a card
+  // there is one TEAM's game, so the link would have to name the young person it is about, which
+  // that card does not currently single out either. Guessing harder here would not help.
+  //
+  // An id naming no profile, or one whose team has an empty roster, resolves to `null` — a card
+  // that never opens is worse than no deep link at all.
   const params = await searchParams;
   const requestedProfileId = params.youth ?? null;
   const initialExpandedMemberId =
     requestedProfileId === null
       ? null
-      : (profiles.find((profile) => profile.id === requestedProfileId)?.memberId ?? null);
+      : (profiles.find((profile) => profile.id === requestedProfileId)?.roster[0]?.memberId ??
+        null);
 
   return (
     <div className="flex flex-col gap-6">
@@ -177,6 +201,7 @@ export default async function YouthActivitiesPage({ searchParams }: YouthPagePro
         initialUpcomingEvents={events}
         initialUpcomingAttendees={Object.fromEntries(attendeesByEvent)}
         initialFollowUps={Object.fromEntries(ownLogsByEvent)}
+        initialParticipation={Object.fromEntries(participationByEvent)}
         initialExpandedMemberId={initialExpandedMemberId}
         // The SAME instant every query above was judged against. Creating a second clock in the
         // client would let a row be listed as upcoming and then rendered as past.

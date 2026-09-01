@@ -1,17 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AddToActivity } from "@/app/(app)/youth/AddToActivity";
 import { EventList } from "@/app/(app)/youth/EventList";
 import { FollowUpPanel } from "@/app/(app)/youth/FollowUpPanel";
 import {
+  ROSTER_MUTATION_INVALIDATES,
   YOUTH_ATTENDEES_QUERY_KEY,
   YOUTH_EVENTS_QUERY_KEY,
+  YOUTH_PARTICIPATION_QUERY_KEY,
   YOUTH_PROFILES_QUERY_KEY,
+  errorFrom,
   fetchAttendees,
   fetchEvents,
+  fetchParticipation,
   fetchProfiles,
+  readJson,
 } from "@/app/(app)/youth/youthQueries";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -23,6 +29,7 @@ import {
   YOUTH_SORTS,
   YOUTH_SORT_DIRECTION_LABELS,
   YOUTH_SORT_LABELS,
+  buildSupportEvents,
   compareYouth,
   describeActivitySupport,
   describeNothingRunning,
@@ -32,6 +39,7 @@ import {
   type YouthSort,
 } from "@/lib/youth/profileNeed";
 import type { ActivityEvent, ActivityLog, ActivityProfile } from "@/lib/youth/queries";
+import type { EventParticipation, RosterMember } from "@/lib/youth/roster";
 import type { SessionUser } from "@/types/domain";
 
 // The front door of the module: every young person, ranked by how well they are being supported,
@@ -95,6 +103,11 @@ export type YouthOverviewProps = {
   initialUpcomingEvents: ActivityEvent[];
   initialUpcomingAttendees: Record<string, ActivityAttendee[]>;
   initialFollowUps: Record<string, ActivityLog>;
+  // Seeds the SHARED participation query, keyed by event id. An event nobody has answered for is
+  // simply ABSENT — migration 062d's third state arriving as a missing key rather than as a null
+  // somebody has to remember to read correctly. The WIDENED entry, [.., true], matching the event
+  // and attendee seeds beside it.
+  initialParticipation: Record<string, EventParticipation[]>;
   // From ?youth= on the URL, which names a PROFILE, resolved to the member who owns it on the
   // SERVER — a card is a person now, so a profile id can no longer address one. Null when the
   // parameter is absent or names a profile that is not there: a card that never opens is worse
@@ -188,6 +201,7 @@ export function YouthOverview({
   initialUpcomingEvents,
   initialUpcomingAttendees,
   initialFollowUps,
+  initialParticipation,
   initialExpandedMemberId,
   asOf,
   currentUserId,
@@ -219,6 +233,9 @@ export function YouthOverview({
     initialExpandedMemberId,
   );
 
+  const [rosterError, setRosterError] = useState<string | undefined>(undefined);
+  const queryClient = useQueryClient();
+
   const profilesQuery = useQuery({
     queryKey: [YOUTH_PROFILES_QUERY_KEY],
     queryFn: fetchProfiles,
@@ -237,6 +254,39 @@ export function YouthOverview({
     initialData: initialAllAttendees,
   });
 
+  const participationQuery = useQuery({
+    queryKey: [YOUTH_PARTICIPATION_QUERY_KEY, WIDENED],
+    queryFn: () => fetchParticipation(WIDENED),
+    initialData: initialParticipation,
+  });
+
+  // PUTTING A YOUNG PERSON ON A TEAM, from their own card. One route, two entry points — the
+  // team-first half is RosterPanel on /youth/profiles, and POST
+  // /api/youth/profiles/[id]/roster's header says why they must not be two implementations.
+  const rosterMutation = useMutation({
+    mutationFn: async ({ profileId, memberId }: { profileId: string; memberId: string }) => {
+      const response = await fetch(`/api/youth/profiles/${profileId}/roster`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ memberId }),
+      });
+
+      const payload = await readJson(response);
+      if (!response.ok) {
+        throw new Error(errorFrom(payload, "Could not add them to that activity."));
+      }
+    },
+    onSuccess: async () => {
+      setRosterError(undefined);
+      await Promise.all(
+        ROSTER_MUTATION_INVALIDATES.map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey: [...queryKey] }),
+        ),
+      );
+    },
+    onError: (error: Error) => setRosterError(error.message),
+  });
+
   // ONE PASS, THEN EVERY RENDERING READS IT. The sort, the pills, the badge and the count all come
   // from this single array, so a card cannot sort first because of a number it does not display —
   // which is what ITER-022 was, and what summariseCoverage() and describeHouseholdForVisits() both
@@ -248,81 +298,133 @@ export function YouthOverview({
     const profiles = profilesQuery.data ?? [];
     const events = eventsQuery.data ?? [];
     const attendeesByEvent = attendeesQuery.data ?? {};
+    const participationByEvent = participationQuery.data ?? {};
 
-    const eventsByProfile = new Map<string, SupportEvent[]>();
+    // ---------------------------------------------------------------------------
+    // THE RAW ROWS, KEYED BY EVENT — NOT YET `SupportEvent`s
+    // ---------------------------------------------------------------------------
+    // This is the change youth-j turns on. It used to build one `SupportEvent[]` per PROFILE, and
+    // that was correct only while a profile was one young person's copy of a team: two players on
+    // one team would now share the map and get identical numbers, which is precisely the
+    // duplication this slice removes.
+    //
+    // So the raw material is grouped by profile and the SupportEvents are built PER MEMBERSHIP
+    // below, through buildSupportEvents(), which applies each young person's own window.
+    const eventsByProfile = new Map<string, typeof events>();
     for (const event of events) {
       if (event.profileId === null) continue;
 
-      const attendees = attendeesByEvent[event.id] ?? [];
-
-      const supportEvent: SupportEvent = {
-        eventType: event.eventType,
-        eventDate: event.eventDate,
-        status: event.status,
-        // HOW MANY ARE DOWN — what the coverage badge counts and what the upcoming half is about.
-        attendeeCount: attendees.length,
-        // HOW MANY SAID THEY WENT. `=== true` EXPLICITLY, and that is the whole point of the
-        // field: `confirmedAttendance` is `boolean | null`, and null means NOBODY HAS SAID EITHER
-        // WAY. A truthiness check would still be correct here, but writing it out is what stops
-        // somebody later reading null as "did not go" — which it is not, and which would make an
-        // unanswered game read as a game somebody stayed away from.
-        confirmedAttendeeCount: attendees.filter(
-          (attendee) => attendee.confirmedAttendance === true,
-        ).length,
-        // WHETHER THE YOUNG PERSON WAS EVEN THERE (migration 061). `false` takes the game out of
-        // carriesCoverageExpectation(), so it leaves both halves of the metric at once — the past
-        // games it is measured over AND the next one it plans for. Null and `true` change nothing.
-        youthAttended: event.youthAttended,
-      };
-
       const existing = eventsByProfile.get(event.profileId);
-      if (existing === undefined) {
-        eventsByProfile.set(event.profileId, [supportEvent]);
-      } else {
-        existing.push(supportEvent);
-      }
+      if (existing === undefined) eventsByProfile.set(event.profileId, [event]);
+      else existing.push(event);
     }
 
-    // GROUPED BY MEMBER, in first-seen order — the sort below decides what a reader sees, and a
-    // second ordering here would only be a tie-break nobody asked for.
+    // Maps rather than records, because buildSupportEvents takes ReadonlyMaps — one conversion
+    // here rather than one per membership inside the loop.
+    const attendeeMap = new Map(Object.entries(attendeesByEvent));
+    const participationMap = new Map(Object.entries(participationByEvent));
+
+    // ---------------------------------------------------------------------------
+    // GROUPED BY **MEMBERSHIP**, NOT BY THE PROFILE'S OWN MEMBER
+    // ---------------------------------------------------------------------------
+    // `profile.memberId` is gone; a team has a ROSTER, and one young person appears once per team
+    // they are on. Everything else about this grouping survives, including the rule below.
     //
-    // ---------------------------------------------------------------------------
-    // BUILT FROM **EVERY** PROFILE, CLOSED ONES INCLUDED — THIS IS THE ONE LINE ITER-028 TURNS ON
-    // ---------------------------------------------------------------------------
+    // BUILT FROM **EVERY** PROFILE, CLOSED ONES INCLUDED — THIS IS THE ONE LINE ITER-028 TURNS ON.
     // Filter closed profiles out here and a young person whose every season has finished produces
     // no group at all and VANISHES FROM THE WARD, which is exactly what ITER-028 says must not
     // happen. youthNeed() does the running/closed partition instead, so the pills, the percentage,
     // the badge, the sort AND the finished-season pills all come out of one value.
-    const byMember = new Map<string, { name: string; profiles: ActivityProfile[] }>();
+    const byMember = new Map<
+      string,
+      {
+        name: string;
+        entries: { membership: RosterMember; activityName: string; closedAt: string | null }[];
+      }
+    >();
+
     for (const profile of profiles) {
-      const existing = byMember.get(profile.memberId);
-      if (existing === undefined) {
-        byMember.set(profile.memberId, {
-          name: profile.memberName,
-          profiles: [profile],
-        });
-      } else {
-        existing.profiles.push(profile);
+      for (const membership of profile.roster) {
+        const entry = {
+          membership,
+          activityName: profile.activityName,
+          closedAt: profile.closedAt,
+        };
+
+        const existing = byMember.get(membership.memberId);
+        if (existing === undefined) {
+          byMember.set(membership.memberId, {
+            name: membership.memberName,
+            entries: [entry],
+          });
+        } else {
+          existing.entries.push(entry);
+        }
       }
     }
 
-    return [...byMember.entries()].map(([memberId, group]) => ({
-      need: youthNeed({ id: memberId, name: group.name }, group.profiles, eventsByProfile, asOfInstant),
-      // THE PROFILE IDS THE EXPANDED CARD FILTERS ON, off the same grouping the pills came from.
-      // A card showing "1 of 8" must expand to a list where eight home games are findable
-      // (ITER-022, the count-and-list rule).
-      //
-      // ALL OF THEM, INCLUDING CLOSED SEASONS. The RANKING excludes a closed season; the SCHEDULE
-      // is a record of what happened and must not develop a hole. Expanding a card is how a leader
-      // finds the game they are looking for, and a game does not stop having taken place because
-      // its season was closed out.
-      profileIds: group.profiles.map((profile) => profile.id),
-      // The member's name AND every activity name, so searching "choir" still finds Maya.
-      searchText: normalise(
-        [group.name, ...group.profiles.map((profile) => profile.activityName)].join(" "),
+    return [...byMember.entries()].map(([memberId, group]) => {
+      // ONE MAP PER YOUNG PERSON, built through their own window. Two team-mates hand youthNeed()
+      // two different maps drawn from ONE set of event rows, which is the whole point of the
+      // slice — and youthNeed()'s header says a shared map would silently undo it.
+      const supportByProfile = new Map<string, SupportEvent[]>();
+
+      for (const entry of group.entries) {
+        supportByProfile.set(
+          entry.membership.profileId,
+          buildSupportEvents(
+            entry.membership,
+            entry.closedAt,
+            eventsByProfile.get(entry.membership.profileId) ?? [],
+            attendeeMap,
+            participationMap,
+            wardTimeZone,
+          ),
+        );
+      }
+
+      return {
+        need: youthNeed(
+          { id: memberId, name: group.name },
+          group.entries,
+          supportByProfile,
+          asOfInstant,
+        ),
+        // THE PROFILE IDS THE EXPANDED CARD FILTERS ON, off the same grouping the pills came from.
+        // A card showing "1 of 8" must expand to a list where eight home games are findable
+        // (ITER-022, the count-and-list rule).
+        //
+        // ALL OF THEM, INCLUDING CLOSED SEASONS. The RANKING excludes a closed season; the
+        // SCHEDULE is a record of what happened and must not develop a hole.
+        profileIds: group.entries.map((entry) => entry.membership.profileId),
+        // The member's name AND every activity name, so searching "choir" still finds Maya.
+        searchText: normalise(
+          [group.name, ...group.entries.map((entry) => entry.activityName)].join(" "),
+        ),
+      };
+    });
+  }, [
+    profilesQuery.data,
+    eventsQuery.data,
+    attendeesQuery.data,
+    participationQuery.data,
+    asOfInstant,
+    wardTimeZone,
+  ]);
+
+  // WHICH TEAMS THIS YOUNG PERSON IS NOT ALREADY ON. Computed from the SHARED profiles cache, so
+  // a team created in another tab reaches this picker too, and recomputed after every roster
+  // mutation because ROSTER_MUTATION_INVALIDATES moves that entry.
+  //
+  // Offering a team they are already on would be a control whose only outcome is the route's 409.
+  // The route still answers one — the boundary is the route and not this list (CLAUDE.md rule 2).
+  const availableFor = useCallback(
+    (memberId: string): ActivityProfile[] =>
+      (profilesQuery.data ?? []).filter(
+        (profile) => !profile.roster.some((member) => member.memberId === memberId),
       ),
-    }));
-  }, [profilesQuery.data, eventsQuery.data, attendeesQuery.data, asOfInstant]);
+    [profilesQuery.data],
+  );
 
   const visibleRows = useMemo(() => {
     const term = normalise(search);
@@ -335,13 +437,17 @@ export function YouthOverview({
     );
   }, [rows, search, sort, ascending]);
 
-  const errorMessage = profilesQuery.isError
-    ? (profilesQuery.error as Error).message
-    : eventsQuery.isError
-      ? (eventsQuery.error as Error).message
-      : attendeesQuery.isError
-        ? (attendeesQuery.error as Error).message
-        : undefined;
+  const errorMessage =
+    rosterError ??
+    (profilesQuery.isError
+      ? (profilesQuery.error as Error).message
+      : eventsQuery.isError
+        ? (eventsQuery.error as Error).message
+        : attendeesQuery.isError
+          ? (attendeesQuery.error as Error).message
+          : participationQuery.isError
+            ? (participationQuery.error as Error).message
+            : undefined);
 
   return (
     <div className="flex flex-col gap-6">
@@ -573,6 +679,24 @@ export function YouthOverview({
 
                     {isExpanded ? (
                       <div id={panelId} className="mt-3 border-t border-border pt-3">
+                        {/* THE YOUTH-FIRST ASSIGNMENT, at the TOP of the expanded card rather
+                            than beneath the schedule. ITER-033's flow is a pass down this page
+                            putting each young person on their activities, and burying the control
+                            under a list of events would make that pass a scroll per person.
+
+                            ABSENT for somebody without `youth_activities.manage`, rather than
+                            present-and-refusing (youth-a-D1's mirror). */}
+                        {canManage ? (
+                          <AddToActivity
+                            memberName={need.memberName}
+                            available={availableFor(need.memberId)}
+                            pending={rosterMutation.isPending}
+                            onAdd={(profileId) =>
+                              rosterMutation.mutate({ profileId, memberId: need.memberId })
+                            }
+                          />
+                        ) : null}
+
                         {/* THE SAME EventList /youth/profiles renders, filtered to this young
                             person's activities — ALL of them, which is why the prop is a list.
                             Not a second event card: EventList carries five permission gates, three
@@ -584,11 +708,22 @@ export function YouthOverview({
                             FollowUpPanel and for this component's own widened reads. */}
                         <EventList
                           profileIds={profileIds}
+                          // AND WHOSE WINDOW. `profileIds` narrows to this young person's
+                          // ACTIVITIES; a team's schedule serves a whole roster, so without this
+                          // a youth who left mid-season had their team-mates' later games listed
+                          // under their own name — beneath a pill that read "0 events coming up",
+                          // because the pill applies the window and the list did not (062-D1).
+                          memberId={need.memberId}
                           heading={need.memberName}
                           initialEvents={initialUpcomingEvents}
                           initialProfiles={initialProfiles}
                           initialAttendees={initialUpcomingAttendees}
                           initialFollowUps={{}}
+                          // EMPTY BY CONSTRUCTION on first paint, exactly as initialFollowUps is:
+                          // this card seeds the NARROW entry, [.., false], and the page fetched
+                          // the WIDENED one. The query fills it from one fetch rather than from a
+                          // prop that never refetches (youth-a-D2).
+                          initialParticipation={{}}
                           canManage={canManage}
                           canLog={canLog}
                           crossOrgVisibility={crossOrgVisibility}

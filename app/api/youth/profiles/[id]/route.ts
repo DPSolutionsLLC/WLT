@@ -175,9 +175,12 @@ export async function DELETE(
         detail: {
           profileId,
           orgId: existing.orgId,
-          memberId: existing.memberId,
           activityName: existing.activityName,
           eventCount: existing.eventCount,
+          // WHO WAS ON IT WHEN IT WENT. The roster cascades with the profile (migration 062a's
+          // foreign key), so after this delete there is no row left to ask — and "whose season was
+          // that?" is exactly what somebody asks afterwards. A count would not answer it.
+          rosterMemberIds: existing.roster.map((member) => member.memberId),
         },
       },
       supabase,

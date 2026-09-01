@@ -170,7 +170,7 @@ export async function POST(
     const subject =
       profile === null
         ? event.title
-        : `${event.title} — ${profile.memberName}, ${profile.activityName}`;
+        : `${event.title} — ${profile.activityName}`;
 
     // EXPLICIT RECIPIENTS, not the trigger's default_roles. The seeded default for
     // `youth_support_assigned` reaches every org president, counselor and secretary in the ward

@@ -7,6 +7,13 @@ import type {
   UpdateActivityProfileInput,
 } from "@/lib/validation/youth";
 import type { Database } from "@/types/database";
+import { isPolicyRefusal } from "@/lib/youth/policyRefusal";
+import type { RosterMember } from "@/lib/youth/roster";
+import {
+  addRosterMember,
+  listRosterForProfile,
+  listRosterForWard,
+} from "@/lib/youth/rosterQueries";
 import type {
   ActivitySourceType,
   ActivityType,
@@ -126,10 +133,25 @@ export async function getActivityLog(
 // on purpose — FEATURES.md §Module 10 gives the ward council the full calendar. The org scoping
 // lives entirely on the WRITE side, in migration 054d and in the routes that stamp ownership.
 
+// ---------------------------------------------------------------------------
+// THIS ROW IS A **TEAM** NOW, NOT ONE YOUNG PERSON'S COPY OF ONE (migration 062)
+// ---------------------------------------------------------------------------
+// It used to hold `member_id`: one row per (member, activity), so eight players on a twelve-game
+// season meant eight profiles, eight imports of the same file and 96 rows for 12 real games. The
+// column is gone and `activity_roster` answers "who is on this" instead — import once, assign
+// each youth once, and everything after that is an exception (ITER-033).
+//
+// THE TABLE IS NOT RENAMED, and a reader of `git log` should know that is deliberate rather than
+// half-finished: 191 references across 34 source files make a rename pure churn that would bury
+// the real change in a diff nobody can read (migration 062's header).
 export type ActivityProfile = {
   id: string;
-  memberId: string;
-  memberName: string;
+  // WHO IS ON THIS TEAM, and the window each of them was on it for. Attached by the MAPPER from
+  // lib/youth/rosterQueries.ts rather than fetched as a nested two-level PostgREST embed: the
+  // ward-wide roster list is needed WHOLE by /youth, /youth/profiles and /youth/calendar anyway,
+  // so one query serves all three, and a nested embed under an existing aggregate embed is
+  // markedly harder to type than the flat one it would replace.
+  roster: RosterMember[];
   orgId: string | null;
   activityName: string;
   schoolOrg: string | null;
@@ -183,10 +205,13 @@ export type ActivityEvent = {
   // A non-null id says two or more rows are the SAME EVENING, recorded explicitly by a person
   // rather than inferred from a matching title and date.
   occasionId: string | null;
-  // Migration 061. Whether the YOUNG PERSON this event belongs to is taking part. NULL MEANS
-  // NOBODY HAS SAID — the ordinary state of nearly every row, and never a defaulted `true`.
-  // It is a fact a person recorded and never one this code inferred.
-  youthAttended: boolean | null;
+  // `youthAttended` IS GONE FROM HERE — MOVED, NOT DELETED (migrations 062d/062e/063).
+  //
+  // Migration 061 put it on this row, which was correct only while an event belonged to exactly
+  // ONE young person. A team's event serves a whole roster, so marking one player absent would
+  // have marked everybody at the same game. The fact now lives on
+  // `activity_event_participation` — one row per (young person, event), with the ABSENCE of a row
+  // meaning "nobody has said". lib/youth/roster.ts derives it per young person.
   createdAt: string;
 };
 
@@ -202,34 +227,33 @@ export type ActivityCalendar = {
   createdAt: string;
 };
 
-// A NAMED embed, not an inferred one. `members!youth_activity_profiles_member_id_ward_id_fkey`
-// says which foreign key this join follows, so adding a second one to `members` later cannot
-// silently change what this column means — and slice B is about to add `activity_calendars`
-// relationships nearby (visits-d's release note records the same trap).
+// `member_id` AND ITS `members!…` EMBED ARE GONE (migration 062/063). The team's people come from
+// `activity_roster`, attached by the mapper — see ActivityProfile.roster for why that rather than
+// a nested embed.
 //
 // ONE STRING LITERAL ON ONE LINE. A concatenation widens the type to `string` and defeats
 // supabase-js's literal parsing of the select list, degrading every row to something untyped
 // (plans/retros/calendar-a-rules-and-api.md).
-// THE EMBEDDED COUNT IS NAMED TOO, for the same reason the member embed is: there is exactly one
-// foreign key from `activity_events` to this table today, and a second one added later would make
-// an inferred embed silently mean something else. It counts EVERY event on the profile, past ones
-// included, because that is what the Remove gate has to be exact about.
+//
+// THE EMBEDDED COUNT IS NAMED, and it STAYS: there is exactly one foreign key from
+// `activity_events` to this table today, and a second one added later would make an inferred
+// embed silently mean something else. It counts EVERY event on the profile, past ones included,
+// because that is what the `Remove` gate has to be exact about (youth-h).
 const ACTIVITY_PROFILE_COLUMNS =
-  "id, member_id, org_id, activity_name, school_org, activity_type, season_schedule, notes, entered_by, closed_at, created_at, members!youth_activity_profiles_member_id_ward_id_fkey (first_name, last_name), activity_events!activity_events_profile_id_ward_id_fkey (count)";
+  "id, org_id, activity_name, school_org, activity_type, season_schedule, notes, entered_by, closed_at, created_at, activity_events!activity_events_profile_id_ward_id_fkey (count)";
 
 // ONE STRING LITERAL ON ONE LINE, still, now that it has grown four columns. A `+`
 // concatenation widens the type to `string` and defeats supabase-js's literal parsing of the
 // select list, silently degrading every row to something untyped
 // (plans/retros/calendar-a-rules-and-api.md).
 const ACTIVITY_EVENT_COLUMNS =
-  "id, profile_id, calendar_id, title, event_type, event_date, location, status, all_day, source_uid, source_recurrence_id, occasion_id, youth_attended, created_at";
+  "id, profile_id, calendar_id, title, event_type, event_date, location, status, all_day, source_uid, source_recurrence_id, occasion_id, created_at";
 
 const ACTIVITY_CALENDAR_COLUMNS =
   "id, profile_id, source_type, source_url, last_synced_at, created_at";
 
 type ActivityProfileRow = {
   id: string;
-  member_id: string;
   org_id: string | null;
   activity_name: string;
   school_org: string | null;
@@ -239,7 +263,6 @@ type ActivityProfileRow = {
   entered_by: string | null;
   closed_at: string | null;
   created_at: string;
-  members: { first_name: string; last_name: string } | null;
   // PostgREST returns an aggregate embed as an ARRAY of one object, and as an EMPTY ARRAY for a
   // profile with no events at all. Both shapes are spelled out here so the mapper handles the
   // empty case on purpose rather than by a `?? 0` that would also swallow a shape change.
@@ -259,7 +282,6 @@ type ActivityEventRow = {
   source_uid: string | null;
   source_recurrence_id: string | null;
   occasion_id: string | null;
-  youth_attended: boolean | null;
   created_at: string;
 };
 
@@ -272,21 +294,23 @@ type ActivityCalendarRow = {
   created_at: string;
 };
 
-// snake_case to camelCase happens HERE and nowhere else (CLAUDE.md §6). The member's name is
-// flattened onto the profile because every screen that shows an activity shows whose it is, and
-// a nested object would make every caller reach through the same two levels.
-function mapActivityProfileRow(row: ActivityProfileRow): ActivityProfile {
-  const member = row.members;
-
+// snake_case to camelCase happens HERE and nowhere else (CLAUDE.md §6).
+//
+// THE ROSTER IS PASSED IN RATHER THAN READ OFF THE ROW, because it comes from a different table
+// and a different query. Every caller below resolves it once and hands it here, so there is one
+// place a profile becomes an ActivityProfile and no caller assembles a partial one.
+//
+// AN EMPTY ROSTER IS A REAL AND EXPECTED ANSWER — a team imported but not yet assigned — so the
+// default is `[]` rather than something that would read as missing data. What must never happen
+// is that emptiness being read as "nobody is expected"; lib/youth/roster.ts's branch 5 is where
+// that is refused, and this default is deliberately not the place to second-guess it.
+function mapActivityProfileRow(
+  row: ActivityProfileRow,
+  roster: RosterMember[] = [],
+): ActivityProfile {
   return {
     id: row.id,
-    memberId: row.member_id,
-    // The embed is null only when RLS hid the member row from this caller, which the ward-scoped
-    // `members` policy makes impossible for anybody who could read the profile. The fallback is a
-    // truthful placeholder rather than an empty string, so a name that DID go missing reads as
-    // missing rather than as a blank line.
-    memberName:
-      member === null ? "A member" : `${member.first_name} ${member.last_name}`.trim(),
+    roster,
     orgId: row.org_id,
     activityName: row.activity_name,
     schoolOrg: row.school_org,
@@ -318,7 +342,6 @@ function mapActivityEventRow(row: ActivityEventRow): ActivityEvent {
     sourceUid: row.source_uid,
     sourceRecurrenceId: row.source_recurrence_id,
     occasionId: row.occasion_id,
-    youthAttended: row.youth_attended,
     createdAt: row.created_at,
   };
 }
@@ -334,34 +357,6 @@ function mapActivityCalendarRow(row: ActivityCalendarRow): ActivityCalendar {
   };
 }
 
-// A WRITE THE POLICY REFUSED BY RAISING, RATHER THAN BY MATCHING NOTHING.
-//
-// ---------------------------------------------------------------------------
-// TWO SHAPES OF RLS REFUSAL, AND ONLY ONE OF THEM IS QUIET
-// ---------------------------------------------------------------------------
-// A row the USING clause excludes is simply not seen: the UPDATE matches nothing and returns a
-// zero-row SUCCESS (plans/retros/foundation-c-services.md, which every write in this file follows).
-// A row that passes USING and then fails WITH CHECK is different — PostgreSQL RAISES
-// `new row violates row-level security policy`, SQLSTATE **42501**, and supabase-js surfaces it as
-// an ordinary error.
-//
-// Both mean the same thing to the person who pressed the button: NOT YOURS TO CHANGE. Until
-// 2026-08-31 only the quiet one was handled, so migration 054d's one divergent shape — a profile
-// owned by another organization but entered by the caller, which USING admits and WITH CHECK
-// refuses — came back as a **500** reading "Please try again", which was untrue: trying again
-// cannot work (defect 060-D2, found walking scenario 060).
-//
-// Mapping it to `null` puts it on the SAME path as the zero-row refusal, and the route's existing
-// sentence is already exactly right — "It may belong to another organization." Distinguishing the
-// two would tell a caller which kind of row they may not touch, which is the thing the 404 exists
-// to avoid saying.
-//
-// NARROW ON PURPOSE. Only 42501, and only on these two updates. Every other error still throws and
-// still surfaces, because "the policy said no" and "the database is broken" must not become one
-// message (CLAUDE.md rule 7).
-function isPolicyRefusal(error: { code?: string } | null): boolean {
-  return error?.code === "42501";
-}
 
 async function resolveClient(
   client?: SupabaseClient<Database>,
@@ -395,7 +390,20 @@ export async function listActivityProfiles(
     throw new Error(`Could not load the youth activities: ${error.message}`);
   }
 
-  return (data ?? []).map(mapActivityProfileRow);
+  // ONE ROSTER QUERY FOR THE WHOLE WARD, grouped here — not one per profile, which would be a
+  // round trip per team on a page that renders every team (lib/youth/rosterQueries.ts).
+  const roster = await listRosterForWard(wardId, supabase);
+  const rosterByProfile = new Map<string, RosterMember[]>();
+
+  for (const membership of roster) {
+    const existing = rosterByProfile.get(membership.profileId);
+    if (existing) existing.push(membership);
+    else rosterByProfile.set(membership.profileId, [membership]);
+  }
+
+  return (data ?? []).map((row) =>
+    mapActivityProfileRow(row, rosterByProfile.get(row.id) ?? []),
+  );
 }
 
 // Null, not an error, for a profile this caller cannot see — which after migration 054 means
@@ -423,7 +431,9 @@ export async function getActivityProfile(
     throw new Error(`Could not load that activity: ${error.message}`);
   }
 
-  return data === null ? null : mapActivityProfileRow(data);
+  if (data === null) return null;
+
+  return mapActivityProfileRow(data, await listRosterForProfile(wardId, profileId, supabase));
 }
 
 // `orgId` and `userId` are separate parameters rather than fields on `input`, because neither
@@ -444,7 +454,6 @@ export async function createActivityProfile(
     .insert({
       ward_id: wardId,
       org_id: orgId,
-      member_id: input.memberId,
       activity_name: input.activityName,
       activity_type: input.activityType,
       school_org: input.schoolOrg ?? null,
@@ -460,7 +469,42 @@ export async function createActivityProfile(
     throw new Error(`Could not save that activity: ${error.message}`);
   }
 
-  return mapActivityProfileRow(data);
+  // ---------------------------------------------------------------------
+  // THE ROSTER ROWS, AFTER THE PROFILE — TWO TABLES, AND NOT A STORED PROCEDURE
+  // ---------------------------------------------------------------------
+  // lib/youth/ics/applyImport.ts's reasoning applies unchanged: a partial write leaves a team with
+  // a SHORT ROSTER, which the roster panel makes visible and one tap fixes. That is a recoverable
+  // state a person can see, which is worth more than the atomicity a procedure would buy — and a
+  // procedure would move this logic out of TypeScript and out of RLS's reach.
+  //
+  // A FAILURE IS SURFACED, NEVER SWALLOWED (CLAUDE.md rule 7). Reporting success on a team whose
+  // players were not saved is exactly the silent failure that rule exists to forbid: the leader
+  // would walk away believing the assignment was done.
+  //
+  // AN EMPTY `memberIds` IS NORMAL AND WRITES NOTHING. ITER-033's flow is import once, then
+  // assign, so a team with no roster yet is a state every ward passes through — it is made LOUD
+  // on the roster panel and on the calendar rather than refused here.
+  for (const memberId of input.memberIds) {
+    const added = await addRosterMember(
+      wardId,
+      { profileId: data.id, memberId, startedOn: null, addedBy: userId },
+      supabase,
+    );
+
+    if (!added.ok) {
+      console.error(`Could not add a young person to a new activity — ${added.reason}`, {
+        wardId,
+        profileId: data.id,
+        memberId,
+      });
+      throw new Error(
+        "The activity was saved, but not everybody could be added to it. Open it and add the " +
+          "missing young people.",
+      );
+    }
+  }
+
+  return mapActivityProfileRow(data, await listRosterForProfile(wardId, data.id, supabase));
 }
 
 // Returns null when the row did not change, which from here is indistinguishable from a row RLS
@@ -504,7 +548,9 @@ export async function updateActivityProfile(
     throw new Error(`Could not save that activity: ${error.message}`);
   }
 
-  return data === null ? null : mapActivityProfileRow(data);
+  if (data === null) return null;
+
+  return mapActivityProfileRow(data, await listRosterForProfile(wardId, profileId, supabase));
 }
 
 // CLOSING A SEASON, AND REOPENING ONE — the same function and the same route, which is what makes
@@ -552,7 +598,9 @@ export async function closeActivityProfile(
     throw new Error(`Could not save that activity: ${error.message}`);
   }
 
-  return data === null ? null : mapActivityProfileRow(data);
+  if (data === null) return null;
+
+  return mapActivityProfileRow(data, await listRosterForProfile(wardId, profileId, supabase));
 }
 
 // HOW MANY PASTORAL FOLLOW-UPS ARE WRITTEN AGAINST THIS ACTIVITY — the one question the DELETE
@@ -768,10 +816,10 @@ export async function updateActivityEvent(
   if (input.location !== undefined) patch.location = input.location;
   if (input.eventType !== undefined) patch.event_type = input.eventType;
   if (input.status !== undefined) patch.status = input.status;
-  // `!== undefined` RATHER THAN A TRUTHINESS TEST, and that is what makes the control reversible:
-  // an explicit `null` clears the answer back to "nobody has said", while an absent key is a
-  // no-op. `location` above carries the same three-way shape for the same reason (migration 061).
-  if (input.youthAttended !== undefined) patch.youth_attended = input.youthAttended;
+  // NO `youthAttended` HERE ANY MORE. It moved to activity_event_participation (migration 062d)
+  // and to PATCH /api/youth/events/[id]/participation, because it is a fact about a YOUNG PERSON
+  // AT AN EVENT rather than about the event: a team's game serves a whole roster, and writing it
+  // here would have marked everybody at the same game.
 
   const { data, error } = await supabase
     .from("activity_events")
@@ -983,11 +1031,16 @@ export type ImportedEventPatch = {
 
 // FOUR COLUMNS AND NO OTHERS (Decision 6). `status` is never touched, so a hand-cancelled game
 // stays cancelled; `event_type` is never touched, so a correction a person made by hand survives
-// every future re-import; and `youth_attended` is never touched (migration 061), so a young person
-// recorded as not taking part stays recorded that way through every future import of the same
-// file. The absence is the feature, which is why the patch is written out field by field rather
-// than spread from an input object, and tests/routes/youthCalendarImport.test.ts asserts all three
-// rather than trusting the shape.
+// every future re-import. The absence is the feature, which is why the patch is written out field
+// by field rather than spread from an input object, and tests/routes/youthCalendarImport.test.ts
+// asserts it rather than trusting the shape.
+//
+// THE PARTICIPATION GUARANTEE IS NOW STRUCTURAL RATHER THAN A DISCIPLINE ABOUT THIS COLUMN LIST.
+// Migration 061 put "is the young person taking part?" on `activity_events`, so keeping it out of
+// this patch was a rule somebody had to remember. It now lives on a DIFFERENT TABLE
+// (activity_event_participation, migration 062d) that this statement cannot reach at all, so a
+// young person recorded as not taking part survives every future import of the same file by
+// construction.
 export async function updateImportedEvent(
   wardId: string,
   eventId: string,

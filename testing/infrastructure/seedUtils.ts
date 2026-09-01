@@ -1099,7 +1099,28 @@ export async function createVisitPrivateNote(options: {
 // Youth activities
 // ============================================================================
 
-// `memberId` is REQUIRED as of migration 054b: a profile that names no youth is not a profile.
+// A PROFILE IS A **TEAM** NOW, AND IT NAMES NO YOUNG PERSON AT ALL (migration 062).
+//
+// `memberId` used to be REQUIRED here, on migration 054b's reasoning that "a profile that names no
+// youth is not a profile". THAT INVERTED IN youth-j: `youth_activity_profiles.member_id` is
+// dropped (migration 063) and who is on a team lives in `activity_roster`. A profile with nobody
+// on it is not only legitimate, it is the state ITER-033's own flow passes through between
+// "import once" and "assign each youth" — so a scenario that seeds one is describing a real ward
+// rather than an impossible one.
+//
+// Use createActivityRoster() below to put young people on it.
+//
+// ---------------------------------------------------------------------------
+// `memberId` SURVIVES AS AN OPTIONAL CONVENIENCE MEANING "A TEAM OF ONE"
+// ---------------------------------------------------------------------------
+// Supplying it writes the profile AND ONE `activity_roster` ROW — which is EXACTLY what migration
+// 062b's backfill did to every profile that already existed. So a seed written before youth-j
+// still describes the same ward it always described, and its scenario's checks still mean what
+// they meant; the shape is real rather than a compatibility shim.
+//
+// A scenario about a REAL TEAM — several young people on one schedule, which is the shape youth-j
+// exists for — should leave this out and call createActivityRoster() per player, because that is
+// the only way to give them different windows.
 //
 // `org` is OPTIONAL AND ABSENT MEANS THE WHOLE WARD — the same absent-is-the-default idiom
 // household_stewardships and household_visit_cadences use. A ward-wide profile is a legitimate
@@ -1107,7 +1128,9 @@ export async function createVisitPrivateNote(options: {
 // organization writes.
 export async function createYouthActivityProfile(options: {
   id?: string;
-  memberId: string;
+  // See the header: absent means a team with nobody on it yet, which is a legitimate and normal
+  // state. Present means a team of exactly one.
+  memberId?: string;
   activityName: string;
   activityType?: ActivityType;
   schoolOrg?: string;
@@ -1124,11 +1147,10 @@ export async function createYouthActivityProfile(options: {
   // why a scenario about closing one has to be able to start from an already-closed profile.
   closedAt?: string;
 }): Promise<string> {
-  return insertRow("youth_activity_profiles", {
+  const profileId = await insertRow("youth_activity_profiles", {
     id: options.id ?? testUuid(`profile:${options.activityName}`),
     ward_id: TEST_WARD_ID,
     org_id: options.org ? TEST_ORG_IDS[options.org] : null,
-    member_id: options.memberId,
     activity_name: options.activityName,
     activity_type: options.activityType ?? "sport",
     school_org: options.schoolOrg ?? null,
@@ -1137,6 +1159,19 @@ export async function createYouthActivityProfile(options: {
     entered_by: options.enteredBy ?? null,
     closed_at: options.closedAt ?? null,
   });
+
+  // THE TEAM OF ONE, written here so an older seed keeps describing the ward it described. Both
+  // dates are absent, which means the whole schedule — the same row migration 062b's backfill
+  // produced for every profile that already existed.
+  if (options.memberId !== undefined) {
+    await createActivityRoster({
+      profileId,
+      memberId: options.memberId,
+      addedBy: options.enteredBy,
+    });
+  }
+
+  return profileId;
 }
 
 // `eventDate` MUST CARRY AN OFFSET OR `Z`. It is a timestamptz, and a bare `2026-09-04T19:30`
@@ -1189,14 +1224,9 @@ export async function createActivityEvent(options: {
   calendarId?: string;
   sourceUid?: string;
   sourceRecurrenceId?: string;
-  // Migration 061. ABSENT MEANS NOBODY HAS SAID whether the young person is taking part — the
-  // ordinary state of every row, and never a defaulted `true`. Setting it reaches a state a walk
-  // would otherwise have to click its way to, which matters where the point is watching a
-  // percentage MOVE from a value that was already on the card.
-  //
-  // The CHECK refuses a non-null value on an event with no profile: a ward-wide event belongs to
-  // no young person, so the question has no referent there.
-  youthAttended?: boolean;
+  // NO `youthAttended`. It moved to activity_event_participation in migration 062d, because an
+  // event serves a whole TEAM and marking one player absent must not touch anybody else at the
+  // same game. Use createActivityParticipation() below.
 }): Promise<string> {
   return insertRow("activity_events", {
     id: options.id ?? testUuid(`event:${options.title}:${options.eventDate}`),
@@ -1212,7 +1242,64 @@ export async function createActivityEvent(options: {
     source_uid: options.sourceUid ?? null,
     source_recurrence_id: options.sourceRecurrenceId ?? null,
     occasion_id: options.occasionId ?? null,
-    youth_attended: options.youthAttended ?? null,
+  });
+}
+
+// WHO IS ON A TEAM, AND THE WINDOW THEY WERE ON IT FOR (migration 062a).
+//
+// BOTH DATES ABSENT MEANS THE WHOLE SCHEDULE, which is the ordinary case and the one a scenario
+// wants unless it is specifically about somebody joining or leaving mid-season. There is no
+// sentinel date meaning "from the start".
+//
+// SETTING ONE REACHES A STATE A WALK CANNOT BUILD IN A SENSIBLE ORDER: proving that a youth who
+// left in February is not measured on March's games needs a season already part-played, and
+// proving that their team-mate's percentage did NOT move needs both on one schedule.
+//
+// `startedOn` and `endedOn` are `date` strings, "YYYY-MM-DD" — days, not instants. The comparison
+// against an event's timestamptz happens in the WARD'S zone, in lib/youth/roster.ts.
+export async function createActivityRoster(options: {
+  id?: string;
+  profileId: string;
+  memberId: string;
+  startedOn?: string;
+  endedOn?: string;
+  addedBy?: string;
+}): Promise<string> {
+  return insertRow("activity_roster", {
+    id: options.id ?? testUuid(`roster:${options.profileId}:${options.memberId}`),
+    ward_id: TEST_WARD_ID,
+    profile_id: options.profileId,
+    member_id: options.memberId,
+    started_on: options.startedOn ?? null,
+    ended_on: options.endedOn ?? null,
+    added_by: options.addedBy ?? null,
+  });
+}
+
+// WHETHER ONE YOUNG PERSON IS TAKING PART IN ONE EVENT (migration 062d).
+//
+// THREE STATES, AND THE THIRD IS **NOT CALLING THIS AT ALL**. No row means nobody has said, which
+// is the ordinary state of nearly every (youth, event) pair — so a scenario seeds one of these
+// only where the point is an exception that has already been recorded.
+//
+// `takingPart: false` is what takes the game out of that young person's support percentage and
+// out of the coverage model FOR THEM ALONE; their team-mates at the same game are untouched,
+// which is the behaviour youth-j exists to make possible and which a seed is the only cheap way
+// to reach.
+export async function createActivityParticipation(options: {
+  id?: string;
+  eventId: string;
+  memberId: string;
+  takingPart: boolean;
+  recordedBy?: string;
+}): Promise<string> {
+  return insertRow("activity_event_participation", {
+    id: options.id ?? testUuid(`participation:${options.eventId}:${options.memberId}`),
+    ward_id: TEST_WARD_ID,
+    event_id: options.eventId,
+    member_id: options.memberId,
+    taking_part: options.takingPart,
+    recorded_by: options.recordedBy ?? null,
   });
 }
 

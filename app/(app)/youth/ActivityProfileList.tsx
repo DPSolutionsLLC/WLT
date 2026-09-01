@@ -13,13 +13,16 @@ import { Modal } from "@/components/ui/Modal";
 import {
   PROFILE_CLOSE_INVALIDATES,
   PROFILE_MUTATION_INVALIDATES,
+  ROSTER_MUTATION_INVALIDATES,
   YOUTH_PROFILES_QUERY_KEY,
   errorFrom,
   fetchProfiles,
   readJson,
 } from "@/app/(app)/youth/youthQueries";
+import { RosterPanel } from "@/app/(app)/youth/RosterPanel";
 import { canManageActivityProfile } from "@/lib/youth/activityOwnership";
 import type { ActivityProfile } from "@/lib/youth/queries";
+import type { RosterMember } from "@/lib/youth/roster";
 import {
   ACTIVITY_TYPE_LABELS,
   ACTIVITY_TYPE_TONES,
@@ -27,10 +30,24 @@ import {
   type SessionUser,
 } from "@/types/domain";
 
-// The activities on the ward's youth, GROUPED BY THE YOUTH. 08-youth-activities.md's first line
-// is that one young person can be on a team AND in a choir AND on the debate squad, so a flat
-// list of activities would show the same name three times and answer "who is this about?" three
-// times too.
+// THE WARD'S YOUTH ACTIVITIES — ONE CARD PER TEAM (youth-j).
+//
+// ---------------------------------------------------------------------------
+// THIS PAGE USED TO GROUP BY THE YOUNG PERSON, AND THAT WENT WITH THE MODEL
+// ---------------------------------------------------------------------------
+// A profile was one row per (member, activity), so a flat list of activities would have shown the
+// same name three times — hence `groupByYouth`, a heading per youth and their activities beneath.
+//
+// A PROFILE IS A TEAM NOW (migration 062). Varsity Basketball is ONE row with a roster, not eight
+// rows with eight names, so the grouping had nothing left to group: it would have produced one
+// heading per young person each containing the same team, which is the duplication it existed to
+// prevent, inverted. A card is an activity, listed by activity name, and the young people are on
+// it — in RosterPanel — rather than above it.
+//
+// 08-youth-activities.md's first line still holds: one young person can be on a team AND in a
+// choir AND on the debate squad. That question is answered on /youth, which groups by the young
+// person from their MEMBERSHIPS. This page answers the other one — what teams does the ward have,
+// and who is on each.
 //
 // PAGE.TSX IMPORTS ONLY THE COMPONENT FROM THIS FILE. A constant imported from a "use client"
 // module reaches a Server Component as a function rather than as a string — the bug that made
@@ -84,37 +101,16 @@ function emptyToNull(value: string): string | null {
   return trimmed === "" ? null : trimmed;
 }
 
-// Grouped in render order rather than sorted again here: listActivityProfiles already orders by
-// activity name, so a youth's activities arrive in a stable order and only the grouping is left.
-// The youth are then ordered by name, which is the order somebody scanning a list expects.
-function groupByYouth(
-  profiles: readonly ActivityProfile[],
-): { memberId: string; memberName: string; profiles: ActivityProfile[] }[] {
-  const groups = new Map<string, { memberId: string; memberName: string; profiles: ActivityProfile[] }>();
-
-  for (const profile of profiles) {
-    const existing = groups.get(profile.memberId);
-
-    if (existing === undefined) {
-      groups.set(profile.memberId, {
-        memberId: profile.memberId,
-        memberName: profile.memberName,
-        profiles: [profile],
-      });
-    } else {
-      existing.profiles.push(profile);
-    }
-  }
-
-  return [...groups.values()].sort((left, right) =>
-    left.memberName.localeCompare(right.memberName),
-  );
-}
-
 // A count in a sentence needs a singular case, and a fixture with one of everything cannot catch
 // the missing one (plans/retros/ai-b-*: "all 1 of its passages").
 function activityCount(count: number): string {
   return count === 1 ? "1 activity" : `${count} activities`;
+}
+
+// The same rule for the roster, and it earns its place on the Close confirm: "Close Varsity
+// Basketball? It affects 1 young person" is the sentence a fixture with four players cannot catch.
+function youthCount(count: number): string {
+  return count === 1 ? "1 young person" : `${count} young people`;
 }
 
 export function ActivityProfileList({
@@ -160,7 +156,7 @@ export function ActivityProfileList({
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          memberId: draft.memberId,
+          memberIds: draft.memberIds,
           activityName: draft.activityName.trim(),
           activityType: draft.activityType,
           schoolOrg: emptyToNull(draft.schoolOrg),
@@ -225,6 +221,73 @@ export function ActivityProfileList({
     onError: (error: Error) => setListError(error.message),
   });
 
+  // ---------------------------------------------------------------------------
+  // THE THREE ROSTER MUTATIONS, ALL INVALIDATING ROSTER_MUTATION_INVALIDATES
+  // ---------------------------------------------------------------------------
+  // Adding or removing a young person moves every number derived from this team's events — the
+  // denominators on /youth, the expected list on every calendar card, and whether a game reads
+  // "Nobody going" at all. youthQueries.ts names the entries and says why all four; reasoning
+  // about it per mutation is what this module has got wrong three times already.
+  const rosterMutation = useMutation({
+    mutationFn: async (request: { url: string; method: string; body?: unknown }) => {
+      const response = await fetch(request.url, {
+        method: request.method,
+        headers: request.body === undefined ? {} : { "content-type": "application/json" },
+        body: request.body === undefined ? undefined : JSON.stringify(request.body),
+      });
+
+      const payload = await readJson(response);
+      if (!response.ok) {
+        throw new Error(errorFrom(payload, "Could not change who is on that activity."));
+      }
+    },
+    onSuccess: async () => {
+      setListError(undefined);
+      await invalidate(ROSTER_MUTATION_INVALIDATES);
+    },
+    onError: (error: Error) => setListError(error.message),
+  });
+
+  function addToRoster(profileId: string, memberId: string): void {
+    rosterMutation.mutate({
+      url: `/api/youth/profiles/${profileId}/roster`,
+      method: "POST",
+      body: { memberId },
+    });
+  }
+
+  function setLeavingDate(rosterId: string, endedOn: string | null): void {
+    rosterMutation.mutate({
+      url: `/api/youth/roster/${rosterId}`,
+      method: "PATCH",
+      body: { endedOn },
+    });
+  }
+
+  // A CONFIRM, BECAUSE THIS ONE ERASES SOMETHING. Removing a roster row destroys nothing a person
+  // WROTE — follow-ups and private notes hang off events, not off this row (DELETE
+  // /api/youth/roster/[id]'s header) — but it does erase that this young person was ever on the
+  // team, and their games stop being counted retrospectively rather than from a date.
+  //
+  // WORDED BY CONSEQUENCE rather than by action (DocumentList.tsx's house rule), and it NAMES THE
+  // ALTERNATIVE, because a leader reaching for this usually means "she left" rather than "she was
+  // never here". That is the youth-h shape: refuse or warn, and say what to do instead.
+  function removeFromRoster(member: RosterMember): void {
+    const confirmed = window.confirm(
+      `Take ${member.memberName} off this activity? ` +
+        "It will be as though they were never on it, and their games stop counting towards how " +
+        "well they are supported. If they left part-way through a season, use " +
+        "“Left the team” instead so the games they did play still count.",
+    );
+
+    if (!confirmed) return;
+
+    rosterMutation.mutate({
+      url: `/api/youth/roster/${member.rosterId}`,
+      method: "DELETE",
+    });
+  }
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const response = await fetch(`/api/youth/profiles/${id}`, { method: "DELETE" });
@@ -250,8 +313,13 @@ export function ActivityProfileList({
   // towards how well this young person is supported. The last clause is what makes it a mild
   // dialog rather than a warning: it can be undone.
   function closeProfile(profile: ActivityProfile): void {
+    // IT NAMES HOW MANY YOUNG PEOPLE IT AFFECTS, which is new with youth-j and is the one thing a
+    // leader cannot see from the button. Closing used to end one young person's season; it now
+    // ends a whole team's, and pressing it without knowing that is exactly the surprise a confirm
+    // exists to prevent. An empty roster reads "It affects 0 young people", which is true and is
+    // itself worth being told before closing something nobody is on.
     const confirmed = window.confirm(
-      `Close ${profile.activityName} for ${profile.memberName}? ` +
+      `Close ${profile.activityName}? It affects ${youthCount(profile.roster.length)}. ` +
         "Its games and follow-ups stay readable, and it stops counting towards how well they " +
         "are supported. You can reopen it.",
     );
@@ -285,7 +353,7 @@ export function ActivityProfileList({
   // expressions of one rule and neither is the boundary on its own (CLAUDE.md rule 2).
   function removeProfile(profile: ActivityProfile): void {
     const confirmed = window.confirm(
-      `Remove ${profile.activityName} from ${profile.memberName}? ` +
+      `Remove ${profile.activityName}? ` +
         "Nothing has been recorded against it yet. This cannot be undone.",
     );
 
@@ -295,12 +363,15 @@ export function ActivityProfileList({
   }
 
   const profiles = profilesQuery.data ?? [];
-  const groups = groupByYouth(profiles);
   const organizationNames = new Map(organizations.map((org) => [org.id, org.label]));
 
   function draftFrom(profile: ActivityProfile): ActivityProfileDraft {
     return {
-      memberId: profile.memberId,
+      // EMPTY ON EDIT, because the roster is not edited through this form: it is its own resource
+      // with its own routes and its own audit rows (RosterPanel below, and
+      // lib/validation/youth.ts's updateActivityProfileSchema header). The form ignores it when
+      // `initial` is supplied.
+      memberIds: [],
       activityName: profile.activityName,
       activityType: profile.activityType,
       schoolOrg: profile.schoolOrg ?? "",
@@ -326,7 +397,7 @@ export function ActivityProfileList({
         }
       />
 
-      {groups.length === 0 ? (
+      {profiles.length === 0 ? (
         <Card>
           {/* A sentence about what the page is FOR, not a blank panel. An empty state that says
               nothing reads as a page that failed to load. */}
@@ -338,122 +409,123 @@ export function ActivityProfileList({
         </Card>
       ) : (
         <ul className="flex flex-col gap-4">
-          {groups.map((group) => (
-            <li key={group.memberId}>
+          {/* ONE CARD PER TEAM, in the order listActivityProfiles returns them — by activity
+              name. No grouping and no second sort: the list is already the order somebody
+              scanning it expects, and a card is now the thing the page is about. */}
+          {profiles.map((profile) => (
+            <li key={profile.id}>
               <Card>
-                {/* ONE PERSON, ONCE, with their activities beneath. A youth with two activities
-                    is one heading and two cards, never the same name twice. */}
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-foreground">{group.memberName}</h3>
-                  <span className="text-xs text-muted">
-                    {activityCount(group.profiles.length)}
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    {profile.activityName}
+                  </h3>
+                  <span
+                    className={`${CHIP_CLASSES} ${
+                      TONE_CLASSES[ACTIVITY_TYPE_TONES[profile.activityType]]
+                    }`}
+                  >
+                    {ACTIVITY_TYPE_LABELS[profile.activityType]}
                   </span>
+
+                  {/* SAID OUT LOUD ON THE CARD, because the only other sign a season is
+                      finished is that its button reads `Reopen`, and a state a reader has to
+                      infer from a control is not a state they have been told about.
+
+                      NO DATE HERE. When it closed is the history page's question, and formatting
+                      an instant on this screen would need the ward's zone threaded through a
+                      component that has no other use for it
+                      (tests/lib/explicitTimeZone.test.ts). */}
+                  {profile.closedAt === null ? null : (
+                    <span className={`${CHIP_CLASSES} border-border text-muted`}>
+                      Season closed
+                    </span>
+                  )}
                 </div>
 
-                <ul className="mt-3 flex flex-col gap-3">
-                  {group.profiles.map((profile) => (
-                    <li
-                      key={profile.id}
-                      className="rounded-md border border-border bg-surface p-3"
+                {profile.schoolOrg === null ? null : (
+                  <p className="mt-1 text-sm text-muted">{profile.schoolOrg}</p>
+                )}
+                {profile.seasonSchedule === null ? null : (
+                  <p className="text-sm text-muted">{profile.seasonSchedule}</p>
+                )}
+                {profile.notes === null ? null : (
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">
+                    {profile.notes}
+                  </p>
+                )}
+
+                {/* WHOSE IT IS, said out loud on every card. A ward council member reads
+                    activities from every organization on this page, so leaving the owner
+                    implicit would make "why can I not edit this one?" unanswerable. */}
+                <p className="mt-2 text-xs text-muted">
+                  {profile.orgId === null
+                    ? "Ward-wide"
+                    : (organizationNames.get(profile.orgId) ?? "Another organization")}
+                </p>
+
+                {/* ABSENT, not disabled and not present-and-failing. `youth_activities.manage`
+                    says this leader may manage activities; canManageActivityProfile says
+                    WHICH, mirroring BOTH HALVES of migration 054d — USING and WITH CHECK, which
+                    is the correction defect 060-D2 forced. Reads here are ward-wide by design, so
+                    without this every org leader was handed Edit and Remove on every other
+                    presidency's work (youth-a-D1, scenario 049).
+
+                    IT DOES NOT GATE THE ROSTER PANEL BELOW, and that is deliberate rather than an
+                    oversight: `activity_roster` carries WARD-WIDE policies on all four verbs
+                    (migration 062f), so gating its controls on this helper would hide something
+                    the API allows — the mirror mistake, and just as wrong. */}
+                {canManage && canManageActivityProfile(user, profile) ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button variant="secondary" onClick={() => setEditing(profile)}>
+                      Edit
+                    </Button>
+
+                    {/* CLOSE IS THE PRIMARY ANSWER TO "I want this off my list", and it is the
+                        same control in both directions — a season closed by mistake is reopened
+                        by pressing what is now `Reopen`. */}
+                    <Button
+                      variant="secondary"
+                      disabled={closeMutation.isPending}
+                      onClick={() =>
+                        profile.closedAt === null
+                          ? closeProfile(profile)
+                          : reopenProfile(profile)
+                      }
                     >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-medium text-foreground">
-                          {profile.activityName}
-                        </span>
-                        <span
-                          className={`${CHIP_CLASSES} ${
-                            TONE_CLASSES[ACTIVITY_TYPE_TONES[profile.activityType]]
-                          }`}
-                        >
-                          {ACTIVITY_TYPE_LABELS[profile.activityType]}
-                        </span>
+                      {profile.closedAt === null ? "Close the season" : "Reopen"}
+                    </Button>
 
-                        {/* SAID OUT LOUD ON THE CARD, because the only other sign a season is
-                            finished is that its button reads `Reopen`, and a state a reader has
-                            to infer from a control is not a state they have been told about.
+                    {/* ABSENT AT ANY EVENT COUNT ABOVE ZERO, and the gate is EXACT rather than
+                        an approximation — do not "improve" it into a heuristic.
+                        `activity_logs.event_id` has been NOT NULL since migration 057a and
+                        references `activity_events`, so an activity with no events HAS no
+                        follow-ups, and this is precisely the set the server's 409 would let
+                        through. Anything with a game on it is closed, never removed. */}
+                    {profile.eventCount === 0 ? (
+                      <Button
+                        variant="danger"
+                        disabled={deleteMutation.isPending}
+                        onClick={() => removeProfile(profile)}
+                      >
+                        Remove
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
 
-                            NO DATE HERE. When it closed is the history page's question, and
-                            formatting an instant on this screen would need the ward's zone
-                            threaded through a component that has no other use for it
-                            (tests/lib/explicitTimeZone.test.ts). */}
-                        {profile.closedAt === null ? null : (
-                          <span className={`${CHIP_CLASSES} border-border text-muted`}>
-                            Season closed
-                          </span>
-                        )}
-                      </div>
-
-                      {profile.schoolOrg === null ? null : (
-                        <p className="mt-1 text-sm text-muted">{profile.schoolOrg}</p>
-                      )}
-                      {profile.seasonSchedule === null ? null : (
-                        <p className="text-sm text-muted">{profile.seasonSchedule}</p>
-                      )}
-                      {profile.notes === null ? null : (
-                        <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">
-                          {profile.notes}
-                        </p>
-                      )}
-
-                      {/* WHOSE IT IS, said out loud on every card. A ward council member reads
-                          activities from every organization on this page, so leaving the owner
-                          implicit would make "why can I not edit this one?" unanswerable. */}
-                      <p className="mt-2 text-xs text-muted">
-                        {profile.orgId === null
-                          ? "Ward-wide"
-                          : (organizationNames.get(profile.orgId) ?? "Another organization")}
-                      </p>
-
-                      {/* ABSENT, not disabled and not present-and-failing. `youth_activities.manage`
-                          says this leader may manage activities; canManageActivityProfile says
-                          WHICH, mirroring migration 054d. Reads here are ward-wide by design, so
-                          without this every org leader was handed Edit and Remove on every other
-                          presidency's work — RLS refused the writes, but a destructive-sounding
-                          control that always fails is still a bug (youth-a-D1, scenario 049). */}
-                      {canManage && canManageActivityProfile(user, profile) ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Button variant="secondary" onClick={() => setEditing(profile)}>
-                            Edit
-                          </Button>
-
-                          {/* CLOSE IS THE PRIMARY ANSWER TO "I want this off my list", and it is
-                              the same control in both directions — a season closed by mistake is
-                              reopened by pressing what is now `Reopen`. It sits inside the SAME
-                              ownership gate Edit and Remove are in: a control the policy refuses
-                              is still a bug, which this module has shipped four times
-                              (youth-a-D1, visits-d, youth-d). */}
-                          <Button
-                            variant="secondary"
-                            disabled={closeMutation.isPending}
-                            onClick={() =>
-                              profile.closedAt === null
-                                ? closeProfile(profile)
-                                : reopenProfile(profile)
-                            }
-                          >
-                            {profile.closedAt === null ? "Close the season" : "Reopen"}
-                          </Button>
-
-                          {/* ABSENT AT ANY EVENT COUNT ABOVE ZERO, and the gate is EXACT rather
-                              than an approximation — do not "improve" it into a heuristic.
-                              `activity_logs.event_id` has been NOT NULL since migration 057a and
-                              references `activity_events`, so an activity with no events HAS no
-                              follow-ups, and this is precisely the set the server's 409 would let
-                              through. Anything with a game on it is closed, never removed. */}
-                          {profile.eventCount === 0 ? (
-                            <Button
-                              variant="danger"
-                              disabled={deleteMutation.isPending}
-                              onClick={() => removeProfile(profile)}
-                            >
-                              Remove
-                            </Button>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
+                {/* THE ROSTER — the point of this slice, and the reason a card is worth opening.
+                    It gates on `canManage` alone; see the comment above the ownership gate. */}
+                <RosterPanel
+                  profileId={profile.id}
+                  activityName={profile.activityName}
+                  roster={profile.roster}
+                  user={user}
+                  canManage={canManage}
+                  pending={rosterMutation.isPending}
+                  onAdd={addToRoster}
+                  onSetLeavingDate={setLeavingDate}
+                  onRemove={removeFromRoster}
+                />
               </Card>
             </li>
           ))}

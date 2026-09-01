@@ -1,5 +1,6 @@
 import type { ActivityAttendee } from "@/lib/youth/attendees";
 import type { ActivityEvent, ActivityLog, ActivityProfile } from "@/lib/youth/queries";
+import type { EventParticipation } from "@/lib/youth/roster";
 
 // THE CLIENT SIDE'S SHARED CACHE KEYS AND FETCHERS, in one module so the three components on
 // /youth cannot disagree about what they are reading.
@@ -33,6 +34,7 @@ export const YOUTH_EVENTS_QUERY_KEY = "youth-activity-events";
 export const YOUTH_ATTENDEES_QUERY_KEY = "youth-activity-attendees";
 export const YOUTH_FOLLOW_UP_QUERY_KEY = "youth-activity-follow-up";
 export const YOUTH_OCCASION_QUERY_KEY = "youth-activity-occasion";
+export const YOUTH_PARTICIPATION_QUERY_KEY = "youth-activity-participation";
 
 export async function readJson(response: Response): Promise<Record<string, unknown>> {
   try {
@@ -226,4 +228,67 @@ export const OCCASION_MUTATION_INVALIDATES = [
   [YOUTH_OCCASION_QUERY_KEY],
   [YOUTH_EVENTS_QUERY_KEY],
   [YOUTH_ATTENDEES_QUERY_KEY],
+] as const;
+
+// WHO IS AND IS NOT TAKING PART, keyed back by event id — one request for a whole screen, exactly
+// as fetchAttendees is, and taking the SAME `includePast` for the same reason: the route resolves
+// its event set through the same query, so the participation map and the event list cannot
+// describe different screens (roster-b).
+//
+// `includePast` is part of the KEY. Every view is its own cache entry (visits-c found a row made
+// under one filter invisible under another until a reload).
+//
+// AN EVENT NOBODY HAS ANSWERED FOR IS ABSENT FROM THIS RECORD, and a missing key means "nobody has
+// said" — migration 062d's third state, which is the absence of the row, arriving at the browser
+// as the absence of a key rather than as a null somebody has to remember to read correctly.
+export async function fetchParticipation(
+  includePast: boolean,
+): Promise<Record<string, EventParticipation[]>> {
+  const response = await fetch(
+    `/api/youth/participation${includePast ? "?includePast=true" : ""}`,
+  );
+  const payload = await readJson(response);
+
+  if (!response.ok) {
+    throw new Error(errorFrom(payload, "Could not load who is taking part."));
+  }
+
+  return payload.participation as Record<string, EventParticipation[]>;
+}
+
+// WHAT A ROSTER MUTATION HAS TO INVALIDATE.
+//
+// THE PROFILES ENTRY IS WHERE THE ROSTER LIVES — `ActivityProfile.roster`, attached by
+// lib/youth/queries.ts's mapper — so there is no separate roster cache key to keep in step, and
+// none should be added. One list, one entry.
+//
+// THE OTHER TWO ARE REFETCHED WITH IT because adding or removing a young person MOVES EVERY
+// NUMBER DERIVED FROM THE EVENTS: the denominators on /youth, the expected list on every calendar
+// card, and whether a game reads "Nobody going" at all. Reasoning per mutation about which of
+// three interdependent entries a derived number reads is the thing this module has now got wrong
+// three times (youth-a-D2, ATTENDEE_MUTATION_INVALIDATES, FOLLOW_UP_MUTATION_INVALIDATES), so the
+// fourth time it is written down before the bug. The cost is two cached requests.
+export const ROSTER_MUTATION_INVALIDATES = [
+  [YOUTH_PROFILES_QUERY_KEY],
+  [YOUTH_EVENTS_QUERY_KEY],
+  [YOUTH_ATTENDEES_QUERY_KEY],
+  [YOUTH_PARTICIPATION_QUERY_KEY],
+] as const;
+
+// WHAT A PARTICIPATION MUTATION HAS TO INVALIDATE.
+//
+//   * The PARTICIPATION itself, obviously — the chip and the control both read it.
+//   * The EVENTS, because the coverage badge is computed from the event AND this answer: a game
+//     everybody is marked absent for reads `not_expected` at every distance from the clock, so
+//     leaving the events entry stale would leave a card carrying a chip that says one thing and a
+//     badge that says another. That is youth-a-D2's shape, and it is why ATTENDEE_MUTATION_
+//     INVALIDATES carries the events key too.
+//
+// THE PROFILES ENTRY IS NOT HERE, deliberately: marking somebody absent changes no roster row and
+// no team. Widening this to match ROSTER_MUTATION_INVALIDATES would erase that distinction for
+// the next reader, which is the reasoning PROFILE_CLOSE_INVALIDATES gives for staying separate
+// from PROFILE_MUTATION_INVALIDATES.
+export const PARTICIPATION_MUTATION_INVALIDATES = [
+  [YOUTH_PARTICIPATION_QUERY_KEY],
+  [YOUTH_EVENTS_QUERY_KEY],
 ] as const;

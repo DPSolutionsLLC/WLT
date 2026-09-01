@@ -86,7 +86,6 @@ function asStoredEvents(occurrences: readonly IcsOccurrence[]): ActivityEvent[] 
     occasionId: null,
     // Migration 061. Null on an imported row, and the import never writes it — a mark a person
     // made by hand survives every future import of the same file (Decision 6).
-    youthAttended: null,
     createdAt: "2026-12-01T00:00:00.000Z",
   }));
 }
@@ -204,7 +203,6 @@ describe("what notInFile must never contain", () => {
       sourceUid: null,
       sourceRecurrenceId: null,
       occasionId: null,
-      youthAttended: null,
       createdAt: "2026-12-01T00:00:00.000Z",
     };
 

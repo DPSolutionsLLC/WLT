@@ -79,7 +79,9 @@ export function AddYouthToOccasion({ profiles, disabled, onAdd }: AddYouthToOcca
               <option value="">Choose a young person…</option>
               {profiles.map((profile) => (
                 <option key={profile.id} value={profile.id}>
-                  {`${profile.memberName} · ${profile.activityName}`}
+                  {profile.schoolOrg === null
+                    ? profile.activityName
+                    : `${profile.activityName} · ${profile.schoolOrg}`}
                 </option>
               ))}
             </select>

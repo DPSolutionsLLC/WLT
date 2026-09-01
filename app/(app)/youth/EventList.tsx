@@ -5,14 +5,17 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FollowUpForm } from "@/app/(app)/youth/FollowUpForm";
 import {
+  PARTICIPATION_MUTATION_INVALIDATES,
   YOUTH_ATTENDEES_QUERY_KEY,
   YOUTH_EVENTS_QUERY_KEY,
   YOUTH_FOLLOW_UP_QUERY_KEY,
+  YOUTH_PARTICIPATION_QUERY_KEY,
   YOUTH_PROFILES_QUERY_KEY,
   errorFrom,
   fetchAttendees,
   fetchEvents,
   fetchOwnFollowUps,
+  fetchParticipation,
   fetchProfiles,
   readJson,
 } from "@/app/(app)/youth/youthQueries";
@@ -23,13 +26,21 @@ import { Input } from "@/components/ui/Input";
 import { AttendeeControls } from "@/components/youth/AttendeeControls";
 import { COVERAGE_EDGE_CLASSES, CoverageBadge } from "@/components/youth/CoverageBadge";
 import { FollowUpBadge } from "@/components/youth/FollowUpBadge";
-import { YouthAbsenceChip } from "@/components/youth/YouthAbsenceChip";
+import { YouthParticipationControl } from "@/components/youth/YouthParticipationControl";
 import { canManageActivityLog, canWriteFollowUpOn } from "@/lib/youth/activityOwnership";
 import type { ActivityAttendee } from "@/lib/youth/attendees";
 import { eventCoverage } from "@/lib/youth/coverage";
 import { toLocalInputValue, toOffsetBearingInstant } from "@/lib/youth/eventInstant";
 import { followUpState, isFollowUpWritable } from "@/lib/youth/followUp";
 import type { ActivityEvent, ActivityLog, ActivityProfile } from "@/lib/youth/queries";
+import {
+  eventYouthAttendance,
+  expectedNames,
+  memberIsExpectedAt,
+  rosterInWindow,
+  youthAttendedForEvent,
+  type EventParticipation,
+} from "@/lib/youth/roster";
 import {
   EVENT_STATUS_LABELS,
   EVENT_TYPES,
@@ -62,6 +73,9 @@ export type EventListProps = {
   // the UPCOMING view, where a follow-up is never due — so this is empty on first paint by
   // construction and the widened view is where it fills in.
   initialFollowUps: Record<string, ActivityLog>;
+  // Seeds the SHARED participation query, keyed by event id. An event nobody has answered for is
+  // simply ABSENT — migration 062d's third state arriving as a missing key.
+  initialParticipation: Record<string, EventParticipation[]>;
   canManage: boolean;
   // `youth_activities.log`, resolved ONCE on the server. A client component never re-derives a
   // permission (AttendeeControls' header states the rule).
@@ -94,6 +108,27 @@ export type EventListProps = {
   // shared with FollowUpPanel and YouthOverview, and seeding it PRE-FILTERED would poison that
   // entry for every other reader on the page. Filter on the way OUT, never on the way in.
   profileIds?: readonly string[];
+  // ---------------------------------------------------------------------------
+  // WHOSE SCHEDULE THIS IS — AND WHY A TEAM FILTER WAS NOT ENOUGH (defect 062-D1)
+  // ---------------------------------------------------------------------------
+  // `profileIds` narrows to a young person's ACTIVITIES. It cannot narrow to the games they were
+  // actually on the team for, because a team's schedule is one set of rows serving a whole roster
+  // (youth-j). So an expanded card for a youth who left mid-season listed the games played after
+  // they left, under a heading bearing their name — while the pill beside it, which DOES apply
+  // the window, read "0 events coming up". One card, two numbers: the ITER-022 count-and-list
+  // defect, found walking scenario 062.
+  //
+  // Set this and the list narrows to the window as well as to the team. The window rule is NOT
+  // restated here — `memberIsExpectedAt()` is called, the same function the percentage is built
+  // from, so the count and the list cannot drift apart again (visits-b, visits-f, ITER-022).
+  //
+  // ABSENT ON /youth/profiles, DELIBERATELY. There the unit is the TEAM, and its whole schedule
+  // is the right answer — including the games a youth who has left did not play. Setting this
+  // there would hide a team's own season from the page that manages it.
+  //
+  // The window needs the profile's `roster` and `closedAt`, both of which are already on the
+  // profile this component fetches, so this stays one scalar prop and adds no request.
+  memberId?: string;
   // "Schedule" on /youth/profiles; the young person's name inside an expanded overview card.
   heading?: string;
   // From lib/ward/wardTimezone.ts, resolved once by the page. See formatInstant's header: this
@@ -204,6 +239,7 @@ export function EventList({
   initialProfiles,
   initialAttendees,
   initialFollowUps,
+  initialParticipation,
   canManage,
   canLog,
   crossOrgVisibility,
@@ -214,6 +250,7 @@ export function EventList({
   canAssign,
   assignableUsers,
   profileIds,
+  memberId,
   wardTimeZone,
   heading,
 }: EventListProps) {
@@ -229,11 +266,12 @@ export function EventList({
     initialData: initialProfiles,
   });
 
-  const profileLabels = new Map(
-    (profilesQuery.data ?? []).map((profile) => [
-      profile.id,
-      { activityName: profile.activityName, memberName: profile.memberName, orgId: profile.orgId },
-    ]),
+  // THE WHOLE PROFILE, not three fields off it. A card now needs the activity's name, its owning
+  // organization, its ROSTER and its `closedAt` — and youth-e is what carrying a subset costs:
+  // a value held the state and the date but not the count, and every covered card read
+  // "Covered · 0" above an event card reading "Covered · 1".
+  const profilesById = new Map(
+    (profilesQuery.data ?? []).map((profile) => [profile.id, profile]),
   );
 
   const [includePast, setIncludePast] = useState(false);
@@ -258,6 +296,14 @@ export function EventList({
     queryKey: [YOUTH_FOLLOW_UP_QUERY_KEY, includePast],
     queryFn: () => fetchOwnFollowUps(includePast),
     initialData: includePast ? undefined : initialFollowUps,
+  });
+
+  const participationQuery = useQuery({
+    queryKey: [YOUTH_PARTICIPATION_QUERY_KEY, includePast],
+    queryFn: () => fetchParticipation(includePast),
+    // The server rendered the UPCOMING view only, so the widened view starts empty rather than
+    // seeded — the same guard every other query on this component carries.
+    initialData: includePast ? undefined : initialParticipation,
   });
 
   const eventsQuery = useQuery({
@@ -288,6 +334,39 @@ export function EventList({
       setEditing(null);
       setListError(undefined);
       await refresh();
+    },
+    onError: (error: Error) => setListError(error.message),
+  });
+
+  // RECORDING THAT ONE YOUNG PERSON IS NOT TAKING PART. Its OWN mutation rather than a body on
+  // patchMutation, because it is a write to a different table on a different route with a
+  // different invalidation set — youthQueries.ts names them and says why the events key is in it.
+  const participationMutation = useMutation({
+    mutationFn: async ({
+      eventId,
+      memberId,
+      takingPart,
+    }: {
+      eventId: string;
+      memberId: string;
+      takingPart: boolean | null;
+    }) => {
+      const response = await fetch(`/api/youth/events/${eventId}/participation`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ memberId, takingPart }),
+      });
+
+      const payload = await readJson(response);
+      if (!response.ok) throw new Error(errorFrom(payload, "Could not record that."));
+    },
+    onSuccess: async () => {
+      setListError(undefined);
+      await Promise.all(
+        PARTICIPATION_MUTATION_INVALIDATES.map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey: [...queryKey] }),
+        ),
+      );
     },
     onError: (error: Error) => setListError(error.message),
   });
@@ -324,11 +403,37 @@ export function EventList({
   // `eventCount()` reads `events.length`, so the heading's number follows this filter
   // automatically. That is the property to preserve rather than a convenience: a count beside a
   // list that answers a different question is the ITER-022 defect.
-  const events = (eventsQuery.data ?? []).filter(
-    (event) =>
-      profileIds === undefined ||
-      (event.profileId !== null && profileIds.includes(event.profileId)),
-  );
+  const events = (eventsQuery.data ?? []).filter((event) => {
+    if (
+      profileIds !== undefined &&
+      (event.profileId === null || !profileIds.includes(event.profileId))
+    ) {
+      return false;
+    }
+
+    // NARROWED TO THE TEAM ABOVE, TO THE PERSON'S OWN WINDOW HERE. Two filters because a team's
+    // schedule is one set of rows serving a whole roster: the first answers "is this one of their
+    // activities", the second "were they on the team when it was played" (defect 062-D1).
+    if (memberId === undefined) return true;
+
+    // A ward-wide event belongs to no team, so no roster row can place anybody at it.
+    if (event.profileId === null) return false;
+
+    const profile = profilesById.get(event.profileId);
+
+    // FAIL CLOSED on a profile or a membership this component cannot see, matching
+    // memberIsExpectedAt()'s own answer to an unreadable date: a row nothing can read is not a
+    // row to render under somebody's name. Neither is reachable in practice — `profilesById` is
+    // seeded from the server on first paint, and the caller derives `profileIds` from this young
+    // person's own memberships — so an empty list here means the data changed under the page,
+    // which is the case where showing another youth's season is the worse failure.
+    if (profile === undefined) return false;
+
+    const membership = profile.roster.find((entry) => entry.memberId === memberId);
+    if (membership === undefined) return false;
+
+    return memberIsExpectedAt(membership, profile.closedAt, event.eventDate, wardTimeZone);
+  });
 
   // ---------------------------------------------------------------------------
   // COUNTED FROM THE UNFILTERED LIST, ABOVE — NOT FROM `events`
@@ -349,6 +454,7 @@ export function EventList({
 
   const attendeesByEvent = attendeesQuery.data ?? {};
   const followUpsByEvent = followUpsQuery.data ?? {};
+  const participationByEvent = participationQuery.data ?? {};
 
   return (
     <div className="flex flex-col gap-4">
@@ -401,7 +507,31 @@ export function EventList({
         <ul className="flex flex-col gap-3">
           {events.map((event) => {
             const profile =
-              event.profileId === null ? undefined : profileLabels.get(event.profileId);
+              event.profileId === null ? undefined : profilesById.get(event.profileId);
+
+            const participation = participationByEvent[event.id] ?? [];
+
+            // ---------------------------------------------------------------
+            // WHO IS EXPECTED AT THIS GAME, AND WHO IS MARKED ABSENT
+            // ---------------------------------------------------------------
+            // ONE call, and it answers the loud/quiet split as well: a team with nobody on its
+            // roster yet lands on `expected` with an EMPTY list, so its games read as ordinary
+            // uncovered coverage rather than silently leaving the model. lib/youth/roster.ts's
+            // branch 5 argues that at length and this is the screen it is about.
+            //
+            // IT HONOURS `closedAt` WITHOUT THIS FILE MENTIONING IT — the window function folds
+            // "the youth left", "the youth joined late" and "the season was closed out" into one
+            // rule, which is the design.
+            const attendance =
+              profile === undefined
+                ? null
+                : eventYouthAttendance(
+                    event,
+                    profile.roster,
+                    participation,
+                    profile.closedAt,
+                    wardTimeZone,
+                  );
 
             const attendees = attendeesByEvent[event.id] ?? [];
             const ownAttendee =
@@ -420,10 +550,15 @@ export function EventList({
                 isAttendee: ownAttendee !== null,
                 hasLog: ownLog !== null,
                 confirmedAttendance: ownAttendee?.confirmedAttendance ?? null,
-                // Migration 061. A game the young person is not taking part in asks nobody for an
-                // account of it — but a follow-up ALREADY WRITTEN still reads `logged`, and
-                // isFollowUpWritable() below is deliberately untouched, so the button stays.
-                youthAttended: event.youthAttended,
+                // A game NOBODY on the team is taking part in asks nobody for an account of it —
+                // but a follow-up ALREADY WRITTEN still reads `logged`, and isFollowUpWritable()
+                // below is deliberately untouched, so the button stays.
+                //
+                // ONE ABSENT PLAYER OUT OF FOUR DOES NOT STOP THE PROMPT, and that is the
+                // event-level reading being the right one here: somebody still went to that game,
+                // and their account is still worth having. youthAttendedForEvent() is where that
+                // judgement lives, so this screen and the calendar cannot word it differently.
+                youthAttended: attendance === null ? null : youthAttendedForEvent(attendance),
               },
               asOfInstant,
             );
@@ -471,9 +606,9 @@ export function EventList({
                 eventDate: event.eventDate,
                 status: event.status,
                 attendeeCount: attendees.length,
-                // Migration 061. Resolves to `not_expected` at EVERY distance from the clock, so a
-                // marked game raises no badge three days out and no failure three days past.
-                youthAttended: event.youthAttended,
+                // Resolves to `not_expected` at EVERY distance from the clock, so a game with no
+                // expectation raises no badge three days out and no failure three days past.
+                youthAttended: attendance === null ? null : youthAttendedForEvent(attendance),
               },
               asOfInstant,
             );
@@ -528,19 +663,15 @@ export function EventList({
                         {EVENT_STATUS_LABELS.cancelled}
                       </span>
                     ) : null}
-                    {/* A GAME THE YOUNG PERSON IS NOT TAKING PART IN STAYS VISIBLE AND IS MARKED,
-                        exactly as a cancelled one does — and for the same reason. Removing it
-                        would lose the record that it was ever scheduled, which is what somebody
-                        asking "why did nobody go?" needs. It renders NOTHING for `true` and for
-                        `null`, and the tone is deliberately not the Cancelled chip's: two
-                        different facts must not read as one (migration 061).
+                    {/* THE ABSENCE CHIPS ARE NOT HERE ANY MORE — they live inside
+                        YouthParticipationControl at the foot of the card, one per absent young
+                        person. An event serves a whole TEAM now (migration 062), so a game can
+                        carry several, and a row of them wedged between the coverage badge and the
+                        "From a schedule feed" marker would crowd out the two facts that describe
+                        the EVENT rather than the people at it.
 
-                        `profile` is already resolved once per row for the labels below; reusing it
-                        is what stops a second lookup answering the same question differently. */}
-                    <YouthAbsenceChip
-                      youthAttended={event.youthAttended}
-                      memberName={profile?.memberName ?? null}
-                    />
+                        They are still ALWAYS VISIBLE, outside the control's disclosure: a
+                        recorded absence is a fact about the game and must not need a click. */}
                     {/* A LABEL, NOT A CONTROL. An imported row can be edited by hand exactly like
                         any other — but the next import of the same file will overwrite the name,
                         the time, the place and the all-day flag (lib/youth/ics/applyImport.ts,
@@ -557,11 +688,29 @@ export function EventList({
                     {formatEventWhen(event.eventDate, event.allDay, wardTimeZone)}
                   </p>
 
+                  {/* THE ACTIVITY AND ITS SCHOOL. A profile is a TEAM now, so there is no single
+                      young person to name here — who is expected is answered beneath, by name,
+                      from the roster. */}
                   <p className="mt-1 text-sm text-muted">
                     {profile === undefined
                       ? "An activity that is no longer listed"
-                      : `${profile.memberName} · ${profile.activityName}`}
+                      : profile.schoolOrg === null
+                        ? profile.activityName
+                        : `${profile.activityName} · ${profile.schoolOrg}`}
                   </p>
+
+                  {/* WHO IS EXPECTED, BY NAME. This is what replaced the member name in the label
+                      above, and it is strictly more information: a card used to say whose game it
+                      was, and now says who is playing in it.
+
+                      NOTHING AT ALL WHEN THE LIST IS EMPTY, which is a team nobody has been
+                      assigned to yet. The sentence a leader needs there is on /youth/profiles,
+                      beside the control that fixes it; repeating it on every one of a season's
+                      twelve cards would be noise. The GAMES are what stay loud here — they keep
+                      their ordinary uncovered badge (lib/youth/roster.ts's branch 5). */}
+                  {attendance === null || expectedNames(attendance).length === 0 ? null : (
+                    <p className="text-sm text-muted">{expectedNames(attendance).join(", ")}</p>
+                  )}
 
                   {event.location === null ? null : (
                     <p className="text-sm text-muted">{event.location}</p>
@@ -707,77 +856,44 @@ export function EventList({
                   ) : null}
 
                   {/* ---------------------------------------------------------------
-                      IS THE YOUNG PERSON TAKING PART?
+                      SOMEBODY WASN'T THERE?
                       ---------------------------------------------------------------
+                      THIS REPLACES A STANDING FIELDSET, AND THE REPLACEMENT IS THE POINT OF THE
+                      SLICE. youth-i rendered "Is Ethan taking part?" with an unselected Yes and an
+                      unselected No on EVERY card. It was optional and it never blocked anything —
+                      and it read as a question owed, which is what raised ITER-033. On a team of
+                      eight it would have read as eight questions per game.
+
+                      YouthParticipationControl renders NOTHING by default: one quiet link, plus
+                      the chips of anybody already marked. Its header argues it in full, and
+                      tests/components/youth/YouthParticipationControl.test.tsx asserts the
+                      default is silent, because that is the only place a test rather than a walk
+                      can catch it regressing.
+
                       PAST AND FUTURE BOTH, because an absence known in advance has to take the
                       game out BEFORE it drags the number down: the support metric's horizon is
                       every past home game plus the NEXT one, so a future answer matters
-                      immediately (migration 061).
+                      immediately.
 
-                      ONLY WHERE THERE IS A YOUNG PERSON TO ASK ABOUT. A ward-wide event has no
-                      profile, migration 061's CHECK makes such a row a database error, and the
-                      route refuses it with a sentence — so offering the control here would be a
-                      button whose only outcome is a 400.
-
-                      `aria-pressed` PLUS the variant, mirroring FollowUpForm's "Did you go?": the
-                      answer must be conveyed by more than colour (ITER-022), and a screen reader
-                      needs the state rather than the styling.
-
-                      PRESSING THE ACTIVE ANSWER AGAIN SENDS `null`. This is a deliberate
-                      divergence from FollowUpForm, which offers no way back. A CONTROL THAT CAN
-                      SET A VALUE AND NOT UNSET IT IS A ONE-WAY DOOR ON A METRIC. Marking the wrong
-                      game — or the right game for the wrong young person — must be undoable, and
-                      it must be undoable to "nobody has said" rather than to "they were there",
-                      which is a different claim. That is migration 060a's rule for `closed_at`
-                      (nullable so a mistake is reopenable, and never a delete) applied to a column
-                      with the same power to move a number.
-
-                      THE EXISTING patchMutation, so there is no second error surface and no second
-                      invalidation to keep in step. */}
-                  {canManage && editing?.id !== event.id && event.profileId !== null ? (
-                    <fieldset className="mt-3 flex flex-col gap-2">
-                      <legend className="text-sm font-medium text-foreground">
-                        Is {profile?.memberName ?? "the young person"} taking part?
-                      </legend>
-                      {/* aria-pressed ON BOTH BUTTONS IN EVERY STATE, which is FollowUpForm's
-                          pattern for the identical shape of question. Without it a screen reader
-                          hears two identically named buttons and cannot tell which answer is
-                          stored; the attribute on ONE and not the other is worse than neither.
-                          ITER-022. */}
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          variant={event.youthAttended === true ? "primary" : "secondary"}
-                          aria-pressed={event.youthAttended === true}
-                          disabled={patchMutation.isPending}
-                          onClick={() =>
-                            patchMutation.mutate({
-                              id: event.id,
-                              body: {
-                                youthAttended: event.youthAttended === true ? null : true,
-                              },
-                            })
-                          }
-                        >
-                          Yes
-                        </Button>
-                        <Button
-                          variant={event.youthAttended === false ? "primary" : "secondary"}
-                          aria-pressed={event.youthAttended === false}
-                          disabled={patchMutation.isPending}
-                          onClick={() =>
-                            patchMutation.mutate({
-                              id: event.id,
-                              body: {
-                                youthAttended: event.youthAttended === false ? null : false,
-                              },
-                            })
-                          }
-                        >
-                          No
-                        </Button>
-                      </div>
-                    </fieldset>
-                  ) : null}
+                      IT RENDERS NOTHING WHERE THERE IS NOBODY TO ASK ABOUT — a ward-wide event
+                      with no team, or a team with nobody on its roster yet. The component decides
+                      that from the list rather than this file deciding it twice. */}
+                  {attendance === null ? null : (
+                    <YouthParticipationControl
+                      eventId={event.id}
+                      expectedMembers={rosterInWindow(attendance)}
+                      participation={participation}
+                      canManage={canManage}
+                      pending={participationMutation.isPending}
+                      onSet={(memberId, takingPart) =>
+                        participationMutation.mutate({
+                          eventId: event.id,
+                          memberId,
+                          takingPart,
+                        })
+                      }
+                    />
+                  )}
 
                   {editing?.id === event.id ? (
                     <div className="mt-3 flex flex-col gap-3 border-t border-border pt-3">

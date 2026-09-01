@@ -19,6 +19,18 @@ import { profileIdSchema } from "@/lib/validation/youthImport";
 // precisely the failure this exists to prevent."
 //
 // SERVER-ONLY: node:crypto, and parseIcs.ts is server-only for the same reason.
+//
+// ---------------------------------------------------------------------------
+// UNCHANGED BY youth-j, AND THE ABSENCE OF A CHANGE IS ITSELF THE DECISION
+// ---------------------------------------------------------------------------
+// `profileId` now names a TEAM rather than one young person's copy of one (migration 062), so ONE
+// FILE IMPORTED ONCE SERVES EVERY YOUNG PERSON ON THAT TEAM'S ROSTER — which is the whole of
+// ITER-033 and the reason eight imports of one schedule stopped being necessary.
+//
+// Not one line here had to move for that, because this module never knew about a young person in
+// the first place: `profileIdSchema`'s message has always read "Choose which activity this
+// schedule belongs to", and that sentence is now more true than it was. Noted so the next reader
+// does not go looking for the change that ought to be here.
 
 export class IcsImportError extends Error {
   readonly status: number;

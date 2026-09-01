@@ -53,8 +53,18 @@ const PROFILE_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 function profile(overrides: Partial<ActivityProfile> = {}): ActivityProfile {
   return {
     id: PROFILE_ID,
-    memberId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-    memberName: "Ethan Brooks",
+    // A TEAM OF ONE — the shape migration 062b's backfill gives every profile that existed
+    // before youth-j, so these fixtures describe the same activities they always described.
+    roster: [
+      {
+        rosterId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        profileId: PROFILE_ID,
+        memberId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        memberName: "Ethan Brooks",
+        startedOn: null,
+        endedOn: null,
+      },
+    ],
     orgId: YOUNG_MEN,
     activityName: "Varsity basketball",
     schoolOrg: "Lincoln High School",
@@ -250,7 +260,11 @@ describe("ActivityProfileList — closing a season", () => {
 
     const text = confirmSpy.mock.calls[0][0] as string;
 
-    expect(text).toContain("Close Varsity basketball for Ethan Brooks?");
+    // IT NAMES HOW MANY YOUNG PEOPLE IT AFFECTS (youth-j), which is the one thing a leader
+    // cannot see from the button now that closing ends a whole TEAM's season rather than one
+    // young person's. The singular case is asserted because a fixture with one of everything
+    // cannot catch a missing one.
+    expect(text).toContain("Close Varsity basketball? It affects 1 young person.");
     expect(text).toContain("stay readable");
     expect(text).toContain("stops counting towards how well they are supported");
     expect(text).toContain("You can reopen it.");
@@ -327,7 +341,9 @@ describe("ActivityProfileList — removing an activity", () => {
 
     const text = confirmSpy.mock.calls[0][0] as string;
 
-    expect(text).toContain("Remove Varsity basketball from Ethan Brooks?");
+    // NO MEMBER NAME. A profile is a TEAM now, so there is no single young person to remove it
+    // "from" — and the roster's own removal control is a separate action with its own confirm.
+    expect(text).toContain("Remove Varsity basketball?");
     expect(text).toContain("Nothing has been recorded against it yet.");
     expect(text).toContain("cannot be undone");
 

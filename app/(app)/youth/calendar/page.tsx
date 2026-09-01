@@ -8,6 +8,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { listAttendeesForEvents } from "@/lib/youth/attendees";
 import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import { listActivityEvents, listActivityProfiles } from "@/lib/youth/queries";
+import { listParticipationForEvents } from "@/lib/youth/rosterQueries";
 
 // The whole ward's youth calendar, at /youth/calendar.
 //
@@ -70,11 +71,20 @@ export default async function YouthCalendarPage() {
     readWardTimezone(user.wardId, supabase),
   ]);
 
-  const attendeesByEvent = await listAttendeesForEvents(
-    user.wardId,
-    events.map((event) => event.id),
-    supabase,
-  );
+  // AFTER the events, because both need their ids — one query for the whole month rather than one
+  // per card (lib/youth/attendees.ts). An empty list short-circuits without a round trip.
+  const [attendeesByEvent, participationByEvent] = await Promise.all([
+    listAttendeesForEvents(
+      user.wardId,
+      events.map((event) => event.id),
+      supabase,
+    ),
+    listParticipationForEvents(
+      user.wardId,
+      events.map((event) => event.id),
+      supabase,
+    ),
+  ]);
 
   // ONLY FOR THE BISHOPRIC, because only they can use the control it feeds — copied from /youth
   // rather than re-derived. Everybody else gets an empty list and no picker: absent rather than
@@ -107,6 +117,7 @@ export default async function YouthCalendarPage() {
         initialProfiles={profiles}
         initialEvents={events}
         initialAttendees={Object.fromEntries(attendeesByEvent)}
+        initialParticipation={Object.fromEntries(participationByEvent)}
         organizations={organizations.map((organization) => ({
           id: organization.id,
           label: organization.name,

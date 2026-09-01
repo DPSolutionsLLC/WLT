@@ -66,7 +66,6 @@ describe("youth activity profile scoping", () => {
       .insert({
         ward_id: wardId,
         org_id: orgId,
-        member_id: memberId,
         activity_name: `${activityName} ${fixtures.runId}`,
         activity_type: "sport",
         entered_by: enteredBy ?? null,
@@ -75,6 +74,20 @@ describe("youth activity profile scoping", () => {
       .single();
 
     if (error) throw new Error(error.message);
+
+    // A TEAM OF ONE — the shape migration 062b backfilled onto every profile that already
+    // existed, so these fixtures describe exactly the wards they described before youth-j and
+    // this suite's four stated purposes are unchanged. `member_id` is gone from the profile
+    // (migration 063); who is on a team lives in `activity_roster`.
+    const { error: rosterError } = await fixtures.service.from("activity_roster").insert({
+      ward_id: wardId,
+      profile_id: data.id,
+      member_id: memberId,
+      added_by: enteredBy ?? null,
+    });
+
+    if (rosterError) throw new Error(rosterError.message);
+
     return data.id;
   };
 

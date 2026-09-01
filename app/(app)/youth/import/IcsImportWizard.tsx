@@ -66,8 +66,13 @@ async function describeRequestFailure(chosen: File): Promise<string> {
   }
 }
 
+// THE ACTIVITY AND ITS SCHOOL, and no member name. A schedule is imported against a TEAM now
+// (migration 062) — ONCE, for everybody on its roster, which is the whole point of youth-j — so
+// naming one young person here would describe the old model and mislead about the new one.
 function labelFor(profile: ActivityProfile): string {
-  return `${profile.memberName} — ${profile.activityName}`;
+  return profile.schoolOrg === null
+    ? profile.activityName
+    : `${profile.activityName} — ${profile.schoolOrg}`;
 }
 
 // Defect youth-b-D3: the result screen read "1 events updated". The preview screen escapes this

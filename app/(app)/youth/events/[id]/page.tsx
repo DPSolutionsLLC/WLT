@@ -8,6 +8,7 @@ import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import { listAttendeesForEvents } from "@/lib/youth/attendees";
+import { listParticipationForEvents } from "@/lib/youth/rosterQueries";
 import { wardDayBounds } from "@/lib/youth/occasionDay";
 import { listActivityEvents, listActivityProfiles, getActivityEvent } from "@/lib/youth/queries";
 
@@ -100,11 +101,14 @@ export default async function YouthEventPage({ params }: YouthEventPageProps) {
   // (lib/youth/attendees.ts). The occasion's rows and the picker's candidates are fetched
   // together, because the candidate list is what the picker labels and the occasion's rows are
   // what it excludes.
-  const attendeesByEvent = await listAttendeesForEvents(
-    user.wardId,
-    [...new Set([...occasionEvents, ...sameDayEvents].map((row) => row.id))],
-    supabase,
-  );
+  const eventIds = [
+    ...new Set([...occasionEvents, ...sameDayEvents].map((row) => row.id)),
+  ];
+
+  const [attendeesByEvent, participationByEvent] = await Promise.all([
+    listAttendeesForEvents(user.wardId, eventIds, supabase),
+    listParticipationForEvents(user.wardId, eventIds, supabase),
+  ]);
 
   const canManage = can(user, "youth_activities.manage", roleAccess);
   const isBishopric = (BISHOPRIC_ROLES as readonly string[]).includes(user.role);
@@ -139,6 +143,7 @@ export default async function YouthEventPage({ params }: YouthEventPageProps) {
         initialOccasionEvents={occasionEvents}
         initialProfiles={profiles}
         initialAttendees={Object.fromEntries(attendeesByEvent)}
+        initialParticipation={Object.fromEntries(participationByEvent)}
         sameDayEvents={sameDayEvents}
         asOf={asOf.toISOString()}
         currentUserId={user.id}

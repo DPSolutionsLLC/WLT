@@ -10,8 +10,10 @@ import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import { listAttendeesForEvents } from "@/lib/youth/attendees";
-import { activitySupport, type SupportEvent } from "@/lib/youth/profileNeed";
+import { activitySupport, buildSupportEvents } from "@/lib/youth/profileNeed";
 import { listActivityEvents, listActivityProfiles } from "@/lib/youth/queries";
+import { memberIsExpectedAt, type RosterMember } from "@/lib/youth/roster";
+import { listParticipationForEvents } from "@/lib/youth/rosterQueries";
 
 // One young person's finished seasons, at /youth/history/[member_id].
 //
@@ -69,19 +71,38 @@ export default async function YouthHistoryPage({ params }: YouthHistoryPageProps
     readWardTimezone(user.wardId, supabase),
   ]);
 
-  const theirProfiles = profiles.filter((profile) => profile.memberId === memberId);
+  // ---------------------------------------------------------------------------
+  // FOUND THROUGH THE ROSTER, NOT THROUGH A COLUMN ON THE PROFILE (youth-j)
+  // ---------------------------------------------------------------------------
+  // `profile.memberId` is gone: a profile is a TEAM and several young people are on it. So this
+  // young person's seasons are the teams whose ROSTER names them — and the membership itself is
+  // carried alongside, because it holds THEIR OWN WINDOW, which is what makes the numbers below
+  // theirs rather than the team's.
+  const theirMemberships = profiles
+    .map((profile) => ({
+      profile,
+      membership: profile.roster.find((member) => member.memberId === memberId) ?? null,
+    }))
+    .filter(
+      (entry): entry is { profile: (typeof profiles)[number]; membership: RosterMember } =>
+        entry.membership !== null,
+    );
 
   // A member id naming nobody with any activity at all reads as missing rather than as an empty
   // page: RLS and the ward filter make "another ward's youth" indistinguishable from "no such
   // youth", and "not found" is the honest answer to a caller who cannot know either way.
-  if (theirProfiles.length === 0) notFound();
+  if (theirMemberships.length === 0) notFound();
 
-  const memberName = theirProfiles[0].memberName;
+  // FROM THE ROSTER ROW, which is where a name now lives. Every one of these rows names the same
+  // member, so the first is as good as any.
+  const memberName = theirMemberships[0].membership.memberName;
 
   // CLOSED SEASONS ONLY, most recently closed first — a history is read from the end.
-  const closedProfiles = theirProfiles
-    .filter((profile) => profile.closedAt !== null)
-    .sort((left, right) => (left.closedAt! < right.closedAt! ? 1 : -1));
+  const closedMemberships = theirMemberships
+    .filter((entry) => entry.profile.closedAt !== null)
+    .sort((left, right) => (left.profile.closedAt! < right.profile.closedAt! ? 1 : -1));
+
+  const closedProfiles = closedMemberships.map((entry) => entry.profile);
 
   // `includePast: true` ALWAYS. Every event on a finished season is in the past by definition, so
   // the upcoming-only default would render every season as empty — the failure mode that looks
@@ -105,38 +126,61 @@ export default async function YouthHistoryPage({ params }: YouthHistoryPageProps
 
   // ONE QUERY FOR THE WHOLE SCREEN, keyed back by event (lib/youth/attendees.ts) — not one per
   // season and certainly not one per game.
-  const attendeesByEvent = await listAttendeesForEvents(
-    user.wardId,
-    events.map((event) => event.id),
-    supabase,
-  );
+  const [attendeesByEvent, participationByEvent] = await Promise.all([
+    listAttendeesForEvents(
+      user.wardId,
+      events.map((event) => event.id),
+      supabase,
+    ),
+    listParticipationForEvents(
+      user.wardId,
+      events.map((event) => event.id),
+      supabase,
+    ),
+  ]);
 
-  const seasons: ClosedSeason[] = closedProfiles.map((profile) => {
+  const seasons: ClosedSeason[] = closedMemberships.map(({ profile, membership }) => {
+    // THE SAME WINDOW THE NUMBER BELOW IS BUILT FROM, APPLIED TO THE LIST AS WELL.
+    //
+    // This filtered on `profileId` alone, which is the TEAM's schedule — so a youth who left in
+    // February had their team-mates' March games rendered under their own name, beside a
+    // percentage that correctly excluded them. That is defect 062-D1, and this was its SECOND
+    // site: the identical shape was fixed in EventList on the same day, and fixing only the one
+    // the walk happened to reach is how it comes back (the 060-D2 lesson, which says in as many
+    // words that leaving one of two identical paths is how a defect returns).
+    //
+    // `closedAt` matters here even for a youth with NO dates of their own: it is one of the three
+    // inputs to memberIsExpectedAt(), so a game played after somebody said the season was over is
+    // out of the list exactly as it is out of the frozen number.
     const theirEvents = events
-      .filter((event) => event.profileId === profile.id)
+      .filter(
+        (event) =>
+          event.profileId === profile.id &&
+          memberIsExpectedAt(membership, profile.closedAt, event.eventDate, wardTimeZone),
+      )
       .sort((left, right) => (left.eventDate < right.eventDate ? 1 : -1));
 
-    const supportEvents: SupportEvent[] = theirEvents.map((event) => {
-      const attendees = attendeesByEvent.get(event.id) ?? [];
-
-      return {
-        eventType: event.eventType,
-        eventDate: event.eventDate,
-        status: event.status,
-        attendeeCount: attendees.length,
-        // `=== true` EXPLICITLY. `confirmedAttendance` is `boolean | null` and null means NOBODY
-        // HAS SAID EITHER WAY — a truthiness check would be correct today and would stop somebody
-        // later reading null as "did not go", which it is not (YouthOverview says the same).
-        confirmedAttendeeCount: attendees.filter(
-          (attendee) => attendee.confirmedAttendance === true,
-        ).length,
-        // Migration 061, AND THIS IS WHERE ITER-028 AND ITER-030 MEET. The frozen number is
-        // recomputed against `closedAt`, and carriesCoverageExpectation() now excludes absences
-        // from that pass too — which is correct: the snapshot should say what was true at the
-        // closing instant, absences included. They compose with no extra code.
-        youthAttended: event.youthAttended,
-      };
-    });
+    // ---------------------------------------------------------------------
+    // THROUGH THE SHARED BUILDER, WITH **THIS YOUNG PERSON'S** WINDOW APPLIED
+    // ---------------------------------------------------------------------
+    // This was one of the three hand-rolled SupportEvent construction sites youth-j collapsed into
+    // buildSupportEvents(); three copies of one mapping is what let youth-e's defect happen.
+    //
+    // AND IT IS NOW A SNAPSHOT OF **THEIR** SEASON RATHER THAN THE TEAM'S. A youth who left in
+    // February gets the games up to February; their team-mate who played on gets the whole
+    // schedule — from the same event rows, which is the headline behaviour of the slice.
+    //
+    // WHERE ITER-028 AND ITER-030 MEET, unchanged: the frozen number is recomputed against
+    // `closedAt`, and carriesCoverageExpectation() excludes absences from that pass too, so the
+    // snapshot says what was true at the closing instant, absences included.
+    const supportEvents = buildSupportEvents(
+      membership,
+      profile.closedAt,
+      theirEvents,
+      attendeesByEvent,
+      participationByEvent,
+      wardTimeZone,
+    );
 
     return {
       profileId: profile.id,

@@ -6,9 +6,11 @@ import { useQuery } from "@tanstack/react-query";
 import {
   YOUTH_ATTENDEES_QUERY_KEY,
   YOUTH_EVENTS_QUERY_KEY,
+  YOUTH_PARTICIPATION_QUERY_KEY,
   YOUTH_PROFILES_QUERY_KEY,
   fetchAttendees,
   fetchEvents,
+  fetchParticipation,
   fetchProfiles,
 } from "@/app/(app)/youth/youthQueries";
 import { Card } from "@/components/ui/Card";
@@ -17,11 +19,18 @@ import { ActivityMonthGrid, type ActivityMonthGridDay } from "@/components/youth
 import { AttendeeControls } from "@/components/youth/AttendeeControls";
 import { COVERAGE_EDGE_CLASSES, CoverageBadge } from "@/components/youth/CoverageBadge";
 import { YouthAbsenceChip } from "@/components/youth/YouthAbsenceChip";
+import {
+  eventYouthAttendance,
+  expectedNames,
+  youthAttendedForEvent,
+  type EventYouthAttendance,
+} from "@/lib/youth/roster";
 import type { DateOnly } from "@/lib/calendar/dates";
 import { monthOf } from "@/lib/calendar/dates";
 import type { ActivityAttendee } from "@/lib/youth/attendees";
 import { eventCoverage, summariseCoverage, type EventCoverage } from "@/lib/youth/coverage";
 import type { ActivityEvent, ActivityProfile } from "@/lib/youth/queries";
+import type { EventParticipation } from "@/lib/youth/roster";
 import {
   ACTIVITY_TYPES,
   ACTIVITY_TYPE_LABELS,
@@ -89,8 +98,18 @@ import {
 // server, so it moves when the cache does.
 type CalendarRow = {
   event: ActivityEvent;
-  memberName: string | null;
+  // WHO IS EXPECTED AT THIS GAME, derived from the team's ROSTER through each member's own window
+  // — and WHOLE RosterMember objects, never names, because the chips need the name and youth-e is
+  // what carrying a subset costs.
+  //
+  // It is also what closes the ITER-033 LEAK, and it does so WITHOUT THIS FILE EVER MENTIONING
+  // `closedAt`. `eventYouthAttendance()` folds "the youth left", "the youth joined late" and "the
+  // season was closed out" into one rule, so a closed team's future games become
+  // `no_expectation` here for the first time — this page has never contained a reference to
+  // `closedAt` and still does not, which is the design rather than an omission.
+  attendance: EventYouthAttendance | null;
   activityName: string | null;
+  schoolOrg: string | null;
   activityType: ActivityType | null;
   // An event inherits its organization THROUGH ITS PROFILE — `activity_events` has no org_id and
   // migration 054d says why: a second copy of the answer could disagree with the first.
@@ -105,8 +124,16 @@ export type ActivityCalendarProps = {
   initialProfiles: ActivityProfile[];
   initialEvents: ActivityEvent[];
   initialAttendees: Record<string, ActivityAttendee[]>;
+  // Keyed by event id; an event nobody has answered for is simply ABSENT (migration 062d's third
+  // state, arriving as a missing key).
+  initialParticipation: Record<string, EventParticipation[]>;
   // From lib/ward/wardTimezone.ts, resolved once by the page. Both the printed time and the day
   // a card is bucketed into are computed from it — see the zone trap above.
+  //
+  // IT IS NOW ALSO WHAT RECONCILES A ROSTER DATE WITH AN EVENT INSTANT. `started_on` and
+  // `ended_on` are days and `event_date` is an instant, and lib/youth/roster.ts compares them in
+  // THIS zone — so the same value that decides what a card says decides which cards a young
+  // person is counted for.
   wardTimeZone: string;
   organizations: { id: string; label: string }[];
   // ONE INSTANT for the whole render, resolved on the server. An ISO string because a Date does
@@ -218,6 +245,7 @@ export function ActivityCalendar({
   initialProfiles,
   initialEvents,
   initialAttendees,
+  initialParticipation,
   organizations,
   asOf,
   currentUserId,
@@ -250,6 +278,12 @@ export function ActivityCalendar({
     initialData: initialAttendees,
   });
 
+  const participationQuery = useQuery({
+    queryKey: [YOUTH_PARTICIPATION_QUERY_KEY, UPCOMING_ONLY],
+    queryFn: () => fetchParticipation(UPCOMING_ONLY),
+    initialData: initialParticipation,
+  });
+
   // The `?? []` fallbacks live INSIDE each callback rather than above them. A `??` in a dependency
   // list allocates a fresh empty array on every render, which would defeat the memo entirely.
   const profilesById = useMemo(
@@ -257,15 +291,27 @@ export function ActivityCalendar({
     [profilesQuery.data],
   );
 
-  // The youth AND the activity, because two young people on the same team would otherwise give
-  // two identical options — the same label ManualEventForm builds. Built HERE now rather than on
-  // the server, from the same cache entry every other label on this page comes from, so a profile
-  // added while the page is open reaches the filter too.
-  const youthOptions = useMemo(
+  // THE FILTER IS BY ACTIVITY NOW, NOT BY YOUNG PERSON, and its label says so.
+  //
+  // It filtered on `profileId`, which used to name one young person's copy of a team and now names
+  // the TEAM. So "Young person / Everybody" became a filter that could not do what it said: it
+  // selects a team, and a team has several young people on it. Leaving the old label would be a
+  // control lying about what it does, which is worse than a control that is merely coarse.
+  //
+  // NARROWING TO ONE YOUNG PERSON IS NOT OFFERED HERE, and that is a deliberate limit rather than
+  // an oversight: an event row belongs to a team, so filtering to Ethan would either show his
+  // team's whole schedule (what this already does) or require splitting one card per player,
+  // which is the duplication youth-j removed. /youth is where a single young person is the unit.
+  //
+  // The school keeps two similarly-named teams apart, which is the job the member name used to do.
+  const activityOptions = useMemo(
     () =>
       (profilesQuery.data ?? []).map((profile) => ({
         id: profile.id,
-        label: `${profile.memberName} — ${profile.activityName}`,
+        label:
+          profile.schoolOrg === null
+            ? profile.activityName
+            : `${profile.activityName} — ${profile.schoolOrg}`,
       })),
     [profilesQuery.data],
   );
@@ -296,16 +342,36 @@ export function ActivityCalendar({
   const rows: CalendarRow[] = useMemo(() => {
     const events = eventsQuery.data ?? [];
     const attendeesByEvent = attendeesQuery.data ?? {};
+    const participationByEvent = participationQuery.data ?? {};
 
     return events
       .map((event) => {
         const profile = event.profileId === null ? undefined : profilesById.get(event.profileId);
         const attendees = attendeesByEvent[event.id] ?? [];
 
+        // ONE CALL, AND IT IS WHERE THE ITER-033 LEAK IS CLOSED. A closed team's future games now
+        // resolve to `no_expectation` / `season_closed` and raise nothing — and this file still
+        // contains no reference to `closedAt`, because the window function owns that rule.
+        //
+        // A TEAM WITH NOBODY ON ITS ROSTER YET LANDS ON `expected` WITH AN EMPTY LIST, so its
+        // games keep their ordinary coverage badge and stay LOUD. That is the branch a tidy-up
+        // will want to invert; lib/youth/roster.ts argues it at length.
+        const attendance =
+          profile === undefined
+            ? null
+            : eventYouthAttendance(
+                event,
+                profile.roster,
+                participationByEvent[event.id] ?? [],
+                profile.closedAt,
+                wardTimeZone,
+              );
+
         return {
           event,
-          memberName: profile?.memberName ?? null,
+          attendance,
           activityName: profile?.activityName ?? null,
+          schoolOrg: profile?.schoolOrg ?? null,
           activityType: profile?.activityType ?? null,
           orgId: profile?.orgId ?? null,
           attendees,
@@ -315,11 +381,10 @@ export function ActivityCalendar({
               eventDate: event.eventDate,
               status: event.status,
               attendeeCount: attendees.length,
-              // Migration 061. A game the young person is not taking part in resolves to
-              // `not_expected` at every distance from the clock, so it drops out of the count
-              // strip above and raises no badge below — from the SAME computation, which is what
-              // stops the strip and the cards disagreeing.
-              youthAttended: event.youthAttended,
+              // Resolves to `not_expected` at every distance from the clock, so a game with no
+              // expectation drops out of the count strip above and raises no badge below — from
+              // the SAME computation, which is what stops the strip and the cards disagreeing.
+              youthAttended: attendance === null ? null : youthAttendedForEvent(attendance),
             },
             asOfInstant,
           ),
@@ -332,12 +397,14 @@ export function ActivityCalendar({
   }, [
     eventsQuery.data,
     attendeesQuery.data,
+    participationQuery.data,
     profilesById,
     profileId,
     orgId,
     activityType,
     eventType,
     asOfInstant,
+    wardTimeZone,
   ]);
 
   // Computed from the ROWS ON SCREEN, so the strip and the badges beneath it cannot disagree —
@@ -474,17 +541,17 @@ export function ActivityCalendar({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="filter-youth" className="text-sm font-medium text-foreground">
-            Young person
+          <label htmlFor="filter-activity-name" className="text-sm font-medium text-foreground">
+            Activity
           </label>
           <select
-            id="filter-youth"
+            id="filter-activity-name"
             className={SELECT_CLASSES}
             value={profileId}
             onChange={(input) => setProfileId(input.target.value)}
           >
-            <option value={ANY}>Everybody</option>
-            {youthOptions.map((option) => (
+            <option value={ANY}>Every activity</option>
+            {activityOptions.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.label}
               </option>
@@ -593,7 +660,7 @@ export function ActivityCalendar({
                 // activity that is no longer listed" there, and a link to a card that will not
                 // open is worse than none.
                 youthHref={
-                  row.event.profileId !== null && row.memberName !== null
+                  row.event.profileId !== null && row.activityName !== null
                     ? `/youth?youth=${row.event.profileId}`
                     : null
                 }
@@ -625,7 +692,17 @@ function EventCard({
   // caller — see the comment on `occasionCounts`.
   siblingCount: number;
 }) {
-  const { event, coverage, memberName, activityName, attendees } = row;
+  const { event, coverage, attendance, activityName, schoolOrg, attendees } = row;
+
+  // Every young person somebody has said is not taking part, in `memberships` order. An event
+  // serves a whole TEAM now, so a card can carry several chips — one naming each — and
+  // describeYouthAbsence() words all of them so three chips cannot be worded three ways.
+  const absentMembers = attendance === null ? [] : attendance.absent;
+
+  // WHO IS EXPECTED, BY NAME. Empty for a team nobody is on yet AND for one whose season has
+  // closed; the difference between those two is carried by the coverage badge, which is loud for
+  // the first and silent for the second.
+  const expected = attendance === null ? [] : expectedNames(attendance);
 
   // The same rule EventList follows: where the coverage badge already says a card is unclassified,
   // the type chip would be a second, vaguer copy of it. Kept when the badge is absent — a past or
@@ -656,37 +733,61 @@ function EventCard({
             Cancelled
           </span>
         ) : null}
-        {/* MARKED, NOT REMOVED. A game the young person is not taking part in stays on the
+        {/* MARKED, NOT REMOVED. A game a young person is not taking part in stays on the
             calendar carrying its chip, exactly as a cancelled one does — the record that it was
-            scheduled is what somebody asking "why did nobody go?" needs. Renders nothing for
-            `true` and for `null` (migration 061).
+            scheduled is what somebody asking "why did nobody go?" needs. ONE CHIP PER ABSENT
+            YOUNG PERSON, because an event serves a whole team now; a card with none is a game
+            everybody on the roster is at (migration 062d).
 
             THE CONTROL IS NOT HERE, deliberately. It lives in EventList and nowhere else: a
             second entry point would be a second meaning of the same word, which is the ground
             youth-h refused a second "unlink" on. */}
-        <YouthAbsenceChip youthAttended={event.youthAttended} memberName={memberName} />
+        {absentMembers.map((member) => (
+          <YouthAbsenceChip
+            key={member.memberId}
+            youthAttended={false}
+            memberName={member.memberName}
+          />
+        ))}
       </div>
 
       <p className="mt-1 text-sm text-foreground">
         {formatWhen(event.eventDate, event.allDay, wardTimeZone)}
       </p>
 
-      {/* THE YOUNG PERSON IS A LINK TO THEIR OWN CARD. The calendar answers "what is happening";
-          the overview answers "how is this person doing", and a leader reading one wants the
-          other. The card opens already expanded — /youth resolves ?youth= on the server against
-          the profiles it fetched, so an id naming nothing resolves to no expansion rather than to
-          a card that never opens. */}
-      {memberName === null || activityName === null ? (
+      {/* THE ACTIVITY IS A LINK TO THE YOUNG PEOPLE ON IT. The calendar answers "what is
+          happening"; the overview answers "how are these people doing", and a leader reading one
+          wants the other.
+
+          THE LINK NOW NAMES A TEAM RATHER THAN A PERSON, and /youth resolves `?youth=` to the
+          FIRST young person on that team's roster. That is a stated limitation rather than an
+          oversight — a card here is a whole team's game and singles nobody out, so there is no
+          better answer to give the link than "open this activity". /youth/page.tsx records the
+          same thing from the other side. An id naming nothing, or a team with an empty roster,
+          resolves to no expansion rather than to a card that never opens. */}
+      {activityName === null ? (
         <p className="mt-1 text-sm text-muted">An activity that is no longer listed</p>
       ) : youthHref === null ? (
-        <p className="mt-1 text-sm text-muted">{`${memberName} · ${activityName}`}</p>
+        <p className="mt-1 text-sm text-muted">
+          {schoolOrg === null ? activityName : `${activityName} · ${schoolOrg}`}
+        </p>
       ) : (
         <p className="mt-1 text-sm text-muted">
           <Link href={youthHref} className="text-primary underline underline-offset-4">
-            {memberName}
+            {activityName}
           </Link>
-          {` · ${activityName}`}
+          {schoolOrg === null ? null : ` · ${schoolOrg}`}
         </p>
+      )}
+
+      {/* WHO IS EXPECTED, BY NAME — what a card gained in exchange for the single member name it
+          lost. One game now says who is playing in it rather than whose game it is.
+
+          NOTHING AT ALL WHEN THE LIST IS EMPTY. A team nobody is on yet keeps its ordinary
+          uncovered badge, which is the loud signal; the sentence explaining it belongs beside the
+          control that fixes it, on /youth/profiles, not repeated on twelve cards. */}
+      {expected.length === 0 ? null : (
+        <p className="text-sm text-muted">{expected.join(", ")}</p>
       )}
 
       {event.location === null ? null : (

@@ -91,7 +91,11 @@ export async function PATCH(
         detail: {
           profileId,
           orgId: profile.orgId,
-          memberId: profile.memberId,
+          activityName: profile.activityName,
+          // HOW MANY YOUNG PEOPLE IT AFFECTED. Closing used to end one young person's season and
+          // now ends a whole team's, so the number is the difference between a note and an
+          // answerable "why did four percentages stop moving in February?".
+          rosterCount: profile.roster.length,
           closedAt: profile.closedAt,
         },
       },

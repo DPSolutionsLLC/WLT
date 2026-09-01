@@ -119,7 +119,12 @@ export async function POST(request: Request) {
         module: "youth_activities",
         detail: {
           profileId: profile.id,
-          memberId: profile.memberId,
+          activityName: profile.activityName,
+          // WHO WAS PUT ON IT AT CREATION, which is the roster the request asked for. Adding
+          // somebody later is its own action with its own audit row
+          // (`youth_activity_roster_added`), so this is not the whole story of a team's roster and
+          // is not meant to be — it is what THIS request did.
+          memberIds: profile.roster.map((member) => member.memberId),
           orgId: profile.orgId,
           activityType: profile.activityType,
         },
@@ -141,7 +146,7 @@ export async function POST(request: Request) {
         actingUserId: user.id,
         triggerKey: "youth_activity_added",
         title: "A youth activity was added",
-        description: `${profile.memberName} — ${profile.activityName} (${
+        description: `${profile.activityName} (${
           ACTIVITY_TYPE_LABELS[profile.activityType]
         })`,
       });

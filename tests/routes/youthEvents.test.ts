@@ -92,7 +92,6 @@ describe("/api/youth/events", () => {
   // profile_id NULL — a ward-wide event, which belongs to no young person. Migration 061's CHECK
   // makes `youth_attended` on such a row a database error, and the route refuses it with a
   // sentence first.
-  let wardWideEventId: string;
 
   const created: string[] = [];
   // Occasions outlive the events that made them until afterAll, because deleting an event does
@@ -192,14 +191,12 @@ describe("/api/youth/events", () => {
         {
           ward_id: wardId,
           org_id: fixtures.eldersQuorumId,
-          member_id: youthId,
           activity_name: `Basketball ${fixtures.runId}`,
           activity_type: "sport",
         },
         {
           ward_id: fixtures.wardBId,
           org_id: fixtures.wardBOrgId,
-          member_id: wardBYouthId,
           activity_name: `Ward B track ${fixtures.runId}`,
           activity_type: "sport",
         },
@@ -209,6 +206,14 @@ describe("/api/youth/events", () => {
 
     profileId = profiles!.find((row) => row.ward_id === wardId)!.id;
     wardBProfileId = profiles!.find((row) => row.ward_id === fixtures.wardBId)!.id;
+
+    // A TEAM OF ONE on each, which is the shape migration 062b backfilled onto every profile that
+    // already existed — so this suite describes the same wards it described before youth-j.
+    const { error: rosterError } = await fixtures.service.from("activity_roster").insert([
+      { ward_id: wardId, profile_id: profileId, member_id: youthId },
+      { ward_id: fixtures.wardBId, profile_id: wardBProfileId, member_id: wardBYouthId },
+    ]);
+    if (rosterError) throw new Error(rosterError.message);
 
     const { data: events, error: eventError } = await fixtures.service
       .from("activity_events")
@@ -233,6 +238,11 @@ describe("/api/youth/events", () => {
           status: "upcoming",
         },
         {
+          // A WARD-WIDE EVENT — no profile, so no team and no roster. It is kept in the seed even
+          // though youth-j moved the refusal it used to back onto
+          // /api/youth/events/[id]/participation (tested in tests/routes/youthParticipation.test.ts):
+          // an event with a null profile_id is a shape every other assertion in this file runs
+          // beside, and removing it would narrow the fixture to the easy case.
           ward_id: wardId,
           profile_id: null,
           title: `Ward wide ${fixtures.runId}`,
@@ -246,7 +256,6 @@ describe("/api/youth/events", () => {
 
     pastEventId = events!.find((row) => row.title.startsWith("Last season"))!.id;
     upcomingEventId = events!.find((row) => row.title.startsWith("Next season"))!.id;
-    wardWideEventId = events!.find((row) => row.title.startsWith("Ward wide"))!.id;
   }, 180_000);
 
   afterAll(async () => {
@@ -732,160 +741,44 @@ describe("/api/youth/events", () => {
   // ===========================================================================
   // RECORDING THAT THE YOUNG PERSON WAS NOT THERE (migration 061)
   // ===========================================================================
-  // EVERY VALUE IS READ BACK WITH THE SERVICE CLIENT, never off the response body. An RLS-denied
-  // UPDATE is a ZERO-ROW SUCCESS rather than an error, so a refusal is proved by re-reading the row
-  // and never by expecting a throw.
-  describe("whether the young person is taking part", () => {
-    let markableId: string;
-
-    beforeAll(async () => {
-      await actAs(fixtures, "eqPresident");
-      const { body } = await callPost({
-        profileId,
-        title: `Markable ${fixtures.runId}`,
-        eventDate: "2027-12-04T19:30:00-07:00",
-      });
-      markableId = eventFrom(body).id;
-      created.push(markableId);
-    });
-
-    it("starts as null — nobody has said", async () => {
-      expect((await storedEvent(markableId))!.youth_attended).toBeNull();
-    });
-
-    it("stores false", async () => {
+  // ---------------------------------------------------------------------------
+  // "IS THE YOUNG PERSON TAKING PART?" IS NOT THIS ROUTE'S QUESTION ANY MORE (youth-j)
+  // ---------------------------------------------------------------------------
+  // youth-i tested it here, because migration 061 put `youth_attended` on `activity_events` and
+  // the ordinary event PATCH wrote it. Migration 062d moved the fact to
+  // `activity_event_participation` — one row per (young person, event) — because a profile is a
+  // TEAM now and a field on this route could only ever mark everybody at the same game.
+  //
+  // The behaviour is covered in full by tests/routes/youthParticipation.test.ts and
+  // tests/rls/activity-event-participation.test.ts. What is asserted HERE is only that this route
+  // no longer touches it, because a schema that silently ignores a key it used to accept is how a
+  // client goes on sending one and believing it took effect.
+  describe("youthAttended is no longer accepted here", () => {
+    it("refuses a patch carrying only youthAttended, rather than reporting a no-op success", async () => {
       await actAs(fixtures, "eqPresident");
 
-      const { status } = await callPatch(markableId, { youthAttended: false });
+      const { status } = await callPatch(upcomingEventId, { youthAttended: false });
 
-      expect(status).toBe(200);
-      expect((await storedEvent(markableId))!.youth_attended).toBe(false);
-    });
-
-    it("stores true", async () => {
-      await actAs(fixtures, "eqPresident");
-
-      const { status } = await callPatch(markableId, { youthAttended: true });
-
-      expect(status).toBe(200);
-      expect((await storedEvent(markableId))!.youth_attended).toBe(true);
-    });
-
-    // A CONTROL THAT CAN SET A VALUE AND NOT UNSET IT IS A ONE-WAY DOOR ON A METRIC. It must clear
-    // back to "nobody has said" rather than to "they were there", which is a different claim.
-    it("clears back to null on an explicit null", async () => {
-      await actAs(fixtures, "eqPresident");
-
-      const { status } = await callPatch(markableId, { youthAttended: null });
-
-      expect(status).toBe(200);
-      expect((await storedEvent(markableId))!.youth_attended).toBeNull();
-    });
-
-    // ABSENT IS A NO-OP, which is what updateActivityEvent()'s `!== undefined` test buys.
-    it("leaves the value alone when the key is absent from the patch", async () => {
-      await actAs(fixtures, "eqPresident");
-      await callPatch(markableId, { youthAttended: false });
-
-      const { status } = await callPatch(markableId, { location: `Gym ${fixtures.runId}` });
-
-      expect(status).toBe(200);
-      expect((await storedEvent(markableId))!.youth_attended).toBe(false);
-
-      await callPatch(markableId, { youthAttended: null });
-    });
-
-    // A SENTENCE, NOT A CONSTRAINT VIOLATION. Migration 061's CHECK is the guarantee behind this;
-    // a caller cannot act on "violates check constraint" (CLAUDE.md rule 7).
-    it("refuses a ward-wide event with a sentence, and writes nothing", async () => {
-      await actAs(fixtures, "eqPresident");
-
-      const { status, body } = await callPatch(wardWideEventId, { youthAttended: false });
-
+      // The key is stripped by the schema, leaving an empty object, which the
+      // Nothing-was-changed guard refuses.
       expect(status).toBe(400);
-      expect(errorMessage(body)).toContain("nobody to record as taking part");
-      expect((await storedEvent(wardWideEventId))!.youth_attended).toBeNull();
     });
 
-    // CLEARING TO NULL ON SUCH A ROW IS A NO-OP AND NEEDS NO REFUSAL — it says nothing about a
-    // young person who is not there, so there is nothing to object to.
-    it("does not refuse an explicit null on a ward-wide event", async () => {
+    it("ignores it beside a real change rather than writing it", async () => {
       await actAs(fixtures, "eqPresident");
 
-      const { status } = await callPatch(wardWideEventId, { youthAttended: null });
+      const { status } = await callPatch(upcomingEventId, {
+        title: `Renamed ${fixtures.runId}`,
+        youthAttended: false,
+      });
 
       expect(status).toBe(200);
-      expect((await storedEvent(wardWideEventId))!.youth_attended).toBeNull();
-    });
 
-    it("records the value and the field in the audit detail", async () => {
-      await actAs(fixtures, "eqPresident");
-
-      const { status } = await callPatch(markableId, { youthAttended: false });
+      // AUDITED WITHOUT IT. `changed: Object.keys(input)` reads the PARSED input, so a stripped
+      // key cannot appear there — which is what proves the value never reached the write.
       const detail = await latestAuditDetail("youth_activity_event_updated");
-
-      expect(status).toBe(200);
-      expect(detail?.youthAttended).toBe(false);
-      expect(detail?.changed).toEqual(["youthAttended"]);
-
-      await callPatch(markableId, { youthAttended: null });
-    });
-
-    // THE WARD-WIDE GATE, ASSERTED. activity_events keeps migration 019's ward-wide write
-    // policies, so any holder of youth_activities.manage in this ward may mark any event — this is
-    // the same boundary Cancel already runs under, and a test asserting it is what stops somebody
-    // "tightening" it without a migration.
-    it("lets an org president from a DIFFERENT organization mark it", async () => {
-      await actAs(fixtures, "rsPresident");
-
-      const { status } = await callPatch(markableId, { youthAttended: false });
-
-      expect(status).toBe(200);
-      expect((await storedEvent(markableId))!.youth_attended).toBe(false);
-
-      await actAs(fixtures, "eqPresident");
-      await callPatch(markableId, { youthAttended: null });
-    });
-
-    it("returns 404 for an event in another ward and writes nothing", async () => {
-      const { data } = await fixtures.service
-        .from("activity_events")
-        .insert({
-          ward_id: fixtures.wardBId,
-          profile_id: wardBProfileId,
-          title: `Ward B markable ${fixtures.runId}`,
-          event_type: "home",
-          event_date: yearsFromNow(2),
-        })
-        .select("id")
-        .single();
-
-      await actAs(fixtures, "eqPresident");
-      const { status } = await callPatch(data!.id, { youthAttended: false });
-
-      expect(status).toBe(404);
-
-      // RE-READ, never a throw: an RLS-denied UPDATE is a zero-row success.
-      const { data: after } = await fixtures.service
-        .from("activity_events")
-        .select("youth_attended")
-        .eq("id", data!.id)
-        .single();
-
-      expect(after!.youth_attended).toBeNull();
-
-      await fixtures.service.from("activity_events").delete().eq("id", data!.id);
-    });
-
-    it("refuses a string or a number rather than coercing it", async () => {
-      await actAs(fixtures, "eqPresident");
-
-      for (const youthAttended of ["false", 0]) {
-        const { status } = await callPatch(markableId, { youthAttended });
-        expect(status).toBe(400);
-      }
-
-      expect((await storedEvent(markableId))!.youth_attended).toBeNull();
+      expect(detail?.changed).toEqual(["title"]);
+      expect(detail?.youthAttended).toBeUndefined();
     });
   });
 
@@ -929,13 +822,10 @@ describe("/api/youth/events", () => {
           jsonRequest("http://localhost/api/youth/profiles", {
             method: "POST",
             body: {
-              memberId: (
-                await fixtures.service
-                  .from("youth_activity_profiles")
-                  .select("member_id")
-                  .eq("id", profileId)
-                  .single()
-              ).data!.member_id,
+              // AN EMPTY ROSTER IS A LEGITIMATE CREATE (youth-j): this test is about the EVENT
+              // cascade, and putting a young person on the team would only add a row that has
+              // nothing to do with what is being proved.
+              memberIds: [],
               activityName: `Cascade ${fixtures.runId}`,
               activityType: "sport",
             },

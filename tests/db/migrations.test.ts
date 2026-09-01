@@ -34,7 +34,15 @@ const MIGRATIONS_DIRECTORY = path.resolve(process.cwd(), "supabase/migrations");
 // Empty is the normal state. ITER-018's 051 was the first entry and was removed on 2026-08-27,
 // once the new build was live and the migration applied — which is the entry doing its job rather
 // than being forgotten.
-const HELD_BACK_UNTIL_DEPLOYED: Record<string, string> = {};
+const HELD_BACK_UNTIL_DEPLOYED: Record<string, string> = {
+  "063":
+    "youth-j's contract half. 062 created activity_roster and activity_event_participation and " +
+    "backfilled both; 063 drops youth_activity_profiles.member_id and " +
+    "activity_events.youth_attended, both of which the RUNNING build still selects through " +
+    "ACTIVITY_PROFILE_COLUMNS and ACTIVITY_EVENT_COLUMNS — so applying it early answers every " +
+    "youth screen 400. Apply after the new build is live, then remove this entry in the same " +
+    "change: an entry that has outlived its deploy makes this test blind to 063 for ever.",
+};
 
 function localMigrationVersions(): string[] {
   return readdirSync(MIGRATIONS_DIRECTORY)

@@ -19,8 +19,22 @@ import {
   type SessionUser,
 } from "@/types/domain";
 
-// One activity, for one youth. Used to create and to edit; the difference is whether `initial` is
-// supplied, because a create form and an edit form that drift apart is two forms to keep correct.
+// One activity — A TEAM — and the young people on it. Used to create and to edit; the difference
+// is whether `initial` is supplied, because a create form and an edit form that drift apart is
+// two forms to keep correct.
+//
+// ---------------------------------------------------------------------------
+// THE PICKER IS MULTI-SELECT NOW, AND AN EMPTY CHOICE IS ALLOWED (youth-j)
+// ---------------------------------------------------------------------------
+// A profile was one young person's copy of a team, so the form asked for exactly one. A profile
+// is a TEAM now (migration 062), so it asks which young people are on it — and submitting with
+// NONE is a legitimate answer rather than an error.
+//
+// That is ITER-033's flow in the user's own words: IMPORT ONCE, THEN ASSIGN. A leader creating
+// "Varsity Basketball" so they have somewhere to import a schedule to does not yet know or care
+// who is on it, and forcing them to name the players first is exactly the friction this slice
+// exists to remove. The empty state is made LOUD afterwards, on RosterPanel and on the calendar
+// (lib/youth/roster.ts's branch 5), rather than refused here.
 //
 // THE FILTER COMES FROM lib/validation/youth.ts, not from a literal here. PROFILE_MEMBER_CATEGORIES
 // is the single answer to "which member may an activity profile name", and the ROUTE reads the
@@ -31,7 +45,7 @@ import {
 // `mode="inline"`, both of which have existed since roster-b. Nothing was added for slice A.
 
 export type ActivityProfileDraft = {
-  memberId: string | null;
+  memberIds: string[];
   activityName: string;
   activityType: ActivityType;
   schoolOrg: string;
@@ -42,9 +56,11 @@ export type ActivityProfileDraft = {
 
 export type ActivityProfileFormProps = {
   user: SessionUser;
-  // Absent when creating. On edit the youth cannot be changed — `memberId` is not patchable
-  // (lib/validation/youth.ts), because moving a profile onto another youth would silently
-  // reassign every game hanging off it.
+  // Absent when creating. ON EDIT THE ROSTER IS NOT TOUCHED HERE AT ALL — it is its own resource
+  // with its own routes and its own audit rows (RosterPanel, and lib/validation/youth.ts's
+  // updateActivityProfileSchema header). Adding a player, recording that one left mid-season and
+  // taking one off by mistake are three distinct, separately auditable acts rather than a field
+  // on an edit form.
   initial?: ActivityProfileDraft;
   // Rendered for a bishopric author ONLY. Everyone else gets no control at all rather than a
   // disabled one showing their own organization: their organization is not theirs to choose, and
@@ -58,7 +74,7 @@ export type ActivityProfileFormProps = {
 };
 
 const EMPTY_DRAFT: ActivityProfileDraft = {
-  memberId: null,
+  memberIds: [],
   activityName: "",
   activityType: "sport",
   schoolOrg: "",
@@ -93,11 +109,9 @@ export function ActivityProfileForm({
   const editing = initial !== undefined;
 
   function submit(): void {
-    if (draft.memberId === null) {
-      setLocalError("Choose which youth this activity belongs to.");
-      return;
-    }
-
+    // NO CHECK ON `memberIds`, DELIBERATELY. An empty roster is a legitimate answer — see the
+    // header. The route accepts it too (createActivityProfileSchema defaults to `[]`), so the
+    // form and the API agree rather than one refusing what the other allows.
     if (draft.activityName.trim() === "") {
       setLocalError("Give the activity a name.");
       return;
@@ -110,26 +124,35 @@ export function ActivityProfileForm({
   return (
     <div className="flex flex-col gap-4">
       {editing ? (
-        // The youth is stated rather than offered. Saying WHO this is for is the difference
-        // between an edit form and a form that has simply lost a field.
+        // Stated rather than offered, which is the difference between an edit form and a form
+        // that has simply lost a field. It also NAMES WHERE THE ROSTER IS EDITED, because a
+        // leader who came here to add a player needs to be sent somewhere rather than left
+        // wondering whether the control has gone.
         <p className="text-sm text-muted">
-          Editing an activity. The youth it belongs to cannot be changed here — remove it and
-          enter a new one instead.
+          Editing an activity. Who is on it is changed on the card itself, under
+          &ldquo;Who is on this&rdquo;.
         </p>
       ) : (
         <MemberPicker
-          value={draft.memberId === null ? [] : [draft.memberId]}
-          onChange={(memberIds) =>
-            setDraft((current) => ({ ...current, memberId: memberIds[0] ?? null }))
-          }
+          value={draft.memberIds}
+          onChange={(memberIds) => setDraft((current) => ({ ...current, memberIds }))}
           user={user}
-          multiple={false}
+          multiple
           filter={{ categories: PROFILE_MEMBER_CATEGORIES }}
           mode="inline"
-          label="Which youth"
+          label="Who is on this"
           emptyMessage="No youth on the roster yet."
           disabled={saving}
         />
+      )}
+
+      {/* THE "add them later" PATH, SAID OUT LOUD. Without it, a leader who wants to import a
+          schedule first has no way of knowing that submitting with nobody selected is allowed —
+          and a permitted path nobody can see is not a path. */}
+      {editing ? null : (
+        <p className="-mt-2 text-xs text-muted">
+          You can leave this empty and add the young people once the schedule is in.
+        </p>
       )}
 
       <Input

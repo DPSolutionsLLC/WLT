@@ -13,10 +13,12 @@ import {
   OCCASION_MUTATION_INVALIDATES,
   YOUTH_ATTENDEES_QUERY_KEY,
   YOUTH_OCCASION_QUERY_KEY,
+  YOUTH_PARTICIPATION_QUERY_KEY,
   YOUTH_PROFILES_QUERY_KEY,
   errorFrom,
   fetchAttendees,
   fetchOccasionEvents,
+  fetchParticipation,
   fetchProfiles,
   readJson,
 } from "@/app/(app)/youth/youthQueries";
@@ -29,6 +31,13 @@ import { YouthAbsenceChip } from "@/components/youth/YouthAbsenceChip";
 import type { ActivityAttendee } from "@/lib/youth/attendees";
 import { eventCoverage, worstCoverage, type EventCoverage } from "@/lib/youth/coverage";
 import type { ActivityEvent, ActivityProfile } from "@/lib/youth/queries";
+import {
+  eventYouthAttendance,
+  rosterInWindow,
+  youthAttendedForEvent,
+  type EventParticipation,
+  type RosterMember,
+} from "@/lib/youth/roster";
 import { EVENT_STATUS_LABELS, EVENT_TYPE_LABELS } from "@/types/domain";
 
 // The occasion, rendered: one card per young person, and the two controls that build it.
@@ -70,6 +79,10 @@ export type EventDetailProps = {
   initialOccasionEvents: ActivityEvent[];
   initialProfiles: ActivityProfile[];
   initialAttendees: Record<string, ActivityAttendee[]>;
+  // Keyed by event id. The WIDENED entry, [.., true], matching the attendee seed beside it: this
+  // page always reads past events, because the whole point of it is that it works on a game that
+  // is over.
+  initialParticipation: Record<string, EventParticipation[]>;
   // The picker's candidates: every youth activity on this event's own day, in the WARD's zone.
   // A plain prop rather than a cache entry, because it is a bounded query nothing on this page
   // mutates — joining a game does not change what else is scheduled that evening.
@@ -88,10 +101,44 @@ export type EventDetailProps = {
   wardTimeZone: string;
 };
 
+// ---------------------------------------------------------------------------
+// A ROW IS ONE EVENT, AND IT NOW CARRIES THE YOUNG PEOPLE ON IT — ROSTER FIRST, OCCASION SECOND
+// ---------------------------------------------------------------------------
+// This page has TWO sources of young people and they compose:
+//
+//   THE ROSTER (derived)    — everybody on this event's own team, in their window. A single game
+//                             with four players names four young people WITH NO OCCASION AT ALL,
+//                             which is what makes the occasion unnecessary for the ordinary case
+//                             rather than merely optional.
+//   THE OCCASION (explicit) — other EVENTS on the same evening, from other activities: a Young
+//                             Men basketball game and a Young Women concert. That is the one
+//                             thing a roster cannot express, and it is why migration 059 survives
+//                             youth-j untouched.
+//
+// ---------------------------------------------------------------------------
+// A CARD IS STILL AN EVENT, AND THE YOUNG PEOPLE ARE INSIDE IT
+// ---------------------------------------------------------------------------
+// The obvious reading of "one row per (young person, event)" is one CARD per pair, and it is
+// wrong: `AttendeeControls`, the coverage badge and "Not the same game" are all facts about the
+// GAME, so a team of four would render four copies of each — four identical "I'll go" buttons
+// writing the same attendee row, and a "Not the same game" offering to unlink an occasion that
+// does not exist. Coverage would be four answers to one question.
+//
+// So the pair is expressed in the LIST INSIDE the card. Each young person gets their name and
+// their own absence chip — which is genuinely per person, one team-mate being ill saying nothing
+// about the other — while everything about the game is rendered once.
+//
+// `members` IS EMPTY for a ward-wide event, for a team nobody is on yet, and for one whose season
+// closed before this game. THE CARD STILL RENDERS, with a sentence saying which: a page that
+// shows nothing for the event named in its own URL is worse than one that says nobody is
+// assigned, and "no roster" and "season over" are different problems with different fixes.
 type OccasionRow = {
   event: ActivityEvent;
-  memberName: string | null;
+  members: RosterMember[];
+  absentMemberIds: Set<string>;
+  seasonClosed: boolean;
   activityName: string | null;
+  schoolOrg: string | null;
   profileId: string | null;
   attendees: ActivityAttendee[];
   coverage: EventCoverage;
@@ -151,6 +198,7 @@ export function EventDetail({
   initialOccasionEvents,
   initialProfiles,
   initialAttendees,
+  initialParticipation,
   sameDayEvents,
   asOf,
   currentUserId,
@@ -187,6 +235,12 @@ export function EventDetail({
     queryKey: [YOUTH_ATTENDEES_QUERY_KEY, true],
     queryFn: () => fetchAttendees(true),
     initialData: initialAttendees,
+  });
+
+  const participationQuery = useQuery({
+    queryKey: [YOUTH_PARTICIPATION_QUERY_KEY, true],
+    queryFn: () => fetchParticipation(true),
+    initialData: initialParticipation,
   });
 
   async function refresh(): Promise<void> {
@@ -235,15 +289,35 @@ export function EventDetail({
   const rows: OccasionRow[] = useMemo(() => {
     const events = occasionQuery.data ?? [];
     const attendeesByEvent = attendeesQuery.data ?? {};
+    const participationByEvent = participationQuery.data ?? {};
 
     return events.map((event) => {
       const profile = event.profileId === null ? undefined : profilesById.get(event.profileId);
       const attendees = attendeesByEvent[event.id] ?? [];
 
+      const attendance =
+        profile === undefined
+          ? null
+          : eventYouthAttendance(
+              event,
+              profile.roster,
+              participationByEvent[event.id] ?? [],
+              profile.closedAt,
+              wardTimeZone,
+            );
+
       return {
         event,
-        memberName: profile?.memberName ?? null,
+        members: attendance === null ? [] : rosterInWindow(attendance),
+        absentMemberIds: new Set(
+          (attendance?.absent ?? []).map((member) => member.memberId),
+        ),
+        seasonClosed:
+          attendance !== null &&
+          attendance.kind === "no_expectation" &&
+          attendance.reason === "season_closed",
         activityName: profile?.activityName ?? null,
+        schoolOrg: profile?.schoolOrg ?? null,
         profileId: event.profileId,
         attendees,
         coverage: eventCoverage(
@@ -252,20 +326,31 @@ export function EventDetail({
             eventDate: event.eventDate,
             status: event.status,
             attendeeCount: attendees.length,
-            // Migration 061. PER ROW, because each row on an occasion is a DIFFERENT young person
-            // with their own answer — one team-mate being ill says nothing about the other.
-            youthAttended: event.youthAttended,
+            // ONE ANSWER PER GAME, from the SAME function every other screen uses, so the badge
+            // here and the badge on the calendar cannot disagree about the same row.
+            youthAttended: attendance === null ? null : youthAttendedForEvent(attendance),
           },
           asOfInstant,
         ),
       };
     });
-  }, [occasionQuery.data, attendeesQuery.data, profilesById, asOfInstant]);
+  }, [
+    occasionQuery.data,
+    attendeesQuery.data,
+    participationQuery.data,
+    profilesById,
+    asOfInstant,
+    wardTimeZone,
+  ]);
 
   // THE WORST STATE ACROSS THE OCCASION, and it carries the WHOLE EventCoverage rather than just
   // its state. youth-e's walk found `Covered · 0` above `Covered · 1` because a value held the
   // state and the date but not the count — the badge, the count and the date below all come off
   // this one object (lib/youth/coverage.ts).
+  //
+  // ONE COVERAGE PER EVENT, so this reduces over the games rather than over the people at them —
+  // which is what it has always done, and what keeps a team of four from weighting its own game
+  // four times against a single-player one.
   const occasionCoverage = useMemo(
     () => worstCoverage(rows.map((row) => row.coverage)),
     [rows],
@@ -276,6 +361,18 @@ export function EventDetail({
     [rows],
   );
 
+  // HOW MANY YOUNG PEOPLE ARE ACTUALLY AT THIS, counted from the rows that name one. A row with a
+  // null member is a team nobody is on or a closed season — it is worth rendering and it is not a
+  // young person, so counting it would put a number on the panel that the list below contradicts
+  // (the count-beside-a-list rule, ITER-022).
+  const youthAtThis = useMemo(
+    () =>
+      new Set(rows.flatMap((row) => row.members.map((member) => member.memberId))).size,
+    [rows],
+  );
+
+  // DEDUPLICATED BY THE Set, which matters now that one event produces one row per young person
+  // on it: four rows from one team must not offer that team four times to exclude.
   const occasionProfileIds = useMemo(
     () =>
       new Set(
@@ -298,8 +395,11 @@ export function EventDetail({
 
           return {
             eventId: event.id,
-            // TIME · YOUNG PERSON · ACTIVITY · TITLE — all four, and the TITLE IS THE ONE THE WALK
-            // ADDED.
+            // TIME · ACTIVITY · TITLE. The YOUNG PERSON is gone from this label, because a
+            // profile is a TEAM now (migration 062) and there is no single young person to name —
+            // the activity IS the team, which is what the option is choosing.
+            //
+            // THE TITLE IS THE ONE THE WALK ADDED.
             //
             // The rule was "never the title ALONE", because two feeds write one fixture as "Game
             // against Roosevelt" and "Game vs Roosevelt" and a title cannot tell them apart. That
@@ -312,8 +412,8 @@ export function EventDetail({
             // Both facts earn their place: the activity says whose season this belongs to, the
             // title says which event. Neither is sufficient alone.
             label: `${shortWhen(event.eventDate, event.allDay, wardTimeZone)} · ${
-              profile?.memberName ?? "An activity that is no longer listed"
-            } · ${profile?.activityName ?? "Activity not listed"} · ${event.title}`,
+              profile?.activityName ?? "An activity that is no longer listed"
+            } · ${event.title}`,
           };
         }),
     [sameDayEvents, occasionEventIds, profilesById, wardTimeZone],
@@ -346,7 +446,10 @@ export function EventDetail({
           occasion where ONE young person has nobody going reads as an alert even when the others
           are covered, which is the whole point of computing it across the rows.
 
-          ONE ROW IS NOT AN OCCASION, AND THE WHOLE PANEL GOES WHEN THERE IS ONLY ONE.
+          ONE YOUNG PERSON IS NOT AN OCCASION, AND THE WHOLE PANEL GOES WHEN THERE IS ONLY ONE.
+          COUNTED IN YOUNG PEOPLE RATHER THAN IN ROWS since youth-j, because one event now
+          produces one row per player — four rows from a single game are still one game, and
+          summarising "across the occasion" there would be summarising a group of one.
           Found by walking scenario 059: a solo event rendered "One of these young people has
           nobody going" — plural, about a group of one — directly above a card already carrying the
           identical "Nobody going" badge. Both halves were wrong for that case: the sentence lied
@@ -354,14 +457,14 @@ export function EventDetail({
           Guarding the SENTENCE alone would have left the duplicate badge, so the guard is on the
           panel. A single-row page is just the young person's card, which is the honest rendering —
           there is no evening-wide fact to summarise until a second row exists. */}
-      {occasionCoverage === null || rows.length < 2 ? null : (
+      {occasionCoverage === null || youthAtThis < 2 ? null : (
         <div
           className={`flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface-raised px-3 py-2 ${
             COVERAGE_EDGE_CLASSES[occasionCoverage.state]
           }`}
         >
           <span className="text-sm font-medium text-foreground">
-            {`${rows.length} young people at this`}
+            {`${youthAtThis} young people at this`}
           </span>
           <CoverageBadge coverage={occasionCoverage} />
           {occasionCoverage.state === "uncovered" ? (
@@ -380,20 +483,25 @@ export function EventDetail({
                 {/* THE YOUNG PERSON IS THE HEADING HERE, not the title — one occasion is one
                     evening with one name at the top of the page, and what distinguishes the rows
                     beneath it is whose commitment each one is. */}
+                {/* THE ACTIVITY IS THE HEADING NOW. It used to be the young person, which was
+                    the same thing while an event belonged to exactly one of them — a card is one
+                    TEAM'S game, and the young people on it are listed beneath. */}
                 <span className="text-sm font-medium text-foreground">
-                  {row.memberName === null || row.profileId === null ? (
+                  {row.activityName === null ? (
                     "An activity that is no longer listed"
+                  ) : row.profileId === null ? (
+                    row.activityName
                   ) : (
                     <Link
                       href={`/youth?youth=${row.profileId}`}
                       className="text-primary underline underline-offset-4"
                     >
-                      {row.memberName}
+                      {row.activityName}
                     </Link>
                   )}
                 </span>
-                {row.activityName === null ? null : (
-                  <span className="text-sm text-muted">{row.activityName}</span>
+                {row.schoolOrg === null ? null : (
+                  <span className="text-sm text-muted">{row.schoolOrg}</span>
                 )}
                 <span className={CHIP_CLASSES}>{EVENT_TYPE_LABELS[row.event.eventType]}</span>
                 <CoverageBadge coverage={row.coverage} />
@@ -413,10 +521,15 @@ export function EventDetail({
                     refusing a second "unlink"). This page is the closest call, and the omission is
                     recorded rather than left looking like an oversight: if a leader reaches for it
                     here, adding it is one prop, not a redesign. */}
-                <YouthAbsenceChip
-                  youthAttended={row.event.youthAttended}
-                  memberName={row.memberName}
-                />
+                {row.members
+                  .filter((member) => row.absentMemberIds.has(member.memberId))
+                  .map((member) => (
+                    <YouthAbsenceChip
+                      key={member.memberId}
+                      youthAttended={false}
+                      memberName={member.memberName}
+                    />
+                  ))}
                 {/* Same condition EventList uses — an imported row can be edited by hand, but the
                     next import of the same file overwrites the name, the time and the place. */}
                 {row.event.sourceUid === null ? null : (
@@ -427,6 +540,46 @@ export function EventDetail({
               <p className="mt-1 text-sm text-foreground">
                 {row.event.title}
               </p>
+
+              {/* ---------------------------------------------------------------
+                  WHO IS AT IT, BY NAME — the (young person, event) half of this page
+                  ---------------------------------------------------------------
+                  Each name links to their own card, which is the crossing ITER-020 asked for:
+                  any card → the event → the young people at it → a young person's card. It used
+                  to be the row's heading and there could only ever be one; now a team of four
+                  names four.
+
+                  THREE DIFFERENT EMPTY CASES, AND THEY ARE NOT ONE SENTENCE. "Nobody has been put
+                  on this team yet" is something the reader can fix in a minute; "the season was
+                  closed out" is a deliberate state; a ward-wide event has no team at all. Saying
+                  "nobody" for all three would be true and useless — the youth-c rule that an
+                  empty state which says nothing reads as something that failed to load, and the
+                  visits-f rule that collapsing distinct reasons loses what a presidency needs. */}
+              {row.members.length > 0 ? (
+                <p className="text-sm text-muted">
+                  {row.members.map((member, index) => (
+                    <span key={member.memberId}>
+                      {index === 0 ? null : ", "}
+                      <Link
+                        href={`/youth/history/${member.memberId}`}
+                        className="text-primary underline underline-offset-4"
+                      >
+                        {member.memberName}
+                      </Link>
+                    </span>
+                  ))}
+                </p>
+              ) : row.profileId === null ? (
+                <p className="text-sm text-muted">A ward-wide event, not on anybody&rsquo;s team.</p>
+              ) : row.seasonClosed ? (
+                <p className="text-sm text-muted">
+                  This season was closed out before this event.
+                </p>
+              ) : (
+                <p className="text-sm text-muted">
+                  Nobody is on this activity yet.
+                </p>
+              )}
               <p className="text-sm text-muted">
                 {formatWhen(row.event.eventDate, row.event.allDay, wardTimeZone)}
               </p>
@@ -442,10 +595,12 @@ export function EventDetail({
                 assignableUsers={assignableUsers}
               />
 
-              {/* ONLY WHERE THERE IS SOMETHING TO LEAVE. A single-row occasion has no link to
-                  break, and offering "Not the same game" there would be a control whose only
-                  outcome is the route's 409. */}
-              {canManage && rows.length > 1 ? (
+              {/* ONLY WHERE THERE IS SOMETHING TO LEAVE, and the count is of EVENTS rather than
+                  of rows. An occasion links EVENT rows; a team of four at one game is four rows
+                  and ONE event, with no link to break — offering "Not the same game" there would
+                  be a control whose only outcome is the route's 409, and it would appear on
+                  exactly the ordinary case youth-j made common. */}
+              {canManage && occasionEventIds.size > 1 ? (
                 <div className="mt-3">
                   <Button
                     variant="secondary"

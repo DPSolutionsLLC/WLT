@@ -204,6 +204,65 @@ export type Database = {
           },
         ]
       }
+      activity_event_participation: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          member_id: string
+          recorded_by: string | null
+          taking_part: boolean
+          ward_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          member_id: string
+          recorded_by?: string | null
+          taking_part: boolean
+          ward_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          member_id?: string
+          recorded_by?: string | null
+          taking_part?: boolean
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_event_participation_event_id_ward_id_fkey"
+            columns: ["event_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "activity_events"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "activity_event_participation_member_id_ward_id_fkey"
+            columns: ["member_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "activity_event_participation_recorded_by_ward_id_fkey"
+            columns: ["recorded_by", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "activity_event_participation_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_events: {
         Row: {
           all_day: boolean
@@ -426,6 +485,68 @@ export type Database = {
           },
           {
             foreignKeyName: "activity_private_notes_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activity_roster: {
+        Row: {
+          added_by: string | null
+          created_at: string
+          ended_on: string | null
+          id: string
+          member_id: string
+          profile_id: string
+          started_on: string | null
+          ward_id: string
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string
+          ended_on?: string | null
+          id?: string
+          member_id: string
+          profile_id: string
+          started_on?: string | null
+          ward_id: string
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string
+          ended_on?: string | null
+          id?: string
+          member_id?: string
+          profile_id?: string
+          started_on?: string | null
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_roster_added_by_ward_id_fkey"
+            columns: ["added_by", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "activity_roster_member_id_ward_id_fkey"
+            columns: ["member_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "activity_roster_profile_id_ward_id_fkey"
+            columns: ["profile_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "youth_activity_profiles"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "activity_roster_ward_id_fkey"
             columns: ["ward_id"]
             isOneToOne: false
             referencedRelation: "wards"
@@ -3209,7 +3330,7 @@ export type Database = {
           created_at: string
           entered_by: string | null
           id: string
-          member_id: string
+          member_id: string | null
           notes: string | null
           org_id: string | null
           school_org: string | null
@@ -3223,7 +3344,7 @@ export type Database = {
           created_at?: string
           entered_by?: string | null
           id?: string
-          member_id: string
+          member_id?: string | null
           notes?: string | null
           org_id?: string | null
           school_org?: string | null
@@ -3237,7 +3358,7 @@ export type Database = {
           created_at?: string
           entered_by?: string | null
           id?: string
-          member_id?: string
+          member_id?: string | null
           notes?: string | null
           org_id?: string | null
           school_org?: string | null

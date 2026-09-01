@@ -40,8 +40,19 @@ const AVA_PROFILE = "44444444-4444-4444-8444-444444444444";
 function profile(id: string, memberName: string): ActivityProfile {
   return {
     id,
-    memberId: `member-${id}`,
-    memberName,
+    // A TEAM OF ONE. These fixtures are about the OCCASION marker — "+N others at this game" —
+    // which counts rows linked by an occasion, so one young person per team keeps the thing under
+    // test isolated from the roster-derived count beside it.
+    roster: [
+      {
+        rosterId: `roster-${id}`,
+        profileId: id,
+        memberId: `member-${id}`,
+        memberName,
+        startedOn: null,
+        endedOn: null,
+      },
+    ],
     orgId: null,
     activityName: "Varsity basketball",
     schoolOrg: null,
@@ -74,9 +85,6 @@ function event(
     sourceUid: null,
     sourceRecurrenceId: null,
     occasionId,
-    // Migration 061. Null means nobody has said, which is what every fixture here is about — an
-    // absence is not part of the "+N others" count in either direction.
-    youthAttended: null,
     createdAt: "2027-01-01T00:00:00Z",
   };
 }
@@ -97,6 +105,9 @@ function renderList(options: {
         initialProfiles={options.profiles}
         initialAttendees={{}}
         initialFollowUps={{}}
+        // NOBODY HAS SAID, for every event here — an absence is not part of the "+N others" count
+        // in either direction, so the fixtures keep it out of the way of what is under test.
+        initialParticipation={{}}
         canManage={false}
         canLog={false}
         crossOrgVisibility={false}
@@ -198,5 +209,90 @@ describe("the +N others marker", () => {
       "href",
       "/youth/events/ethan",
     );
+  });
+});
+
+// ===========================================================================
+// THE OTHER HALF: TEAM-MATES ARE NAMED, OCCASION SIBLINGS ARE COUNTED (youth-j)
+// ===========================================================================
+// A card now has TWO kinds of "other young person at this game", and they are rendered
+// DIFFERENTLY on purpose:
+//
+//   ON THIS EVENT'S OWN TEAM (derived from the roster) — NAMED on the card, because they are all
+//   on one event row and the names are already to hand.
+//
+//   ON ANOTHER EVENT AT THE SAME OCCASION (explicit, migration 059) — COUNTED as "+N others",
+//   because they belong to other activities and other rows.
+//
+// MERGING THEM INTO ONE COUNT WOULD DOUBLE-COUNT. The team-mates are named an inch above, so a
+// card reading "Ethan Brooks, Josh Kim" and then "+2 others at this game" about the same two
+// people would be the ITER-022 defect — a number beside a list it duplicates.
+describe("a team's young people on one event", () => {
+  it("names everybody on the roster, and raises no occasion marker on its own", () => {
+    const teamProfile: ActivityProfile = {
+      ...profile(ETHAN_PROFILE, "Ethan Brooks"),
+      roster: [
+        {
+          rosterId: "r-ethan",
+          profileId: ETHAN_PROFILE,
+          memberId: "m-ethan",
+          memberName: "Ethan Brooks",
+          startedOn: null,
+          endedOn: null,
+        },
+        {
+          rosterId: "r-josh",
+          profileId: ETHAN_PROFILE,
+          memberId: "m-josh",
+          memberName: "Josh Kim",
+          startedOn: null,
+          endedOn: null,
+        },
+      ],
+    };
+
+    renderList({
+      events: [event("event-team", ETHAN_PROFILE, null)],
+      profiles: [teamProfile],
+    });
+
+    expect(screen.getByText("Ethan Brooks, Josh Kim")).toBeTruthy();
+    // ONE EVENT, NO OCCASION. There is nothing else at this game, so no marker.
+    expect(screen.queryByText(/other(s)? at this game/)).toBeNull();
+  });
+
+  // A YOUNG PERSON WHOSE WINDOW HAS CLOSED IS NOT NAMED, and that is the window rule reaching the
+  // screen: they were not on the team when this game happened, so they are not at it.
+  it("omits a young person whose window does not cover the event", () => {
+    const teamProfile: ActivityProfile = {
+      ...profile(ETHAN_PROFILE, "Ethan Brooks"),
+      roster: [
+        {
+          rosterId: "r-ethan",
+          profileId: ETHAN_PROFILE,
+          memberId: "m-ethan",
+          memberName: "Ethan Brooks",
+          startedOn: null,
+          endedOn: null,
+        },
+        {
+          rosterId: "r-maya",
+          profileId: ETHAN_PROFILE,
+          memberId: "m-maya",
+          memberName: "Maya Alvarez",
+          startedOn: null,
+          // The fixture event is in 2099; Maya left long before it.
+          endedOn: "2027-02-15",
+        },
+      ],
+    };
+
+    renderList({
+      events: [event("event-window", ETHAN_PROFILE, null)],
+      profiles: [teamProfile],
+    });
+
+    expect(screen.getByText("Ethan Brooks")).toBeTruthy();
+    expect(screen.queryByText(/Maya Alvarez/)).toBeNull();
   });
 });
