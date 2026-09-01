@@ -7,34 +7,7 @@ _Last updated: 2026-08-31_
 ## In Progress
 Items currently being planned or actively worked.
 
-- [ ] ITER-033 — A team has one schedule and a roster, not one schedule per young person → [scope](.iterate/scopes/ITER-033.md) | [plan](plans/youth-j-team-and-roster.md)
-  _Raised by the user 2026-08-31 while reviewing the `youth-i` walk, and **it supersedes part of
-  ITER-030**. There is no team in this app, only one young person's copy of a team:
-  `activity_events.profile_id` is a single FK and the ICS import takes a `profileId`, so eight
-  players on a twelve-game season means **eight imports and 96 rows for 12 real games**, with
-  `activity_occasions` re-linking the duplicates by hand. The user's model is import once, assign
-  each youth once, and let the app derive youth × event — confirmed as this ward's common case
-  (**several youth share one team schedule**). `activity_occasions` largely stops being necessary
-  under it, which is evidence the shape is right. **Also carries the two things the user asked for
-  that do not exist:** a youth leaving mid-season (belongs on the roster row, not on the activity's
-  `closed_at`), and the fact that `ActivityCalendar` never reads `closed_at` at all, so a closed
-  season's future games still raise "Nobody going".
-  **Planned 2026-08-31** as Phase 8 slice `youth-j` — all seven open questions settled, four with
-  the user and three from the codebase, and recorded in the scope._
-
-- [ ] ITER-030 — Nobody could have gone: recording that the youth missed it → [scope](.iterate/scopes/ITER-030.md) | [plan](plans/youth-i-recording-an-absence.md)
-  _**Built and walked 2026-08-31; NOT closed, and deliberately not committed.** Phase 8 slice
-  **`youth-i`**. Migration 061 adds a nullable three-state `activity_events.youth_attended` plus a
-  CHECK tying it to `profile_id`; the metric, the coverage badge and the follow-up prompt all honour
-  it, and scenario 061 was walked with 27 checks proved against the database (see its Walkthrough
-  record). **The walk surfaced the model gap that became ITER-033**, and the user chose to settle
-  that first. Two consequences: the Yes/No control renders an unanswered fieldset on every event
-  card, so an optional exception **reads as a required question** — a presentation defect to fix
-  against whichever model wins; and `youth_attended` sits **on the event**, which is only correct
-  while an event belongs to exactly one young person, so it moves to a roster×event join under
-  ITER-033. **What survives either way:** the fourth exclusion in `carriesCoverageExpectation()`,
-  the three-state/never-inferred rule, em-dash-never-`0%` with null last in both directions,
-  reversibility, "the prompt stops and the door stays open", and the re-import guarantee._
+_None. ITER-030 and ITER-033 both closed 2026-08-31 in `df25b40`._
 
 ---
 
@@ -286,6 +259,8 @@ _Items that need testing or further exploration before scoping. Each entry shoul
 
 ## Completed
 
+- [x] ITER-033 — A team has one schedule and a roster, not one schedule per young person _(completed 2026-08-31, df25b40 — migration 062's `activity_roster` and `activity_event_participation`, one window function (`memberIsExpectedAt`) folding the leave, the join and the closed season into one rule, and **migration 063 held back until the deploy**. Closes the `ActivityCalendar` `closed_at` leak BY CONSTRUCTION; an empty roster stays LOUD. Scenario 062 walked with **six clean judgements and no copy defect — a first for Phase 8** — and the one defect it found was fixed in BOTH places it lived)_
+- [x] ITER-030 — Nobody could have gone: recording that the youth missed it _(completed 2026-08-31, df25b40 — the fourth exclusion in `carriesCoverageExpectation()` shipped in `youth-i` (6529004), which said in its own message that this item was **not** closed by it; `youth-j` moved the fact off the event onto a (youth, event) row and reshaped the control as an exception. The user confirmed that in their own words walking scenario 062: *"an exception you may record"*)_
 - [x] ITER-028 — Closing out a season, and the history that outlives it _(completed 2026-08-31, 637cfbc — migration 060's nullable `closed_at`, `/youth/history/[member_id]` with the final number **recomputed against `closed_at`**, and a fully-closed young person who stays on `/youth` with a named `· Finished` pill. **REVERSES CLAUDE.md §9's "no season boundary"**; the ward-wide historical overview was CUT)_
 - [x] ITER-031 — Removing an activity destroys a cascade nobody was warned about _(completed 2026-08-31, 637cfbc — `Remove` renders only at zero events and the server answers **409 naming Close**, disclosing neither the count nor any content; audit detail now records what was lost. The "unlink from the occasion" reading was NOT built — `youth-g` already ships that where it belongs)_
 - [x] ITER-024 — One event, one youth, or one occasion, many youth? _(completed 2026-08-29, 43a10c9 — Option A′: an explicit stored occasion, identity only, plus `/youth/events/[id]`. **Completes ITER-020's parked event-detail half**, unblocks ITER-027, answers ITER-025's sequencing question)_

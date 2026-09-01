@@ -1,7 +1,9 @@
 # ITER-033: A Team Has One Schedule and a Roster — Not One Schedule Per Young Person
 
 **Type:** Architecture / Feature
-**Status:** In Progress
+**Status:** Completed
+**Completed:** 2026-08-31
+**Commit:** df25b40
 **Plan:** plans/youth-j-team-and-roster.md
 **Created:** 2026-08-31
 **Raised by:** the user, 2026-08-31, reviewing the `youth-i` walk: *"i want the app to assume that

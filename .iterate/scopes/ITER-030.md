@@ -1,7 +1,15 @@
 # ITER-030: Nobody Could Have Gone — Recording That the Young Person Missed It
 
 **Type:** Feature
-**Status:** Built and walked 2026-08-31, NOT closed — superseded in part by ITER-033
+**Status:** Completed
+**Completed:** 2026-08-31
+**Commit:** df25b40 (via ITER-033 / slice `youth-j`)
+**Note:** `youth-i` (6529004) shipped the fourth exclusion and said in its own message that this
+item was NOT closed by it — the storage sat on the EVENT, correct only while an event belonged to
+exactly one young person, and the Yes/No control read as a standing question. `youth-j` moved the
+fact to `activity_event_participation` and reshaped the control as an exception. The user
+confirmed the latter in their own words when walking scenario 062: *"an exception you may
+record"*. Every RULE from this scope survives unchanged.
 **Plan:** plans/youth-i-recording-an-absence.md
 **Created:** 2026-08-30
 **Raised by:** the user, 2026-08-30, reviewing the scenario 050 re-walk: *"we probably should add an
