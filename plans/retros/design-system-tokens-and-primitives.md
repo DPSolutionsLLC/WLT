@@ -2,7 +2,7 @@
 id: design-system-tokens-and-primitives
 type: feature
 iter: null
-commits: ["924f4d5"]
+commits: ["797672e"]
 date: 2026-09-20
 files:
   - app/globals.css
