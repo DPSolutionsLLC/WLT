@@ -2,7 +2,7 @@
 id: unit-hierarchy-and-ward-switch
 type: feature
 iter: null
-commits: ["663f8f8"]
+commits: ["2bd7f4e"]
 date: 2026-09-21
 files:
   - supabase/migrations/065_unit_hierarchy.sql
