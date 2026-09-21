@@ -252,7 +252,6 @@ describe("youth activity profile scoping", () => {
     it("refuses an insert into another ward", async () => {
       const { error } = await eqPresident.from("youth_activity_profiles").insert({
         ward_id: fixtures.wardBId,
-        member_id: wardBYouthId,
         activity_name: `Forged ${fixtures.runId}`,
         activity_type: "sport",
       });
@@ -493,7 +492,6 @@ describe("youth activity profile scoping", () => {
       const { error } = await eqPresident.from("youth_activity_profiles").insert({
         ward_id: fixtures.wardAId,
         org_id: fixtures.reliefSocietyId,
-        member_id: wardAYouthId,
         activity_name: `Forged RS ${fixtures.runId}`,
         activity_type: "sport",
       });
@@ -507,7 +505,6 @@ describe("youth activity profile scoping", () => {
         .insert({
           ward_id: fixtures.wardAId,
           org_id: fixtures.eldersQuorumId,
-          member_id: wardAYouthId,
           activity_name: `Own org ${fixtures.runId}`,
           activity_type: "sport",
         })
@@ -528,7 +525,6 @@ describe("youth activity profile scoping", () => {
         .insert({
           ward_id: fixtures.wardAId,
           org_id: null,
-          member_id: wardAYouthId,
           activity_name: `Ward wide by EQ ${fixtures.runId}`,
           activity_type: "community",
         })
@@ -546,7 +542,6 @@ describe("youth activity profile scoping", () => {
         .insert({
           ward_id: fixtures.wardAId,
           org_id: fixtures.reliefSocietyId,
-          member_id: wardAYouthId,
           activity_name: `Bishop for RS ${fixtures.runId}`,
           activity_type: "performance",
         })
@@ -571,7 +566,6 @@ describe("youth activity profile scoping", () => {
         .insert({
           ward_id: fixtures.wardAId,
           org_id: null,
-          member_id: wardAYouthId,
           activity_name: `Council entered ${fixtures.runId}`,
           activity_type: "academic",
         })

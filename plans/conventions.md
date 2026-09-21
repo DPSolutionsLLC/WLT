@@ -212,10 +212,53 @@ export function centsToDisplay(cents: number): string {
 - Tailwind utility classes; no CSS modules, no styled-components
 - Mobile-first: unprefixed classes are the mobile style, `md:` and up are the desktop
   overrides
-- Colours come from the theme tokens in `tailwind.config.ts`. **No hardcoded hex values**
-  in components — they break dark mode
+- Colours come from the theme tokens in `app/globals.css`. **No hardcoded hex values**
+  in components — they break dark mode. The one sanctioned exception is
+  `app/(tithing)/tithing/tithing.module.css`, whose navy/gold palette is `--t-`-prefixed and
+  scoped to a CSS-Module class, so it can never reach `:root`
 - `dark:` variants on anything with a background or a border
 - Extract a component before extracting a `@apply` class
+
+### The elevation ladder (P1)
+
+**`--background` < `--surface` < `--surface-raised`, in BOTH themes.** Measured luminance:
+
+```
+light:  background 0.9320  <  surface 0.9579  <  surface-raised 1.0000
+dark:   background 0.0121  <  surface 0.0157  <  surface-raised 0.0199
+```
+
+`--surface-raised` is **the card**. `--surface` is the **recessed** tone — an inset panel inside
+a card, and the secondary `Button`'s **rest** state whose hover is `bg-surface-raised`. Invert
+that order in one theme and hover goes the wrong direction there.
+`plans/retros/youth-follow-up-controls.md` §6 records a shipped defect from exactly this token
+changing meaning between themes. Note that P1's own token table calls the card `--surface`;
+mapping its values onto these names, rather than pasting them over, is why the ladder holds.
+
+**A card sits at the top of the ladder in light mode, so it has nowhere lighter to go.** A hover
+on something already at `--surface-raised` strengthens the **hairline** (`hover:border-muted`)
+rather than moving the fill — the same retro's "a neutral border at partial strength, never a
+louder fill".
+
+### One pill shape, many palettes
+
+`components/ui/Pill.tsx` owns the shape — `inline-flex items-center rounded-full border px-2
+py-0.5 text-xs` — and nothing else may spell it out. A component with a **palette of its own**
+(the nine `--stage-*` tokens, the six coverage tones, the four visit bands) passes its static
+classes as **`toneClassName`**; `Pill`'s four generic `tone`s are for callers with no palette.
+Flattening a measured palette into the four tones deletes a distinction **silently** — nothing
+fails, the badges simply stop telling things apart.
+
+**Never an interpolated class name**, in either place. Tailwind scans source text for complete
+class strings, so `border-${tone}` compiles fine and emits **no CSS at all**. Every tone map is a
+static `Record`. Two tests assert on class names for exactly this reason and are not to be
+"fixed": `tests/components/assignments/StageBadge.test.tsx` and
+`tests/components/youth/YouthAbsenceChip.test.tsx`.
+
+### Type
+
+**Fraunces** (`font-display`) carries titles; **Inter** (`font-sans`, the default) carries body.
+Both load through `next/font` in `app/layout.tsx` — never an `@import`, which blocks render.
 
 ---
 

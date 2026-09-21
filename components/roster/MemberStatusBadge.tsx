@@ -1,3 +1,4 @@
+import { Pill } from "@/components/ui/Pill";
 import type { MemberStatus } from "@/types/domain";
 
 export type MemberStatusBadgeProps = {
@@ -22,15 +23,13 @@ const CLASSES: Record<MemberStatus, string> = {
 
 export function MemberStatusBadge({ status }: MemberStatusBadgeProps) {
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs ${CLASSES[status]}`}
-    >
+    <Pill toneClassName={CLASSES[status]}>
       {status === "do_not_contact" && (
         <span aria-hidden="true" className="mr-1">
           ⚠
         </span>
       )}
       {LABELS[status]}
-    </span>
+    </Pill>
   );
 }

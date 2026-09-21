@@ -1,6 +1,6 @@
 # Backlog
 
-_Last updated: 2026-08-31_
+_Last updated: 2026-09-20_
 
 ---
 
@@ -25,6 +25,18 @@ Items currently being planned or actively worked.
   are for now and move forward with the rest of the build. and then i will work on each tool to
   bring them into my vision."* Phase 8 stays as built and shipped; this is picked up once the
   remaining phases are in and the user has driven the whole app themselves._
+
+  **UNPARKED 2026-09-20 — re-pointed at P4’s youth slice.** The prototype became the source of
+  truth, and much of what this item asked for is now planned rather than parked: the module is
+  **Youth Support** on the tile dashboard, a profile already IS a team with a roster (`youth-j`),
+  and the re-skin plus its two adoptions are scoped in [plans/P4-module-reskins.md](../plans/P4-module-reskins.md).
+  **What is still genuinely open and NOT yet planned:** the parent/sub-category shape (Basketball
+  → Varsity / JV / Freshmen) with season and boys/girls on the parent; a photo of a schedule read
+  by AI into a draft a person confirms; events locking once commitments or follow-ups exist; a
+  re-import showing a summary of changes and notifying committed leaders; seasons remembered as
+  recurring but never pre-created; and the overview organised around current activities with past
+  seasons hidden. **The original message was interrupted mid-sentence — still assume it is
+  incomplete and ask before building from it.**
 
 ---
 

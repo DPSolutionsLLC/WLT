@@ -98,7 +98,6 @@ describe("activity attendee scoping", () => {
       .insert({
         ward_id: wardId,
         org_id: orgId,
-        member_id: memberId,
         activity_name: `${name} ${fixtures.runId}`,
         activity_type: "sport",
       })

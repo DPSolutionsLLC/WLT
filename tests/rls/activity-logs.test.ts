@@ -119,7 +119,7 @@ describe("activity log scoping", () => {
       asRole(fixtures, "wardCouncilMember"),
     ]);
 
-    const { data: member, error: memberError } = await fixtures.service
+    const { error: memberError } = await fixtures.service
       .from("members")
       .insert({
         ward_id: fixtures.wardAId,
@@ -140,21 +140,18 @@ describe("activity log scoping", () => {
         {
           ward_id: fixtures.wardAId,
           org_id: fixtures.eldersQuorumId,
-          member_id: member.id,
           activity_name: `EQ basketball ${fixtures.runId}`,
           activity_type: "sport",
         },
         {
           ward_id: fixtures.wardAId,
           org_id: fixtures.reliefSocietyId,
-          member_id: member.id,
           activity_name: `RS choir ${fixtures.runId}`,
           activity_type: "performance",
         },
         {
           ward_id: fixtures.wardAId,
           org_id: null,
-          member_id: member.id,
           activity_name: `Ward-wide debate ${fixtures.runId}`,
           activity_type: "academic",
         },

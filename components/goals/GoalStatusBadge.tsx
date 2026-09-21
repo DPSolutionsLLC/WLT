@@ -1,3 +1,4 @@
+import { Pill } from "@/components/ui/Pill";
 import type { GoalStatus } from "@/types/domain";
 
 // A Record rather than a lookup with a fallback, for the same reason PIPELINE_STAGE_LABELS is
@@ -26,18 +27,12 @@ export function GoalStatusBadge({ status }: GoalStatusBadgeProps) {
   // null, lib/validation/goal.ts does not, so this is a row written outside this app — and "No
   // frequency set" is what it is, rather than a bucket guessed on its behalf.
   if (status === null) {
-    return (
-      <span className="rounded-full border border-border bg-surface px-2 py-0.5 text-xs text-muted">
-        No frequency set
-      </span>
-    );
+    return <Pill toneClassName="border-border bg-surface text-muted">No frequency set</Pill>;
   }
 
   return (
-    <span
-      className={`rounded-full border border-border bg-surface px-2 py-0.5 text-xs ${STATUS_CLASSES[status]}`}
-    >
+    <Pill toneClassName={`border-border bg-surface ${STATUS_CLASSES[status]}`}>
       {STATUS_LABELS[status]}
-    </span>
+    </Pill>
   );
 }

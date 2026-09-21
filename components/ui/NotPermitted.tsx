@@ -14,7 +14,8 @@ export type NotPermittedProps = {
 export function NotPermitted({ detail }: NotPermittedProps) {
   return (
     <Card>
-      <h1 className="text-base font-semibold text-foreground">Not permitted</h1>
+      {/* Fraunces, per P1's type pairing — the display face carries titles. */}
+      <h1 className="font-display text-base font-semibold text-foreground">Not permitted</h1>
       <p className="mt-2 text-sm text-muted">
         {detail ?? "Your role does not have access to this page."} If you think that is wrong,
         ask a member of the bishopric.

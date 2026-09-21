@@ -819,6 +819,13 @@ export type GoalStatus = (typeof GOAL_STATUSES)[number];
 export const MEETING_TYPES = ["bishopric", "ward_council"] as const;
 export type MeetingType = (typeof MEETING_TYPES)[number];
 
+// Title case, because these head a printed agenda and a page. "Ward council" rather than "Ward
+// Council": this codebase sentence-cases everywhere else a role or a meeting is named.
+export const MEETING_TYPE_LABELS: Record<MeetingType, string> = {
+  bishopric: "Bishopric meeting",
+  ward_council: "Ward council",
+};
+
 export const AGENDA_STATUSES = ["draft", "published"] as const;
 export type AgendaStatus = (typeof AGENDA_STATUSES)[number];
 

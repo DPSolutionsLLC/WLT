@@ -91,7 +91,7 @@ describe("closing a youth activity profile", () => {
       asRole(fixtures, "wardBBishop"),
     ]);
 
-    const { data: members, error: memberError } = await fixtures.service
+    const { error: memberError } = await fixtures.service
       .from("members")
       .insert([
         {
@@ -112,8 +112,6 @@ describe("closing a youth activity profile", () => {
       .select("id, ward_id");
     if (memberError) throw new Error(memberError.message);
 
-    const wardAYouthId = members!.find((row) => row.ward_id === fixtures.wardAId)!.id;
-    const wardBYouthId = members!.find((row) => row.ward_id === fixtures.wardBId)!.id;
 
     const { data: profiles, error: profileError } = await fixtures.service
       .from("youth_activity_profiles")
@@ -121,14 +119,12 @@ describe("closing a youth activity profile", () => {
         {
           ward_id: fixtures.wardAId,
           org_id: fixtures.eldersQuorumId,
-          member_id: wardAYouthId,
           activity_name: `EQ basketball ${fixtures.runId}`,
           activity_type: "sport",
         },
         {
           ward_id: fixtures.wardAId,
           org_id: fixtures.reliefSocietyId,
-          member_id: wardAYouthId,
           activity_name: `RS choir ${fixtures.runId}`,
           activity_type: "performance",
         },
@@ -140,7 +136,6 @@ describe("closing a youth activity profile", () => {
           // null branch this case is about.
           ward_id: fixtures.wardAId,
           org_id: null,
-          member_id: wardAYouthId,
           activity_name: `Ward-wide debate ${fixtures.runId}`,
           activity_type: "academic",
           entered_by: fixtures.user("wardCouncilMember").id,
@@ -148,7 +143,6 @@ describe("closing a youth activity profile", () => {
         {
           ward_id: fixtures.wardBId,
           org_id: fixtures.wardBOrgId,
-          member_id: wardBYouthId,
           activity_name: `Ward B track ${fixtures.runId}`,
           activity_type: "sport",
         },

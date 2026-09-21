@@ -1,3 +1,4 @@
+import { Pill } from "@/components/ui/Pill";
 import { isPlaceholderTitle } from "@/lib/music/hymnSource";
 
 // The one place a placeholder hymn is marked on screen.
@@ -19,13 +20,14 @@ export function UnverifiedHymnBadge({ title }: { title: string | null }) {
   if (title === null || !isPlaceholderTitle(title)) return null;
 
   return (
-    <span
-      className="inline-flex items-center rounded-full border border-danger px-2 py-0.5 text-xs font-medium text-danger"
+    <Pill
+      toneClassName="border-danger text-danger"
+      className="font-medium"
       // Said in full for a screen reader, because "Not a real hymn" out of context is alarming
       // in a way the visual placement is not.
       title="This number has no verified hymn behind it. Do not print it."
     >
       Not a real hymn
-    </span>
+    </Pill>
   );
 }

@@ -69,7 +69,9 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
       {/* Full height with its own internal scroll on a phone; a centred card from md up. */}
       <div className="flex h-full max-h-full flex-col overflow-hidden bg-surface-raised text-foreground md:rounded-lg md:border md:border-border">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
-          <h2 id={titleId} className="text-base font-semibold text-foreground">
+          {/* Fraunces, per P1's type pairing: the display face carries titles, Inter carries
+              body. `font-display` resolves through --font-fraunces in globals.css. */}
+          <h2 id={titleId} className="font-display text-base font-semibold text-foreground">
             {title}
           </h2>
           <button

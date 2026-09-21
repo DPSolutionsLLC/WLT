@@ -2,18 +2,68 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ---------------------------------------------------------------------------
+   THE ELEVATION LADDER, AND WHY --surface IS NOT THE CARD
+   ---------------------------------------------------------------------------
+   P1's token table calls the CARD `--surface`. In this codebase `--surface` has always been the
+   RECESSED tone and `--surface-raised` is the card, across 140 and 85 usages respectively. P1's
+   values were therefore mapped onto the names already here rather than pasted over them:
+   P1 --bg -> --background, P1 --surface -> --surface-raised, P1 --ink -> --foreground,
+   P1 --ink-soft -> --muted, P1 --line -> --border. Renaming instead would have meant rewriting
+   ~1,400 className usages and would have broken P1's own promise that no page is edited.
+
+   --surface must sit BETWEEN --background and --surface-raised in BOTH themes. It is used as an
+   inset panel inside a card AND as the secondary Button's REST state, whose HOVER is
+   bg-surface-raised — so if the ladder inverts in one theme, hover goes the wrong way there.
+   plans/retros/youth-follow-up-controls.md section 6 records a shipped defect from exactly this
+   token changing meaning between themes: a fill that read "as an inset panel in one theme and a
+   hole in the other".
+
+   MEASURED relative luminance, both ascending:
+     light:  background 0.9320  <  surface 0.9579  <  surface-raised 1.0000
+     dark:   background 0.0121  <  surface 0.0157  <  surface-raised 0.0199
+   --------------------------------------------------------------------------- */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --surface: #f8fafc;
+  --background: #faf7f1;
+  --surface: #fdfaf4;
   --surface-raised: #ffffff;
-  --border: #e2e8f0;
-  --muted: #64748b;
-  --primary: #1d4ed8;
+  --foreground: #23262b;
+  --muted: #6b6d72;
+  --border: #e2dbcb;
+  --primary: #2c5a4d;
   --primary-foreground: #ffffff;
   --success: #15803d;
   --warning: #b45309;
   --danger: #b91c1c;
+
+  /* The three accents. --primary IS --pine, the same ink under two names: the action colour and
+     the primary accent must not be two nearly-identical greens sitting beside each other. The
+     -soft pairs are BACKGROUNDS and never text — they carry no text ratio and owe none. */
+  --pine: #2c5a4d;
+  --pine-soft: #e4eee9;
+  --rust: #a85a34;
+  --rust-soft: #f4e7de;
+  --gold: #8f6718;
+  --gold-soft: #f6eedd;
+
+  /* MEASURED against all three surfaces a token can sit on in this theme — --background,
+     --surface and --surface-raised — rather than checked by eye, which is what calendar-b did
+     and what talks-b corrected. Worst of the three for each, WCAG AA needing 4.5:1 for text
+     this size:
+
+       foreground 14.19 · muted 4.84 · primary/pine 7.34 · rust 4.70 · gold 4.77
+       success 4.69 · warning 4.70 · danger 6.05
+
+     --gold IS THE ONE VALUE THAT DEPARTS FROM P1'S TABLE, and P1 predicted it would. At #a8791f
+     it measures 3.62 against --background and 3.87 against --surface-raised, both below AA.
+     #8f6718 is the same hue family and measures 4.77 / 5.10. This is talks-b's retune applied a
+     second time, for the same reason.
+
+     --border IS A HAIRLINE, NOT TEXT, and is the one value here that clears no text threshold:
+     1.38:1 against --surface-raised. Recorded so nobody discovers it later as a new fault — the
+     OUTGOING --border (#e2e8f0) measured 1.23:1 in the same position, so this is slightly
+     stronger than what it replaces rather than a regression. */
 
   /* Talk-pipeline stage colours. The NAMES are the contract between Phase 3 and Phase 4 and match
      PIPELINE_STAGES in types/domain.ts exactly; the hex values are Phase 4's to retune.
@@ -21,15 +71,17 @@
      A progression, not nine unrelated hues: cool and muted at plan, warming through the middle,
      resolved green at complete, so how far along a Sunday is reads without a legend.
 
-     MEASURED against both backgrounds a StageBadge can sit on — --surface (#f8fafc) and
-     --surface-raised (#ffffff) — rather than checked by eye, which is what calendar-b did. The
-     worst of the two ratios for each, WCAG AA needing 4.5:1 for text this size:
+     RE-MEASURED for P1's warmer backgrounds, against all three surfaces a StageBadge can sit on —
+     --background (#faf7f1), --surface (#fdfaf4) and --surface-raised (#ffffff). Worst of the
+     three for each, WCAG AA needing 4.5:1 for text this size:
 
-       plan 7.24 · review 4.94 · approve 6.01 · request 5.45 · confirm 6.04
-       notify 6.01 · speak 4.95 · appreciate 6.55 · complete 4.79
+       plan 7.09 · review 4.83 · approve 5.88 · request 5.33 · confirm 5.91
+       notify 5.88 · speak 4.84 · appreciate 6.41 · complete 4.69
 
-     Two were retuned here and the other seven left alone: plan measured 4.55 and appreciate 4.71,
-     both close enough to the threshold that a small-text badge has no headroom at all. */
+     NO STAGE TOKEN WAS RETUNED BY P1. All nine kept the hex talks-b left them at, and all nine
+     still clear AA against the warmer backgrounds — a later reader should not go looking for a
+     change that was not made. (talks-b did retune two of them, plan and appreciate, when these
+     numbers were first taken against the old white backgrounds.) */
   --stage-plan: #475569;
   --stage-review: #2563eb;
   --stage-approve: #4f46e5;
@@ -59,11 +111,12 @@
      the same reason the five household statuses each carry a mark as well as a colour: seven
      hues separate seven things only for somebody who can see all seven.
 
-     MEASURED against both backgrounds a chip can sit on — --surface (#f8fafc) and
-     --surface-raised (#ffffff) — rather than checked by eye. Worst of the two ratios for each,
-     WCAG AA needing 4.5:1 for text this size:
+     RE-MEASURED for P1's warmer backgrounds, against all three surfaces a chip can sit on. Worst
+     of the three for each, AA needing 4.5:1:
 
-       slate 7.24 · blue 4.94 · violet 5.45 · magenta 6.04 · teal 5.23 · amber 6.55 · rose 6.01 */
+       slate 7.09 · blue 4.83 · violet 5.33 · magenta 5.91 · teal 5.12 · amber 6.41 · rose 5.88
+
+     None retuned, for the same reason none of the stage tokens was. */
   --tone-slate: #475569;
   --tone-blue: #2563eb;
   --tone-violet: #7c3aed;
@@ -74,26 +127,42 @@
 }
 
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
-  --surface: #141414;
-  --surface-raised: #1c1c1c;
-  --border: #2e2e2e;
-  --muted: #a1a1aa;
-  --primary: #60a5fa;
-  --primary-foreground: #0a0a0a;
+  --background: #1b1d1f;
+  --surface: #1f2225;
+  --surface-raised: #24272a;
+  --foreground: #efede7;
+  --muted: #93989e;
+  --border: #3a3e42;
+  --primary: #7fcbaa;
+  --primary-foreground: #1b1d1f;
   --success: #4ade80;
   --warning: #fbbf24;
   --danger: #f87171;
 
+  --pine: #7fcbaa;
+  --pine-soft: #1e332c;
+  --rust: #e2966b;
+  --rust-soft: #392920;
+  --gold: #e4c568;
+  --gold-soft: #392f1c;
+
+  /* Worst of the three surfaces (#1b1d1f / #1f2225 / #24272a), AA needing 4.5:1:
+
+       foreground 12.82 · muted 5.17 · primary/pine 7.88 · rust 6.30 · gold 8.93
+       success 8.62 · warning 8.99 · danger 5.43
+
+     The dark --gold needed no retune, unlike the light one: 8.93 at worst.
+     --border measures 1.39:1 against --surface-raised — a hairline, not text — where the
+     outgoing #2e2e2e measured 1.25:1 in the same position. */
+
   /* Every stage token is redefined here, not just the ones that "needed" it. A token defined only
-     in :root renders as its light value against #141414, which is the exact failure this
+     in :root renders as its light value against #1b1d1f, which is the exact failure this
      project's dark-mode rule exists to prevent.
 
-     Measured against --surface (#141414) and --surface-raised (#1c1c1c); worst of the two:
+     Worst of the three surfaces:
 
-       plan 6.65 · review 6.70 · approve 5.71 · request 6.26 · confirm 6.93
-       notify 6.33 · speak 7.53 · appreciate 10.21 · complete 9.78
+       plan 5.86 · review 5.91 · approve 5.03 · request 5.52 · confirm 6.10
+       notify 5.58 · speak 6.63 · appreciate 8.99 · complete 8.62
 
      All nine clear AA with room, so none was changed. */
   --stage-plan: #94a3b8;
@@ -106,9 +175,9 @@
   --stage-appreciate: #fbbf24;
   --stage-complete: #4ade80;
 
-  /* Measured against --surface (#141414) and --surface-raised (#1c1c1c); worst of the two:
+  /* Worst of the three surfaces:
 
-       slate 6.65 · blue 6.70 · violet 6.26 · magenta 6.93 · teal 9.16 · amber 10.21 · rose 6.33 */
+       slate 5.86 · blue 5.91 · violet 5.52 · magenta 6.10 · teal 8.07 · amber 8.99 · rose 5.58 */
   --tone-slate: #94a3b8;
   --tone-blue: #60a5fa;
   --tone-violet: #a78bfa;
@@ -130,6 +199,12 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
+  --color-pine: var(--pine);
+  --color-pine-soft: var(--pine-soft);
+  --color-rust: var(--rust);
+  --color-rust-soft: var(--rust-soft);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
   --color-stage-plan: var(--stage-plan);
   --color-stage-review: var(--stage-review);
   --color-stage-approve: var(--stage-approve);
@@ -146,7 +221,8 @@
   --color-tone-teal: var(--tone-teal);
   --color-tone-amber: var(--tone-amber);
   --color-tone-rose: var(--tone-rose);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-fraunces);
   --font-mono: var(--font-geist-mono);
 }
 

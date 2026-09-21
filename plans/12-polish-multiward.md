@@ -1,3 +1,13 @@
+> ## ⚠️ RETIRED 2026-09-20 — split between [P2-unit-hierarchy.md](P2-unit-hierarchy.md) and [P13-polish.md](P13-polish.md)
+>
+> This phase never started. **Do not plan new work from this file.**
+>
+> What changed: its multi-ward *scaffolding* is no longer scaffolding. The prototype carries a
+> stake tier, a super admin and ward switching, and the "multi-ward UI — do not build for v1"
+> guardrail was lifted 2026-09-20 — so that half became **P2**, a real phase with migrations
+> and RLS tests, running early rather than last. The theme and accessibility half became
+> **P13**, and most of its theme work is absorbed by **P1**'s design system.
+
 # Phase 12 — Polish, Accessibility & Multi-Ward Scaffolding
 
 The last phase before a second ward could realistically be onboarded. Nothing new is

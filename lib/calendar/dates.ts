@@ -240,3 +240,23 @@ export function leadingBlankDays(value: DateOnly): number {
 export function daysInMonth(value: DateOnly): number {
   return Number(lastDayOfMonth(value).slice(8, 10));
 }
+
+// A meeting date, with its weekday and year. `agendas.meeting_date` is a `date` column, so this
+// formats in UTC for the reason every formatter above does: a UTC-midnight Date rendered in the
+// reader's zone shows the previous day to anybody west of UTC.
+//
+// SEPARATE FROM formatSundayLabelWithYear() DESPITE PRODUCING THE SAME STRING. That one is named
+// for Sundays and read as such at every call site; a bishopric meeting is on a Tuesday, and
+// reusing a function called "Sunday" for it is the kind of thing that reads as a bug to whoever
+// maintains it next. The duplication is one Intl instance.
+const MEETING_LABEL_FORMAT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  weekday: "long",
+  month: "long",
+  day: "numeric",
+  year: "numeric",
+});
+
+export function formatMeetingDateLabel(value: DateOnly): string {
+  return MEETING_LABEL_FORMAT.format(parseDateOnly(value));
+}

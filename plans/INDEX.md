@@ -1,143 +1,140 @@
 # Implementation Plan — Index
 
-Ward Leadership Tools, built in 13 phases. Each phase is a self-contained plan file.
+**Restructured 2026-09-20**, when the design prototype became the source of truth. Phases 0–9
+shipped under the original plan and stay exactly as they are. Phases 10–12 are retired, their
+scope rewritten into a prototype-driven **P-track**.
 
-**How to use this:** Find your phase below, open **only that file** (plus
-[conventions.md](conventions.md) if you need code-style detail). Do not load the whole
-plan set — each file is written to be sufficient on its own.
+**How to use this:** find your phase, open **only that file** (plus
+[conventions.md](conventions.md) for code-style detail, and the relevant row of
+[prototype/module-map.md](prototype/module-map.md) for anything from P1 on). Do not load the
+whole plan set.
+
+**Status is sourced from [retros/INDEX.md](retros/INDEX.md)**, not from checkboxes inside phase
+files — those are ticked inconsistently and are not the signal.
 
 ---
 
-## Phase Map
+## Read this first
 
-**Status is sourced from [retros/INDEX.md](retros/INDEX.md)**, not from the checkboxes in each
-phase file — those are ticked inconsistently and are not the signal. A phase is shipped when every
-one of its slices has a retro entry with a commit.
+The prototype (`prototype/WLT.jsx`, gitignored — it holds real member data) is now the design
+authority. It has been harvested into [prototype/](prototype/):
 
-| # | Phase | File | Depends on | Est. | Status |
-|---|---|---|---|---|---|
-| 0 | Foundation — setup, schema, RLS, cross-cutting services | [00-foundation.md](00-foundation.md) | — | Large | Shipped |
-| 1 | Auth & RBAC — login, invites, youth PIN, guards | [01-auth-rbac.md](01-auth-rbac.md) | 0 | Medium | Shipped |
-| 2 | Roster — households, members, CSV import | [02-roster.md](02-roster.md) | 1 | Medium | Shipped |
-| 3 | Sunday calendar & conducting rotation | [03-calendar.md](03-calendar.md) | 2 | Small | Shipped |
-| 4 | Talk pipeline, prayers, topics, goals | [04-talks-pipeline.md](04-talks-pipeline.md) | 3 | Large | Shipped |
-| 5 | AI platform — knowledge base, pgvector, settings | [05-ai-platform.md](05-ai-platform.md) | 4 | Large | Shipped |
-| 6 | Program builder, music, PDF, public pages | [06-program-music.md](06-program-music.md) | 5 | Large | Shipped — M4 waits on a physical fold check (scenarios 034/035) |
-| 7 | Visit tracker & return-and-report feed | [07-visits.md](07-visits.md) | 2 | Medium | **Shipped 2026-08-26** — see the Definition of Done in the phase file for what it deliberately does not close |
-| 8 | Youth activity support | [08-youth-activities.md](08-youth-activities.md) | 7 | Medium | **Eleven slices built; scenarios 049–059 walked.** `youth-j` reshaped the model — a profile is a TEAM with a roster, not one young person's copy of one — **scenario 062 walked 2026-08-31** (six clean judgements, one defect fixed in both places it lived); 060, 061 and 063 are built and not yet walked. **Migration 063 was applied 2026-08-31, after `df25b40` went live**, and the deployed build was walked the same evening. M5 also waits on the confirmation records for `youth-b`/`youth-c`/`youth-d` |
-| — | ITER-018 — visit cadence and the priority scale | [visits-e-cadence-and-priority.md](visits-e-cadence-and-priority.md) | 7 | Medium | **Built 2026-08-26** — migration 051 waits for the deploy |
-| 9 | Meeting agendas & tithing calculator | [09-meetings-tithing.md](09-meetings-tithing.md) | 1 | Medium | Started — tithing worksheet only |
-| 10 | Sacrament administration & public assignments | [10-sacrament-admin.md](10-sacrament-admin.md) | 3 | Medium | Not started |
-| 11 | Notification UI, admin pages, audit viewer, dashboards | [11-notifications-admin.md](11-notifications-admin.md) | all | Medium | Not started |
-| 12 | Theme polish, accessibility, multi-ward scaffolding | [12-polish-multiward.md](12-polish-multiward.md) | all | Small | Not started |
-| — | Deployment — Vercel, env vars, auth URLs, SMTP | [deployment.md](deployment.md) | 1 | Small | Shipped |
-| — | Code conventions reference | [conventions.md](conventions.md) | — | — | Living |
+| File | What it is |
+|---|---|
+| [prototype/INDEX.md](prototype/INDEX.md) | The integration plan and phase rationale |
+| [prototype/decisions.md](prototype/decisions.md) | Durable rules, **the six conflicts with this codebase**, real-build requirements |
+| [prototype/module-map.md](prototype/module-map.md) | Every module → verdict → the new behaviours it hides |
+| [prototype/build-notes-raw.md](prototype/build-notes-raw.md) | All 82 build notes, verbatim |
 
-**Phase 8 was blocked on ITER-018, and no longer is.** The visit goal is now a rolling cadence
-rather than a dated period, and Phase 8's youth-activity coverage was documented to reuse
-`householdVisitStatus` (`visits-b` §Integration Notes) — landing that redesign after Phase 8 would
-have left that module built on a model already known to be wrong.
+**No slice starts before its module-map row exists.** See CLAUDE.md §12.
 
-What Phase 8 should import rather than re-derive: `lib/visits/cadence.ts` (`addCadence`,
-`subtractCadence`, `compareCadences`, `describeCadence`) and `householdVisitPriority()`. Neither
-names anything visit-specific in its parameters — `lastCompletedOn`, not `lastVisitedOn` — for
-exactly this reason. If a third module wants them, that is the moment to lift `cadence.ts` out of
-`lib/visits/`; not before.
+---
 
-**Phase 8 ships as a sequence of slices**, the same way Phase 7 shipped as `visits-a` …
-`visits-f`. It was planned as four and has run to nine, because walking each slice produced the
-next. The phase file stays the specification; each slice gets its own plan and its own retro entry.
+## Shipped — phases 0–9
 
-| Slice | Covers | Plan | Status |
+Historical. Load one only to understand why existing code is the way it is, never to plan new
+work. Every slice has a retro entry with a commit.
+
+| # | Phase | File | Shipped |
 |---|---|---|---|
-| youth-a | Migration 054, activity profiles CRUD, manual event entry, the `/youth` page | [youth-a-profiles-and-events.md](youth-a-profiles-and-events.md) | **Built 2026-08-27** — migration 054 applied; **scenario 049 re-walked 2026-08-29** (`youth-a-D1` confirmed fixed, 0 defects) and **050 re-walked 2026-08-30** (`youth-a-D2` confirmed fixed; two new defects → ITER-031, ITER-032) |
-| youth-b | ICS upload: `ical.js`, preview-then-confirm, timezones, `RRULE`, idempotent re-import, `activity_calendars` | [youth-b-ics-import.md](youth-b-ics-import.md) | **Built 2026-08-27** — migration 055 applied; **scenarios 051 and 052 walked 2026-08-28**, three copy defects found and fixed (`youth-b-D1`/`D2`/`D3`) |
-| youth-c | Home/away classification, attendees, coverage computed on read, `/youth/calendar` | [youth-c-coverage-and-calendar.md](youth-c-coverage-and-calendar.md) | **Built 2026-08-28** — migration 056 applied (`completed` dropped, attendee writes narrowed); **scenarios 053 and 054 walked 2026-08-28**, four copy defects fixed plus a fifth caught by re-walking; the event-ordering tiebreaker was reviewed and deliberately left alone |
-| youth-d | `activity_logs`, the shared/private split, ward-council flagging, the report feed | [youth-d-followup-and-report-feed.md](youth-d-followup-and-report-feed.md) | **Built 2026-08-28** — migrations 057 and 058 applied (`activity_logs` reads narrowed to the owning organization; 058 corrects 057c's UPDATE check); the report feed is REUSED, not forked; **scenarios 055 and 056 walked 2026-08-28 and re-walked 2026-08-29** after the ITER-021/022 fixes |
-| youth-e | ITER-020's unblocked half: `/youth` as a ranked list of young people, `/youth/profiles`, sign-up on the calendar | [youth-e-overview-and-cross-navigation.md](youth-e-overview-and-cross-navigation.md) | **Built 2026-08-29** — no migration; the event-detail half stayed out, blocked by ITER-024 |
-| youth-f | One card per YOUNG PERSON, one pill per activity, the support percentage, two sorts plus a direction toggle | [youth-f-support-percentage-and-youth-cards.md](youth-f-support-percentage-and-youth-cards.md) | **Built 2026-08-29** — no migration; walked with no defects; closing out a season became ITER-028 |
-| youth-g | Migration 059, the occasion link, `/youth/events/[id]`, the "+N others at this game" marker | [youth-g-occasions-and-event-detail.md](youth-g-occasions-and-event-detail.md) | **Built 2026-08-29** — migration 059 applied (`activity_occasions`, ward-wide on all four verbs); closes ITER-024 and the parked event-detail half of ITER-020; **unblocks ITER-027**; **scenario 059 walked 2026-08-29**, three defects found and fixed |
-| youth-h | Migration 060, `closed_at` on a profile, `/youth/history/[member_id]`, and a `Remove` that cannot destroy a follow-up | [youth-h-season-close-and-safe-remove.md](youth-h-season-close-and-safe-remove.md) | **Built 2026-08-30** — migration 060 applied (nullable `closed_at`, plus a `security definer` follow-up counter); closes ITER-028 and ITER-031; REVERSES "no season boundary in the schema"; `Remove` now renders only at zero events and the server refuses a delete over any follow-up with a 409 |
-| youth-i | Migration 061, `youth_attended` on an event, the absence chip, and a fourth exclusion in `carriesCoverageExpectation()` | [youth-i-recording-an-absence.md](youth-i-recording-an-absence.md) | **Built 2026-08-31** — migration 061 applied (nullable three-state column, plus a CHECK tying it to a profile); closes ITER-030; a marked game leaves the support number, the coverage badge and the follow-up prompt while STAYING listed, marked, and open to a follow-up; no policy moved |
-| youth-j | Migrations 062 + **063 (both applied)**, `activity_roster` and `activity_event_participation`, one window function, and the absence control reshaped as an exception | [youth-j-team-and-roster.md](youth-j-team-and-roster.md) | **Built 2026-08-31** — 062 applied (both tables created and backfilled; `member_id` widened), **063 applied 2026-08-31 after the deploy**, and its `HELD_BACK_UNTIL_DEPLOYED` entry removed in the same change — the assertion in `migrations.test.ts` went red when the entry outlived its deploy, which is the mechanism working rather than failing; closes ITER-033; one imported schedule now serves a whole roster, a youth can join or leave mid-season, and `memberIsExpectedAt()` closes the `ActivityCalendar` `closedAt` leak **by construction**; an empty roster stays LOUD; no policy moved |
+| 0 | Foundation — setup, schema, RLS, cross-cutting services | [00-foundation.md](00-foundation.md) | ✅ |
+| 1 | Auth & RBAC — login, invites, youth PIN, guards | [01-auth-rbac.md](01-auth-rbac.md) | ✅ |
+| 2 | Roster — households, members, CSV import | [02-roster.md](02-roster.md) | ✅ |
+| 3 | Sunday calendar & conducting rotation | [03-calendar.md](03-calendar.md) | ✅ |
+| 4 | Talk pipeline, prayers, topics, goals | [04-talks-pipeline.md](04-talks-pipeline.md) | ✅ |
+| 5 | AI platform — knowledge base, pgvector, settings | [05-ai-platform.md](05-ai-platform.md) | ✅ |
+| 6 | Program builder, music, PDF, public pages | [06-program-music.md](06-program-music.md) | ✅ — M4 waits on a physical fold check |
+| 7 | Visit tracker & return-and-report feed | [07-visits.md](07-visits.md) | ✅ 2026-08-26 |
+| 8 | Youth activity support | [08-youth-activities.md](08-youth-activities.md) | ✅ — eleven slices, `youth-a`…`youth-j` |
+| — | ITER-018 — visit cadence and priority | [visits-e-cadence-and-priority.md](visits-e-cadence-and-priority.md) | ✅ 2026-08-26 |
+| 9 | Meeting agendas & tithing calculator | [09-meetings-tithing.md](09-meetings-tithing.md) | Part A built 2026-09-01 (migration 064); Part B shipped 2026-08-25 |
+| — | Deployment — Vercel, env vars, auth URLs, SMTP | [deployment.md](deployment.md) | ✅ |
+| — | Code conventions reference | [conventions.md](conventions.md) | Living |
 
-Three decisions were taken at the start of `youth-a` planning and apply to the whole phase.
-**Activity reads are ward-wide and only writes are org-scoped** (`org_id` on
-`youth_activity_profiles`, nullable, absent meaning ward-wide) — which answers the question
-migration 019 left addressed to this phase by name. **Coverage is computed on read**, so
-`covered` and `uncovered` leave `activity_events.status` and both scheduled notifications
-(`youth_event_uncovered`, the Monday away-digest) join `visit_overdue` and
-`refresh_goal_status()` as Phase 11's single decision about a mechanism. **Google Calendar sync
-is cut**, as the phase file's own Pitfalls section instructs. `ical.js` was approved for
-`youth-b` and **was added there** (`^2.2.1`, MPL-2.0 — file-level copyleft, which imposes nothing
-on this codebase while the package is used unmodified). It is the only dependency slice B added:
-no timezone library and no `ical.timezones` bundle, because `lib/youth/ics/resolveInstant.ts` does
-the zone arithmetic in about twenty lines of `Intl`, on the same reasoning that made
-`lib/roster/csv/parseCsv.ts` a hand-written RFC 4180 parser.
-
-**Not scoped, and recorded so it is not lost: leader-to-leader messaging.** Raised 2026-08-27
-while reviewing the `youth-a` walkthrough. The shape asked for is *"send a message to the author of
-an event to suggest an edit or a delete"* — a leader who can SEE another organization's work but
-not change it needs a way to ask. That is the natural other half of the read-wide/write-narrow
-split `youth-a` shipped, and the same gap exists in visits, where cross-org visibility shows a
-leader work they cannot touch. **It is a cross-cutting feature, not a youth one**, so it does not
-belong to Phase 8; it needs its own scope, and it should be designed against both modules at once
-rather than bolted onto whichever asks first. Two things it will need that do not exist yet: an
-`entered_by` column on `activity_events` (profiles have one, events do not), and a decision about
-whether a suggestion is a notification, a comment thread, or a task.
-
-**Deployment is unnumbered on purpose.** It is not a phase after 12. It depends only on Phase 1
-and is *required* by Phase 6, whose public program pages are meaningless without a URL a ward
-member can open. Doing it early also makes every "test on a real phone" step in the harness a
-real test rather than an approximation.
+**Phase 9's scheduled agenda email is deliberately not built** — it needs a scheduler this
+project does not have. It moved to **P12** along with everything else clock-driven.
 
 ---
 
-## Dependency Graph
+## Retired — phases 10–12
+
+Superseded by the prototype. The files remain, each carrying a header pointing forward; their
+scope lives on in the P-track.
+
+| # | Was | Now |
+|---|---|---|
+| 10 | [10-sacrament-admin.md](10-sacrament-admin.md) | → **P11** |
+| 11 | [11-notifications-admin.md](11-notifications-admin.md) | → **P12** |
+| 12 | [12-polish-multiward.md](12-polish-multiward.md) | → **P2** (multi-ward) + **P13** (polish) |
+
+---
+
+## Ahead — the P-track
+
+| # | Phase | File | Depends on | Size |
+|---|---|---|---|---|
+| **P1** | Design system — tokens, fonts, primitives | [P1-design-system.md](P1-design-system.md) | — | Medium |
+| **P2** | Unit hierarchy — stakes, super admin, ward switching | [P2-unit-hierarchy.md](P2-unit-hierarchy.md) | — | **Large** |
+| **P3** | Shell & IA — tile dashboard, chrome bar, sidebar deleted | [P3-shell-and-ia.md](P3-shell-and-ia.md) | P1, P2 | Medium |
+| **P4** | Module re-skins — 9 modules, ~40 named behaviours | [P4-module-reskins.md](P4-module-reskins.md) | P3 | **Large** |
+| **P5** | To Do & My Appointments | [P5-todo-and-appointments.md](P5-todo-and-appointments.md) | P3 | Medium |
+| **P6** | Conducting Sheet & Ward Calendar | [P6-conducting-and-calendar.md](P6-conducting-and-calendar.md) | P4, P5 | Large |
+| **P7** | Prayer Roll & Prayer Items | [P7-prayer.md](P7-prayer.md) | P4 | Medium |
+| **P8** | Receipts · Account · Speaking History Admin | [P8-receipts-account-history.md](P8-receipts-account-history.md) | P3 | Medium |
+| **P9** | Callings · Ministering · Calling Requests | [P9-sandboxes-and-requests.md](P9-sandboxes-and-requests.md) | P5 | Large |
+| **P10** | Message & Zoom | [P10-message-and-zoom.md](P10-message-and-zoom.md) | P3 | Medium |
+| **P11** | Sacrament administration | [P11-sacrament-admin.md](P11-sacrament-admin.md) | P3 | Medium |
+| **P12** | Scheduler · notifications UI · audit viewer · dashboards | [P12-scheduler-and-admin.md](P12-scheduler-and-admin.md) | most | Medium |
+| **P13** | Accessibility & theme polish | [P13-polish.md](P13-polish.md) | all | Small |
+
+**P1–P4 are written in full. P5–P13 are stubs** carrying their module-map rows, their
+dependencies and their known traps — each gets fleshed out by `/planning` as it is approached,
+so it is written against what the code actually looks like by then rather than against a guess
+made today.
+
+### Why this order
+
+**P1 first** because it is cheap, touches no data, and makes every existing page look right
+while the deep work happens behind it. **P2 before P3** because the tile dashboard's visibility
+rules are built against the access model, and building them twice is waste. **P4 before P6**
+because the Conducting Sheet reads Sacrament's data and Ward Calendar collides with
+`/calendar`'s name. **P5 early** because To Do is a spine — Sacrament's accept/decline,
+Agendas' delegation, My Appointments and Zoom's referral flow all hang off it.
+
+---
+
+## Dependency graph
 
 ```
-                        ┌── 3 Calendar ──┬── 4 Talks ── 5 AI ── 6 Program/Music
-0 Foundation ── 1 Auth ──┤                └── 10 Sacrament Admin
-                        ├── 2 Roster ── 7 Visits ── 8 Youth Activities
-                        └── 9 Meetings & Tithing
+P1 Design system ──┐
+                   ├── P3 Shell & IA ──┬── P4 Re-skins ──┬── P6 Conducting & Calendar
+P2 Unit hierarchy ─┘                   │                 └── P7 Prayer
+                                       ├── P5 To Do ─────┴── P9 Sandboxes
+                                       ├── P8 Receipts/Account/History
+                                       ├── P10 Message & Zoom
+                                       └── P11 Sacrament Admin
 
-                        (11 Notifications/Admin and 12 Polish come last)
+                              (P12 Scheduler/Admin and P13 Polish come last)
 ```
 
-**Phases 7–9 are independent of 4–6.** After Roster and Auth land, visits, meetings,
-and tithing can be built in parallel with the talk pipeline. Phase 10 needs only the
-calendar. This is the main opportunity to work on two tracks at once.
+**P5, P8, P10 and P11 are independent of P4.** After the shell lands, four tracks can run in
+parallel. This is the main opportunity to work on more than one thing at a time.
 
 ---
 
-## Why This Order Differs From SPEC.md
+## Definition of Done — every phase
 
-SPEC.md's "Build Order" puts notifications at #16 and the audit log at #17. Both are
-**cross-cutting write paths** — every module emits notifications and writes audit rows
-from its first commit. Retrofitting them across 15 modules would mean touching every
-route twice.
-
-**Moved into Phase 0:** the notification *emit* path, the audit *write* path, the
-permission-check helper, and the ward-scoping query helper. What stays late is only the
-**UI** for reading notifications, browsing the audit log, and managing settings — those
-genuinely can wait, and they are Phase 11.
-
-Everything else follows SPEC.md's ordering.
-
----
-
-## Definition of Done — Every Phase
-
-A phase is not complete until all of these hold:
-
-- [ ] RLS policies exist for every new table and are **tested** — a user in ward A
-      cannot read or write ward B; a user in org X cannot read org Y's private data
+- [ ] RLS policies exist for every new table and are **tested** — a user in ward A cannot read
+      or write ward B; a user in org X cannot read org Y's private data
+- [ ] **A user in ward A cannot reach ward B by switching** unless their unit assignment allows
+      it (new, P2 onward)
 - [ ] Every mutating route calls `writeAuditLog()`
-- [ ] Every notification trigger listed for the phase emits via `emitNotification()`
+- [ ] Every notification trigger emits via `emitNotification()`
 - [ ] TypeScript types regenerated (`types/database.ts`) and domain types updated
 - [ ] Every new/changed route validates its body with a Zod schema
 - [ ] Errors surface to the user with an actionable message; nothing is swallowed
 - [ ] Works at 375px width and in both light and dark mode
+- [ ] **Every date formatter names its zone** (CLAUDE.md rule 12) — `explicitTimeZone.test.ts` green
 - [ ] Tests written per CLAUDE.md §8 priority order
 - [ ] Lint and typecheck pass clean
 
@@ -145,32 +142,32 @@ A phase is not complete until all of these hold:
 
 ## Milestones
 
-Useful checkpoints for "is this usable yet?"
-
-| Milestone | After phase | The ward can… |
+| Milestone | After | The ward can… |
 |---|---|---|
-| **M1 — Sign in** | 1 | Bishopric and org leaders log in and see a role-appropriate shell |
-| **M2 — Data loaded** | 2 | Full roster imported from LCR; households browsable |
-| **M3 — Plan a month** | 4 | Plan, approve, request, and confirm a month of speakers and prayers |
-| **M4 — Print a program** | 6 | Produce and distribute a real sacrament program PDF with a public link |
-| **M5 — Run the orgs** | 8 | Every organization tracks visits; youth events get covered and reported on. Nine slices built and scenarios 049–059 all walked; the milestone waits on the confirmation records for `youth-b`, `youth-c` and `youth-d` |
-| **M6 — Run the meetings** | 9 | Ward council and bishopric agendas built, emailed, and carried forward |
-| **M7 — Feature complete** | 11 | All 17 modules live, notifications tuned, audit log browsable |
-| **M8 — Shippable** | 12 | Polished, accessible, and safe to onboard a second ward |
+| **M1 — Sign in** | 1 | ✅ Role-appropriate shell |
+| **M2 — Data loaded** | 2 | ✅ Full roster imported |
+| **M3 — Plan a month** | 4 | ✅ A month of speakers and prayers |
+| **M4 — Print a program** | 6 | ✅ Real PDF with a public link |
+| **M5 — Run the orgs** | 8 | ✅ Visits tracked, youth events covered |
+| **M6 — Run the meetings** | 9 | Agendas built and carried forward |
+| **M7 — Looks like the prototype** | P4 | Every existing module in the new design |
+| **M8 — The work lands somewhere** | P5 | To Do and My Appointments close the loop on every assignment |
+| **M9 — Feature complete** | P11 | Every prototype module live |
+| **M10 — Shippable to a second ward** | P13 | Polished, accessible, multi-unit |
 
 ---
 
-## Scope Guardrails
+## Scope guardrails
 
-Explicitly **out of scope for v1** — do not build these, even if they seem small:
+Explicitly **out of scope** — do not build these:
 
-- Email or push notifications (in-app only; the two exceptions are agenda and
-  program PDF distribution via Resend)
-- Two-way SMS tracking or delivery receipts
-- LCR API integration (CSV import only)
-- Multi-ward **UI** — the data model supports it, the interface does not
-- Any public member portal beyond `/public/[slug]` assignments and program pages
-- Calendar sync with external apps (beyond one-way ICS import for youth activities)
-- Org discussion threads — build the two tables in Phase 0, ship no UI
+- LCR API integration (CSV/manual import only, until the church offers one)
+- Google Calendar sync (one-way ICS import only)
+- Any public member portal beyond the existing `/public/[slug]` pages and the prototype's
+  token links (receipts join, Zoom opt-out, Zoom referral, program, agenda guest, series)
+- Area- and district-level admin **screens** — P2 builds the data shape only
 
-If a task appears to require one of these, stop and flag it rather than expanding scope.
+**Three former guardrails were lifted 2026-09-20** and are now phases: multi-ward UI (**P2**),
+in-app messaging (**P10**), and Zoom (**P10**). See CLAUDE.md §9.
+
+If a task appears to require something still on this list, stop and flag it.

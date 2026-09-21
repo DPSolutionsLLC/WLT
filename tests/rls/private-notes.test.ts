@@ -50,7 +50,7 @@ describe("private notes", () => {
     // A follow-up needs an EVENT as of migration 057a, and an event needs an activity, and an
     // activity needs a youth. The chain is seeded with the service client because none of it is
     // what this suite is asserting about — the note hanging off the end of it is.
-    const { data: member, error: memberError } = await fixtures.service
+    const { error: memberError } = await fixtures.service
       .from("members")
       .insert({
         ward_id: fixtures.wardAId,
@@ -68,7 +68,6 @@ describe("private notes", () => {
       .insert({
         ward_id: fixtures.wardAId,
         org_id: fixtures.eldersQuorumId,
-        member_id: member.id,
         activity_name: `Basketball ${fixtures.runId}`,
         activity_type: "sport",
       })

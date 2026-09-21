@@ -1,3 +1,14 @@
+> ## ⚠️ RETIRED 2026-09-20 — superseded by [P12-scheduler-and-admin.md](P12-scheduler-and-admin.md)
+>
+> This phase never started. Its scope moved to **P12**. **Do not plan new work from this file.**
+>
+> What changed: the admin surface it describes is now largely **P2**'s (units, super admin, the
+> access matrix, the request/approve flow). What remains in P12 is the read side of
+> notifications, the audit viewer, the role dashboards, and — the big one — **the scheduler**,
+> which now owns every clock-driven thing in the project. That list dropped to six when
+> `goals` and `refresh_goal_status()` were retired, then grew again with the Sunday tithing
+> clear (CLAUDE.md rule 11) and the agenda email Phase 9 deliberately left unbuilt.
+
 # Phase 11 — Notification UI, Admin & Dashboards
 
 The read side of notifications, the full admin surface, the audit log viewer, and the

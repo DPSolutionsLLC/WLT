@@ -123,7 +123,7 @@ describe("/api/reports/read-status", () => {
     // the second belongs to the Relief Society and is authored by its president. A follow-up needs
     // an event as of migration 057a, and an event needs an activity, and an activity needs a
     // youth.
-    const { data: member, error: memberError } = await fixtures.service
+    const { error: memberError } = await fixtures.service
       .from("members")
       .insert({
         ward_id: wardId,
@@ -142,14 +142,12 @@ describe("/api/reports/read-status", () => {
         {
           ward_id: wardId,
           org_id: null,
-          member_id: member.id,
           activity_name: `Ward-wide debate ${fixtures.runId}`,
           activity_type: "academic",
         },
         {
           ward_id: wardId,
           org_id: fixtures.reliefSocietyId,
-          member_id: member.id,
           activity_name: `RS choir ${fixtures.runId}`,
           activity_type: "performance",
         },

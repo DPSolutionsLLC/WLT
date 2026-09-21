@@ -125,7 +125,7 @@ describe("activity occasion scoping", () => {
       asRole(fixtures, "wardBBishop"),
     ]);
 
-    const { data: members, error: memberError } = await fixtures.service
+    const { error: memberError } = await fixtures.service
       .from("members")
       .insert([
         {
@@ -146,8 +146,6 @@ describe("activity occasion scoping", () => {
       .select("id, ward_id");
     if (memberError) throw new Error(memberError.message);
 
-    const wardAYouthId = members!.find((row) => row.ward_id === fixtures.wardAId)!.id;
-    const wardBYouthId = members!.find((row) => row.ward_id === fixtures.wardBId)!.id;
 
     const { data: profiles, error: profileError } = await fixtures.service
       .from("youth_activity_profiles")
@@ -155,21 +153,18 @@ describe("activity occasion scoping", () => {
         {
           ward_id: fixtures.wardAId,
           org_id: fixtures.eldersQuorumId,
-          member_id: wardAYouthId,
           activity_name: `EQ basketball ${fixtures.runId}`,
           activity_type: "sport",
         },
         {
           ward_id: fixtures.wardAId,
           org_id: fixtures.reliefSocietyId,
-          member_id: wardAYouthId,
           activity_name: `RS basketball ${fixtures.runId}`,
           activity_type: "sport",
         },
         {
           ward_id: fixtures.wardBId,
           org_id: fixtures.wardBOrgId,
-          member_id: wardBYouthId,
           activity_name: `Ward B track ${fixtures.runId}`,
           activity_type: "sport",
         },

@@ -1,3 +1,4 @@
+import { Pill } from "@/components/ui/Pill";
 import { describeYouthAbsence } from "@/lib/youth/coverage";
 
 // That the young person is not taking part, as one chip.
@@ -36,8 +37,13 @@ import { describeYouthAbsence } from "@/lib/youth/coverage";
 // A STATIC class string, never an interpolated one. Tailwind scans source text for complete class
 // strings, so `border-${tone}` compiles to nothing and the chip renders unstyled — the rule
 // CoverageBadge, FollowUpBadge and app/(app)/visits/bandStyles.ts all state.
-const CHIP_CLASSES =
-  "rounded-full border border-dashed border-muted px-2 py-0.5 text-xs font-medium text-muted";
+//
+// THE SHAPE IS components/ui/Pill.tsx's NOW; THE DASHED BORDER AND THE TONE ARE STILL THIS
+// FILE'S. tests/components/youth/YouthAbsenceChip.test.tsx asserts the class string contains no
+// "warning" anywhere, which is youth-i's decision pinned down: that test is not asserting on a
+// class name by accident, and if it goes red the migration flattened two different facts into
+// one tone.
+const CHIP_CLASSES = "border-dashed border-muted text-muted";
 
 export type YouthAbsenceChipProps = {
   youthAttended: boolean | null;
@@ -50,5 +56,9 @@ export function YouthAbsenceChip({ youthAttended, memberName }: YouthAbsenceChip
   const label = describeYouthAbsence(youthAttended, memberName);
   if (label === null) return null;
 
-  return <span className={CHIP_CLASSES}>{label}</span>;
+  return (
+    <Pill toneClassName={CHIP_CLASSES} className="font-medium">
+      {label}
+    </Pill>
+  );
 }

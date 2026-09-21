@@ -1,3 +1,15 @@
+> ## ⚠️ RETIRED 2026-09-20 — superseded by [P11-sacrament-admin.md](P11-sacrament-admin.md)
+>
+> This phase never started. Its scope moved to **P11** when the design prototype became the
+> source of truth. **Do not plan new work from this file** — read it only for the ordinance
+> model and the rotation reasoning, both of which P11 carries forward.
+>
+> What changed: the public assignments page must reconcile with
+> `lib/program/publicProjection.ts`'s full-names rule (migration 019's
+> `public_sacrament_assignments` view still shortens to a last initial — that contradiction is
+> P11's to settle), and the youth `sacrament_manager` account now sits inside the unit
+> hierarchy from **P2**.
+
 # Phase 10 — Sacrament Administration
 
 Monthly ordinance assignments — bread blessing, water blessing, setup and takedown, bread

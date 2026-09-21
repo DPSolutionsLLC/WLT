@@ -104,6 +104,7 @@ describe("/api/youth/calendars/import", () => {
   let wardId: string;
 
   let profileId: string;
+  let youthMemberId: string;
   let wardBProfileId: string;
 
   const SEASON = () =>
@@ -148,7 +149,7 @@ describe("/api/youth/calendars/import", () => {
   const storedEvents = async () => {
     const { data, error } = await fixtures.service
       .from("activity_events")
-      .select("id, title, event_date, status, event_type, all_day, source_uid, source_recurrence_id, calendar_id, youth_attended")
+      .select("id, title, event_date, status, event_type, all_day, source_uid, source_recurrence_id, calendar_id")
       .eq("ward_id", wardId)
       .order("event_date");
 
@@ -208,14 +209,12 @@ describe("/api/youth/calendars/import", () => {
         {
           ward_id: wardId,
           org_id: fixtures.eldersQuorumId,
-          member_id: members!.find((row) => row.ward_id === wardId)!.id,
           activity_name: `Varsity Basketball ${fixtures.runId}`,
           activity_type: "sport",
         },
         {
           ward_id: fixtures.wardBId,
           org_id: fixtures.wardBOrgId,
-          member_id: members!.find((row) => row.ward_id === fixtures.wardBId)!.id,
           activity_name: `Ward B track ${fixtures.runId}`,
           activity_type: "sport",
         },
@@ -223,6 +222,7 @@ describe("/api/youth/calendars/import", () => {
       .select("id, ward_id");
     if (profileError) throw new Error(profileError.message);
 
+    youthMemberId = members!.find((row) => row.ward_id === wardId)!.id;
     profileId = profiles!.find((row) => row.ward_id === wardId)!.id;
     wardBProfileId = profiles!.find((row) => row.ward_id === fixtures.wardBId)!.id;
   }, 180_000);
@@ -499,23 +499,35 @@ describe("/api/youth/calendars/import", () => {
       const jefferson = before.find((event) => event.source_uid === "g2@lincoln")!;
       const madison = before.find((event) => event.source_uid === "g3@lincoln")!;
 
-      // What a leader did by hand, and what a re-import must never undo. THREE COLUMNS NOW:
-      // `youth_attended` joins `status` and `event_type` in what ImportedEventPatch never touches
-      // (migration 061, Decision 6) — a young person recorded as not taking part must survive
-      // every future import of the same file, exactly as a hand-cancelled game does.
+      // What a leader did by hand, and what a re-import must never undo. `status` and
+      // `event_type` are what ImportedEventPatch never touches (Decision 6) — a hand-cancelled
+      // game must survive every future import of the same file.
       const { error: cancelError } = await fixtures.service
         .from("activity_events")
-        .update({ status: "cancelled", event_type: "away", youth_attended: false })
+        .update({ status: "cancelled", event_type: "away" })
         .eq("id", madison.id);
       if (cancelError) throw new Error(cancelError.message);
 
-      // AND ON A ROW THE IMPORT ACTUALLY UPDATES, which is the harder half: the Madison game is
-      // absent from no file but is never written to, while Jefferson IS written to and must keep
-      // its mark through the four columns that do change.
+      // ---------------------------------------------------------------------------
+      // THE RECORDED ABSENCE MOVED TABLES, AND THE GUARANTEE GOT STRONGER
+      // ---------------------------------------------------------------------------
+      // migration 061 put this on `activity_events.youth_attended`, and this test asserted it
+      // there. youth-j moved it to `activity_event_participation` because a team's game serves a
+      // whole roster, and migration 063 dropped the column.
+      //
+      // The guarantee is now STRUCTURAL rather than remembered: the import writes only to
+      // `activity_events`, so a participation row is out of its reach by construction — there is
+      // no longer a column somebody could add to ImportedEventPatch by accident. It is asserted
+      // anyway, on the row the import DOES write to, because "cannot reach it" is a claim about
+      // code that a future refactor could quietly falsify.
       const { error: markError } = await fixtures.service
-        .from("activity_events")
-        .update({ youth_attended: true })
-        .eq("id", jefferson.id);
+        .from("activity_event_participation")
+        .insert({
+          ward_id: wardId,
+          event_id: jefferson.id,
+          member_id: youthMemberId,
+          taking_part: false,
+        });
       if (markError) throw new Error(markError.message);
 
       const march = icsFile([
@@ -561,16 +573,22 @@ describe("/api/youth/calendars/import", () => {
       // Decision 6, and the assertions this whole slice's trust depends on.
       expect(cancelledGame.status).toBe("cancelled");
       expect(cancelledGame.event_type).toBe("away");
-      expect(cancelledGame.youth_attended).toBe(false);
 
-      // THE ROW THE IMPORT DID WRITE TO kept its mark while its date moved.
-      expect(movedGame.youth_attended).toBe(true);
+      // THE ROW THE IMPORT DID WRITE TO kept its recorded absence while its date moved.
+      const { data: participation, error: participationError } = await fixtures.service
+        .from("activity_event_participation")
+        .select("member_id, taking_part")
+        .eq("event_id", jefferson.id);
+      if (participationError) throw new Error(participationError.message);
+
+      expect(participation).toHaveLength(1);
+      expect(participation![0].taking_part).toBe(false);
 
       // Clean up so the later cases in this describe see the fixture they expect.
       await fixtures.service
-        .from("activity_events")
-        .update({ youth_attended: null })
-        .in("id", [madison.id, jefferson.id]);
+        .from("activity_event_participation")
+        .delete()
+        .eq("event_id", jefferson.id);
     });
 
     it("leaves an event absent from the file exactly as it was", async () => {

@@ -24,7 +24,57 @@
 
 ## Multi-Ward Architecture
 
-Every table includes a `ward_id` foreign key. All queries are scoped to the active ward. Auth tokens carry the user's `ward_id` in their JWT claims. This enables future multi-ward support without schema changes.
+Every table includes a `ward_id` foreign key. All queries are scoped to the active ward.
+
+**AMENDED 2026-09-20 — the unit hierarchy is being built (P2), not deferred.** The sentence that
+stood here said this "enables future multi-ward support without schema changes"; it does, and the
+schema changes are now scheduled.
+
+```
+units
+  id, unit_number (the REAL church-assigned number, nullable until known),
+  type check (type in ('area','stake','ward')),
+  parent_id → units (nullable), name, created_at
+
+wards.unit_id        → units    -- 1:1 backfill for every existing ward
+users.active_ward_id → wards    -- nullable; null means "my own ward"
+members.mrn          text       -- membership record number, nullable
+```
+
+**Model generically, build narrowly.** `type` covers area/stake/ward because real church
+structure also has missions and districts as stake-equivalents, and how far up this goes is
+uncertain. **No area- or district-level screens are built** — only the shape anticipates them.
+
+### The switch, not cross-ward policies
+
+`current_ward_id()` is one `stable security definer` function (migration 019) behind all 173 of
+its references. It becomes:
+
+```sql
+coalesce(users.active_ward_id, users.ward_id)
+```
+
+and **the 131 existing policies do not move.** A stake officer reaches another ward through an
+**authorized switch**, after which every policy is already correct for the ward they are in. The
+authorization lives in the policy on `users.active_ward_id`, not in the route.
+
+`current_org_id()` gets the same treatment and **must return NULL across a switch** — a visiting
+stake officer holds no organization in the ward they are visiting, and their own `org_id` points
+at a row in a different ward entirely. `household_stewardships`, `visit_goals`, `activity_logs`
+and `youth_activity_profiles` all scope on it. `is_bishopric()` must likewise be false for a
+visitor.
+
+**Private notes never widen.** `visit_private_notes` and `activity_private_notes` stay
+`user_id = auth.uid()` regardless of any switch.
+
+### Roles
+
+The role set gains `stake_president`, `stake_counselor`, `stake_secretary`, `super_admin` and two
+specialists. It does **not** gain one value per organization: a calling is
+`role × org_id × counselor_position`, and `counselor_position` has existed since migration 002.
+Twenty-six of the prototype's thirty-three named roles are already reachable.
+
+The **assignment carries the ward**, not the role. Roles stay reusable templates.
 
 ---
 
@@ -634,7 +684,24 @@ created_at      timestamptz DEFAULT now()
 -- RLS: user_id = auth.uid() only
 ```
 
-### `goals`
+### `goals` — RETIRED 2026-09-20
+
+> **Superseded by `visit_goals` and dropped in P4.** Migration 010 created this as
+> "ministering and visit goals"; Phase 7 + ITER-018 then built the same idea properly — amount
+> + unit rather than whole months, four bands computed on read rather than a stored `status`,
+> measured from each household’s own last completed visit rather than a dated period. Migration
+> 029’s own comment already says the cached column is dead: *“The UI never reads this column.”*
+>
+> Retiring it also drops `refresh_goal_status()`, taking the clock-driven list from seven to six.
+> **The drop migration runs AFTER the deploy that removes every reader** — PostgREST answers a
+> select naming a missing column with a 400, which is why migration 063 was held back the same way.
+>
+> **One capability genuinely goes away:** `target_type` here is polymorphic (member / household /
+> org / group) where `visit_goals` is per-organization only. Confirm before dropping.
+>
+> Schema kept below for reference until the drop lands.
+
+### `goals` (retired)
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
 ward_id         uuid REFERENCES wards(id)
@@ -1775,6 +1842,26 @@ The `notification_settings` table is the source of truth. Adding a new trigger r
 
 ## Tithing Auto-Clear
 
+> ### ⚠️ AMENDED 2026-09-20 — the clear is a SCHEDULE, not a rolling timer
+>
+> Everything below still holds **except the window**. Tithing is counted on Sunday, so a
+> Sunday-night job that clears the week's entries matches the real usage pattern; 48 hours
+> measured from whenever somebody last touched it does not, and leaves the tool holding last
+> week's numbers on a Wednesday. Nothing sensitive is stored, so this is about the tool being
+> **empty and ready for next week**, not about retention risk.
+>
+> **What does not change:** server-side only and never browser storage; one shared worksheet per
+> ward; the manual Clear control; and the read path filtering on the window so an expired
+> worksheet stays invisible even if the sweep has not run — that guarantee was never about
+> *which* window.
+>
+> **The 48-hour `timestamptz` survives as a backstop**, so no worksheet outlives a weekend if the
+> job misses. It is no longer the rule. The scheduler is **P12**'s, and it is one of eight
+> clock-driven things that phase settles at once. Until it exists, the read filter is what
+> clears the worksheet.
+>
+> See CLAUDE.md rule 11.
+
 **SUPERSEDED (2026-08-24) and REVERSED (2026-08-25). Entries persist; the window is 48 hours.**
 
 The calculator shipped on 2026-08-24 writing NOTHING — no database row, no localStorage, no
@@ -1961,7 +2048,18 @@ RESEND_API_KEY              # for agenda/program email
 
 ---
 
-## Build Order (Recommended)
+## Build Order
+
+> **SUPERSEDED 2026-09-20.** The authoritative order is [plans/INDEX.md](plans/INDEX.md):
+> phases 0–9 shipped, 10–12 are retired, and everything ahead is the prototype-driven
+> **P-track** (P1–P13). The list below is kept as the original plan of record.
+>
+> Three things in it changed materially: **#15 Goals is retired**, not built; **#22 multi-ward
+> scaffolding became P2** and runs early rather than last, because the tile dashboard computes
+> visibility from the access model; and the **scheduler** every clock-driven feature was
+> waiting on is P12.
+
+### Original plan of record
 
 1. Supabase schema, RLS policies, seed data (hymn table, default topics)
 2. Auth — invite flow, registration, login, role assignment

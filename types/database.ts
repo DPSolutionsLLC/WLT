@@ -279,7 +279,6 @@ export type Database = {
           status: string
           title: string
           ward_id: string
-          youth_attended: boolean | null
         }
         Insert: {
           all_day?: boolean
@@ -296,7 +295,6 @@ export type Database = {
           status?: string
           title: string
           ward_id: string
-          youth_attended?: boolean | null
         }
         Update: {
           all_day?: boolean
@@ -313,7 +311,6 @@ export type Database = {
           status?: string
           title?: string
           ward_id?: string
-          youth_attended?: boolean | null
         }
         Relationships: [
           {
@@ -557,6 +554,8 @@ export type Database = {
       agendas: {
         Row: {
           created_at: string
+          email_recipient_count: number | null
+          email_sent_at: string | null
           id: string
           meeting_date: string
           meeting_type: string | null
@@ -569,6 +568,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          email_recipient_count?: number | null
+          email_sent_at?: string | null
           id?: string
           meeting_date: string
           meeting_type?: string | null
@@ -581,6 +582,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          email_recipient_count?: number | null
+          email_sent_at?: string | null
           id?: string
           meeting_date?: string
           meeting_type?: string | null
@@ -3330,7 +3333,6 @@ export type Database = {
           created_at: string
           entered_by: string | null
           id: string
-          member_id: string | null
           notes: string | null
           org_id: string | null
           school_org: string | null
@@ -3344,7 +3346,6 @@ export type Database = {
           created_at?: string
           entered_by?: string | null
           id?: string
-          member_id?: string | null
           notes?: string | null
           org_id?: string | null
           school_org?: string | null
@@ -3358,7 +3359,6 @@ export type Database = {
           created_at?: string
           entered_by?: string | null
           id?: string
-          member_id?: string | null
           notes?: string | null
           org_id?: string | null
           school_org?: string | null
@@ -3371,13 +3371,6 @@ export type Database = {
             columns: ["entered_by", "ward_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
-          },
-          {
-            foreignKeyName: "youth_activity_profiles_member_id_ward_id_fkey"
-            columns: ["member_id", "ward_id"]
-            isOneToOne: false
-            referencedRelation: "members"
             referencedColumns: ["id", "ward_id"]
           },
           {

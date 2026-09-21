@@ -2,8 +2,8 @@ import {
   BAND_CLASSES,
   BAND_FILL,
   BAND_MARKS,
-  NEUTRAL_BADGE_CLASSES,
 } from "@/app/(app)/visits/bandStyles";
+import { Pill } from "@/components/ui/Pill";
 import type { VisitPriority } from "@/lib/visits/householdStatus";
 import { formatOverdueFor, formatVisitDate } from "@/lib/visits/visitDates";
 import { VISIT_PRIORITY_BAND_LABELS } from "@/types/domain";
@@ -101,10 +101,20 @@ export function GaugePill({
   // per-organization table, which is where somebody goes to act on it.
   const dueTitle = dueOn === null ? undefined : `Due ${formatVisitDate(dueOn)}`;
 
+  // COMPOSED ONTO components/ui/Pill.tsx RATHER THAN FORKED FROM IT. The gauge needs three
+  // things the shared shape does not give it — `relative` and `overflow-hidden` so the absolutely
+  // positioned fill layer is clipped to the pill, and a gap between the mark and the words — and
+  // all three are ordinary className additions. Writing a second `rounded-full border px-2 py-0.5
+  // text-xs` here instead would put the one shape P1 consolidated back into two places, and the
+  // padding would drift on the next change.
+  //
+  // The four band tokens go through `toneClassName`, not through Pill's four generic tones: they
+  // are a measured scale of their own and a band is not a status.
   return (
-    <span
+    <Pill
       title={dueTitle}
-      className={`relative inline-flex items-center gap-1.5 overflow-hidden rounded-full border px-2 py-0.5 text-xs font-medium ${BAND_CLASSES[band]}`}
+      toneClassName={BAND_CLASSES[band]}
+      className="relative gap-1.5 overflow-hidden font-medium"
     >
       <span
         aria-hidden="true"
@@ -125,12 +135,16 @@ export function GaugePill({
       {wordShown ? null : (
         <span className="sr-only">{VISIT_PRIORITY_BAND_LABELS[band]}</span>
       )}
-    </span>
+    </Pill>
   );
 }
 
 // The pill for a household that is NOT ON THE SCALE — do-not-contact, or an organization with no
 // goal to measure against. Shared so the two tables render "not applicable" identically.
+// Pill's own `neutral` tone IS this pill — one border, one muted tone, one shape — so P1 deleted
+// bandStyles.ts's NEUTRAL_BADGE_CLASSES rather than leaving a second spelling of it behind. This
+// wrapper survives because the two tables import it by name and because the comment above is
+// what says WHEN to reach for it.
 export function NeutralPill({ children }: { children: React.ReactNode }) {
-  return <span className={NEUTRAL_BADGE_CLASSES}>{children}</span>;
+  return <Pill tone="neutral">{children}</Pill>;
 }

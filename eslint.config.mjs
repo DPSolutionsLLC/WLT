@@ -21,6 +21,16 @@ const eslintConfig = defineConfig([
     // previous walk, so the suite everybody runs was red for a reason nobody had shipped. A walk
     // must not be able to break lint.
     ".walk*/**",
+    // THE DESIGN PROTOTYPE. `prototype/WLT.jsx` is a DESIGN source and not a code source
+    // (CLAUDE.md section 1): a client-only React app with 622 useState hooks, no persistence, no
+    // router and no server. It is gitignored because it carries 359 real ward member records, so
+    // it is never committed and never deployed — but eslint was still linting it, and its 21,819
+    // lines produced 237 errors that made `npm run lint` red for everybody, permanently.
+    //
+    // Added during P1 for the reason `.walk*/**` above was added: a suite everybody runs must not
+    // be red for something nobody shipped. Nothing here is built, imported or bundled; the
+    // durable content was harvested into plans/prototype/ instead.
+    "prototype/**",
   ]),
 ]);
 

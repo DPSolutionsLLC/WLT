@@ -89,7 +89,7 @@ describe("activity private notes", () => {
       asRole(fixtures, "rsPresident"),
     ]);
 
-    const { data: member, error: memberError } = await fixtures.service
+    const { error: memberError } = await fixtures.service
       .from("members")
       .insert({
         ward_id: fixtures.wardAId,
@@ -110,7 +110,6 @@ describe("activity private notes", () => {
       .insert({
         ward_id: fixtures.wardAId,
         org_id: fixtures.eldersQuorumId,
-        member_id: member.id,
         activity_name: `EQ basketball ${fixtures.runId}`,
         activity_type: "sport",
       })

@@ -61,3 +61,8 @@ Thumbs.db
 /corpus/
 walk-shots-ai-c/
 walk-review-ai-c.html
+
+# Design prototype — a single 21k-line JSX file containing 359 REAL ward member records
+# (names, phone numbers, street addresses, birth dates). It is a design reference, not source,
+# and it must never enter git history. Harvest its decisions into plans/prototype/ instead.
+/prototype/

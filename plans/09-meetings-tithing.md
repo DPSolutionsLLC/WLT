@@ -11,6 +11,59 @@ gracefully without them. **Unlocks:** Milestone M6.
 
 # Part A — Meeting Agenda Builder
 
+## BUILT 2026-09-01 — status, and the two places this departs from the plan below
+
+Migration **064** (`agendas.email_sent_at`, `email_recipient_count`, and the private `agendas`
+storage bucket). No RLS policy moved: migration 019 already generated ward-wide policies on all
+four verbs for `agendas` and `action_items`, and `agendas.manage` / `agendas.publish` are the gate
+in each route.
+
+Shipped: the seven-section template, the flagged-items gather, carry-forward on creation, the
+builder screen at `/agendas`, the PDF, and publish. **`/agendas` was one of the three dead sidebar
+links CLAUDE.md §9 records; it is the first of the three to be paid off.**
+
+### Departure 1 — THE SCHEDULED EMAIL IS NOT BUILT, AND THAT IS DELIBERATE
+
+§Step A4 below specifies "a Supabase Edge Function on cron". CLAUDE.md §9 is explicit that
+`supabase/functions/` does not exist, `pg_cron` is not enabled and `vercel.json` declares no
+crons, and that **Phase 11 owns that decision for six already-queued clock-driven things**.
+Building a seventh mechanism here would pre-empt a phase that has not been designed.
+
+So **publishing renders the PDF and stops there**, and the send is a separate deliberate action —
+the shape the programme already has (`approve` → `distribute`), and what rule 3's "no auto-send
+and no auto-save anywhere in this app" asks for. `email_sent_at` still exists and is still
+load-bearing: the double-send it guards against is a double click rather than a cron re-run.
+
+**What is NOT built: the send route itself, and the subscription machinery around it** —
+`PATCH /api/notification-prefs/agenda_email`, the unsubscribe link, and the recipient resolution.
+That is a follow-up, not a hidden gap. The agenda is readable in the app and its PDF is
+downloadable by everyone holding `agendas.view`, which is what a bishopric actually needs to run
+the meeting. **The scheduled variant is Phase 11's SEVENTH clock-driven item.**
+
+### Departure 2 — A PUBLISHED AGENDA STAYS EDITABLE
+
+The programme refuses edits after approval, because it is printed and handed to a congregation. An
+agenda is the working document OF the meeting, and the commonest edit in the world is somebody
+adding "and we also discussed…" during it. Locking at publish would send every ward to a second
+tool for the thing the meeting actually produced.
+
+What publishing fixes is the PDF and the flags. An agenda edited afterwards has a stale PDF until
+somebody publishes again, and the screen says so rather than hiding it — which is why re-publishing
+is allowed where re-distributing a programme is not.
+
+### Two decisions worth knowing before changing anything here
+
+- **Action items are ROWS, not section text.** `action_items` has its own lifecycle, which is what
+  lets an item carry forward and be completed on a later agenda. Putting them in the `sections`
+  jsonb would make "still open next fortnight" unanswerable. The `carryForward` boolean on a
+  section marks only where those rows are RENDERED.
+- **Carry-forward reads the most recent PUBLISHED agenda**, never merely the latest. A draft is a
+  meeting that has not happened; carrying from one would copy items nobody has discussed, and
+  pressing Create twice would duplicate them.
+
+---
+
+
 ## Goals
 
 1. Bishopric and ward council agendas from configurable templates

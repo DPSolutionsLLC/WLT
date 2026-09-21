@@ -55,8 +55,9 @@ export const BAND_MARKS: Record<VisitPriorityBand, string> = {
   on_track: "✓",
 };
 
-// The neutral pill both tables use for a state that is NOT on the scale — do-not-contact, no
-// goal, or an organization whose judgement this reader may not read. Shared for the same reason
-// the three records above are: one border, one muted tone, one shape.
-export const NEUTRAL_BADGE_CLASSES =
-  "inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs text-muted";
+// NEUTRAL_BADGE_CLASSES WAS DELETED BY P1, and this note stands in its place because the constant
+// is the kind of thing somebody re-adds. It carried the SHAPE and the tone together
+// ("inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs text-muted"),
+// and components/ui/Pill.tsx owns the shape now — its `neutral` tone is the tone half exactly.
+// NeutralPill in GaugePill.tsx renders <Pill tone="neutral"> and is still the one place to reach
+// for. Two spellings of one pill is what P1 spent a phase removing.

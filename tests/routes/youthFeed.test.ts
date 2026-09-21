@@ -61,7 +61,7 @@ describe("/api/youth/feed", () => {
   beforeAll(async () => {
     fixtures = await seedFixtures(["bishop", "eqPresident"]);
 
-    const { data: member, error: memberError } = await fixtures.service
+    const { error: memberError } = await fixtures.service
       .from("members")
       .insert({
         ward_id: fixtures.wardAId,
@@ -80,14 +80,12 @@ describe("/api/youth/feed", () => {
         {
           ward_id: fixtures.wardAId,
           org_id: fixtures.eldersQuorumId,
-          member_id: member.id,
           activity_name: `Basketball ${fixtures.runId}`,
           activity_type: "sport",
         },
         {
           ward_id: fixtures.wardAId,
           org_id: fixtures.eldersQuorumId,
-          member_id: member.id,
           activity_name: `Choir ${fixtures.runId}`,
           activity_type: "performance",
         },

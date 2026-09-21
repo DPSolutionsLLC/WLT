@@ -1,3 +1,4 @@
+import { Pill } from "@/components/ui/Pill";
 import { SUNDAY_TYPE_LABELS, type SundayType } from "@/types/domain";
 
 export type SundayTypeBadgeProps = {
@@ -25,11 +26,5 @@ const CLASSES: Record<SundayType, string> = {
 export function SundayTypeBadge({ type }: SundayTypeBadgeProps) {
   if (type === "standard") return null;
 
-  return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs ${CLASSES[type]}`}
-    >
-      {SUNDAY_TYPE_LABELS[type]}
-    </span>
-  );
+  return <Pill toneClassName={CLASSES[type]}>{SUNDAY_TYPE_LABELS[type]}</Pill>;
 }

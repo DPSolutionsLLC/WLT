@@ -8,6 +8,12 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 // min-h-11 is 44px. Every tap target in this app clears 44×44 — it is mobile-first, and the
 // PIN keypad in auth-c is built on this primitive.
+//
+// P1 RE-SKINNED THIS FILE WITHOUT CHANGING ONE CLASS, DELIBERATELY. `primary` reads pine now
+// because --primary moved in globals.css, not because anything here did; the whole point of
+// re-skinning at the token level is that a page changes appearance without being edited. No
+// radius or weight was invented either — P1 specifies a palette and a type pairing but no radius
+// scale, and a shape changed from no source is the one way this phase breaks a layout.
 const BASE_CLASSES =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 py-2 " +
   "text-sm font-medium transition-colors focus-visible:outline-2 " +

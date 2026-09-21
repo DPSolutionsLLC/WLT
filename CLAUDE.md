@@ -15,9 +15,37 @@ ward, architected for many.
 - **Feature spec:** [FEATURES.md](FEATURES.md) — what each module does, in plain language
 - **Technical spec:** [SPEC.md](SPEC.md) — database schema, API routes, component tree
 - **Build plans:** [plans/INDEX.md](plans/INDEX.md) — phased implementation plan
+- **Design authority:** [plans/prototype/](plans/prototype/) — the harvested design prototype
 
-These three files are the source of truth. If code disagrees with them, the specs win —
-unless the spec is wrong, in which case flag it and update the spec in the same change.
+These four are the source of truth. If code disagrees with them, the specs win — unless the
+spec is wrong, in which case flag it and update the spec in the same change.
+
+### The prototype is the design authority
+
+**Decided 2026-09-20.** A comprehensive design prototype (`prototype/WLT.jsx`, 21,819 lines)
+now defines how this app looks and works. It is a **design source, not a code source**: a
+client-only React app with 622 `useState` hooks, no persistence, no auth, no router and no
+server. Its pages are monolithic components taking 25–30 props with every sub-view behind a
+`view` useState — the JSX *inside* each view transfers, the wiring does not.
+
+WLT stays the codebase. It holds everything a prototype cannot show: RLS as the security
+boundary, the migrations, auth, audit logging, notifications, the test suites, the AI platform,
+and a live deployment.
+
+**`prototype/WLT.jsx` is gitignored** — it contains 359 real ward member records with names,
+phone numbers, street addresses and birth dates. Never commit it, never paste its roster data
+anywhere. Everything durable has been harvested into:
+
+| File | What it is |
+|---|---|
+| [plans/prototype/INDEX.md](plans/prototype/INDEX.md) | The integration plan |
+| [plans/prototype/decisions.md](plans/prototype/decisions.md) | Durable rules, **conflicts with this codebase**, real-build requirements |
+| [plans/prototype/module-map.md](plans/prototype/module-map.md) | Every module → verdict → the new behaviours it hides |
+| [plans/prototype/build-notes-raw.md](plans/prototype/build-notes-raw.md) | All 82 build notes, verbatim |
+
+**No slice starts before its module-map row exists.** The map separates "looks different" from
+"behaves differently" and names ~40 new behaviours hiding inside rows that read as re-skins.
+Skip it and every re-skin quietly becomes a feature build.
 
 ---
 
@@ -27,24 +55,35 @@ unless the spec is wrong, in which case flag it and update the spec in the same 
 
 **Load on demand**, based on what you are building:
 
+**Always, on any prototype-driven work:** the relevant row of
+[plans/prototype/module-map.md](plans/prototype/module-map.md), plus
+[plans/prototype/decisions.md](plans/prototype/decisions.md) §2 (the conflicts).
+
+**Load on demand**, based on what you are building:
+
 | Working on… | Load |
 |---|---|
 | Anything, first time in a session | [plans/INDEX.md](plans/INDEX.md) |
-| Project setup, DB schema, RLS, seed data, cross-cutting services | [plans/00-foundation.md](plans/00-foundation.md) |
-| Login, invites, youth PIN accounts, roles, route guards | [plans/01-auth-rbac.md](plans/01-auth-rbac.md) |
-| Households, members, CSV import | [plans/02-roster.md](plans/02-roster.md) |
-| Sunday calendar, conducting rotation | [plans/03-calendar.md](plans/03-calendar.md) |
-| Talk pipeline, prayers, topics, speaker history, goals | [plans/04-talks-pipeline.md](plans/04-talks-pipeline.md) |
-| Knowledge base, pgvector, AI settings, any Claude API call | [plans/05-ai-platform.md](plans/05-ai-platform.md) |
-| Hymns, music coordinator, program builder, PDF, public pages | [plans/06-program-music.md](plans/06-program-music.md) |
-| Visit tracker, return & report feed | [plans/07-visits.md](plans/07-visits.md) |
-| Youth activity profiles, calendar import, coverage | [plans/08-youth-activities.md](plans/08-youth-activities.md) |
-| Meeting agendas, PDF email, tithing calculator | [plans/09-meetings-tithing.md](plans/09-meetings-tithing.md) |
-| Sacrament ordinance assignments, youth manager, public link | [plans/10-sacrament-admin.md](plans/10-sacrament-admin.md) |
-| Notification UI, admin pages, audit viewer, dashboards | [plans/11-notifications-admin.md](plans/11-notifications-admin.md) |
-| Theme polish, accessibility, multi-ward scaffolding | [plans/12-polish-multiward.md](plans/12-polish-multiward.md) |
+| **Tokens, fonts, `components/ui/*`, any visual primitive** | [plans/P1-design-system.md](plans/P1-design-system.md) |
+| **Units, stakes, super admin, ward switching, the access matrix** | [plans/P2-unit-hierarchy.md](plans/P2-unit-hierarchy.md) |
+| **Tile dashboard, chrome bar, navigation, page framing** | [plans/P3-shell-and-ia.md](plans/P3-shell-and-ia.md) |
+| **Re-skinning a module that already exists** | [plans/P4-module-reskins.md](plans/P4-module-reskins.md) |
+| To Do, My Appointments | [plans/P5-todo-and-appointments.md](plans/P5-todo-and-appointments.md) |
+| Conducting Sheet, Ward Calendar | [plans/P6-conducting-and-calendar.md](plans/P6-conducting-and-calendar.md) |
+| Prayer Roll, Prayer Items | [plans/P7-prayer.md](plans/P7-prayer.md) |
+| Receipts, Account, Speaking History Admin | [plans/P8-receipts-account-history.md](plans/P8-receipts-account-history.md) |
+| Callings, Ministering, Calling Requests | [plans/P9-sandboxes-and-requests.md](plans/P9-sandboxes-and-requests.md) |
+| Messaging, Zoom | [plans/P10-message-and-zoom.md](plans/P10-message-and-zoom.md) |
+| Sacrament ordinance assignments, youth manager, public link | [plans/P11-sacrament-admin.md](plans/P11-sacrament-admin.md) |
+| Scheduler, notification UI, audit viewer, dashboards | [plans/P12-scheduler-and-admin.md](plans/P12-scheduler-and-admin.md) |
+| Accessibility, theme polish | [plans/P13-polish.md](plans/P13-polish.md) |
 | Hosting, environment variables, Supabase auth URLs, SMTP | [plans/deployment.md](plans/deployment.md) |
 | Detailed code style, file naming, test patterns | [plans/conventions.md](plans/conventions.md) |
+
+**Shipped phases 0–9** are historical. Load one only to understand why existing code is the
+way it is — never to plan new work. Their index rows and retro entries are in
+[plans/INDEX.md](plans/INDEX.md). **Phases 10–12 are retired**; each file now carries a header
+pointing at its successor.
 
 Never load more than **two** plan files at once. If a task spans more phases than that,
 it is too large — split it.
@@ -109,10 +148,34 @@ These override convenience. Violating one is a bug, not a style preference.
     `wards.settings.role_access`; `admin.*` and `sacrament.*` are not overridable in either
     direction, and bishop/counselor always resolve to one identical list.
 11. **Tithing data never touches the members table.** No names, no member IDs, no
-    linkage. It is a counting worksheet, not a record — one shared worksheet per ward,
-    auto-deleted 48 hours after its first entry. The window is elapsed time on a
-    `timestamptz`, never a local midnight, and the read path filters on it so an expired
-    worksheet stays invisible even if the sweep has not run.
+    linkage. It is a counting worksheet, not a record — one shared worksheet per ward.
+    **The clear is a SCHEDULE, not a rolling timer — CHANGED 2026-09-20.** Tithing is counted
+    on Sunday, so a Sunday-night job that clears the week's entries matches the actual usage
+    pattern; 48 hours measured from whenever somebody last touched it does not, and leaves the
+    tool holding last week's numbers on a Wednesday. **Nothing sensitive is stored, so this is
+    about the tool being empty and ready, not about retention risk.**
+    What does **not** change: the read path still filters on the window, so an expired
+    worksheet stays invisible even if the sweep has not run — that guarantee was never about
+    *which* window. The scheduler is P12's, and until it exists the worksheet is cleared by
+    the read filter alone. **The 48-hour `timestamptz` column stays as the floor** so no
+    worksheet ever outlives a weekend if the job misses; it is a backstop now rather than the
+    rule. Never a local midnight, still.
+
+12. **Every date formatter names its zone.** No `Intl.DateTimeFormat` or `toLocale*` call in
+    `app/`, `components/` or `lib/` may omit an explicit `timeZone`. Enforced mechanically by
+    `tests/lib/explicitTimeZone.test.ts`, which reads the source — no assertion about a
+    formatted string can catch this, because a test process has one zone.
+    A turn-up-at `timestamptz` renders in the **ward's** zone (`readWardTimezone`, resolved
+    once per page and passed down); a `date` column or a "when did this happen" stamp renders
+    in **UTC**.
+    ⚠️ **The prototype reverses this rule and must not be copied.** Its tenth youth pass
+    deleted the ward-zone machinery and dropped every explicit `timeZone`, reasoning that a
+    leader's device already *is* the ward's zone. That is correct for a client-only app and
+    wrong here: Server Components render first and Vercel's server is UTC. This already cost
+    one production defect — a 7:30pm Friday game served as "Sat, Jan 16, 2027, 2:30 AM",
+    surfacing as React error #418, invisible in dev. See §9 and
+    [plans/prototype/decisions.md](plans/prototype/decisions.md) §2.1. If the test goes red
+    during a port, that is the mechanism working. Do not relax it.
 
 ---
 
@@ -169,10 +232,10 @@ Full detail in [plans/conventions.md](plans/conventions.md). The short version:
 
 ---
 
-## 7. Roles
+## 7. Roles & Units
 
-Nine roles. The full access matrix lives in `types/domain.ts` and is enforced by RLS
-plus `lib/auth/permissions.ts`.
+The full access matrix lives in `types/domain.ts` and is enforced by RLS plus
+`lib/auth/permissions.ts`.
 
 `bishop` · `counselor` · `ward_secretary` · `executive_secretary` · `org_president` ·
 `org_counselor` · `org_secretary` · `music_coordinator` · `ward_council_member`
@@ -183,6 +246,45 @@ to exactly one module.
 **Bishopric admin authority is shared.** Bishop and both counselors have identical admin
 rights. Any admin change notifies the other two — this is a product requirement, not a
 nicety. Never build a check that grants the bishop something a counselor lacks.
+
+### A role is `role × org × position`, not a long list
+
+The prototype names 33 roles (`elders-quorum-president`, `bishopric-1st-counselor`, …).
+**Twenty-six of them are already reachable** in this schema and need no new role value:
+
+| Prototype role | Here |
+|---|---|
+| `elders-quorum-president` | `org_president` + `org_id` |
+| `bishopric-1st-counselor` | `counselor` + `counselor_position = 1` |
+| `relief-society-secretary` | `org_secretary` + `org_id` |
+
+`users.counselor_position` has existed since migration 002. **Do not add 33 role values.**
+
+### The unit hierarchy — P2
+
+**Decided 2026-09-20, lifting the "multi-ward UI — do not build for v1" guardrail.** Wards sit
+under a generic `unit` (type `area | stake | ward`, a parent reference, and the **real
+church-assigned unit number** — never an app-invented id). Model generically because how far
+up it goes is genuinely uncertain; **build no area- or district-level screens**, only the
+shape that anticipates them.
+
+**The role assignment carries the ward, not the role.** Roles stay reusable templates, never
+duplicated per unit. An assignment says "this person holds this role *in this ward*", which is
+also what lets somebody hold different callings in different wards.
+
+**A ward switch, not cross-ward policies.** `current_ward_id()` is one `security definer`
+function behind all 173 of its references; it becomes
+`coalesce(users.active_ward_id, users.ward_id)` and **the 131 policies do not move**. A stake
+officer reaches another ward by an *authorized switch*, after which every existing policy is
+already correct. `current_org_id()` and `is_bishopric()` need the same treatment and nothing
+else does.
+
+**Genuinely new:** 4 stake roles, `super_admin`, and 2 specialists. Super admin bypasses the
+access matrix, so assigning it needs more friction than an ordinary role, and **the last
+active super admin can never be deactivated**.
+
+**Anyone who belongs to one ward never sees the unit layer at all** — the same logic already
+applied to roles.
 
 ---
 
@@ -245,6 +347,45 @@ const { status, body } = await readResponse(await GET(jsonRequest(url)));
 ## 9. Known Risks & Open Decisions
 
 Flag these when they become relevant; do not silently pick a side.
+
+### The 2026-09-20 reversals — read these first
+
+Four standing decisions were reversed when the prototype became the design authority. Each
+reverses something recorded elsewhere in this file or in `plans/INDEX.md`; where an older
+entry below contradicts one of these, **these win**.
+
+- **MULTI-WARD IS IN SCOPE — REVERSING `plans/INDEX.md`'s scope guardrail.** That file listed
+  "Multi-ward **UI** — the data model supports it, the interface does not" as explicitly out of
+  scope for v1. The prototype carries a stake tier, a super admin and ward switching, and the
+  user chose to build the whole hierarchy rather than defer it. See §7 for the shape and
+  `plans/P2-unit-hierarchy.md` for the plan. **It is no longer a guardrail; it is a phase.**
+
+- **MESSAGING AND ZOOM ARE IN SCOPE — REVERSING the same guardrail list.** "Email or push
+  notifications (in-app only)" and "Org discussion threads — build the two tables in Phase 0,
+  ship no UI" both ruled these out. Both are fully designed in the prototype and both are now
+  `plans/P10-message-and-zoom.md`. **Zoom carries a named risk that did not change:** almost
+  all of its value needs infrastructure that does not exist — Zoom OAuth, a webhook receiver, a
+  scheduled distribution job, email sending, and an OBS agent on a dedicated machine. The
+  prototype says plainly that almost none of it can be faked. Build the recipient list, the
+  opt-out and referral token links, and the concurrency detection; treat the rest as a
+  separate infrastructure decision.
+
+- **`goals` IS RETIRED — it was superseded by `visit_goals` and nobody removed it.** Migration
+  010's own header calls it "ministering and visit goals". Phase 7 + ITER-018 then built the
+  same idea properly: amount + unit rather than `desired_frequency_months`, four bands plus a
+  fraction rather than three, computed on read rather than a stored `status` column — and
+  migration 029's comment already admits that column is dead ("The UI never reads this
+  column"). The prototype has no Goals module at all, and the user confirmed the intent was
+  always for goals to live inside Visits. **Retiring it also deletes `refresh_goal_status()`,
+  taking the clock-driven list from seven items to six.** Done in P4's visits slice. One thing
+  to preserve or consciously drop: `goals.target_type` is polymorphic
+  (member/household/org/group) where `visit_goals` is per-org only.
+
+- **The tithing clear window changed** — see rule 11. A Sunday-night schedule, not 48 rolling
+  hours. The read-path filter is unchanged and the `timestamptz` column survives as a backstop.
+
+**And one rule that did NOT move, because the prototype gets it wrong:** every date formatter
+names its zone. See rule 12. This is the single most dangerous thing to port.
 
 - **Local vs hosted database — DECIDED: hosted.** There is no local Docker stack. The dev
   machine is Windows 11 Home with 2 cores, 7.7 GB RAM, and ~10 GB free disk — not enough
@@ -827,6 +968,24 @@ Flag these when they become relevant; do not silently pick a side.
   `youth-g` already ships an unlink on `/youth/events/[id]`, and a second entry point would be a
   second meaning of the same word.
 
+- **⚠️ The count in this entry and the one below is now stale — see
+  [plans/P12-scheduler-and-admin.md](plans/P12-scheduler-and-admin.md) for the authoritative
+  list.** Both are kept as written because they record *why* each item was deferred, which is
+  still the useful part. Two things changed on 2026-09-20: `refresh_goal_status()` **left** the
+  list when `goals` was retired, and the **Sunday tithing clear** and **auto-expiry of past
+  calendar-linked items** joined it. Phase 11 is now **P12**, and it still settles the mechanism
+  once for all of them.
+- **Phase 11 now inherits SEVEN clock-driven things, not six.** The agenda email joins
+  `youth_followup_prompt`, `youth_event_uncovered`, the Monday away-digest, `visit_overdue`,
+  `refresh_goal_status()` and ICS re-sync. `09-meetings-tithing.md` §Step A4 specifies a Supabase
+  Edge Function on cron that sends a published agenda at a configured time; there is no cron here,
+  and inventing a seventh mechanism inside Phase 9 would pre-empt the decision Phase 11 owns. So
+  **publishing renders the PDF and stops**, and sending is a deliberate human action — the shape
+  `approve` → `distribute` already has for the programme, and what rule 3's "no auto-send" asks
+  for. `agendas.email_sent_at` (migration 064a) exists anyway: the double-send it guards is a
+  double click rather than a cron re-run. **The send route and its unsubscribe machinery are not
+  built** — recorded in the phase file as a follow-up rather than left as a gap.
+
 - **Phase 11 now inherits SIX clock-driven things, not five.** `youth_followup_prompt` joins
   `youth_event_uncovered`, the Monday away-digest, `visit_overdue`, `refresh_goal_status()` and ICS
   re-sync. It fires from the clock — "after an event passes" — and nothing in this project fires
@@ -967,3 +1126,53 @@ Flag these when they become relevant; do not silently pick a side.
 If `plans/retros/INDEX.md` exists, scan it before planning work in an area and read any
 relevant entries — they record what broke before and why. If it does not exist yet, that
 is fine; the project has not been onboarded to retros.
+
+---
+
+## 12. Working From the Prototype
+
+Every phase from P1 on is prototype-driven. The workflow is unchanged — `/planning` writes a
+flat `plans/[name].md`, `/execute` writes a retro, `/commit` closes the backlog item — but two
+steps are added at the front.
+
+**1. Read the module's row in [plans/prototype/module-map.md](plans/prototype/module-map.md)
+before planning anything.** It carries the verdict:
+
+| Verdict | What it means for your plan |
+|---|---|
+| **RESKIN** | Same feature, different clothes. Routes, RLS and tests stay. |
+| **RESKIN+** | Re-skin **plus** named new behaviours. **Each behaviour is its own slice and its own commit.** Do not bundle them into the re-skin. |
+| **NEW** | No counterpart. A full phase — schema, RLS, routes, tests. |
+| **CONFLICT** | Needs a decision before a plan. |
+
+If the module has no row, **add one first**. That is the whole point of the file: ~40 new
+behaviours hide inside rows that read as pure styling, and an unsplit re-skin makes every
+estimate meaningless.
+
+**2. Check [plans/prototype/decisions.md](plans/prototype/decisions.md) §2 for a conflict.**
+Six places the prototype disagrees with this codebase. The timezone one (§2.1) will silently
+reintroduce a shipped production defect if ported verbatim.
+
+### What the prototype is authoritative about, and what it is not
+
+**Authoritative:** what a screen shows, how a flow moves, what a module is for, the product
+rules in its 82 build notes, and the design system.
+
+**Not authoritative:** anything about storage, security, or correctness under a server. It has
+no database, so its "enforcement" is client state. It has no server, so its date handling is
+wrong here. Its logic ports are faithful but were read from this codebase's own portable specs
+— where they disagree, **this codebase wins unless the prototype's version is demonstrably
+better**, and two are (decisions.md §2.6).
+
+### The conventions worth adopting wholesale
+
+Detailed in decisions.md §1; the ones that come up constantly:
+
+- **Never destroy what somebody wrote.** Unlink and orphan; never cascade over a person's words.
+- **Refuse, and name the alternative** — without disclosing counts or content.
+- **Computed, never stored.** Anything the clock decides goes stale the moment nobody refreshes
+  it, and nothing in this project refreshes anything.
+- **One mechanism, not two.** Link tables over copies; generalize a component the second time
+  it is needed, not the third.
+- **Conflict checks are soft, never blocking.**
+- **Confirm, don't silently act** — surface for a human decision rather than auto-applying.

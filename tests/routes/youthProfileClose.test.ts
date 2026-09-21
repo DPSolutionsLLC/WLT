@@ -81,7 +81,7 @@ describe("PATCH /api/youth/profiles/[id]/close", () => {
     fixtures = await seedFixtures(["bishop", "eqPresident", "eqSecretary", "rsPresident"]);
     wardId = fixtures.wardAId;
 
-    const { data: member, error: memberError } = await fixtures.service
+    const { error: memberError } = await fixtures.service
       .from("members")
       .insert({
         ward_id: wardId,
@@ -100,14 +100,12 @@ describe("PATCH /api/youth/profiles/[id]/close", () => {
         {
           ward_id: wardId,
           org_id: fixtures.eldersQuorumId,
-          member_id: member.id,
           activity_name: `EQ basketball ${fixtures.runId}`,
           activity_type: "sport",
         },
         {
           ward_id: wardId,
           org_id: fixtures.reliefSocietyId,
-          member_id: member.id,
           activity_name: `RS choir ${fixtures.runId}`,
           activity_type: "performance",
         },
@@ -118,7 +116,6 @@ describe("PATCH /api/youth/profiles/[id]/close", () => {
           // rows — the shape a release and a recall leave behind (060-D2).
           ward_id: wardId,
           org_id: fixtures.reliefSocietyId,
-          member_id: member.id,
           activity_name: `Reassigned ${fixtures.runId}`,
           activity_type: "sport",
           entered_by: fixtures.user("eqPresident").id,

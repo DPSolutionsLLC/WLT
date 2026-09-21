@@ -7,7 +7,9 @@
 
 Ward Leadership Tools (WLT) is a mobile-first web application for LDS ward leadership to coordinate, track, and manage the full scope of their responsibilities. Built for the bishopric but extended to all ward organizations, WLT replaces scattered spreadsheets, texts, and memory with a single shared platform.
 
-Initially built for one ward, WLT is architected from the start to support adoption by other wards.
+Initially built for one ward, WLT is architected from the start to support adoption by other
+wards — and as of **2026-09-20 that is a phase, not an aspiration**: stakes, a super admin and
+ward switching are being built (P2).
 
 **Core design principles:**
 - One source of truth for all ward data (roster, calendar, assignments)
@@ -15,6 +17,67 @@ Initially built for one ward, WLT is architected from the start to support adopt
 - Role-based access — every user sees exactly what's relevant to their calling
 - Admin responsibilities shared equally among the full bishopric
 - Notifications keep everyone informed; changes are never silent
+- **Never destroy what somebody wrote** — unlink and orphan, never cascade over a person's words
+- **Computed, never stored** — anything the clock decides goes stale the moment nobody refreshes it
+- **Refuse, and name the alternative** — a blocked action always says what to do instead
+
+---
+
+## Module Map
+
+**Restructured 2026-09-20**, when the design prototype became the source of truth. The app is
+organised as four sections of a tile dashboard. This table is the authoritative list of what
+modules exist; the detailed sections further down describe each one.
+
+### Meetings & Programs
+
+| Module | Status | Detail |
+|---|---|---|
+| Sacrament — talks, prayers, topics | ✅ Built | Modules 3, 4 below |
+| Music | ✅ Built | Module 8 |
+| Conducting Sheet | 🔜 P6 | [plans/P6](plans/P6-conducting-and-calendar.md) |
+| Program builder | ✅ Built | Module 7 |
+| Agendas | ⚙️ Part A built | Module 12 |
+| Ward Calendar | 🔜 P6 | A **full ward event calendar** — distinct from the Sunday calendar (Module 2) |
+
+### People & Care
+
+| Module | Status | Detail |
+|---|---|---|
+| Prayer Roll | 🔜 P7 | [plans/P7](plans/P7-prayer.md) |
+| Prayer Items | 🔜 P7 | [plans/P7](plans/P7-prayer.md) |
+| Youth Support | ✅ Built | Module 10 |
+| Visits | ✅ Built | Module 9 |
+| Callings sandbox | 🔜 P9 | [plans/P9](plans/P9-sandboxes-and-requests.md) |
+| Ministering sandbox | 🔜 P9 | [plans/P9](plans/P9-sandboxes-and-requests.md) |
+| Calling Requests | 🔜 P9 | [plans/P9](plans/P9-sandboxes-and-requests.md) |
+
+### Tasks & Communication
+
+| Module | Status | Detail |
+|---|---|---|
+| To Do | 🔜 P5 | The spine four other modules hang off |
+| My Appointments | 🔜 P5 | [plans/P5](plans/P5-todo-and-appointments.md) |
+| Message | 🔜 P10 | **Newly in scope 2026-09-20** |
+| Zoom | 🔜 P10 | **Newly in scope 2026-09-20**, with a named infrastructure risk |
+
+### Finance & Admin
+
+| Module | Status | Detail |
+|---|---|---|
+| Receipts | 🔜 P8 | [plans/P8](plans/P8-receipts-account-history.md) |
+| Tithing Calculator | ✅ Built | Module 13 |
+| Roster | ✅ Built | Module 1 |
+| Knowledge Base & AI Settings | ✅ Built | Modules 5, 6 |
+| Admin & Access Control | ⚙️ Partial | Module 15, extended by P2 |
+| Notification Center | 🔜 P12 | Module 14 |
+| Audit Log | 🔜 P12 | Module 16 |
+| Sacrament Administration | 🔜 P11 | Module 17 |
+| Account | 🔜 P8 | Profile photo, email, password |
+| Handbook | 🔜 — | Chat over the handbook, on the existing AI platform |
+
+**Retired:** ~~Goals & Reminders Tracker~~ (Module 11) — superseded by the visit-goal cadence
+model. See that section below.
 
 ---
 
@@ -32,9 +95,10 @@ Initially built for one ward, WLT is architected from the start to support adopt
 - **Hosting:** Vercel
 - **Database & Auth:** Supabase (Postgres + Auth + Realtime + Storage)
 - **Vector Search:** Supabase pgvector extension
-- **AI:** Claude API (`claude-sonnet-4-6`)
+- **AI:** Claude API (`claude-sonnet-5`)
 - **PDF Generation:** Server-side (for programs and agendas)
-- **Multi-ward ready:** All records scoped to `ward_id` from day one
+- **Multi-unit:** All records scoped to `ward_id` from day one; wards sit under a generic
+  `unit` (area / stake / ward) as of P2
 
 ---
 
@@ -105,6 +169,26 @@ Organizations are configurable entities — new orgs can be added without code c
 - View and adjust the month's sacrament ordinance assignments
 - Mark assignments message as sent
 - Cannot access any other module
+
+### Stake roles and Super Admin — added 2026-09-20 (P2)
+
+**Stake President, Counselors and Secretary** see the wards in their own stake, as themselves —
+narrower than Super Admin, with no role impersonation. They reach another ward by an explicit
+**switch**, and while switched they hold no organization in that ward, so anything scoped to an
+organization stays closed to them.
+
+**Super Admin** manages the units themselves — stakes, wards, and the users across all of them —
+and is the one role that spans everything. It bypasses the access matrix, so assigning it takes
+more deliberate confirmation than any other role, and **the last active Super Admin can never be
+deactivated**.
+
+**A leader who belongs to one ward never sees any of this.** No stake picker, no ward picker,
+nothing — the same logic already applied to roles, one layer up.
+
+> A calling is `role × organization × position`, not a separate role name per organization.
+> "Elders Quorum President" is `org_president` in the Elders Quorum; "Bishopric 1st Counselor"
+> is `counselor` in position 1. An assignment carries the **ward**, which is what lets somebody
+> hold different callings in different wards.
 
 ---
 
@@ -510,16 +594,30 @@ Each youth can have multiple activity profiles:
 
 ---
 
-## Module 11: Goals & Reminders Tracker
+## Module 11: ~~Goals & Reminders Tracker~~ — RETIRED 2026-09-20
 
-Simple objectives board for tracking recurring intentions beyond the standard rotation.
+**Superseded by the visit-goal cadence model in Module 9.** It was built in Foundation as
+"ministering and visit goals" (migration 010); Phase 7 and ITER-018 then built the same idea
+properly, and nobody removed the first one.
 
-- Goals linked to a target (member, household, org, or group)
-- Desired frequency, last fulfilled date, status (`On Track`, `Due Soon`, `Overdue`)
-- Overdue and due-soon goals surface as a dismissible banner on the Sunday planning page —
-  where speakers are actually chosen. They were tried on the month calendar first and taken
-  back off: an alert on every cell of every month is a warning nobody reads (talks-d)
-- Examples: each quorum presidency speaks once per year, youth speaker twice per quarter, no member goes 2+ years without being asked
+| | Goals (retired) | Visit goals |
+|---|---|---|
+| Cadence | whole months only | amount + unit (day/week/month/year) |
+| Status | a **stored** column refreshed by a job that never ran | four bands computed on read, plus a fraction |
+| Measured from | a dated period | each household's own last completed visit |
+
+The dated-period model produced a row reading "✓ Visited" directly above a banner counting it as
+unvisited — both numbers correct, disagreeing, at the start of every period. The prototype has no
+Goals module at all, and the user confirmed the intent was always for goals to live inside
+Visits.
+
+**Retired in P4's visits slice.** One capability genuinely goes away and should be confirmed
+rather than assumed unwanted: goals could target a **member, org or ad-hoc group**, where visit
+goals are per-organization only.
+
+The original examples this module existed for — *each quorum presidency speaks once per year, a
+youth speaker twice per quarter, no member goes two years without being asked* — are **speaker
+rotation**, not visiting, and they are served by Module 3's rotation and speaker history.
 
 ---
 
@@ -738,12 +836,192 @@ Three rotating assignment types:
 
 ---
 
-## Out of Scope for v1
+## Modules 18–29: From the Prototype
 
-- Email or push notifications (in-app only, except agenda and program PDFs)
-- Two-way SMS tracking
-- LCR API integration (CSV import only)
-- Multi-ward UI (data model supports it; interface does not)
-- Public-facing member portal beyond the assignments and program public pages
-- Calendar sync with external apps
-- Org discussion threads and ward council messaging (data model built; UI deferred)
+Twelve modules the design prototype added. Each is summarised here in plain language; the
+build detail lives in its phase file, and the design rationale in
+[plans/prototype/build-notes-raw.md](plans/prototype/build-notes-raw.md).
+
+---
+
+## Module 18: To Do
+
+A general-purpose task list that agenda assignments and speaker asks feed into — never two
+mechanisms. Separate *do* date and *due* date. Optional steps, with progress always **computed**
+from steps done over total; zero steps behaves as a plain item and adding the first one makes it
+a project with no mode switch. One combined timeline where automatic step lines and the owner's
+own notes interleave by time.
+
+**Two-key completion with agendas:** the agenda item is removed immediately regardless — never
+waiting on a leader — but a linked todo is *flagged* for review rather than silently deleted.
+Assigning someone an agenda item creates their todo; unassigning deletes it only if untouched.
+
+---
+
+## Module 19: My Appointments
+
+One chronological list of everything a leader has personally committed to — confirmed visit
+appointments, scheduled todos, and youth events they signed up for. Past items collapse behind a
+toggle rather than disappearing. Cancel and unschedule work inline.
+
+A meeting invite is addressed to a **role**, so a calling changing hands carries the invitation
+with it; deferring an invite moves it from one role's list to another's, whoever initiates it.
+
+---
+
+## Module 20: Conducting Sheet
+
+The run-of-show for a meeting, read-only while it is happening. Invocation, benediction and each
+speaker are individually placeable anywhere in the sequence — a real sacrament meeting does not
+cluster prayers together, so a section you can only reorder *within* cannot represent one.
+
+Values are pulled live from the modules that own them (hymns from Music, speakers from Sacrament),
+never copied. Text size reflows in four steps for reading from the stand. After the meeting's
+computed end time passes, a confirmation prompt appears for any callings announced that day.
+
+---
+
+## Module 21: Ward Calendar
+
+One central calendar for the whole ward — **not** one per organization, because separate
+calendars mean a youth activity and a ward event can double-book the same room with nobody able
+to see it. Events carry multiple organization tags, so a shared activity appears for both without
+being duplicated.
+
+Any leader creates events; only the creator edits or deletes theirs, while everyone else can
+attach a note. Ward Secretary and Admin get a separate, narrower authority: putting an event on
+an agenda or the program, not editing someone else's event.
+
+Room reservation with soft same-day conflict notices — informational, never blocking. Recurring
+series keep a history of their own pattern, so changing "every Wednesday" to "every Thursday"
+leaves past dates resolving correctly and can be scheduled weeks ahead. A stable public link
+always shows what is actually coming up.
+
+---
+
+## Module 22: Prayer Roll
+
+A rolling list of who the ward is praying for, in three tiers. **Stewardship** and **visitor**
+entries carry a name and a description of what they are facing, are attributed to whoever added
+them, and can be renewed. **Quiet** entries are a name only, fall off silently after two weeks,
+and are submitted anonymously by default with an optional private note.
+
+Nothing survives expiry — there is no history surface — **except private notes**, which persist
+so they resurface if the person comes back onto the roll. On an agenda, quiet names drop into
+their own compact group: acknowledged together, not read one by one.
+
+---
+
+## Module 23: Prayer Items
+
+Council-scoped and commitment-centric, distinct from the people-centric roll. An item is either
+**linked** to an agenda item — in which case it has no separate resolve action anywhere, because
+it reads the agenda item's own status — or **personal**, added directly.
+
+Per-user private notes on either kind, never shared with the council.
+
+---
+
+## Module 24: Callings Sandbox
+
+A scenario tool for working through calling changes before anything is real: propose a move, see
+the vacancy it creates, fill that, and watch the chain. Branch a scenario to compare whole plans
+side by side. Everything is an event log replayed over the real roster — nothing touches live
+data until a decision is made.
+
+A queue of callings and people raised in bishopric meeting feeds it directly.
+
+---
+
+## Module 25: Ministering Sandbox
+
+The same scenario mechanism applied to ministering assignments, for the Relief Society, Elders
+Quorum and bishopric. The ward's export only records "who ministers to me", so the reverse view —
+who a companionship is responsible for — is compiled, with any unresolvable name flagged rather
+than dropped.
+
+**Separate from the Visit Tracker**, which is a quorum's own goal to reach every household, not
+the formal ministering program.
+
+---
+
+## Module 26: Calling Requests
+
+How an organization asks the bishopric to fill or release a calling. A fill request can name a
+suggested person — non-binding — or describe a calling that does not exist yet. A release request
+is strictly about the release; wanting it refilled spins off a separate linked request, so each
+resolves on its own.
+
+The pipeline runs submitted → under review → decision pending the organization's acknowledgement
+→ awaiting the meeting → resolved, with resolution happening through the Conducting Sheet's
+post-meeting confirmation rather than a mechanism of its own.
+
+---
+
+## Module 27: Message
+
+Group messaging between callings. **Groups hold roles, never people** — when a calling changes
+hands the new person picks up the conversation and nothing is re-created. Each message keeps the
+name of whoever actually sent it, recorded at the time, so history stays true.
+
+Whether a new member sees prior history is set per group. Everyone sees a plain notice that a
+group is not private once a calling changes hands. Joining, leaving and removal are posted into
+the conversation itself rather than happening silently, and anyone in a group can remove anyone,
+including themselves.
+
+---
+
+## Module 28: Zoom Stream Attendance
+
+For wards streaming sacrament meeting: a recipient list, self-service opt-out, and a record of
+who attended which stream. Opting out never deletes anyone. A manual entry can later be merged
+with a roster member without losing attendance history. Correcting someone's contact details
+raises an alert that the ward's own records are stale.
+
+Detects one login being watched from several places at once. A viewer can request a missionary
+visit from an unauthenticated link, and the request shows who spoke on the dates they actually
+watched.
+
+**Much of this module depends on infrastructure that does not exist yet** — see Out of Scope.
+
+---
+
+## Module 29: Receipts & Account
+
+**Receipts** — a lean intake and audit trail for ward expenses: submitted, entered by a clerk,
+reconciled. No reimbursement tracking and no budget maths; it never replaces LCR. Photographing
+a receipt produces a draft the submitter checks and corrects. A reconciliation session can be
+shared with a helper by link, giving them that one session and nothing else.
+
+**Account** — a leader's own profile photo, email address and password.
+
+**Handbook** — ask a question and get an answer grounded in the handbook, on the AI platform
+Module 5 already provides.
+
+---
+
+## Out of Scope
+
+- Two-way SMS tracking or delivery receipts
+- LCR API integration — CSV and manual import only, until the church offers one
+- Google Calendar sync — one-way ICS import only
+- Public-facing member portal beyond the existing public pages and the single-purpose token
+  links (receipts join, Zoom opt-out, Zoom referral, program, agenda guest, recurring series)
+- Area- and district-level admin **screens** — P2 builds the data shape that anticipates them,
+  and nothing more
+
+### Three guardrails lifted 2026-09-20
+
+These were out of scope for v1 and are now phases. Recorded here because the reversal matters
+more than the absence did:
+
+| Was out of scope | Now |
+|---|---|
+| Multi-ward UI — "data model supports it; interface does not" | **P2** — stakes, super admin, ward switching |
+| Org discussion threads and ward council messaging — "data model built; UI deferred" | **P10** — Message |
+| Email/push notifications beyond agenda and program PDFs | **P10** — Zoom distribution, and **P12**'s scheduler |
+
+**Zoom keeps a named risk.** Most of its value needs infrastructure that does not exist — Zoom
+OAuth, a webhook receiver, a scheduled job, email sending, and an OBS agent on a dedicated
+machine. The recipient list, opt-out, referral and concurrency detection are real without any of
+it; the rest is a separate infrastructure decision.

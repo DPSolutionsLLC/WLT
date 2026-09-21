@@ -157,7 +157,7 @@ describe("youth activity attendance", () => {
       },
     );
 
-    const { data: members, error: memberError } = await fixtures.service
+    const { error: memberError } = await fixtures.service
       .from("members")
       .insert([
         {
@@ -184,14 +184,12 @@ describe("youth activity attendance", () => {
         {
           ward_id: fixtures.wardAId,
           org_id: fixtures.eldersQuorumId,
-          member_id: members!.find((row) => row.ward_id === fixtures.wardAId)!.id,
           activity_name: `Basketball ${fixtures.runId}`,
           activity_type: "sport",
         },
         {
           ward_id: fixtures.wardBId,
           org_id: fixtures.wardBOrgId,
-          member_id: members!.find((row) => row.ward_id === fixtures.wardBId)!.id,
           activity_name: `Ward B track ${fixtures.runId}`,
           activity_type: "sport",
         },

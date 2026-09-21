@@ -348,14 +348,20 @@ export function FollowUpForm({
           one are not evenly spaced siblings in a gap-4 stack.
 
           THE OUTLINE CARRIES DARK MODE, NOT THE FILL. Walking it on 2026-08-29 the block read
-          clearly in light and receded in dark, and the reason is that the fills invert in meaning:
-          --surface is LIGHTER than the card in light and DARKER than it in dark, so the same
-          "slightly different fill" reads as an inset panel in one theme and as a hole in the
-          other. Raising the fill instead would put this block above the shared field in
-          prominence, which is visits-a's finding backwards. So the dashed border moves from
-          --border (#e2e8f0 / #2e2e2e, nearly invisible on #141414) to --muted at 60%, which is a
-          NEUTRAL at partial strength in both themes — still no warning or danger token anywhere
-          in this block. ITER-022 item 2. */}
+          clearly in light and receded in dark, because the same "slightly different fill" read as
+          an inset panel in one theme and as a hole in the other. Raising the fill instead would
+          put this block above the shared field in prominence, which is visits-a's finding
+          backwards. So the dashed border is --muted at 60% rather than --border: a NEUTRAL at
+          partial strength in both themes — still no warning or danger token anywhere in this
+          block. ITER-022 item 2.
+
+          P1 FIXED THE PREMISE AND THE DECISION STILL STANDS. This note used to name the hexes
+          --border then had (#e2e8f0 / #2e2e2e) and to say --surface inverted between the themes;
+          both are now false. P1's elevation ladder makes --background < --surface <
+          --surface-raised monotonic in BOTH themes, so --surface is unambiguously recessed
+          against the card either way. --border is still the wrong weight for this outline
+          though — it measures 1.32:1 on --surface in light and 1.48:1 in dark, which is a
+          hairline, and this block needs to read as a bounded panel. */}
       <div className="mt-2 flex flex-col gap-1.5 rounded-md border border-dashed border-muted/60 bg-surface p-3">
         <h4 className="text-sm font-semibold text-foreground">Private note</h4>
         {/* sr-only, because the h4 above is now what a sighted reader sees and two identical

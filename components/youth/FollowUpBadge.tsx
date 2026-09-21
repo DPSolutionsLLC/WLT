@@ -1,3 +1,4 @@
+import { Pill } from "@/components/ui/Pill";
 import {
   FOLLOW_UP_STATE_LABELS,
   FOLLOW_UP_STATE_TONES,
@@ -45,10 +46,11 @@ export function FollowUpBadge({ state }: FollowUpBadgeProps) {
   if (state === "not_due") return null;
 
   return (
-    <span
-      className={`rounded-full border px-2 py-0.5 text-xs font-medium ${TONE_CLASSES[FOLLOW_UP_STATE_TONES[state]]}`}
+    <Pill
+      toneClassName={TONE_CLASSES[FOLLOW_UP_STATE_TONES[state]]}
+      className="font-medium"
     >
       {FOLLOW_UP_STATE_LABELS[state]}
-    </span>
+    </Pill>
   );
 }

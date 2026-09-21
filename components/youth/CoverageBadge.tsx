@@ -1,3 +1,4 @@
+import { Pill } from "@/components/ui/Pill";
 import {
   COVERAGE_STATE_LABELS,
   COVERAGE_STATE_TONES,
@@ -77,14 +78,20 @@ export function CoverageBadge({ coverage }: CoverageBadgeProps) {
   const label = COVERAGE_STATE_LABELS[state];
 
   return (
-    <span
-      className={`rounded-full border px-2 py-0.5 text-xs font-medium ${TONE_CLASSES[COVERAGE_STATE_TONES[state]]}`}
+    <Pill
+      toneClassName={TONE_CLASSES[COVERAGE_STATE_TONES[state]]}
+      className="font-medium"
     >
       {label}
       {/* THE NUMBER, ONLY WHERE IT ADDS SOMETHING. "Covered" answers the question; "Covered · 3"
           answers the follow-up a leader deciding whether to step in actually has. On every other
-          state the count is zero and repeating it would say the same thing twice. */}
+          state the count is zero and repeating it would say the same thing twice.
+
+          IT SURVIVED THE P1 PILL MIGRATION UNCHANGED, DELIBERATELY. ITER-022's rule is that a
+          gate which hides a control without revisiting the number beside it makes the number
+          lie — and the shape moving into a primitive is exactly the kind of change that drops a
+          suffix nobody was looking at. */}
       {state === "covered" ? ` · ${coverage.attendeeCount}` : null}
-    </span>
+    </Pill>
   );
 }

@@ -108,11 +108,10 @@ describe("/api/youth/events", () => {
     status: string;
     calendar_id: string | null;
     occasion_id: string | null;
-    youth_attended: boolean | null;
   } | null> => {
     const { data, error } = await fixtures.service
       .from("activity_events")
-      .select("event_date, status, calendar_id, occasion_id, youth_attended")
+      .select("event_date, status, calendar_id, occasion_id")
       .eq("id", eventId)
       .maybeSingle();
 
