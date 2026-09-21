@@ -27,9 +27,13 @@ export async function POST() {
     );
   }
 
+  // `role` IS NOT SELECTED HERE. It belongs to the calling in the ward being acted in (migration
+  // 070), not to the account, and migration 071 drops the column — a select naming it would be a
+  // 400 on every sign-in. The audit detail below takes it from session_context() instead, which
+  // is the same answer RLS reads.
   const { data, error } = await supabase
     .from("users")
-    .select("ward_id, role, is_active")
+    .select("ward_id, is_active")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -64,13 +68,34 @@ export async function POST() {
     return NextResponse.json({ error: DEACTIVATED_MESSAGE }, { status: 403 });
   }
 
+  // THE AUDIT ROW IS FILED UNDER THE WARD THE SESSION IS ACTING IN, NOT THE HOME WARD, and that
+  // is not cosmetic. `audit_log_insert` (migration 019) is `ward_id = current_ward_id() and …`,
+  // so a row carrying `users.ward_id` for somebody whose `active_ward_id` is still set from a
+  // previous session is REFUSED — and writeAuditLog never throws, because an audit failure must
+  // not fail the user's action. The sign-in would simply go unrecorded, silently, for exactly the
+  // sessions most worth recording. Migration 067's header describes the same defect on the same
+  // table, found the same way.
+  //
+  // It also supplies the role for the detail, from the same round trip, so the trail names the
+  // calling they signed in under rather than a column that no longer exists.
+  const { data: contextRows, error: contextError } = await supabase.rpc("session_context");
+
+  if (contextError) {
+    console.error("Could not read the session context during sign-in verification", {
+      userId: user.id,
+      error: contextError.message,
+    });
+  }
+
+  const context = contextRows?.[0];
+
   await writeAuditLog(
     {
-      wardId: data.ward_id,
+      wardId: context?.ward_id ?? data.ward_id,
       userId: user.id,
       action: "login",
       module: "auth",
-      detail: { role: data.role },
+      detail: { role: context?.role ?? null },
     },
     supabase,
   );

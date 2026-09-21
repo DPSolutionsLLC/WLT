@@ -86,6 +86,14 @@ function profile(overrides: Partial<ActivityProfile> = {}): ActivityProfile {
 const PRESIDENT: SessionUser = {
   id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
   wardId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+  // A session at HOME: the effective ward and the home ward are the same and
+  // nothing is switched. lib/auth/session.ts reads all of these from session_context().
+  homeWardId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+  activeWardId: null,
+  // The CALLING this session is acting under (migration 068). `role` and `orgId` below
+  // are ITS facts, not the person\'s — a fixed id is enough here because nothing in
+  // these tests reads it.
+  callingId: "00000000-0000-4000-8000-00000000ca11",
   role: "org_president",
   orgId: YOUNG_MEN,
   counselorPosition: null,

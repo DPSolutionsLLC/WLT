@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { addDays } from "date-fns";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createCalling } from "@/lib/callings/writeCalling";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import type { CreateInviteInput, RegisterInput } from "@/lib/validation/invite";
@@ -286,26 +287,16 @@ export async function redeemInvite(
     };
   }
 
-  const { error: rowError } = await service.from("users").insert({
-    id: created.user.id,
-    ward_id: invite.ward_id,
-    first_name: input.firstName,
-    last_name: input.lastName,
-    email: invite.email,
-    role,
-    org_id: invite.org_id,
-    counselor_position: invite.counselor_position,
-  });
+  // Both compensations, in this order: delete the auth user so no half-created account is left
+  // behind (getSessionUser returns null for one, so it could never sign in), then release the
+  // invite so the recipient's link still works.
+  //
+  // Extracted because there are now TWO writes that can fail — the account and its calling — and
+  // a calling that fails after the `users` row lands leaves an account with no role at all, which
+  // lib/auth/session.ts refuses outright. Half an account is worse than none.
+  const undoRegistration = async (reason: string): Promise<void> => {
+    console.error(reason, { inviteId: invite.id });
 
-  if (rowError) {
-    console.error("Could not create the users row for an invite", {
-      inviteId: invite.id,
-      error: rowError.message,
-    });
-
-    // Both compensations, in this order: delete the auth user so no half-created account is
-    // left behind (getSessionUser returns null for one, so it could never sign in), then
-    // release the invite so the recipient's link still works.
     const { error: deleteError } = await service.auth.admin.deleteUser(created.user.id);
     if (deleteError) {
       console.error("Could not delete the orphaned auth user after a failed registration", {
@@ -315,6 +306,60 @@ export async function redeemInvite(
     }
 
     await releaseInvite(invite.id, service);
+  };
+
+  // THE CALLING FACTS ARE NOT WRITTEN HERE. `role`, `org_id` and `counselor_position` belong to
+  // the calling this redemption creates (migration 068), and migration 071 drops all three
+  // columns — so naming one here is a 400 on every registration the moment it applies. Migration
+  // 068d dropped NOT NULL off `users.role` precisely so this insert can stop writing it while the
+  // column is still there, which is the window between the deploy and 071.
+  const { error: rowError } = await service.from("users").insert({
+    id: created.user.id,
+    ward_id: invite.ward_id,
+    first_name: input.firstName,
+    last_name: input.lastName,
+    email: invite.email,
+  });
+
+  if (rowError) {
+    await undoRegistration(
+      `Could not create the users row for an invite — ${rowError.message}`,
+    );
+
+    return {
+      ok: false,
+      message: "Could not finish setting up the account. Please try the link again.",
+    };
+  }
+
+  // THE CALLING. Redeeming an invite is somebody being given a calling in a ward — the role, the
+  // organization and the counselor position all come off the claimed invite row, exactly as they
+  // did when they went onto the `users` row, and `input` still cannot supply any of them.
+  //
+  // `created_by` is the person who SENT the invite, and it is nullable: `invites.invited_by` may
+  // be null for the first account in a ward. It must never appear in a policy predicate
+  // (`talks-d`), and migration 068c's policy does not mention it.
+  try {
+    await createCalling(
+      {
+        userId: created.user.id,
+        wardId: invite.ward_id,
+        role,
+        orgId: invite.org_id,
+        counselorPosition: toCounselorPosition(invite.counselor_position),
+        createdBy: invite.invited_by,
+      },
+      service,
+    );
+  } catch (callingError) {
+    // The `users` row landed and the calling did not. Deleting the auth user cascades the
+    // `users` row with it (migration 002: `references auth.users (id) on delete cascade`), so
+    // the same compensation covers both.
+    await undoRegistration(
+      `Could not create the calling for an invite — ${
+        callingError instanceof Error ? callingError.message : String(callingError)
+      }`,
+    );
 
     return {
       ok: false,

@@ -16,6 +16,24 @@ export type EmitNotificationParams = {
 // `notification_user_prefs` rows belonging to them, and no caller's own session can do either.
 // It is a server-only module; it reads ids to address rows and returns none of that data to
 // the caller.
+//
+// ---------------------------------------------------------------------------
+// RECIPIENTS ARE RESOLVED FROM CALLINGS, NOT FROM `users`
+// ---------------------------------------------------------------------------
+// This asked `users` for `(ward_id, role, is_active)`, which answers "whose ACCOUNT lives in this
+// ward and carries this role". Under the calling model (migration 068) that is the wrong
+// question: a Relief Society president whose account lives in ward A holds a real calling in ward
+// B, and ward B's notifications are hers.
+//
+// Missing this is `notification-trigger-drift`'s other half exactly — flagging a follow-up
+// "stamped flag_sent_at, logged notified: true and delivered NOTHING". emitNotification returns
+// without an error when nobody matches, so the failure is SILENT BY CONSTRUCTION. All four
+// helpers in lib/notifications/ were changed in one commit for that reason.
+//
+// JOINED TO `users.is_active`, because a calling can be active on a deactivated account (that is
+// the point of keeping the two columns apart — see lib/callings/writeCalling.ts) and a
+// deactivated person must not be notified. `!inner` is what makes the join a filter rather than
+// an optional embed.
 async function resolveRoleRecipients(
   supabase: SupabaseClient<Database>,
   wardId: string,
@@ -24,10 +42,11 @@ async function resolveRoleRecipients(
   if (roles.length === 0) return [];
 
   const { data, error } = await supabase
-    .from("users")
-    .select("id")
+    .from("ward_role_assignments")
+    .select("user_id, users!user_id!inner(is_active)")
     .eq("ward_id", wardId)
     .eq("is_active", true)
+    .eq("users.is_active", true)
     .in("role", roles);
 
   if (error) {
@@ -39,7 +58,10 @@ async function resolveRoleRecipients(
     return [];
   }
 
-  return (data ?? []).map((row) => row.id);
+  // Distinct PEOPLE, not rows. One active calling per ward is enforced by
+  // `ward_role_assignments_one_per_ward`, so this cannot duplicate today — but addressing one
+  // person twice would insert two notifications, and that is not a thing to leave to an index.
+  return [...new Set((data ?? []).map((row) => row.user_id))];
 }
 
 async function readOptedOutUserIds(

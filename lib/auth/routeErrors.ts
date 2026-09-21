@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { isAiRequestError } from "@/lib/ai/errors";
-import { isForbiddenError, isPinLockedError } from "@/lib/auth/errors";
+import {
+  isForbiddenError,
+  isInvalidInputError,
+  isPinLockedError,
+} from "@/lib/auth/errors";
 
 export type RouteErrorContext = {
   route: string;
@@ -76,6 +80,14 @@ export function respondToRouteError(
       { error: pinLockedMessage(error.remainingMinutes) },
       { status: 429 },
     );
+  }
+
+  // The SHAPE was fine and the CONTENT was not — an id naming something outside this ward, most
+  // of all. Its message is already written for a person and is passed through unchanged;
+  // re-wording it here would collapse every such refusal into one unhelpful sentence, which is
+  // the mistake the AiRequestError branch above avoids for the same reason.
+  if (isInvalidInputError(error)) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
   if (error instanceof InvalidRequestBodyError) {

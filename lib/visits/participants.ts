@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { findUsersOutsideWard } from "@/lib/callings/queries";
+import { InvalidInputError } from "@/lib/auth/errors";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { VisitParticipantInput } from "@/lib/validation/visit";
 import type { Database } from "@/types/database";
@@ -173,6 +175,45 @@ export async function replaceParticipants(
   client?: SupabaseClient<Database>,
 ): Promise<VisitParticipant[]> {
   const supabase = await resolveClient(client);
+
+  // ⚠️ THE WARD CHECK THAT MIGRATION 069 MADE NECESSARY, and it is not defence in depth — it is
+  // the only check there is.
+  //
+  // `visit_participants.user_id` used to carry `(user_id, ward_id) -> users (id, ward_id)`, so a
+  // participant from another ward was refused by the database. 069 narrowed that to
+  // `user_id -> users (id)` — correct for an AUTHOR, who can now legitimately write in a ward
+  // their account does not live in, and WRONG for a SUBJECT like this one, which comes straight
+  // out of a request body. Nothing else in this path ever looked at the participant's ward, so
+  // the narrowing turned a constraint violation into a silently accepted row naming a leader from
+  // another ward. `tests/routes/visitParticipants.test.ts` caught it.
+  //
+  // ⚠️ AND IT RUNS BEFORE THE DELETE, WHICH IS NOT COSMETIC. This function is delete-then-insert
+  // and is NOT a transaction (see the header). Validating after the delete would mean a refused
+  // PATCH had already cleared the visit's existing participants — the caller reads a 400 and the
+  // record silently loses who went, which is strictly worse than the constraint violation this
+  // replaced. An empty `userIds` is the ordinary case and costs no query.
+  //
+  // It lives HERE rather than in the two routes so a third caller cannot forget, and it asks
+  // about the CALLING (lib/callings/queries.ts) rather than `users.ward_id` — a bishopric member
+  // whose account lives in another ward is genuinely one of this ward's leaders and must be
+  // selectable.
+  //
+  // The message names the COUNT and not the people: the caller supplied ids they may not be
+  // entitled to resolve to names, and confirming which of them exist is a disclosure the refusal
+  // does not need to make (`youth-h`'s 409 shows the same restraint).
+  const userIds = participants
+    .filter((participant) => participant.kind === "user")
+    .map((participant) => (participant as { userId: string }).userId);
+
+  const outsiders = await findUsersOutsideWard(wardId, userIds, supabase);
+
+  if (outsiders.length > 0) {
+    throw new InvalidInputError(
+      outsiders.length === 1
+        ? "One of the people you chose does not hold a calling in this ward."
+        : `${outsiders.length} of the people you chose do not hold a calling in this ward.`,
+    );
+  }
 
   const { error: deleteError } = await supabase
     .from("visit_participants")

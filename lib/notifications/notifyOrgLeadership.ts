@@ -46,14 +46,20 @@ export async function notifyOrgLeadership(
   try {
     const supabase = client ?? createServiceSupabaseClient();
 
+    // FROM CALLINGS, NOT FROM `users`. An organization's presidency is whoever holds a presidency
+    // CALLING in it (migration 068), and `org_id` now lives on the calling — a person's account
+    // has no organization at all after migration 071. Joined to `users.is_active` because a
+    // calling can be active on a deactivated account. Changed in the same commit as the other
+    // three helpers in this directory (`notification-trigger-drift`).
     const { data, error } = await supabase
-      .from("users")
-      .select("id")
+      .from("ward_role_assignments")
+      .select("user_id, users!user_id!inner(is_active)")
       .eq("ward_id", wardId)
       .eq("org_id", orgId)
       .eq("is_active", true)
+      .eq("users.is_active", true)
       .in("role", ORG_LEADERSHIP_ROLES)
-      .neq("id", actingUserId);
+      .neq("user_id", actingUserId);
 
     if (error) {
       console.error("Could not resolve the organization's leadership", {
@@ -65,7 +71,7 @@ export async function notifyOrgLeadership(
       return;
     }
 
-    const recipientUserIds = (data ?? []).map((row) => row.id);
+    const recipientUserIds = [...new Set((data ?? []).map((row) => row.user_id))];
     if (recipientUserIds.length === 0) return;
 
     await emitNotification(

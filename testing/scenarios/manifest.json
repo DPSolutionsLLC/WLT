@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 63,
+  "scenarioCount": 65,
   "scenarios": [
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -507,6 +507,70 @@
         "No console errors on any of the five page loads"
       ],
       "seedCommand": "npm run seed -- auth/scenario-014-ward-role-access-override"
+    },
+    {
+      "id": "auth:scenario-065-the-ward-that-never-sees-the-switch",
+      "path": "auth/scenario-065-the-ward-that-never-sees-the-switch",
+      "name": "The ward that never sees the switch",
+      "scope": "P2",
+      "part": 1,
+      "tags": [
+        "auth",
+        "smoke"
+      ],
+      "prerequisites": "none",
+      "purpose": "Phase 2 put a stake tier, a super admin and a ward switch into the schema. This scenario proves\r\nthat **none of it reached anybody who belongs to one ward** — which is the phase's stated\r\nrequirement and the thing a schema change is least likely to be honest about on its own.\r\n\r\nThe state seeded here is not a contrivance. One ward with one `units` row above it and **no\r\nparent** is exactly what migration 065's backfill produces for every ward that already existed,\r\nso this is the state every real ward is in today and will stay in until somebody creates a stake\r\nin `proto-d`. If a unit, a stake or a ward control appears anywhere on these pages, it appears in\r\nproduction.\r\n\r\nIt is tagged `smoke` deliberately: this is cheap to walk and it is the check that catches a later\r\nphase leaking the unit layer into ordinary chrome.",
+      "checklist": [
+        "`GET /api/session/active-ward` returns `wards: []` for **all four** accounts",
+        "The same response returns `activeWardId: null` and a `homeWardId` equal to the ward's id",
+        "No page source anywhere contains the words \"stake\", \"unit\" or \"unit number\" for any of the",
+        "`/roster` lists Brooks and Calloway for the bishop, exactly as before migration 065",
+        "The visit seeded on the Brooks household is visible to the EQ president on `/visits`",
+        "`users.active_ward_id` is `null` for all four accounts and no page offers to change it",
+        "`unit_assignments` holds **zero** rows for all four accounts",
+        "`PATCH /api/session/active-ward` with the ward's OWN id returns 200 — setting your active",
+        "No new console error appears on any page (the two pre-existing 404 prefetch errors for",
+        "Does any page show a ward name, badge or chip that was not there before? A ward label is",
+        "Is there any control, menu item or affordance anywhere that hints a different ward exists?",
+        "Do the dashboard and sidebar look **identical** to how you remember them — not merely",
+        "Does anything read as though a feature is missing or half-built for these users?"
+      ],
+      "seedCommand": "npm run seed -- auth/scenario-065-the-ward-that-never-sees-the-switch"
+    },
+    {
+      "id": "auth:scenario-066-one-person-two-callings",
+      "path": "auth/scenario-066-one-person-two-callings",
+      "name": "One person, two callings",
+      "scope": "P2",
+      "part": 1,
+      "tags": [
+        "auth",
+        "admin",
+        "full"
+      ],
+      "prerequisites": "none",
+      "purpose": "**The model, walkable.** One person holds a **real calling in each of two wards** — Relief\r\nSociety president in ward 1, ward secretary in ward 2 — and carries that ward's role and that\r\nward's access while acting there. There is no visitor tier, no reduced-rights guest, and no\r\ncross-ward read.\r\n\r\nThis replaces **scenario 064**, which walked a *visiting officer* borrowing another ward under a\r\nreduced permission list. That scenario was deleted rather than annotated: two scenarios describing\r\nrival models is worse than one, and the record of what 064 proved lives in\r\n`plans/retros/unit-hierarchy-and-ward-switch.md`.\r\n\r\nThis is the one behaviour in Phase 2 that cannot be proved by a unit test alone, because the thing\r\nthat would go wrong is not a query returning the wrong rows — it is **the page frame naming one\r\nward while the rows on it come from another**, or **the navigation showing ward 1's modules while\r\nacting in ward 2**, or the switch quietly signing the switcher out.\r\n\r\nSeeding is most of the value. There is no UI anywhere for assigning a second calling until\r\n`proto-d`, so this state cannot be reached by hand at all.\r\n\r\n**The switcher CONTROL is a P3 chrome component and does not exist yet.** Until it does, the\r\nswitch is driven through `PATCH /api/session/active-ward`, and the checks below say so where it\r\nmatters. The checks about the control are written now so that P3 has them waiting; mark them\r\n**not yet applicable** rather than failed while the control is unbuilt.",
+      "checklist": [
+        "In ward 1 the header names **Harness Test Ward** and the calling reads **Relief Society",
+        "After switching, the header names **Harness Second Ward** and the role reads **ward",
+        "**The nav changes between the two.** Different callings grant different modules — ward 1",
+        "`GET /api/session/active-ward` lists **both** wards for this person, and `wards: []` for",
+        "A **Sunday edited in ward 2 persists** — set its conductor and a note, then read",
+        "The **audit row for that edit is filed under ward 2 while its author's `users.ward_id`",
+        "The **Conducting dropdown in ward 2 offers only ward 2's bishopric**, never ward 1's —",
+        "Ward 2's private note is **absent from the page source** in both wards",
+        "While acting in ward 2, **no ward 1 household appears anywhere** — not on `/roster`, not on",
+        "One audit row per switch, filed under **the ward being entered** (`active_ward_switched` in",
+        "The sign-in audit row for this person is filed under the ward they resolved to, and its",
+        "`users.ward_id` is **unchanged** throughout — a switch never moves an account",
+        "No new console error appears on any page (the two pre-existing 404 prefetch errors for",
+        "**Is it obvious *which calling* you are acting under, or only which ward?**",
+        "**Does switching feel like changing hats, or like changing accounts?**",
+        "Does the nav change read as *\"different ward, different job\"* or as *\"something is broken",
+        "Is there anything on ward 2's pages that a ward 2 leader would find surprising — any sign",
+        "**Deferred, not passed — the clipped mobile header (066-D2).** The user answered \"it can"
+      ],
+      "seedCommand": "npm run seed -- auth/scenario-066-one-person-two-callings"
     },
     {
       "id": "calendar:scenario-010-fast-sunday-shift",
@@ -2578,13 +2642,13 @@
         "coverage"
       ],
       "prerequisites": "none",
-      "purpose": "Before `youth-j` there was no **team** in this app — only one young person's copy of one.\n`activity_events.profile_id` is a single foreign key and the ICS import takes a `profileId`, so\nfour players on a twelve-game season meant **four profiles, four imports of the same file and 48\nrows for 12 real games**, with `activity_occasions` re-linking the duplicates one game at a time\nby hand.\n\nThis scenario is the whole new model on one screen: **one activity, one imported schedule, a\nroster of four, and the app deriving youth × event.** It proves four things that were not\nexpressible before, and every one of them is a fraction over a season rather than something a\nscreenshot of a fresh ward could show:\n\n1. **Twelve cards, not forty-eight.**\n2. A young person who **left mid-season** is not measured on games after they left — and the game\n   **on** their leaving day still counts.\n3. A young person who **joined mid-season** is the mirror of that.\n4. Marking one player absent for one game moves **only that player's number**.\n\nThe last of those is the one a unit test cannot finish the job on: `tests/lib/youthRoster.test.ts`\nproves the arithmetic, but whether a leader can *see* that only one pill moved is a question about\na screen.",
+      "purpose": "Before `youth-j` there was no **team** in this app — only one young person's copy of one.\r\n`activity_events.profile_id` is a single foreign key and the ICS import takes a `profileId`, so\r\nfour players on a thirteen-game season meant **four profiles, four imports of the same file and\r\n52 rows for 13 real games**, with `activity_occasions` re-linking the duplicates one game at a time\r\nby hand.\r\n\r\nThis scenario is the whole new model on one screen: **one activity, one imported schedule, a\r\nroster of four, and the app deriving youth × event.** It proves four things that were not\r\nexpressible before, and every one of them is a fraction over a season rather than something a\r\nscreenshot of a fresh ward could show:\r\n\r\n1. **Thirteen cards, not fifty-two.**\r\n2. A young person who **left mid-season** is not measured on games after they left — and the game\r\n   **on** their leaving day still counts.\r\n3. A young person who **joined mid-season** is the mirror of that.\r\n4. Marking one player absent for one game moves **only that player's number**.\r\n\r\nThe last of those is the one a unit test cannot finish the job on: `tests/lib/youthRoster.test.ts`\r\nproves the arithmetic, but whether a leader can *see* that only one pill moved is a question about\r\na screen.",
       "checklist": [
         "`/youth` shows **four** young people, each carrying a \"Varsity basketball\" pill.",
         "The four percentages **differ from one another**, and none is `0%` or `100%`.",
         "`/youth/profiles` shows **one** Varsity basketball card, not four, with **four names** under",
         "Maya's roster line reads \"Left <date>\"; Tyler's reads \"Joined <date>\". Both dates render as a",
-        "`/youth/calendar` shows **12** cards for this team, not 48.",
+        "The team's whole schedule is **13** cards, not 52 — read it on `/youth/profiles` (or an",
         "Every event card names the young people expected at it, and the **away** and **cancelled**",
         "Game **G08** carries **one** absence chip reading \"Ethan Brooks is not taking part\", and no",
         "**No unanswered Yes/No control appears on any event card.** There is at most one quiet",

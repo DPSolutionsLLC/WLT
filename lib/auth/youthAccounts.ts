@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clearAttempts } from "@/lib/auth/pinLockout";
 import { syntheticYouthEmail } from "@/lib/auth/syntheticYouthEmail";
+import { createCalling } from "@/lib/callings/writeCalling";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import type { CreateYouthAccountInput } from "@/lib/validation/youthAccount";
 import type { Database } from "@/types/database";
@@ -113,6 +114,12 @@ export async function createYouthAccount(
 
   // `email` stays null. The synthetic address lives in auth.users only; a .invalid address in
   // public.users would show up in the admin list as though it were a real one.
+  //
+  // `role` IS NOT WRITTEN HERE. A youth account holds a CALLING like everybody else (migration
+  // 068) — `sacrament_manager` in this ward — and migration 071 drops `users.role` outright, so
+  // naming it here would be a 400 on every youth account created after it applies. Migration 068d
+  // dropped NOT NULL off the column precisely so this insert can stop writing it during the
+  // window between the deploy and 071.
   const { error: rowError } = await service.from("users").insert({
     id: created.user.id,
     ward_id: wardId,
@@ -120,7 +127,6 @@ export async function createYouthAccount(
     last_name: input.lastName,
     email: null,
     username: input.username,
-    role: YOUTH_ROLE,
   });
 
   if (rowError) {
@@ -142,6 +148,49 @@ export async function createYouthAccount(
 
     if (rowError.code === UNIQUE_VIOLATION) {
       return { ok: false, message: USERNAME_TAKEN_MESSAGE };
+    }
+
+    return {
+      ok: false,
+      message: "Could not finish setting up the account. Please try again.",
+    };
+  }
+
+  // THE CALLING. A youth account is a calling too — `sacrament_manager`, in this ward, with no
+  // organization — and it is what current_user_role() reads from migration 070 on. Without it the
+  // account signs in and lib/auth/session.ts refuses it for holding no role, which is a state no
+  // screen in the app can explain.
+  //
+  // `created_by` is the bishopric member who created the account. It is nullable and must never
+  // appear in a policy predicate (`talks-d`); migration 068c's policy does not mention it.
+  try {
+    await createCalling(
+      {
+        userId: created.user.id,
+        wardId,
+        role: YOUTH_ROLE,
+        createdBy: actingUserId,
+      },
+      service,
+    );
+  } catch (callingError) {
+    console.error(
+      `Could not create the calling for a youth account — ${
+        callingError instanceof Error ? callingError.message : String(callingError)
+      }`,
+      { wardId, actingUserId, username: input.username },
+    );
+
+    // The same compensation as above, and it covers both rows: `users.id` references
+    // `auth.users (id) on delete cascade` (migration 002), so deleting the auth user takes the
+    // `users` row with it. An account with no calling would sign in and be refused with nothing
+    // on screen to say why — worse than no account at all.
+    const { error: deleteError } = await service.auth.admin.deleteUser(created.user.id);
+    if (deleteError) {
+      console.error(
+        `Could not delete the orphaned auth user after a failed youth calling — ${deleteError.message}`,
+        { wardId, username: input.username },
+      );
     }
 
     return {
@@ -240,19 +289,24 @@ export type YouthAccountListEntry = YouthAccount & {
   createdAt: string;
 };
 
-// Reads through the CALLER's client: the ward-scoped SELECT policy from migration 020 already
-// scopes this correctly, and going through RLS is the point (CLAUDE.md rule 2).
+// Reads through the CALLER's client: RLS already scopes both halves correctly, and going through
+// it is the point (CLAUDE.md rule 2).
+//
+// FROM CALLINGS, like every other "who holds this role in this ward" question after migration
+// 068 — and the same shape as lib/auth/adminUsers.ts's ward list. `username` is still the filter
+// that distinguishes a PIN account from an email one, and it lives on the person rather than on
+// the calling.
 export async function listYouthAccounts(
   wardId: string,
   client: SupabaseClient<Database>,
 ): Promise<YouthAccountListEntry[]> {
   const { data, error } = await client
-    .from("users")
-    .select("id, username, first_name, last_name, is_active, created_at")
+    .from("ward_role_assignments")
+    .select("user_id, users!user_id!inner(username, first_name, last_name, is_active, created_at)")
     .eq("ward_id", wardId)
     .eq("role", YOUTH_ROLE)
-    .not("username", "is", null)
-    .order("username");
+    .eq("is_active", true)
+    .not("users.username", "is", null);
 
   if (error) {
     console.error(`Could not read the ward's youth accounts — ${error.message}`, {
@@ -261,12 +315,16 @@ export async function listYouthAccounts(
     throw new Error(`Could not read the ward's youth accounts: ${error.message}`);
   }
 
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    username: row.username as string,
-    firstName: row.first_name,
-    lastName: row.last_name,
-    isActive: row.is_active,
-    createdAt: row.created_at,
-  }));
+  return (data ?? [])
+    .map((row) => ({
+      id: row.user_id,
+      username: row.users.username as string,
+      firstName: row.users.first_name,
+      lastName: row.users.last_name,
+      isActive: row.users.is_active,
+      createdAt: row.users.created_at,
+    }))
+    // Sorted here rather than in PostgREST: `username` lives on the embedded `users` row, and
+    // PostgREST cannot order parent rows by an embedded column.
+    .sort((left, right) => left.username.localeCompare(right.username));
 }

@@ -33,15 +33,38 @@ describe("invite privilege escalation", () => {
     return token;
   }
 
+  // THE ROLE MOVED TO THE CALLING (migration 068), so the escalation this suite guards against is
+  // now "what calling did the redemption create", not "what does users.role say" — that column no
+  // longer exists. `users.ward_id` stays as the HOME ward and is still read from `users`.
   async function readCreatedUser(userId: string) {
-    const { data, error } = await fixtures.service
+    const { data: account, error: accountError } = await fixtures.service
       .from("users")
-      .select("id, ward_id, role, org_id")
+      .select("id, ward_id")
       .eq("id", userId)
       .maybeSingle();
 
-    if (error) throw new Error(error.message);
-    return data;
+    if (accountError) throw new Error(accountError.message);
+    if (!account) return null;
+
+    const { data: calling, error: callingError } = await fixtures.service
+      .from("ward_role_assignments")
+      .select("role, org_id, ward_id")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (callingError) throw new Error(callingError.message);
+
+    return {
+      id: account.id,
+      ward_id: account.ward_id,
+      role: calling?.role ?? null,
+      org_id: calling?.org_id ?? null,
+      // The ward the CALLING is in. Under the calling model this is the one an escalation would
+      // actually have to move — a smuggled `wardId` that only changed `users.ward_id` would give
+      // the account no access anywhere, which is not the attack worth testing.
+      calling_ward_id: calling?.ward_id ?? null,
+    };
   }
 
   beforeAll(async () => {
@@ -94,6 +117,7 @@ describe("invite privilege escalation", () => {
 
     expect(created?.role).toBe("music_coordinator");
     expect(created?.ward_id).toBe(fixtures.wardAId);
+    expect(created?.calling_ward_id).toBe(fixtures.wardAId);
   });
 
   // The schema is one control. This is the other: even handed an object that DOES carry
@@ -124,5 +148,8 @@ describe("invite privilege escalation", () => {
     expect(created?.role).not.toBe("bishop");
     expect(created?.org_id).toBeNull();
     expect(created?.ward_id).toBe(fixtures.wardAId);
+    // The smuggled `wardId` named ward B. The CALLING must still be in ward A — that is the one
+    // that decides what they can reach.
+    expect(created?.calling_ward_id).toBe(fixtures.wardAId);
   });
 });

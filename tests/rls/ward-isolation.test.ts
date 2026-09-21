@@ -94,14 +94,25 @@ describe("ward isolation", () => {
     expect(allTables.length).toBeGreaterThan(40);
   });
 
-  // Two tables carry no ward_id, for two different reasons: `wards` IS the ward and is keyed
-  // by `id`, and `hymns` is the documented single exception to CLAUDE.md rule 1. Both are
-  // covered by their own assertions below rather than by the generic sweep. If a future
-  // migration adds a third, this fails rather than letting the table quietly join the skip
-  // list and go untested forever.
-  it("has exactly two deliberately ward-less tables", () => {
+  // Four tables carry no ward_id, each for its own reason, and each is a DELIBERATE exception to
+  // CLAUDE.md rule 1 recorded in both its migration header and here:
+  //
+  //   wards             — IS the ward, and is keyed by `id`.
+  //   hymns             — the original documented exception; one shared corpus, not a ward's.
+  //   units             — a unit is not INSIDE a ward. A ward is a unit and a stake sits ABOVE
+  //                       wards, so the only honest value for a stake row would be null
+  //                       (migration 065a).
+  //   unit_assignments  — a stake assignment HAS no ward. A ward_id would have to name one of
+  //                       the wards under the stake, arbitrarily, and every policy reading it
+  //                       would be wrong for all the others (migration 065b).
+  //
+  // All four are covered by their own assertions rather than by the generic sweep. THE EXACT
+  // LIST IS THE POINT — do not weaken this into a toContain(). If a future migration adds a
+  // fifth, this fails rather than letting the table quietly join the skip list and go untested
+  // for ever.
+  it("has exactly four deliberately ward-less tables", () => {
     const wardless = allTables.filter((table) => !table.hasWardId).map((table) => table.name);
-    expect(wardless.sort()).toEqual(["hymns", "wards"]);
+    expect(wardless.sort()).toEqual(["hymns", "unit_assignments", "units", "wards"]);
   });
 
   it("does not leak the ward row itself across wards", async () => {

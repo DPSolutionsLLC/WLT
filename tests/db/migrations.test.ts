@@ -38,6 +38,16 @@ const MIGRATIONS_DIRECTORY = path.resolve(process.cwd(), "supabase/migrations");
 // applied — the second entry in this list's history, and the second time it did its job rather
 // than being forgotten. The removal was itself prompted by the assertion below going red, which
 // is the mechanism working: the entry outlived its deploy by under an hour and the suite said so.
+//
+// ⚠️ 071 NEVER GOT AN ENTRY HERE, AND THE REASON IS WORTH KNOWING. It was written to be held back
+// — it drops users.role/org_id/counselor_position, which the deployed build still selected — but
+// `supabase db push` HAS NO PER-FILE EXCLUSION. It applies every unapplied file on disk, so
+// writing a held-back migration to disk BEFORE the push is the same as applying it. The entry in
+// this list is documentation, not a mechanism; it cannot stop a push.
+//
+// THE ONLY THING THAT ACTUALLY HOLDS A MIGRATION BACK IS NOT CREATING THE FILE UNTIL THE DEPLOY
+// IS LIVE. A future contract migration should be written into the plan or the retro and created
+// on disk at step 3, not at step 1.
 const HELD_BACK_UNTIL_DEPLOYED: Record<string, string> = {};
 
 function localMigrationVersions(): string[] {

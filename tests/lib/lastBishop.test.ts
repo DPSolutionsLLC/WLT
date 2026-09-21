@@ -15,15 +15,30 @@ import { seedFixtures, type Fixtures } from "@/tests/helpers/seed";
 describe("last active bishop guard", () => {
   let fixtures: Fixtures;
 
+  // TWO ROWS, TWO FACTS (migration 068). `is_active` is the ACCOUNT's — app-wide, and what a
+  // deactivation writes. `role` is the CALLING's, in the ward being administered. The guard reads
+  // both, so a re-read that only looked at one could pass while the other had moved.
   async function readUser(userId: string) {
-    const { data, error } = await fixtures.service
+    const { data: account, error: accountError } = await fixtures.service
       .from("users")
-      .select("role, is_active")
+      .select("is_active")
       .eq("id", userId)
       .maybeSingle();
 
-    if (error) throw new Error(error.message);
-    return data;
+    if (accountError) throw new Error(accountError.message);
+    if (!account) return null;
+
+    const { data: calling, error: callingError } = await fixtures.service
+      .from("ward_role_assignments")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("ward_id", fixtures.wardAId)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (callingError) throw new Error(callingError.message);
+
+    return { is_active: account.is_active, role: calling?.role ?? null };
   }
 
   beforeAll(async () => {

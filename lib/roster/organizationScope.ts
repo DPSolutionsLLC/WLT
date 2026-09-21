@@ -7,8 +7,13 @@ import type { Role, SessionUser } from "@/types/domain";
 // caller still finds it where the plan says it lives.
 
 // Roles whose default view of the roster is their own organization. The rest — the bishopric,
-// both secretaries, the music coordinator, the ward council member, and the youth
-// sacrament_manager — see the whole ward by default.
+// both secretaries, the music coordinator, the ward council member, the youth
+// sacrament_manager, and the five roles the unit hierarchy added — see the whole ward by
+// default.
+//
+// A STAKE OFFICER IS DELIBERATELY NOT ON THIS LIST. `current_org_id()` returns null across a
+// ward switch (migration 066b), so scoping a visiting officer's roster to "their" organization
+// would scope it to nothing at all.
 const ORGANIZATION_SCOPED_ROLES: readonly Role[] = [
   "org_president",
   "org_counselor",

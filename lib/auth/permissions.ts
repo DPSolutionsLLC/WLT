@@ -190,6 +190,39 @@ const SACRAMENT_MANAGER_PERMISSIONS: readonly KnownPermission[] = [
   "sacrament.mark_sent",
 ];
 
+// EMPTY. A STAKE OFFICER HAS NO ACCESS TO THIS APP — decided by the user 2026-09-21, reversing
+// what this list held for one day.
+//
+// It previously granted eleven `*.view` permissions across the roster, visits, youth activities,
+// the program and agendas, on the reasoning that a stake officer "is there to SEE how the ward is
+// doing". That reasoning was never the product's. WLT is a WARD's tool: a ward's roster, its
+// visit reports and its youth are that ward's own stewardship, and a stake officer being able to
+// read them is not a smaller version of the right thing, it is the wrong thing at a smaller size.
+//
+// WHAT IS INTENDED INSTEAD, and is NOT built: a stake leader attending a ward's meeting opens a
+// READ-ONLY view of THAT MEETING'S AGENDA, with one exception — they may add to the prayer roll
+// for that meeting. Nothing else. That is a narrow, purpose-built surface rather than a role with
+// a permission list, and it belongs to whichever phase builds it; do not approximate it by adding
+// `agendas.view` here, which would hand over every agenda the ward has ever published.
+//
+// The three stake roles therefore exist as ROLE VALUES that can be assigned and recognised, and
+// reach nothing. That is deliberate and it is the safe direction: granting later is one list
+// edit, revoking later is a security incident.
+//
+// One constant for all three rather than three identical literals — the BISHOPRIC_PERMISSIONS
+// precedent, and for the same reason: three lists is three things to keep in step.
+const STAKE_OFFICER_PERMISSIONS: readonly KnownPermission[] = [];
+
+// EVERYTHING, exactly as BISHOPRIC_PERMISSIONS is everything. CLAUDE.md §7 says super admin
+// "bypasses the access matrix"; granting the whole list IS that, through the one mechanism the
+// app already has, rather than a second code path beside can(). One mechanism, not two.
+const SUPER_ADMIN_PERMISSIONS: readonly KnownPermission[] = PERMISSIONS;
+
+// EMPTY ON PURPOSE. WLT has no resource-centre module for this role to reach, and guessing a
+// grant is how a role comes to hold a permission nobody chose. proto-d decides what it gets when
+// somebody can say what it does.
+const RESOURCE_CENTER_SPECIALIST_PERMISSIONS: readonly KnownPermission[] = [];
+
 export const ROLE_PERMISSIONS: RoleAccess = {
   bishop: BISHOPRIC_PERMISSIONS,
   counselor: BISHOPRIC_PERMISSIONS,
@@ -201,7 +234,22 @@ export const ROLE_PERMISSIONS: RoleAccess = {
   music_coordinator: MUSIC_COORDINATOR_PERMISSIONS,
   ward_council_member: WARD_COUNCIL_MEMBER_PERMISSIONS,
   sacrament_manager: SACRAMENT_MANAGER_PERMISSIONS,
+  stake_president: STAKE_OFFICER_PERMISSIONS,
+  stake_counselor: STAKE_OFFICER_PERMISSIONS,
+  stake_secretary: STAKE_OFFICER_PERMISSIONS,
+  super_admin: SUPER_ADMIN_PERMISSIONS,
+  resource_center_specialist: RESOURCE_CENTER_SPECIALIST_PERMISSIONS,
 };
+
+// A ward may not reconfigure the app-wide administrator who is there to HELP it. This is the same
+// argument NON_OVERRIDABLE_PERMISSIONS makes about admin.*, one level up: that constant locks
+// which PERMISSIONS a ward may move, and this locks a whole ROLE, because super_admin holds every
+// permission and a ward removing them one by one would reach the same place.
+//
+// A role rather than a permission list, because the role itself is not ward-scoped — the
+// assignment lives in `unit_assignments` with no ward_id at all (migration 065), so a ward has no
+// standing to have an opinion about it.
+export const NON_OVERRIDABLE_ROLES: readonly Role[] = ["super_admin"];
 
 // No default on roleAccess. A defaulted third parameter is how 25 call sites came to silently
 // ignore the ward's configuration (ITER-005): nothing failed when a new route forgot to pass it.
@@ -246,6 +294,7 @@ const roleAccessDeltaSchema = z.object({
 const KNOWN_ROLES = new Set<string>(ROLES);
 const KNOWN_PERMISSIONS = new Set<string>(PERMISSIONS);
 const LOCKED_PERMISSIONS = new Set<string>(NON_OVERRIDABLE_PERMISSIONS);
+const LOCKED_ROLES = new Set<string>(NON_OVERRIDABLE_ROLES);
 
 type ParsedDelta = { add: string[]; remove: string[] };
 
@@ -332,6 +381,17 @@ export function mergeRoleAccess(override: unknown): RoleAccess {
     if (!KNOWN_ROLES.has(role)) {
       console.warn(
         `wards.settings.role_access names an unknown role "${role}"; ignoring it`,
+      );
+      continue;
+    }
+
+    // A ward must not be able to disable the app-wide administrator who is there to help it.
+    // Skipped WHOLE rather than filtered permission by permission: super_admin holds everything,
+    // so a partial lock would leave a ward able to strip it down to nothing.
+    if (LOCKED_ROLES.has(role)) {
+      console.warn(
+        `wards.settings.role_access tries to change the non-overridable role "${role}"; ` +
+          "keeping the code defaults for it",
       );
       continue;
     }

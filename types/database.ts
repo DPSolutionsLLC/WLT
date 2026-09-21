@@ -131,10 +131,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "activity_attendees_assigned_by_ward_id_fkey"
-            columns: ["assigned_by", "ward_id"]
+            columns: ["assigned_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "activity_attendees_event_id_ward_id_fkey"
@@ -145,10 +145,10 @@ export type Database = {
           },
           {
             foreignKeyName: "activity_attendees_user_id_ward_id_fkey"
-            columns: ["user_id", "ward_id"]
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "activity_attendees_ward_id_fkey"
@@ -249,10 +249,10 @@ export type Database = {
           },
           {
             foreignKeyName: "activity_event_participation_recorded_by_ward_id_fkey"
-            columns: ["recorded_by", "ward_id"]
+            columns: ["recorded_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "activity_event_participation_ward_id_fkey"
@@ -387,10 +387,10 @@ export type Database = {
           },
           {
             foreignKeyName: "activity_logs_logged_by_ward_id_fkey"
-            columns: ["logged_by", "ward_id"]
+            columns: ["logged_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "activity_logs_ward_id_fkey"
@@ -423,10 +423,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "activity_occasions_created_by_ward_id_fkey"
-            columns: ["created_by", "ward_id"]
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "activity_occasions_ward_id_fkey"
@@ -475,10 +475,10 @@ export type Database = {
           },
           {
             foreignKeyName: "activity_private_notes_user_id_ward_id_fkey"
-            columns: ["user_id", "ward_id"]
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "activity_private_notes_ward_id_fkey"
@@ -523,10 +523,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "activity_roster_added_by_ward_id_fkey"
-            columns: ["added_by", "ward_id"]
+            columns: ["added_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "activity_roster_member_id_ward_id_fkey"
@@ -597,10 +597,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "agendas_published_by_ward_id_fkey"
-            columns: ["published_by", "ward_id"]
+            columns: ["published_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "agendas_ward_id_fkey"
@@ -654,10 +654,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ai_settings_saved_by_ward_id_fkey"
-            columns: ["saved_by", "ward_id"]
+            columns: ["saved_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "ai_settings_ward_id_fkey"
@@ -706,10 +706,10 @@ export type Database = {
           },
           {
             foreignKeyName: "assignment_approvals_user_id_ward_id_fkey"
-            columns: ["user_id", "ward_id"]
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "assignment_approvals_ward_id_fkey"
@@ -768,10 +768,10 @@ export type Database = {
           },
           {
             foreignKeyName: "assignment_comments_user_id_ward_id_fkey"
-            columns: ["user_id", "ward_id"]
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "assignment_comments_ward_id_fkey"
@@ -940,10 +940,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "assignments_contact_waived_by_fkey"
-            columns: ["contact_waived_by", "ward_id"]
+            columns: ["contact_waived_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "assignments_member_id_ward_id_fkey"
@@ -954,24 +954,24 @@ export type Database = {
           },
           {
             foreignKeyName: "assignments_notify_sent_by_ward_id_fkey"
-            columns: ["notify_sent_by", "ward_id"]
+            columns: ["notify_sent_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "assignments_planned_by_ward_id_fkey"
-            columns: ["planned_by", "ward_id"]
+            columns: ["planned_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "assignments_requested_by_ward_id_fkey"
-            columns: ["requested_by", "ward_id"]
+            columns: ["requested_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "assignments_sunday_id_ward_id_fkey"
@@ -982,10 +982,10 @@ export type Database = {
           },
           {
             foreignKeyName: "assignments_thank_you_sent_by_ward_id_fkey"
-            columns: ["thank_you_sent_by", "ward_id"]
+            columns: ["thank_you_sent_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "assignments_topic_id_ward_id_fkey"
@@ -1033,11 +1033,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "audit_log_user_id_ward_id_fkey"
-            columns: ["user_id", "ward_id"]
+            foreignKeyName: "audit_log_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "audit_log_ward_id_fkey"
@@ -1089,10 +1089,10 @@ export type Database = {
           },
           {
             foreignKeyName: "conducting_rotation_user_id_ward_id_fkey"
-            columns: ["user_id", "ward_id"]
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "conducting_rotation_ward_id_fkey"
@@ -1138,10 +1138,10 @@ export type Database = {
           },
           {
             foreignKeyName: "conversation_messages_user_id_ward_id_fkey"
-            columns: ["user_id", "ward_id"]
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "conversation_messages_ward_id_fkey"
@@ -1321,10 +1321,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "household_stewardships_created_by_ward_id_fkey"
-            columns: ["created_by", "ward_id"]
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "household_stewardships_household_id_ward_id_fkey"
@@ -1386,10 +1386,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "household_visit_cadences_created_by_ward_id_fkey"
-            columns: ["created_by", "ward_id"]
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "household_visit_cadences_household_id_ward_id_fkey"
@@ -1492,10 +1492,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "hymn_selections_selected_by_ward_id_fkey"
-            columns: ["selected_by", "ward_id"]
+            columns: ["selected_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "hymn_selections_sunday_id_ward_id_fkey"
@@ -1644,10 +1644,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "knowledge_documents_uploaded_by_ward_id_fkey"
-            columns: ["uploaded_by", "ward_id"]
+            columns: ["uploaded_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "knowledge_documents_ward_id_fkey"
@@ -1765,6 +1765,7 @@ export type Database = {
           household_id: string | null
           id: string
           last_name: string
+          mrn: string | null
           phone: string | null
           status: string
           ward_id: string
@@ -1777,6 +1778,7 @@ export type Database = {
           household_id?: string | null
           id?: string
           last_name: string
+          mrn?: string | null
           phone?: string | null
           status?: string
           ward_id: string
@@ -1789,6 +1791,7 @@ export type Database = {
           household_id?: string | null
           id?: string
           last_name?: string
+          mrn?: string | null
           phone?: string | null
           status?: string
           ward_id?: string
@@ -1915,10 +1918,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "notification_user_prefs_user_id_ward_id_fkey"
-            columns: ["user_id", "ward_id"]
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "notification_user_prefs_ward_id_fkey"
@@ -1963,10 +1966,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "notifications_recipient_user_id_ward_id_fkey"
-            columns: ["recipient_user_id", "ward_id"]
+            columns: ["recipient_user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "notifications_ward_id_fkey"
@@ -2052,10 +2055,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "prayer_assignments_asked_by_ward_id_fkey"
-            columns: ["asked_by", "ward_id"]
+            columns: ["asked_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "prayer_assignments_member_id_ward_id_fkey"
@@ -2129,24 +2132,24 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "programs_approved_by_ward_id_fkey"
-            columns: ["approved_by", "ward_id"]
+            columns: ["approved_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "programs_created_by_ward_id_fkey"
-            columns: ["created_by", "ward_id"]
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "programs_distributed_by_ward_id_fkey"
-            columns: ["distributed_by", "ward_id"]
+            columns: ["distributed_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "programs_sunday_id_ward_id_fkey"
@@ -2230,10 +2233,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "report_read_status_user_id_ward_id_fkey"
-            columns: ["user_id", "ward_id"]
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "report_read_status_ward_id_fkey"
@@ -2281,10 +2284,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "retrieval_filters_created_by_ward_id_fkey"
-            columns: ["created_by", "ward_id"]
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "retrieval_filters_ward_id_fkey"
@@ -2368,10 +2371,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "sacrament_assignment_managers_assigned_by_ward_id_fkey"
-            columns: ["assigned_by", "ward_id"]
+            columns: ["assigned_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "sacrament_assignment_managers_member_id_ward_id_fkey"
@@ -2382,10 +2385,10 @@ export type Database = {
           },
           {
             foreignKeyName: "sacrament_assignment_managers_user_id_ward_id_fkey"
-            columns: ["user_id", "ward_id"]
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "sacrament_assignment_managers_ward_id_fkey"
@@ -2439,10 +2442,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "sacrament_assignments_created_by_ward_id_fkey"
-            columns: ["created_by", "ward_id"]
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "sacrament_assignments_sunday_id_ward_id_fkey"
@@ -2453,10 +2456,10 @@ export type Database = {
           },
           {
             foreignKeyName: "sacrament_assignments_updated_by_ward_id_fkey"
-            columns: ["updated_by", "ward_id"]
+            columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "sacrament_assignments_ward_id_fkey"
@@ -2498,10 +2501,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "sacrament_rotation_pools_created_by_ward_id_fkey"
-            columns: ["created_by", "ward_id"]
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "sacrament_rotation_pools_ward_id_fkey"
@@ -2537,10 +2540,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "sacrament_send_log_sent_by_user_id_ward_id_fkey"
-            columns: ["sent_by_user_id", "ward_id"]
+            columns: ["sent_by_user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "sacrament_send_log_ward_id_fkey"
@@ -2593,10 +2596,10 @@ export type Database = {
           },
           {
             foreignKeyName: "sunday_org_conducting_user_id_ward_id_fkey"
-            columns: ["user_id", "ward_id"]
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "sunday_org_conducting_ward_id_fkey"
@@ -2650,10 +2653,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "sundays_conducting_user_id_ward_id_fkey"
-            columns: ["conducting_user_id", "ward_id"]
+            columns: ["conducting_user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "sundays_ward_id_fkey"
@@ -2773,10 +2776,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "tithing_sessions_created_by_ward_id_fkey"
-            columns: ["created_by", "ward_id"]
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "tithing_sessions_ward_id_fkey"
@@ -2840,10 +2843,10 @@ export type Database = {
           },
           {
             foreignKeyName: "topic_candidates_reviewed_by_ward_id_fkey"
-            columns: ["reviewed_by", "ward_id"]
+            columns: ["reviewed_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "topic_candidates_ward_id_fkey"
@@ -2904,56 +2907,137 @@ export type Database = {
           },
         ]
       }
-      users: {
+      unit_assignments: {
         Row: {
           counselor_position: number | null
+          created_at: string
+          created_by: string | null
+          id: string
+          role: string
+          unit_id: string | null
+          user_id: string
+        }
+        Insert: {
+          counselor_position?: number | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          role: string
+          unit_id?: string | null
+          user_id: string
+        }
+        Update: {
+          counselor_position?: number | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          role?: string
+          unit_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "unit_assignments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "unit_assignments_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "unit_assignments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      units: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          parent_id: string | null
+          type: string
+          unit_number: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          parent_id?: string | null
+          type: string
+          unit_number?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          parent_id?: string | null
+          type?: string
+          unit_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "units_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          active_ward_id: string | null
           created_at: string
           email: string | null
           first_name: string | null
           id: string
           is_active: boolean
           last_name: string | null
-          org_id: string | null
-          role: string
           theme_preference: string
           username: string | null
           ward_id: string
         }
         Insert: {
-          counselor_position?: number | null
+          active_ward_id?: string | null
           created_at?: string
           email?: string | null
           first_name?: string | null
           id: string
           is_active?: boolean
           last_name?: string | null
-          org_id?: string | null
-          role: string
           theme_preference?: string
           username?: string | null
           ward_id: string
         }
         Update: {
-          counselor_position?: number | null
+          active_ward_id?: string | null
           created_at?: string
           email?: string | null
           first_name?: string | null
           id?: string
           is_active?: boolean
           last_name?: string | null
-          org_id?: string | null
-          role?: string
           theme_preference?: string
           username?: string | null
           ward_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "users_org_id_ward_id_fkey"
-            columns: ["org_id", "ward_id"]
+            foreignKeyName: "users_active_ward_id_fkey"
+            columns: ["active_ward_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id", "ward_id"]
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "users_ward_id_fkey"
@@ -3011,10 +3095,10 @@ export type Database = {
           },
           {
             foreignKeyName: "visit_appointments_made_by_ward_id_fkey"
-            columns: ["made_by", "ward_id"]
+            columns: ["made_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "visit_appointments_org_id_ward_id_fkey"
@@ -3085,10 +3169,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "visit_goals_created_by_ward_id_fkey"
-            columns: ["created_by", "ward_id"]
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "visit_goals_org_id_ward_id_fkey"
@@ -3169,10 +3253,10 @@ export type Database = {
           },
           {
             foreignKeyName: "visit_logs_recorded_by_fkey"
-            columns: ["recorded_by", "ward_id"]
+            columns: ["recorded_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "visit_logs_ward_id_fkey"
@@ -3231,10 +3315,10 @@ export type Database = {
           },
           {
             foreignKeyName: "visit_participants_user_id_ward_id_fkey"
-            columns: ["user_id", "ward_id"]
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "visit_participants_visit_log_id_ward_id_fkey"
@@ -3283,10 +3367,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "visit_private_notes_user_id_ward_id_fkey"
-            columns: ["user_id", "ward_id"]
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "visit_private_notes_visit_log_id_ward_id_fkey"
@@ -3304,26 +3388,108 @@ export type Database = {
           },
         ]
       }
+      ward_role_assignments: {
+        Row: {
+          counselor_position: number | null
+          created_at: string
+          created_by: string | null
+          ended_on: string | null
+          id: string
+          is_active: boolean
+          org_id: string | null
+          role: string
+          started_on: string | null
+          user_id: string
+          ward_id: string
+        }
+        Insert: {
+          counselor_position?: number | null
+          created_at?: string
+          created_by?: string | null
+          ended_on?: string | null
+          id?: string
+          is_active?: boolean
+          org_id?: string | null
+          role: string
+          started_on?: string | null
+          user_id: string
+          ward_id: string
+        }
+        Update: {
+          counselor_position?: number | null
+          created_at?: string
+          created_by?: string | null
+          ended_on?: string | null
+          id?: string
+          is_active?: boolean
+          org_id?: string | null
+          role?: string
+          started_on?: string | null
+          user_id?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ward_role_assignments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ward_role_assignments_org_id_ward_id_fkey"
+            columns: ["org_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "ward_role_assignments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ward_role_assignments_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wards: {
         Row: {
           created_at: string
           id: string
           name: string
           settings: Json
+          unit_id: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
           settings?: Json
+          unit_id?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
           settings?: Json
+          unit_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "wards_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       youth_activity_profiles: {
         Row: {
@@ -3368,10 +3534,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "youth_activity_profiles_entered_by_ward_id_fkey"
-            columns: ["entered_by", "ward_id"]
+            columns: ["entered_by"]
             isOneToOne: false
             referencedRelation: "users"
-            referencedColumns: ["id", "ward_id"]
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "youth_activity_profiles_org_id_ward_id_fkey"
@@ -3479,12 +3645,29 @@ export type Database = {
         Args: { p_households: Json; p_members: Json; p_ward_id: string }
         Returns: Json
       }
+      assigned_unit_ids: { Args: never; Returns: string[] }
+      can_act_in_ward: {
+        Args: { target_user: string; target_ward: string }
+        Returns: boolean
+      }
       can_view_talks: { Args: never; Returns: boolean }
+      composite_user_author_fks: {
+        Args: never
+        Returns: {
+          constraint_name: string
+          table_name: string
+        }[]
+      }
       current_org_id: { Args: never; Returns: string }
       current_user_role: { Args: never; Returns: string }
       current_ward_id: { Args: never; Returns: string }
+      holds_calling_in_current_ward: {
+        Args: { target_user: string }
+        Returns: boolean
+      }
       is_active_sacrament_manager: { Args: never; Returns: boolean }
       is_bishopric: { Args: never; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
       match_document_chunks: {
         Args: {
           filter_since?: string
@@ -3505,6 +3688,27 @@ export type Database = {
         }[]
       }
       refresh_goal_status: { Args: never; Returns: number }
+      session_context: {
+        Args: never
+        Returns: {
+          active_ward_id: string
+          calling_id: string
+          counselor_position: number
+          home_ward_id: string
+          is_bishopric: boolean
+          org_id: string
+          role: string
+          ward_id: string
+        }[]
+      }
+      switchable_wards: {
+        Args: never
+        Returns: {
+          name: string
+          unit_id: string
+          ward_id: string
+        }[]
+      }
       tables_without_rls: {
         Args: never
         Returns: {
@@ -3515,6 +3719,7 @@ export type Database = {
         Args: { checks: Json }
         Returns: boolean
       }
+      unit_ancestor_ids: { Args: { target_unit: string }; Returns: string[] }
       visit_log_is_writable_by_caller: {
         Args: { target_visit_log_id: string }
         Returns: boolean
@@ -3538,12 +3743,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3567,11 +3772,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3592,11 +3797,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3617,11 +3822,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3634,11 +3839,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

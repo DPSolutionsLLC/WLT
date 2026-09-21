@@ -33,10 +33,14 @@ describe("users ward-scoped read", () => {
 
   // The point of the migration: "conducting: Bro. Smith" needs a name to select, and the
   // admin user list in auth-b needs the whole ward.
+  // `role` is NOT selected. It moved to the calling (migration 068) and migration 071 dropped the
+  // column, so naming it here is a 42703 — which this suite reported as its own failure, because
+  // the client is cast to an untyped SupabaseClient and the type checker could not see it. What
+  // this test is about is whether the ROW is readable at all, and that is unchanged.
   it("lets a ward member read other members of the same ward", async () => {
     const { data, error } = await bishopA
       .from("users")
-      .select("id, role")
+      .select("id")
       .eq("ward_id", fixtures.wardAId);
 
     expect(error).toBeNull();

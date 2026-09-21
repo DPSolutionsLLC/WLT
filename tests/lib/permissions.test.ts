@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ForbiddenError } from "@/lib/auth/errors";
@@ -13,13 +15,22 @@ import {
   type KnownPermission,
   type RoleAccess,
 } from "@/lib/auth/permissions";
+import { updateUserSchema } from "@/lib/validation/adminUser";
 import type { Database } from "@/types/database";
-import { ROLES, type Role, type SessionUser } from "@/types/domain";
+import { INVITABLE_ROLES, ROLES, type Role, type SessionUser } from "@/types/domain";
 
 function sessionUser(role: Role): SessionUser {
   return {
     id: "00000000-0000-4000-8000-0000000000aa",
     wardId: "00000000-0000-4000-8000-000000000001",
+    // A session at HOME: the effective ward and the home ward are the same and
+    // nothing is switched. lib/auth/session.ts reads all of these from session_context().
+    homeWardId: "00000000-0000-4000-8000-000000000001",
+    activeWardId: null,
+    // The CALLING this session is acting under (migration 068). `role` and `orgId` below
+    // are ITS facts, not the person\'s — a fixed id is enough here because nothing in
+    // these tests reads it.
+    callingId: "00000000-0000-4000-8000-00000000ca11",
     role,
     orgId: null,
     counselorPosition: null,
@@ -516,5 +527,232 @@ describe("resolveRoleAccess", () => {
     const client = stubWardClient(null, { message: "connection reset" });
 
     await expect(resolveRoleAccess(client, "ward-id")).rejects.toThrow(/connection reset/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The unit hierarchy's five new roles (migration 065, types/domain.ts)
+// ---------------------------------------------------------------------------
+
+describe("stake officers", () => {
+  const STAKE_ROLE_LIST: Role[] = ["stake_president", "stake_counselor", "stake_secretary"];
+
+  // Identical BY CONSTRUCTION — one STAKE_OFFICER_PERMISSIONS constant, not three literals, the
+  // same move BISHOPRIC_PERMISSIONS makes. Asserted anyway, so splitting them later is a failure
+  // rather than a quiet divergence.
+  it("resolves all three stake roles identically for every permission", () => {
+    for (const permission of PERMISSIONS) {
+      const answers = STAKE_ROLE_LIST.map((role) =>
+        can(sessionUser(role), permission, ROLE_PERMISSIONS),
+      );
+      expect(new Set(answers).size, `stake roles disagree about "${permission}"`).toBe(1);
+    }
+  });
+
+  // A STAKE OFFICER REACHES NOTHING IN THIS APP — decided by the user 2026-09-21, reversing a
+  // list that stood for one day and granted eleven `*.view` permissions across the roster,
+  // visits, youth activities, the program and agendas.
+  //
+  // WLT is a WARD's tool. A ward's roster, its visit reports and its youth are that ward's own
+  // stewardship, and a stake officer reading them is not a smaller version of the right thing.
+  // What is intended instead — a read-only view of the ONE meeting's agenda they are attending,
+  // plus adding to that meeting's prayer roll — is a purpose-built surface, not a permission
+  // list, and it is not built. Asserted over every permission rather than spot-checked, so
+  // granting one back is a deliberate act that fails here first.
+  it("reaches nothing at all, across every permission there is", () => {
+    for (const role of STAKE_ROLE_LIST) {
+      expect(ROLE_PERMISSIONS[role], `"${role}" should hold nothing`).toEqual([]);
+
+      for (const permission of PERMISSIONS) {
+        expect(
+          can(sessionUser(role), permission, ROLE_PERMISSIONS),
+          `"${role}" should not hold "${permission}"`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  // The trap this guards: `agendas.view` is the one permission that looks like it would implement
+  // the intended read-only agenda view, and it would not — it hands over every agenda the ward
+  // has ever published, not the single meeting the officer is attending.
+  it("does not hold agendas.view, which is not the agenda view that was asked for", () => {
+    for (const role of STAKE_ROLE_LIST) {
+      expect(can(sessionUser(role), "agendas.view", ROLE_PERMISSIONS)).toBe(false);
+    }
+  });
+});
+
+describe("super_admin", () => {
+  // CLAUDE.md §7 says super admin "bypasses the access matrix". Granting the whole list IS that,
+  // through the one mechanism the app already has, rather than a second code path beside can().
+  it("holds every permission there is", () => {
+    for (const permission of PERMISSIONS) {
+      expect(
+        can(sessionUser("super_admin"), permission, ROLE_PERMISSIONS),
+        `super_admin is missing "${permission}"`,
+      ).toBe(true);
+    }
+  });
+
+  // A WARD MUST NOT BE ABLE TO DISABLE THE APP-WIDE ADMINISTRATOR WHO IS THERE TO HELP IT. This
+  // is NON_OVERRIDABLE_PERMISSIONS' argument one level up: that constant locks which permissions
+  // a ward may move, and this locks a whole ROLE, because super_admin holds every permission and
+  // removing them one at a time reaches the same place.
+  it("ignores a ward's attempt to narrow it", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const resolved = mergeRoleAccess({
+      super_admin: { remove: ["roster.view", "visits.view"] },
+    });
+
+    expect(sorted(resolved.super_admin)).toEqual(sorted(ROLE_PERMISSIONS.super_admin));
+  });
+
+  it("warns naming the role it refused to change", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    mergeRoleAccess({ super_admin: { remove: ["roster.view"] } });
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("super_admin"));
+  });
+
+  // The rest of a delta still applies. Locking the role must not discard a ward's valid
+  // configuration for its own leaders.
+  it("leaves a sibling role's delta alone", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const resolved = mergeRoleAccess({
+      super_admin: { remove: ["roster.view"] },
+      music_coordinator: { remove: ["music.manage"] },
+    });
+
+    expect(sorted(resolved.super_admin)).toEqual(sorted(ROLE_PERMISSIONS.super_admin));
+    expect(can(sessionUser("music_coordinator"), "music.manage", resolved)).toBe(false);
+  });
+});
+
+describe("resource_center_specialist", () => {
+  // EMPTY ON PURPOSE. WLT has no resource-centre module for this role to reach, and guessing a
+  // grant is how a role comes to hold a permission nobody chose. proto-d decides what it gets
+  // when somebody can say what it does — at which point this assertion is the thing to change
+  // deliberately.
+  it("holds nothing at all, deliberately", () => {
+    expect(ROLE_PERMISSIONS.resource_center_specialist).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ONE LIST, THREE COPIES — read from disk rather than trusted
+// ---------------------------------------------------------------------------
+//
+// `users.role` and `invites.role` carry the role list as CHECK constraints, and ROLES carries it
+// in TypeScript. They drift, and the drift is silent: the database accepts a value the union
+// rejects, and lib/auth/session.ts then throws on a row nobody can fix from inside the app.
+// Migration 002's own comment warns about exactly this — which is a rule stated beside the thing
+// it governs, and therefore not a rule that is kept. This is that comment, enforced, the way
+// tests/db/notification-triggers-seed.test.ts is for the trigger keys.
+//
+// It reads migration 065 for the two named CHECKs, because that is the file that DEFINES both,
+// and migration 068 for the inline one on `ward_role_assignments.role`. When a later migration
+// widens any of them, point this at that file in the same commit.
+//
+// ⚠️ THERE ARE NOW THREE COPIES, NOT TWO. Migration 068 added the calling's own CHECK, and from
+// migration 070 on IT is the one the session actually reads — so a role present in `users` and
+// missing from `ward_role_assignments` would be a role the app can be given and can never act
+// under. `notification-trigger-drift` (ITER-023) is one list in three places, all disagreeing,
+// and its damage was silent; this is the same shape caught before it can happen.
+describe("ROLES matches the database CHECK constraints", () => {
+  const UNIT_HIERARCHY_PATH = path.resolve(
+    process.cwd(),
+    "supabase/migrations/065_unit_hierarchy.sql",
+  );
+
+  const CALLINGS_PATH = path.resolve(
+    process.cwd(),
+    "supabase/migrations/068_ward_role_assignments.sql",
+  );
+
+  // A role every source has carried since Foundation. Its presence proves the parser actually
+  // parsed something — a regex that matched nothing would make the comparisons below pass on two
+  // empty arrays, which is the one way this could ship green and useless.
+  const ANCHOR_ROLE = "bishop";
+
+  function rolesFromList(source: string, pattern: RegExp, label: string): string[] {
+    const match = pattern.exec(source);
+    if (!match) {
+      throw new Error(
+        `Could not find ${label}. If a later migration redefines it, point this test at that file.`,
+      );
+    }
+    return [...match[1].matchAll(/'([a-z_]+)'/g)].map((role) => role[1]).sort();
+  }
+
+  function rolesFromCheck(constraintName: string): string[] {
+    return rolesFromList(
+      readFileSync(UNIT_HIERARCHY_PATH, "utf8"),
+      new RegExp(`add constraint ${constraintName} check \\(\\s*role in \\(([^)]*)\\)`, "i"),
+      `"${constraintName}" in 065_unit_hierarchy.sql`,
+    );
+  }
+
+  it("matches users_role_check exactly", () => {
+    const fromSql = rolesFromCheck("users_role_check");
+
+    expect(fromSql).toContain(ANCHOR_ROLE);
+    expect(fromSql).toEqual([...ROLES].sort());
+  });
+
+  it("matches invites_role_check exactly", () => {
+    const fromSql = rolesFromCheck("invites_role_check");
+
+    expect(fromSql).toContain(ANCHOR_ROLE);
+    expect(fromSql).toEqual([...ROLES].sort());
+  });
+
+  // THE THIRD COPY. It is declared inline in the CREATE TABLE rather than as a named constraint,
+  // so it is matched on the column definition instead — `role text not null check (role in (…))`.
+  it("matches the ward_role_assignments.role CHECK exactly", () => {
+    const fromSql = rolesFromList(
+      readFileSync(CALLINGS_PATH, "utf8"),
+      /role\s+text not null check \(\s*role in \(([^)]*)\)/i,
+      "the inline role CHECK in 068_ward_role_assignments.sql",
+    );
+
+    expect(fromSql).toContain(ANCHOR_ROLE);
+    expect(fromSql).toEqual([...ROLES].sort());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// INVITABLE_ROLES
+// ---------------------------------------------------------------------------
+
+describe("INVITABLE_ROLES", () => {
+  // THE SLICE IS NOT INVISIBLE WITHOUT THIS. INVITABLE_ROLES used to be "everything but
+  // sacrament_manager", so all five new roles would have appeared in the admin invite dropdown
+  // the moment they were added — a visible behaviour change in a slice whose whole requirement
+  // is zero visible change.
+  it("excludes the five roles a ward has no standing to hand out", () => {
+    for (const role of [
+      "sacrament_manager",
+      "stake_president",
+      "stake_counselor",
+      "stake_secretary",
+      "super_admin",
+    ] as const) {
+      expect(INVITABLE_ROLES, `"${role}" must not be invitable`).not.toContain(role);
+    }
+  });
+
+  // Not excluded: an ordinary ward-scoped calling that simply has no module to reach yet.
+  it("still offers resource_center_specialist", () => {
+    expect(INVITABLE_ROLES).toContain("resource_center_specialist");
+  });
+
+  // updateUserSchema is the OTHER half of the friction: the schema refuses the value, so a
+  // hand-rolled PATCH is a 400 rather than a promotion to app-wide administrator.
+  it("is matched by the admin role-change schema refusing super_admin", () => {
+    expect(updateUserSchema.safeParse({ role: "super_admin" }).success).toBe(false);
+    expect(updateUserSchema.safeParse({ role: "ward_secretary" }).success).toBe(true);
   });
 });

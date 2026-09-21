@@ -61,6 +61,31 @@ export const TEST_EMAIL_DOMAIN = "harness.wardleadershiptools.test";
 // fails for any PIN under six characters — a confusing failure a long way from its cause.
 export const TEST_YOUTH_EMAIL_DOMAIN = `youth.${TEST_WARD_ID}.invalid`;
 
+// ---------------------------------------------------------------------------
+// The second ward, and the unit hierarchy above both (migration 065)
+// ---------------------------------------------------------------------------
+//
+// THE HARNESS HAD EXACTLY ONE WARD AND THAT WAS RIGHT UNTIL THE WARD SWITCH EXISTED. Proving a
+// stake officer can act inside a ward they do not belong to needs a ward they do not belong to,
+// with real data in it — so there is now a second, and cleanUp.ts deletes it by id beside the
+// first. It is NOT a general second ward for other scenarios to spread into: everything outside
+// scenario 064 still belongs in TEST_WARD_ID.
+//
+// There is no UI anywhere for creating a stake or an assignment until proto-d, so this state
+// cannot be reached by hand at all. Seeding is the whole value of scenario 064.
+export const TEST_SECOND_WARD_ID = "11111111-1111-4111-8111-111111111112";
+
+export const TEST_STAKE_UNIT_ID = "11111111-1111-4111-8111-1111111111b1";
+export const TEST_WARD_UNIT_ID = "11111111-1111-4111-8111-1111111111b2";
+export const TEST_SECOND_WARD_UNIT_ID = "11111111-1111-4111-8111-1111111111b3";
+
+// The second ward's own organizations. A visiting officer must find real org-scoped rows over
+// there, not an empty ward.
+export const TEST_SECOND_WARD_ORG_IDS = {
+  eldersQuorum: "11111111-1111-4111-8111-1111111111c1",
+  youngMen: "11111111-1111-4111-8111-1111111111c2",
+} as const;
+
 // The Development Ward from supabase/seed/ward.sql. Named here only so the guard in
 // cleanUp.ts can prove it is never the delete target.
 export const DEVELOPMENT_WARD_ID = "00000000-0000-4000-8000-000000000001";
@@ -215,6 +240,160 @@ export async function ensureTestWard(options: WardOptions = {}): Promise<string>
 }
 
 // ============================================================================
+// Units, the second ward, and unit assignments (migration 065)
+// ============================================================================
+
+// Puts a STAKE above the harness ward, and optionally above the second ward too.
+//
+// `units` is deliberately ward-less (CLAUDE.md rule 1's third exception), so these rows do NOT
+// cascade when a ward is deleted — the foreign key points the other way, wards.unit_id → units.id.
+// cleanUp.ts deletes them explicitly, after the wards.
+//
+// CALLING THIS CHANGES WHAT THE APP DOES, so an ordinary scenario should not: a ward with a stake
+// above it is a ward somebody could be assigned over. Scenario 065 proves the opposite state —
+// one ward, no parent — which is what migration 065's backfill actually produces for every
+// existing ward, and it calls ensureWardUnit() instead.
+export async function ensureTestUnits(
+  options: { includeSecondWard?: boolean } = {},
+): Promise<void> {
+  const supabase = getAdminClient();
+
+  const units: Array<Record<string, unknown>> = [
+    { id: TEST_STAKE_UNIT_ID, type: "stake", name: "Harness Test Stake", parent_id: null },
+    {
+      id: TEST_WARD_UNIT_ID,
+      type: "ward",
+      name: "Harness Test Ward unit",
+      parent_id: TEST_STAKE_UNIT_ID,
+    },
+  ];
+
+  if (options.includeSecondWard) {
+    units.push({
+      id: TEST_SECOND_WARD_UNIT_ID,
+      type: "ward",
+      name: "Harness Second Ward unit",
+      parent_id: TEST_STAKE_UNIT_ID,
+    });
+  }
+
+  const { error } = await supabase.from("units").upsert(units, { onConflict: "id" });
+  if (error) throw new Error(`Could not create the test units: ${error.message}`);
+
+  const { error: linkError } = await supabase
+    .from("wards")
+    .update({ unit_id: TEST_WARD_UNIT_ID })
+    .eq("id", TEST_WARD_ID);
+  if (linkError) {
+    throw new Error(`Could not link the test ward to its unit: ${linkError.message}`);
+  }
+
+  if (options.includeSecondWard) {
+    const { error: secondLinkError } = await supabase
+      .from("wards")
+      .update({ unit_id: TEST_SECOND_WARD_UNIT_ID })
+      .eq("id", TEST_SECOND_WARD_ID);
+    if (secondLinkError) {
+      throw new Error(
+        `Could not link the second ward to its unit: ${secondLinkError.message}`,
+      );
+    }
+  }
+}
+
+// ONE WARD UNIT, NO PARENT — exactly what migration 065's backfill produces for every ward that
+// already existed, and therefore the state every real ward is in today. A ward in this state
+// cannot be switched into by anybody (can_act_in_ward walks wards.unit_id → parent_id and finds
+// nothing above it), which is what scenario 065 walks.
+export async function ensureWardUnit(): Promise<void> {
+  const supabase = getAdminClient();
+
+  const { error } = await supabase.from("units").upsert(
+    [{ id: TEST_WARD_UNIT_ID, type: "ward", name: "Harness Test Ward unit", parent_id: null }],
+    { onConflict: "id" },
+  );
+  if (error) throw new Error(`Could not create the ward unit: ${error.message}`);
+
+  const { error: linkError } = await supabase
+    .from("wards")
+    .update({ unit_id: TEST_WARD_UNIT_ID })
+    .eq("id", TEST_WARD_ID);
+  if (linkError) {
+    throw new Error(`Could not link the test ward to its unit: ${linkError.message}`);
+  }
+}
+
+export async function ensureSecondTestWard(
+  options: { name?: string; timezone?: string } = {},
+): Promise<string> {
+  const supabase = getAdminClient();
+
+  const { error: wardError } = await supabase.from("wards").upsert(
+    {
+      id: TEST_SECOND_WARD_ID,
+      name: options.name ?? "Harness Second Ward",
+      settings: {
+        cross_org_visibility: false,
+        timezone: options.timezone ?? "America/Denver",
+      },
+    },
+    { onConflict: "id" },
+  );
+  if (wardError) throw new Error(`Could not create the second ward: ${wardError.message}`);
+
+  const { error: orgError } = await supabase.from("organizations").upsert(
+    [
+      {
+        id: TEST_SECOND_WARD_ORG_IDS.eldersQuorum,
+        ward_id: TEST_SECOND_WARD_ID,
+        name: "Elders Quorum",
+        type: "elders_quorum",
+      },
+      {
+        id: TEST_SECOND_WARD_ORG_IDS.youngMen,
+        ward_id: TEST_SECOND_WARD_ID,
+        name: "Young Men",
+        type: "young_men",
+      },
+    ],
+    { onConflict: "id" },
+  );
+  if (orgError) {
+    throw new Error(`Could not create the second ward's organizations: ${orgError.message}`);
+  }
+
+  return TEST_SECOND_WARD_ID;
+}
+
+// `unitId: null` means EVERY unit, which the unit_assignments_scope CHECK permits only for
+// super_admin (migration 065b). There is deliberately no INSERT policy on this table, so this
+// only ever works through the service-role client — which is what the harness uses, and what
+// proto-d's screen will use.
+export async function createUnitAssignment(options: {
+  userId: string;
+  role: "stake_president" | "stake_counselor" | "stake_secretary" | "super_admin";
+  unitId?: string | null;
+  counselorPosition?: 1 | 2;
+}): Promise<void> {
+  const supabase = getAdminClient();
+
+  const { error } = await supabase.from("unit_assignments").upsert(
+    {
+      id: testUuid(`unit-assignment:${options.userId}:${options.role}`),
+      user_id: options.userId,
+      unit_id: options.unitId ?? null,
+      role: options.role,
+      counselor_position: options.counselorPosition ?? null,
+    },
+    { onConflict: "id" },
+  );
+
+  if (error) {
+    throw new Error(`Could not create the unit assignment: ${error.message}`);
+  }
+}
+
+// ============================================================================
 // Users
 // ============================================================================
 
@@ -236,13 +415,57 @@ export type CreateUserOptions = {
   lastName?: string;
   username?: string;
   isActive?: boolean;
+  // THE USER'S HOME WARD — `users.ward_id`, which a ward switch never changes (migration 065).
+  // Defaults to the harness ward; only scenario 064 has a reason to say otherwise, and it needs
+  // a bishop living in the ward the stake president visits.
+  //
+  // `org` is resolved against WHICHEVER ward this names, so a second-ward user cannot
+  // accidentally be given a first-ward organization — which the composite foreign key
+  // (org_id, ward_id) would refuse anyway, a long way from its cause.
+  ward?: "primary" | "second";
+  // A SECOND REAL CALLING, IN THE OTHER WARD (migration 068). Not a visitor and not a reduced
+  // tier: this person is on that ward's roster with that ward's role, and carries exactly the
+  // access that role carries there.
+  //
+  // Its role and organization are independent of the first calling's, because the case the model
+  // turns on is somebody who is one thing in ward 1 and another thing in ward 2. Scenario 066 is
+  // the only user of it — there is no UI for assigning a second calling until proto-d, so seeding
+  // is the only way to reach the state.
+  secondCalling?: {
+    ward: "primary" | "second";
+    role: Role;
+    org?: TestOrgKey;
+    counselorPosition?: 1 | 2;
+  };
 };
+
+type SecondWardOrgKey = keyof typeof TEST_SECOND_WARD_ORG_IDS;
 
 export async function createTestUser(options: CreateUserOptions): Promise<TestUser> {
   const supabase = getAdminClient();
   const email = testEmail(options.handle);
   const password = testPassword();
-  const orgId = options.org ? TEST_ORG_IDS[options.org] : null;
+
+  const inSecondWard = options.ward === "second";
+  const wardId = inSecondWard ? TEST_SECOND_WARD_ID : TEST_WARD_ID;
+
+  let orgId: string | null = null;
+  if (options.org) {
+    if (inSecondWard) {
+      const secondWardOrgId =
+        TEST_SECOND_WARD_ORG_IDS[options.org as SecondWardOrgKey] ?? undefined;
+      if (!secondWardOrgId) {
+        throw new Error(
+          `The second ward has no "${options.org}" organization. It carries only ` +
+            `${Object.keys(TEST_SECOND_WARD_ORG_IDS).join(" and ")} — add it to ` +
+            "TEST_SECOND_WARD_ORG_IDS and ensureSecondTestWard() if a scenario needs more.",
+        );
+      }
+      orgId = secondWardOrgId;
+    } else {
+      orgId = TEST_ORG_IDS[options.org];
+    }
+  }
 
   const { data: existing } = await supabase.auth.admin.listUsers({ perPage: 1000 });
   const alreadyThere = existing?.users.find((user) => user.email === email);
@@ -271,17 +494,18 @@ export async function createTestUser(options: CreateUserOptions): Promise<TestUs
     userId = data.user.id;
   }
 
+  // `role`, `org_id` and `counselor_position` ARE NOT WRITTEN HERE. They belong to the CALLING
+  // (migration 068), and migration 071 drops all three columns — the app stopped writing them in
+  // the same change, so a harness that still did would seed a state no real account can be in.
+  // 068d dropped NOT NULL off `users.role` to make this possible.
   const { error: rowError } = await supabase.from("users").upsert(
     {
       id: userId,
-      ward_id: TEST_WARD_ID,
+      ward_id: wardId,
       first_name: options.firstName ?? options.handle,
       last_name: options.lastName ?? "Harness",
       email,
       username: options.username ?? null,
-      role: options.role,
-      org_id: orgId,
-      counselor_position: options.counselorPosition ?? null,
       is_active: options.isActive ?? true,
     },
     { onConflict: "id" },
@@ -291,7 +515,76 @@ export async function createTestUser(options: CreateUserOptions): Promise<TestUs
     throw new Error(`Could not create the users row for ${email}: ${rowError.message}`);
   }
 
+  await upsertCalling({
+    userId,
+    wardId,
+    role: options.role,
+    orgId,
+    counselorPosition: options.counselorPosition ?? null,
+  });
+
+  if (options.secondCalling) {
+    const secondWardId =
+      options.secondCalling.ward === "second" ? TEST_SECOND_WARD_ID : TEST_WARD_ID;
+    const secondOrgId = options.secondCalling.org
+      ? options.secondCalling.ward === "second"
+        ? (TEST_SECOND_WARD_ORG_IDS[options.secondCalling.org as SecondWardOrgKey] ?? null)
+        : TEST_ORG_IDS[options.secondCalling.org]
+      : null;
+
+    if (options.secondCalling.org && secondOrgId === null) {
+      throw new Error(
+        `The second ward has no "${options.secondCalling.org}" organization. It carries only ` +
+          `${Object.keys(TEST_SECOND_WARD_ORG_IDS).join(" and ")} — add it to ` +
+          "TEST_SECOND_WARD_ORG_IDS and ensureSecondTestWard() if a scenario needs more.",
+      );
+    }
+
+    await upsertCalling({
+      userId,
+      wardId: secondWardId,
+      role: options.secondCalling.role,
+      orgId: secondOrgId,
+      counselorPosition: options.secondCalling.counselorPosition ?? null,
+    });
+  }
+
   return { id: userId, handle: options.handle, email, password, role: options.role, orgId };
+}
+
+// A CALLING: this person holds this role, in this ward, in this organization (migration 068).
+//
+// Re-seeding must be idempotent, and `ward_role_assignments_one_per_ward` is a PARTIAL unique
+// index (`where is_active`), which PostgREST cannot use as an `onConflict` target. So the id is
+// derived from (user, ward) through testUuid() — the same per-run determinism every other factory
+// here uses — and the upsert conflicts on the primary key instead.
+async function upsertCalling(options: {
+  userId: string;
+  wardId: string;
+  role: Role;
+  orgId: string | null;
+  counselorPosition: 1 | 2 | null;
+}): Promise<void> {
+  const supabase = getAdminClient();
+
+  const { error } = await supabase.from("ward_role_assignments").upsert(
+    {
+      id: testUuid(`calling:${options.userId}:${options.wardId}`),
+      user_id: options.userId,
+      ward_id: options.wardId,
+      role: options.role,
+      org_id: options.orgId,
+      counselor_position: options.counselorPosition,
+      is_active: true,
+    },
+    { onConflict: "id" },
+  );
+
+  if (error) {
+    throw new Error(
+      `Could not create the calling for ${options.userId} in ward ${options.wardId}: ${error.message}`,
+    );
+  }
 }
 
 export type TestYouthAccount = {
@@ -358,7 +651,8 @@ export async function createYouthAccount(
   }
 
   // email stays null, matching createYouthAccount() in lib/auth/youthAccounts.ts: the
-  // synthetic address lives in auth.users only.
+  // synthetic address lives in auth.users only. `role` is not written here for the same reason it
+  // is not written there — a youth account holds a CALLING like everybody else (migration 068).
   const { error: rowError } = await supabase.from("users").upsert(
     {
       id: userId,
@@ -367,9 +661,6 @@ export async function createYouthAccount(
       last_name: options.lastName ?? "Harness",
       email: null,
       username,
-      role: "sacrament_manager",
-      org_id: null,
-      counselor_position: null,
       is_active: options.isActive ?? true,
     },
     { onConflict: "id" },
@@ -380,6 +671,14 @@ export async function createYouthAccount(
       `Could not create the users row for ${username}: ${rowError.message}`,
     );
   }
+
+  await upsertCalling({
+    userId,
+    wardId: TEST_WARD_ID,
+    role: "sacrament_manager",
+    orgId: null,
+    counselorPosition: null,
+  });
 
   return { id: userId, username, pin: options.pin };
 }

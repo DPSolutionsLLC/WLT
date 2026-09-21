@@ -54,8 +54,20 @@ describe("getSessionUser", () => {
 
     expect(snakeCaseKeys).toEqual([]);
     expect(Object.keys(user ?? {}).sort()).toEqual([
+      // `wardId` is the EFFECTIVE ward — the one this session is acting in, which is what
+      // current_ward_id() returns and therefore what every RLS policy compares against.
+      // `homeWardId` is the old meaning of `wardId`, under its new name.
+      //
+      // `callingId` REPLACES `isVisitingWard` (migration 070). There is no visitor to flag: a
+      // person holds a real calling in each ward they reach, so the useful fact is WHICH CALLING
+      // this session is acting under rather than whether they are away from home. `role`, `orgId`
+      // and `counselorPosition` are that calling's, and all of them come from session_context()
+      // rather than being recomputed here.
+      "activeWardId",
+      "callingId",
       "counselorPosition",
       "firstName",
+      "homeWardId",
       "id",
       "isActive",
       "lastName",
@@ -65,6 +77,27 @@ describe("getSessionUser", () => {
       "username",
       "wardId",
     ]);
+  });
+
+  // At home, all three agree — which is the state every user in every existing ward is in, and
+  // what makes migrations 068–070 invisible to them.
+  it("reports a leader with one calling as being in their own ward", async () => {
+    const user = await getSessionUser(eqPresidentClient);
+
+    expect(user?.homeWardId).toBe(fixtures.wardAId);
+    expect(user?.wardId).toBe(user?.homeWardId);
+    expect(user?.activeWardId).toBeNull();
+  });
+
+  // THE ROLE COMES FROM THE CALLING, NOT FROM THE `users` ROW (migration 070b), and after
+  // migration 071 there is no column on `users` it could have come from. A non-null callingId is
+  // what proves session_context() resolved one rather than the app defaulting to something.
+  it("carries the id of the calling it is acting under", async () => {
+    const user = await getSessionUser(eqPresidentClient);
+
+    expect(user?.callingId).toBeTruthy();
+    expect(user?.role).toBe("org_president");
+    expect(user?.orgId).toBe(fixtures.eldersQuorumId);
   });
 
   it("defaults the theme preference to system", async () => {

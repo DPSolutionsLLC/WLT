@@ -121,8 +121,14 @@ message drafting and `"high"` for topic/scripture generation.
 These override convenience. Violating one is a bug, not a style preference.
 
 1. **Every table has `ward_id`.** Every query filters on it. Every insert sets it.
-   No exceptions — not even for "single ward" tables like `hymns` (that one is the
-   sole exception, documented in the schema).
+   There are **four** documented exceptions and no others: `wards` (it *is* the ward, keyed by
+   `id`), `hymns` (one shared corpus), and — since migration 065 — `units` and
+   `unit_assignments`. **A unit is not inside a ward:** a ward *is* a unit and a stake sits
+   *above* wards, so the only honest `ward_id` for a stake row is null, which this rule exists
+   to forbid. **A stake assignment has no ward** either — a `ward_id` there would have to name
+   one of the wards under the stake, arbitrarily, and every policy reading it would be wrong for
+   all the others. `tests/rls/ward-isolation.test.ts` asserts the **exact** list, so a fifth is
+   a deliberate act rather than a table that quietly joined a skip list.
 2. **RLS is the security boundary, not the API route.** A route that forgets a check
    must still be safe because the policy blocked it. Write the policy first, then the route.
 3. **No AI output reaches a human or a database row without explicit approval.**
@@ -272,19 +278,152 @@ shape that anticipates them.
 duplicated per unit. An assignment says "this person holds this role *in this ward*", which is
 also what lets somebody hold different callings in different wards.
 
-**A ward switch, not cross-ward policies.** `current_ward_id()` is one `security definer`
-function behind all 173 of its references; it becomes
-`coalesce(users.active_ward_id, users.ward_id)` and **the 131 policies do not move**. A stake
-officer reaches another ward by an *authorized switch*, after which every existing policy is
-already correct. `current_org_id()` and `is_bishopric()` need the same treatment and nothing
-else does.
+> **That sentence is the model, and it is now BUILT — migrations 068–071, 2026-09-21.** The first
+> attempt (`proto-c`, migration 066) shipped a *visiting officer* instead — one person, one
+> `users` row, one role, borrowing another ward under a reduced permission list. It was corrected
+> the same day. `ward_role_assignments` is the source of truth for what role somebody holds, in
+> which ward, in which organization. See **Multi-ward access** below.
 
-**Genuinely new:** 4 stake roles, `super_admin`, and 2 specialists. Super admin bypasses the
-access matrix, so assigning it needs more friction than an ordinary role, and **the last
-active super admin can never be deactivated**.
+**A ward switch, not cross-ward policies.** `current_ward_id()` is one `security definer`
+function behind all 173 of its references. A switch selects which of the person's callings is
+active, after which every existing policy is already correct — and **the 131 policies did not
+move**, which migrations 068–070 proved by changing five function bodies, one policy on `users`,
+and nothing else. `current_org_id()`, `current_user_role()` and `is_bishopric()` needed the same
+treatment and nothing else did.
+
+> Two corrections to the line above, both learned by building it, and both now applied. The plain
+> `coalesce(active_ward_id, ward_id)` this file used to specify is **wrong** — it authorizes a
+> switch once, at write time, forever; `current_ward_id()` **re-validates on every read**. And
+> `current_user_role()` belongs on that list: the role comes from the calling in the ward being
+> acted in, not from the person.
+
+**Genuinely new — FIVE role values landed, not the seven this said before. BUILT, migration
+065.** The arithmetic: the prototype's "4 stake roles" are `stake-president`,
+`stake-1st-counselor`, `stake-2nd-counselor` and `stake-secretary`, but `users.counselor_position`
+already collapses the two counselors exactly as it does for the bishopric — so **3** stake values,
+plus `super_admin`, plus `resource_center_specialist`. `sacrament-ordinance-coordinator` is marked
+**verify** in `plans/prototype/module-map.md` §4 against the existing `sacrament_manager` and is
+**deferred to P11**, which owns that module. Adding a role value nobody can assign is cheap;
+adding the wrong one is a migration to undo.
+
+Stake officers reach **NOTHING** (`STAKE_OFFICER_PERMISSIONS` is empty), and so does
+`resource_center_specialist`. Both hold role values that can be assigned and recognised and no
+access at all. See the multi-ward section below for what a stake officer is eventually meant to
+get, and why it is not a permission list.
+
+Super admin bypasses the access matrix, so assigning it needs more friction than an ordinary
+role: it is out of `INVITABLE_ROLES` **and** out of `updateUserSchema`'s role enum, so the
+ordinary path cannot reach it at all, and `NON_OVERRIDABLE_ROLES` stops a ward reconfiguring it.
+**The last active super admin can never be deactivated** (`countActiveSuperAdmins()`, counted
+**app-wide with no ward filter** — it is the one role that is not ward-scoped).
 
 **Anyone who belongs to one ward never sees the unit layer at all** — the same logic already
-applied to roles.
+applied to roles. `listSwitchableWards()` returns `[]` for somebody holding **one calling**,
+never their own ward alone, and the control renders off that list. Everybody holds a calling in
+their own ward, so `switchable_wards()` honestly returns one row for every ordinary leader in the
+app; turning a list of one into a list of none is what keeps a pointless switcher off their
+chrome bar. Scenario 065 is the cheap proof, and it should be re-walked after any change here.
+
+### Multi-ward access — THE MODEL. BUILT 2026-09-21, migrations 068–071
+
+**MULTI-WARD IS NOT "VISITING".** A person who needs access to more than one ward is **given a
+real calling in each ward**: they are on that ward's roster, tied to a role there, and they carry
+exactly the access that role carries in that ward. When acting in ward B they simply **are** a
+ward B leader. There is no visitor tier, no reduced-rights guest, and no cross-ward read.
+
+It may never be used. It was built now because retrofitting one person → many ward callings later
+is the overhaul with real breakage risk, and the shape was cheap to draw.
+
+**`ward_role_assignments` IS THE SOURCE OF TRUTH** for what role somebody holds, in which ward, in
+which organization — `user_id`, `ward_id`, `role`, `org_id`, `counselor_position`, `is_active`,
+backfilled 1:1 from `users` so migrations 068–070 were no-ops on the day they applied. A second
+`users` row per person is impossible: `users.id` **is** `auth.users.id`.
+
+**ONE ACTIVE CALLING PER WARD**, enforced by a partial unique index on `(user_id, ward_id) where
+is_active`. Several callings across wards, never two at once in one ward — `current_user_role()`
+would have two answers. A released calling keeps its row, which is what the partial index is for.
+
+**The 131 policies did not move**, and that is the whole design. They read `current_ward_id()`,
+`current_user_role()`, `current_org_id()` and `is_bishopric()`; migration 070 points those four at
+the active calling and every policy is already correct. What it changed beyond the functions:
+**one policy**, `users_ward_select`, which gained an arm admitting somebody who holds a calling in
+the ward being acted in — without it a cross-ward leader is silently MISSING from that ward's
+admin list, with no error anywhere.
+
+**Three things migration 066 got backwards, all reversed:** `current_user_role()` now reads the
+calling (the role belongs to the calling in that ward, not to the person); `current_org_id()`
+returns the person's real organization **in the ward they are acting in** rather than null; and
+`is_bishopric()` simply asks the active calling's role — `acting_in_home_ward()` is **dropped**,
+not left inert, because the whole visiting-officer apparatus was compensating for a role that did
+not follow the ward.
+
+**`can_act_in_ward()` asks ONE question: do you hold an active calling there** (joined to
+`users.is_active`, because a calling on a deactivated account authorizes nothing). Its
+`unit_assignments` arms are **gone**. A stake officer reaches nothing; a super admin's reach is
+`proto-d`'s to decide with the screen that grants it. The hierarchy is not consulted by a switch
+at all — `unit_ancestor_ids()` survives for `proto-d`'s screens and nothing else calls it.
+
+**FORTY-EIGHT COMPOSITE FOREIGN KEYS HAD TO BE NARROWED (migration 069), and this is the finding
+that made the phase large.** `(author, ward_id) → users (id, ward_id)` asserts that whoever wrote
+a row belongs to that row's ward. Under this model that is false, and it fails as SQLSTATE 23503 —
+a 500, not a refusal — so multi-ward could READ and not WRITE. Migration 067 found it on
+`audit_log`; 069 does the other forty-seven, catalog-driven, preserving each `on delete` action
+and each constraint name. **What is given up:** the database no longer proves an author belonged to
+the ward they wrote in, which is now legitimately false. **What still holds:** the author is a real
+user, and RLS still scopes every insert to `current_ward_id()` — the boundary that matters (rule
+2). `tests/db/user-author-fks.test.ts` fails if one ever comes back.
+
+**⚠️ AN AUTHOR IS NOT A SUBJECT, AND 069's SAFETY ARGUMENT ONLY COVERS THE FIRST.** That header
+says the narrowing is safe because "RLS still scopes every insert to `current_ward_id()`". True for
+an AUTHOR column, written from `auth.uid()`. **False for a SUBJECT column written from a request
+body** — `visit_participants.user_id` ("who went"), `sundays.conducting_user_id` ("who conducts"),
+`conducting_rotation.user_id` — where the composite key was the only thing checking the id
+belonged to the ward at all, and narrowing it turned a constraint violation into a silently
+accepted row naming somebody from another ward.
+**Every path writing a user id it did not resolve itself calls `findUsersOutsideWard()`**
+(`lib/callings/queries.ts`) and throws `InvalidInputError`, which is a 400 with a sentence rather
+than a 500. It asks about the CALLING, never `users.ward_id` — a counselor whose account lives
+elsewhere holds a real bishopric calling here and must stay selectable. **Add a new write of a
+user id and you must add this check with it.**
+
+**`users.ward_id` STAYS and means the HOME ward** — where the account was created, where a session
+lands with no switch, and what `current_ward_id()` falls back to. It is not privileged in any other
+way. `users.role`, `users.org_id` and `users.counselor_position` are **dropped by migration 071**,
+which is **held back until the slice-3 deploy is live** (`HELD_BACK_UNTIL_DEPLOYED` in
+`tests/db/migrations.test.ts` names it and its pair). Migration 068d dropped `NOT NULL` off
+`users.role` so every account-creating path could stop writing it before it disappears.
+
+**A CALLING'S `is_active` AND AN ACCOUNT'S `is_active` ARE SEPARATE FACTS, deliberately.**
+Deactivating an account does **not** release its callings, and must not start to: reactivating
+would have to revive them, and could not tell a calling switched off with the account from one that
+was genuinely released. Nothing is lost — `can_act_in_ward()` joins both, the session is refused
+before any policy is reached, and every notification helper resolves recipients through the same
+join.
+
+**EVERY "who holds this role in this ward" QUERY READS CALLINGS.** That is four notification
+helpers (`emitNotification`, `notifyOtherBishopric`, `notifyOrgLeadership`, `notifyWardCouncilFlag`
+— the plan named three and the fourth was found), `listBishopricUsers`/`listOrgLeadershipUsers`,
+the admin ward list, the youth account list, and the last-bishop guard. **Miss one and it is silent
+by construction**: `emitNotification` returns without an error when nobody matches, which is
+`notification-trigger-drift`'s actual damage. Change them together.
+
+**STAKE OFFICERS ARE A SEPARATE, LATER THING, and have no app access whatever.** The intended
+surface is narrow and purpose-built: a stake leader attending a ward's meeting opens a
+**read-only view of THAT MEETING'S agenda**, and may **add to that meeting's prayer roll**.
+Nothing else. **Do not approximate it with `agendas.view`** — that grants every agenda the ward
+has ever published, which is a different and much larger promise.
+
+`SessionUser.wardId` means **the ward being acted in**, read from `session_context()` and never
+recomputed in TypeScript — if the app and RLS disagreed about which ward a session is in, the page
+frame would name one ward around another's rows. `homeWardId` is the old meaning of `wardId`, under
+its new name. **`isVisitingWard` is GONE** and `callingId` replaces it: there is no visitor to flag,
+so the useful fact is which calling you are acting under. `role`, `orgId` and `counselorPosition`
+are that calling's, all from the same round trip.
+
+**`resolveSessionWardId()` in `lib/supabase/scoped.ts` reads `session_context()`, not
+`users.ward_id`.** It is the second place that answers "which ward", and reading the home ward
+there would filter every `scopedQuery` to the wrong place the moment somebody acts under a second
+calling — an empty page with no error to explain it.
 
 ---
 

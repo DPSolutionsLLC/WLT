@@ -29,6 +29,14 @@ import type { SessionUser } from "@/types/domain";
 const YOUTH_SESSION_USER: SessionUser = {
   id: "00000000-0000-4000-8000-000000000000",
   wardId: "00000000-0000-4000-8000-000000000001",
+  // A session at HOME: the effective ward and the home ward are the same and
+  // nothing is switched. lib/auth/session.ts reads all of these from session_context().
+  homeWardId: "00000000-0000-4000-8000-000000000001",
+  activeWardId: null,
+  // The CALLING this session is acting under (migration 068). `role` and `orgId` below
+  // are ITS facts, not the person\'s — a fixed id is enough here because nothing in
+  // these tests reads it.
+  callingId: "00000000-0000-4000-8000-00000000ca11",
   role: "sacrament_manager",
   orgId: null,
   counselorPosition: null,

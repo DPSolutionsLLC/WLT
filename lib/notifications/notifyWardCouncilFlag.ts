@@ -74,11 +74,18 @@ export async function notifyWardCouncilFlag(
   try {
     const supabase = client ?? createServiceSupabaseClient();
 
+    // FROM CALLINGS, NOT FROM `users` — the ward's executive secretary is whoever holds that
+    // CALLING here (migration 068). Joined to `users.is_active` because a calling can be active
+    // on a deactivated account. THE PLAN FOR THIS SLICE NAMED ONLY THREE HELPERS AND THIS IS THE
+    // FOURTH: it resolves recipients by `(ward_id, role)` exactly as the others do, so leaving it
+    // behind would have delivered nothing to a cross-ward executive secretary while
+    // emitNotification returned without an error — `notification-trigger-drift` verbatim.
     const { data, error } = await supabase
-      .from("users")
-      .select("id")
+      .from("ward_role_assignments")
+      .select("user_id, users!user_id!inner(is_active)")
       .eq("ward_id", wardId)
       .eq("is_active", true)
+      .eq("users.is_active", true)
       .eq("role", AGENDA_OWNER_ROLE);
 
     if (error) {
@@ -90,7 +97,7 @@ export async function notifyWardCouncilFlag(
       return;
     }
 
-    const recipientUserIds = (data ?? []).map((row) => row.id);
+    const recipientUserIds = [...new Set((data ?? []).map((row) => row.user_id))];
 
     // A ward with no executive secretary gets no notification rather than a fallback to the
     // bishopric. Widening the audience is a product decision, and quietly is the wrong way to

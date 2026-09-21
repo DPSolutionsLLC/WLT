@@ -180,13 +180,24 @@ describe("invite lifecycle", () => {
 
     const { data } = await fixtures.service
       .from("users")
-      .select("ward_id, role")
+      .select("ward_id")
       .eq("id", result.userId)
       .maybeSingle();
 
     expect(data?.ward_id).toBe(fixtures.wardBId);
     expect(data?.ward_id).not.toBe(fixtures.wardAId);
-    expect(data?.role).toBe("org_secretary");
+
+    // The ROLE lives on the calling now (migration 068), and so does the ward that decides what
+    // this account can reach. Both come off the invite row, which is the control this asserts.
+    const { data: calling } = await fixtures.service
+      .from("ward_role_assignments")
+      .select("role, ward_id")
+      .eq("user_id", result.userId)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    expect(calling?.role).toBe("org_secretary");
+    expect(calling?.ward_id).toBe(fixtures.wardBId);
   });
 
   // Compensation one: the auth user was never created, so only the invite needs releasing.

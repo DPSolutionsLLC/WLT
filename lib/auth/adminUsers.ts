@@ -1,11 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { toRole } from "@/lib/callings/queries";
+import { updateCalling } from "@/lib/callings/writeCalling";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
+import { listUnitAssignments } from "@/lib/units/queries";
 import type { UpdateUserInput } from "@/lib/validation/adminUser";
 import type { Database } from "@/types/database";
 import {
   ORGANIZATION_TYPES,
-  ROLES,
   ROLE_LABELS,
   type OrganizationType,
   type Role,
@@ -48,20 +50,11 @@ export type UpdateWardUserResult =
 export const LAST_BISHOP_MESSAGE =
   "This is the only active bishop. Assign another bishop before changing this account.";
 
+export const LAST_SUPER_ADMIN_MESSAGE =
+  "This is the only active super admin. Assign another before changing this account.";
+
 function toCounselorPosition(value: number | null): 1 | 2 | null {
   return value === 1 || value === 2 ? value : null;
-}
-
-// A role the TypeScript union does not know means the CHECK constraint in migration 002 and
-// ROLES in types/domain.ts have drifted — the same reasoning as lib/auth/session.ts.
-function toRole(value: string): Role {
-  if (!(ROLES as readonly string[]).includes(value)) {
-    throw new Error(
-      `users.role holds "${value}", which is not a known role. The CHECK constraint in ` +
-        "migration 002 and ROLES in types/domain.ts have drifted.",
-    );
-  }
-  return value as Role;
 }
 
 // Takes a structural subset so both a SessionUser and a WardUser fit. SessionUser carries no
@@ -117,9 +110,22 @@ export async function listWardOrganizations(
   }));
 }
 
-// Reads through the CALLER's session client, not the service client: the ward-scoped SELECT
-// policy from migration 020 already scopes this correctly, and going through RLS is the point
-// (CLAUDE.md rule 2).
+// THE WARD'S LIST IS THE WARD'S CALLINGS, NOT THE ACCOUNTS THAT LIVE HERE.
+//
+// This read `users` filtered by `ward_id`, which answers "whose ACCOUNT belongs to this ward".
+// Under the calling model (migration 068) that is the wrong question, and getting it wrong is
+// invisible: a Relief Society president whose account lives in ward A holds a real calling in
+// ward B, and she would simply be MISSING from ward B's admin list — no error, no empty state, a
+// list that looks complete with a leader absent from it.
+//
+// So the list is built from the ward's ACTIVE CALLINGS, with `users!inner` supplying the person.
+// `role`, `org_id` and `counselor_position` come off the CALLING; `email`, `username`,
+// `is_active` and `created_at` come off the ACCOUNT. Migration 070d is what makes the join
+// readable — `users_ward_select` gained an arm admitting somebody who holds a calling in the ward
+// being acted in, precisely so this query returns them.
+//
+// Reads through the CALLER's session client, not the service client: RLS already scopes both
+// halves correctly, and going through it is the point (CLAUDE.md rule 2).
 //
 // The organization name is resolved with a second query rather than a PostgREST embed. The
 // foreign key is composite ((org_id, ward_id) → organizations (id, ward_id)) and the page needs
@@ -131,13 +137,12 @@ export async function listWardUsers(
   const supabase = client ?? (await createServerSupabaseClient());
 
   const { data, error } = await supabase
-    .from("users")
+    .from("ward_role_assignments")
     .select(
-      "id, first_name, last_name, email, username, role, org_id, counselor_position, is_active, created_at",
+      "user_id, role, org_id, counselor_position, users!user_id!inner(first_name, last_name, email, username, is_active, created_at)",
     )
     .eq("ward_id", wardId)
-    .order("last_name", { nullsFirst: false })
-    .order("first_name", { nullsFirst: false });
+    .eq("is_active", true);
 
   if (error) {
     console.error("Could not read the ward's users", { wardId, error: error.message });
@@ -149,21 +154,38 @@ export async function listWardUsers(
     organizations.map((organization) => [organization.id, organization.name]),
   );
 
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    firstName: row.first_name,
-    lastName: row.last_name,
-    email: row.email,
-    username: row.username,
-    role: toRole(row.role),
-    orgId: row.org_id,
-    organizationName: row.org_id ? (organizationNames.get(row.org_id) ?? null) : null,
-    counselorPosition: toCounselorPosition(row.counselor_position),
-    isActive: row.is_active,
-    createdAt: row.created_at,
-  }));
+  return (data ?? [])
+    .map((row) => ({
+      id: row.user_id,
+      firstName: row.users.first_name,
+      lastName: row.users.last_name,
+      email: row.users.email,
+      username: row.users.username,
+      role: toRole(row.role),
+      orgId: row.org_id,
+      organizationName: row.org_id ? (organizationNames.get(row.org_id) ?? null) : null,
+      counselorPosition: toCounselorPosition(row.counselor_position),
+      isActive: row.users.is_active,
+      createdAt: row.users.created_at,
+    }))
+    // Sorted here rather than in PostgREST: both name columns live on the embedded `users` row,
+    // and PostgREST cannot order parent rows by an embedded column. `localeCompare` on `?? ""`
+    // keeps a nameless account at the top rather than throwing, which is what `nullsFirst: false`
+    // used to do at the other end — the change of position is cosmetic and affects only rows with
+    // no surname at all.
+    .sort(
+      (left, right) =>
+        (left.lastName ?? "").localeCompare(right.lastName ?? "") ||
+        (left.firstName ?? "").localeCompare(right.firstName ?? ""),
+    );
 }
 
+// COUNTS CALLINGS, NOT ACCOUNTS, and joins the account's own `is_active`.
+//
+// Both halves matter. A bishop whose account lives in another ward still holds the bishop calling
+// HERE and must count, or the last-bishop guard fires on a ward that has one. And a calling stays
+// active on a deactivated account by design (lib/callings/writeCalling.ts), so without the join a
+// switched-off bishop would keep a ward from ever correcting itself.
 export async function countActiveBishops(
   wardId: string,
   client?: SupabaseClient<Database>,
@@ -171,11 +193,12 @@ export async function countActiveBishops(
   const supabase = client ?? (await createServerSupabaseClient());
 
   const { count, error } = await supabase
-    .from("users")
-    .select("id", { head: true, count: "exact" })
+    .from("ward_role_assignments")
+    .select("user_id, users!user_id!inner(is_active)", { head: true, count: "exact" })
     .eq("ward_id", wardId)
     .eq("role", "bishop")
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .eq("users.is_active", true);
 
   if (error) {
     console.error("Could not count the ward's active bishops", {
@@ -186,6 +209,41 @@ export async function countActiveBishops(
   }
 
   return count ?? 0;
+}
+
+// COUNTS ACROSS THE WHOLE APP, WITH NO WARD FILTER — and that is the one thing this guard must
+// not copy from countActiveBishops() above.
+//
+// `super_admin` is the only role in this schema that is not ward-scoped: the assignment lives in
+// `unit_assignments`, which has no ward_id at all (migration 065b). Adding `.eq("ward_id", …)`
+// would make the guard trivially bypassable — deactivate the last super admin from a ward they do
+// not belong to and the count comes back zero.
+//
+// It reads through the SERVICE-ROLE client, deliberately. `unit_assignments_select` (065f) admits
+// only your own rows unless you are a super admin yourself, so a bishopric member counting through
+// their own client would always see zero and the guard would never fire. Whether the app-wide
+// administrator may be removed is a fact about the APP, not about who is looking — the same
+// uniform-evaluability argument migration 060b's `activity_profile_followup_count` makes.
+export async function countActiveSuperAdmins(
+  client?: SupabaseClient<Database>,
+): Promise<number> {
+  const supabase = client ?? createServiceSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("unit_assignments")
+    .select("user_id, users!inner(is_active)")
+    .eq("role", "super_admin")
+    .eq("users.is_active", true);
+
+  if (error) {
+    console.error("Could not count the app's active super admins", { error: error.message });
+    throw new Error(`Could not count the app's active super admins: ${error.message}`);
+  }
+
+  // Distinct PEOPLE, not rows. `unit_assignments_unique` carries `nulls not distinct`, so one
+  // person cannot hold two super_admin rows today — but this guard must stay correct if that ever
+  // widens, and counting rows would let one person's two assignments read as two administrators.
+  return new Set((data ?? []).map((row) => row.user_id)).size;
 }
 
 function summariseChanges(
@@ -275,64 +333,111 @@ export async function updateWardUser(
     return { ok: false, message: LAST_BISHOP_MESSAGE };
   }
 
+  // Last-super-admin guard. THE APP must never be able to lock itself out of its own app-wide
+  // administrator, which is a strictly larger version of what the bishop guard protects.
+  //
+  // Only DEACTIVATION can reach it from here: `super_admin` is not a value updateUserSchema will
+  // accept (lib/validation/adminUser.ts), so `changes.role` can never move somebody OFF it
+  // through this path, and the ASSIGNMENT itself lives in `unit_assignments` and is removed by
+  // proto-d's own screen — which must call countActiveSuperAdmins() before deleting a row.
+  //
+  // Check-then-act, with the same trade-off accepted for the same reason as the bishop guard
+  // above: the recovery is a one-row service-role fix, and a database constraint on the count
+  // would block every legitimate transition.
+  if (changes.isActive === false && before.isActive) {
+    // Through the SERVICE-ROLE client for the same reason countActiveSuperAdmins() is:
+    // `unit_assignments_select` admits only the caller's OWN rows, so a bishopric member reading
+    // the target's assignments through their own client would always see none and the guard
+    // would never fire.
+    const assignments = await listUnitAssignments(targetUserId, createServiceSupabaseClient());
+    const isSuperAdmin = assignments.some((assignment) => assignment.role === "super_admin");
+
+    if (isSuperAdmin && (await countActiveSuperAdmins()) <= 1) {
+      return { ok: false, message: LAST_SUPER_ADMIN_MESSAGE };
+    }
+  }
+
   const changeSummaries = summariseChanges(before, changes, organizationNames);
   if (changeSummaries.length === 0) {
     return { ok: false, message: "Nothing changed." };
   }
 
-  // `users` has no UPDATE policy for other people's rows — only users_update_self (migration
-  // 019) — so this write MUST use the service-role client. That makes assertCan() in the route
-  // the effective boundary here rather than RLS. It is the one place in this plan where that is
-  // true, and it is why the permission check in the route cannot be skipped.
+  // Neither `users` nor `ward_role_assignments` has an UPDATE policy for other people's rows —
+  // only users_update_self (migration 019/066d), and migration 068c gives callings no write
+  // policy at all — so both writes below MUST use the service-role client. That makes assertCan()
+  // in the route the effective boundary here rather than RLS, and it is why the permission check
+  // in the route can never be skipped.
   const service = createServiceSupabaseClient();
 
-  const { data, error } = await service
-    .from("users")
-    .update({
-      ...(changes.role !== undefined ? { role: changes.role } : {}),
-      ...(changes.orgId !== undefined ? { org_id: changes.orgId } : {}),
-      ...(changes.counselorPosition !== undefined
-        ? { counselor_position: changes.counselorPosition }
-        : {}),
-      ...(changes.isActive !== undefined ? { is_active: changes.isActive } : {}),
-    })
-    .eq("id", targetUserId)
-    .eq("ward_id", wardId)
-    .select(
-      "id, first_name, last_name, email, username, role, org_id, counselor_position, is_active, created_at",
-    )
-    .maybeSingle();
+  // ---------------------------------------------------------------------------
+  // TWO WRITES, BECAUSE THERE ARE TWO SUBJECTS
+  // ---------------------------------------------------------------------------
+  // `role`, `orgId` and `counselorPosition` are facts about the CALLING IN THIS WARD. `isActive`
+  // is a fact about the ACCOUNT, which is app-wide: a person barred from the app is barred
+  // everywhere, and there is deliberately no path here that writes it per ward.
+  //
+  // Deactivating an account does NOT release its callings, and must not start to — see the header
+  // of lib/callings/writeCalling.ts for why reactivation cannot be got right if it does.
 
-  if (error) {
-    console.error("Could not update a ward user", {
-      wardId,
-      targetUserId,
-      error: error.message,
-    });
-    throw new Error(`Could not update the account: ${error.message}`);
+  const callingChanged =
+    changes.role !== undefined ||
+    changes.orgId !== undefined ||
+    changes.counselorPosition !== undefined;
+
+  if (callingChanged) {
+    const updated = await updateCalling(
+      {
+        userId: targetUserId,
+        wardId,
+        changes: {
+          ...(changes.role !== undefined ? { role: changes.role } : {}),
+          ...(changes.orgId !== undefined ? { orgId: changes.orgId } : {}),
+          ...(changes.counselorPosition !== undefined
+            ? { counselorPosition: changes.counselorPosition }
+            : {}),
+        },
+      },
+      service,
+    );
+
+    // A zero-row UPDATE: they hold no active calling in this ward. `before` was read through the
+    // caller's client a moment ago, so this is a race rather than a mistake — somebody released
+    // them in between — and it gets the same sentence a missing row gets rather than a fault.
+    if (!updated) {
+      return { ok: false, message: "That account is not in your ward." };
+    }
   }
 
-  if (!data) {
+  if (changes.isActive !== undefined) {
+    // NOT scoped by `ward_id`, deliberately, where the old version was. Under the calling model
+    // the target's `users.ward_id` may be another ward entirely, and a ward filter here would
+    // make a cross-ward leader impossible to deactivate from the ward that called them. The
+    // membership check is `before` above, which IS ward-scoped — by callings, which is the
+    // question the admin list asks.
+    const { error: accountError } = await service
+      .from("users")
+      .update({ is_active: changes.isActive })
+      .eq("id", targetUserId);
+
+    if (accountError) {
+      console.error("Could not update a ward user's account", {
+        wardId,
+        targetUserId,
+        error: accountError.message,
+      });
+      throw new Error(`Could not update the account: ${accountError.message}`);
+    }
+  }
+
+  // Re-read rather than assembled from `before` plus `changes`. A 200 describing a state the
+  // database is not in is the failure this catches, and it costs one query on an admin path.
+  const after = (await listWardUsers(wardId, readClient)).find(
+    (user) => user.id === targetUserId,
+  );
+
+  if (!after) {
     return { ok: false, message: "That account is not in your ward." };
   }
 
-  return {
-    ok: true,
-    user: {
-      id: data.id,
-      firstName: data.first_name,
-      lastName: data.last_name,
-      email: data.email,
-      username: data.username,
-      role: toRole(data.role),
-      orgId: data.org_id,
-      organizationName: data.org_id
-        ? (organizationNames.get(data.org_id) ?? null)
-        : null,
-      counselorPosition: toCounselorPosition(data.counselor_position),
-      isActive: data.is_active,
-      createdAt: data.created_at,
-    },
-    changeSummaries,
-  };
+  return { ok: true, user: after, changeSummaries };
 }

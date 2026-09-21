@@ -17,11 +17,40 @@ export const FIXTURE_EMAIL_PREFIX = "wlt-test";
 type WardKey = "A" | "B";
 type OrgKey = "eldersQuorum" | "reliefSociety" | "wardBOrg";
 
+type UnitKey = "stake" | "outsideStake";
+
+// A handle's `ward` is still their HOME ward — where their ACCOUNT lives. It is also where their
+// first calling is created, so for everybody with no `secondCalling` the two are the same thing
+// and nothing about a fixture changed.
+//
+// `unit: null` means an assignment over EVERY unit, which the unit_assignments_scope CHECK
+// permits only for `super_admin` (migration 065b).
+type UnitAssignmentSpec = {
+  role: "stake_president" | "stake_counselor" | "stake_secretary" | "super_admin";
+  unit: UnitKey | null;
+};
+
+// A SECOND REAL CALLING, IN A SECOND WARD (migration 068). Not a visitor and not a reduced tier:
+// this person is on that ward's roster with that ward's role, and carries exactly the access that
+// role carries there.
+//
+// Its `role` and `org` are deliberately independent of the first calling's — the case the whole
+// model turns on is somebody who is one thing in ward A and another thing in ward B, so a fixture
+// that copied the home role could not express the thing under test.
+type SecondCallingSpec = {
+  ward: WardKey;
+  role: Role;
+  org?: OrgKey;
+  counselorPosition?: 1 | 2;
+};
+
 type HandleSpec = {
   role: Role;
   ward: WardKey;
   org?: OrgKey;
   counselorPosition?: 1 | 2;
+  unitAssignment?: UnitAssignmentSpec;
+  secondCalling?: SecondCallingSpec;
 };
 
 // Keyed by handle rather than by role: ward A holds two org presidents in different
@@ -42,6 +71,46 @@ const HANDLE_SPECS = {
   sacramentManagerInactive: { role: "sacrament_manager", ward: "A" },
   wardBBishop: { role: "bishop", ward: "B" },
   wardBEqPresident: { role: "org_president", ward: "B", org: "wardBOrg" },
+  // Home ward A, assigned over the stake that is parent to BOTH ward units — so ward B is
+  // reachable by an authorized switch and ward A is reachable because it is already theirs.
+  stakePresident: {
+    role: "stake_president",
+    ward: "A",
+    unitAssignment: { role: "stake_president", unit: "stake" },
+  },
+  // Assigned over a SECOND stake that is parent to nothing. The negative case the phase turns on:
+  // holding a stake assignment is not the same as holding one over THIS ward.
+  outsideStakePresident: {
+    role: "stake_president",
+    ward: "A",
+    unitAssignment: { role: "stake_president", unit: "outsideStake" },
+  },
+  superAdmin: {
+    role: "super_admin",
+    ward: "A",
+    unitAssignment: { role: "super_admin", unit: null },
+  },
+  // THE MODEL, AS A FIXTURE. Relief Society president in ward A, ward secretary in ward B — a
+  // different role, a different organization and a different set of permissions in each, from one
+  // account. Every assertion in tests/rls/ward-callings*.test.ts is about this handle.
+  //
+  // The two callings disagree on purpose: `org_president` holds `visits.*` and no `agendas.*`,
+  // `ward_secretary` the reverse, so "which role is this session" has a visible answer rather
+  // than only a stored one.
+  twoCallings: {
+    role: "org_president",
+    ward: "A",
+    org: "reliefSociety",
+    secondCalling: { ward: "B", role: "ward_secretary" },
+  },
+  // The same shape with a BISHOP calling in ward B, so is_bishopric() can be asserted true and
+  // false for ONE PERSON depending only on which ward they are acting in. Ward A's calling is
+  // deliberately not bishopric — `wardBBishop` already covers a bishop who lives there.
+  twoCallingsBishopAway: {
+    role: "music_coordinator",
+    ward: "A",
+    secondCalling: { ward: "B", role: "bishop" },
+  },
 } as const satisfies Record<string, HandleSpec>;
 
 export type FixtureHandle = keyof typeof HANDLE_SPECS;
@@ -76,6 +145,13 @@ export type Fixtures = {
   service: SupabaseClient<Database>;
   wardAId: string;
   wardBId: string;
+  // The unit hierarchy (migration 065). `stakeUnitId` is the parent of BOTH ward units;
+  // `outsideStakeUnitId` is a second stake that is parent to nothing, which is what makes
+  // "holds a stake assignment" and "holds one over this ward" distinguishable in a test.
+  stakeUnitId: string;
+  outsideStakeUnitId: string;
+  wardAUnitId: string;
+  wardBUnitId: string;
   eldersQuorumId: string;
   reliefSocietyId: string;
   wardBOrgId: string;
@@ -111,6 +187,10 @@ export async function seedFixtures(
 
   const wardAId = randomUUID();
   const wardBId = randomUUID();
+  const stakeUnitId = randomUUID();
+  const outsideStakeUnitId = randomUUID();
+  const wardAUnitId = randomUUID();
+  const wardBUnitId = randomUUID();
   const eldersQuorumId = randomUUID();
   const reliefSocietyId = randomUUID();
   const wardBOrgId = randomUUID();
@@ -121,10 +201,41 @@ export async function seedFixtures(
     // Wards first: every ward-scoped table cascades from wards (including public.users), so
     // this clears the rows that would otherwise block an auth-user delete through a
     // no-action foreign key such as visit_goals.created_by.
-    for (const wardId of [wardAId, wardBId]) {
-      const { error } = await service.from("wards").delete().eq("id", wardId);
+    //
+    // ⚠️ BOTH WARDS IN ONE STATEMENT, AND THAT IS NOT TIDINESS — IT IS REQUIRED SINCE MIGRATION
+    // 069. Deleting them one at a time leaves the fixtures half-deleted in the shared hosted
+    // project, which is the worst outcome this file has.
+    //
+    // A person can now hold a calling in ward B while their account lives in ward A, and the rows
+    // they wrote over there — `activity_logs.logged_by`, `visit_logs.recorded_by`,
+    // `programs.approved_by` — reference them by a SINGLE-column key with no `on delete` action.
+    // Under the old composite `(author, ward_id)` key such a row could not exist at all, so ward
+    // by ward was safe; now, deleting ward A cascades its `users` rows while ward B's rows still
+    // point at them, and Postgres refuses with `activity_logs_logged_by_ward_id_fkey`.
+    //
+    // One DELETE covering both wards removes every such row in the same statement, and referential
+    // integrity is checked once at the end of it — by which time the referencing rows are gone
+    // too. Deleting ward B before ward A would work for today's fixtures and break the first time
+    // somebody's account lives in B with a calling in A.
+    const { error: wardError } = await service
+      .from("wards")
+      .delete()
+      .in("id", [wardAId, wardBId]);
+    if (wardError) {
+      console.warn(
+        `Fixture cleanup could not delete wards ${wardAId} and ${wardBId}`,
+        wardError.message,
+      );
+    }
+
+    // AFTER the wards, and explicitly — `units` rows do NOT cascade from `wards`, because the
+    // foreign key points the other way (wards.unit_id → units.id). Deleting the wards is what
+    // clears that reference; `on delete restrict` on units.parent_id is why the two child units
+    // must go before the two stakes.
+    for (const unitId of [wardAUnitId, wardBUnitId, stakeUnitId, outsideStakeUnitId]) {
+      const { error } = await service.from("units").delete().eq("id", unitId);
       if (error) {
-        console.warn(`Fixture cleanup could not delete ward ${wardId}`, error.message);
+        console.warn(`Fixture cleanup could not delete unit ${unitId}`, error.message);
       }
     }
 
@@ -140,9 +251,39 @@ export async function seedFixtures(
   };
 
   try {
+    // The unit hierarchy first: `wards.unit_id` references it, so the units must exist before the
+    // wards that point at them. Both ward units hang off ONE stake, which is what makes a switch
+    // from ward A into ward B authorized — can_act_in_ward() walks wards.unit_id → parent_id.
+    const { error: unitError } = await service.from("units").insert([
+      {
+        id: stakeUnitId,
+        type: "stake",
+        name: `${FIXTURE_EMAIL_PREFIX} stake ${runId}`,
+      },
+      {
+        id: outsideStakeUnitId,
+        type: "stake",
+        name: `${FIXTURE_EMAIL_PREFIX} outside stake ${runId}`,
+      },
+      {
+        id: wardAUnitId,
+        type: "ward",
+        parent_id: stakeUnitId,
+        name: `${FIXTURE_EMAIL_PREFIX} ward A unit ${runId}`,
+      },
+      {
+        id: wardBUnitId,
+        type: "ward",
+        parent_id: stakeUnitId,
+        name: `${FIXTURE_EMAIL_PREFIX} ward B unit ${runId}`,
+      },
+    ]);
+    if (unitError) throw new Error(`Could not seed units: ${unitError.message}`);
+
     const { error: wardError } = await service.from("wards").insert([
       {
         id: wardAId,
+        unit_id: wardAUnitId,
         name: `${FIXTURE_EMAIL_PREFIX} ward A ${runId}`,
         settings: {
           cross_org_visibility: options.crossOrgVisibility ?? false,
@@ -152,6 +293,7 @@ export async function seedFixtures(
       },
       {
         id: wardBId,
+        unit_id: wardBUnitId,
         name: `${FIXTURE_EMAIL_PREFIX} ward B ${runId}`,
         settings: { cross_org_visibility: false, timezone: "America/Denver" },
       },
@@ -211,21 +353,85 @@ export async function seedFixtures(
 
       createdAuthUserIds.push(created.user.id);
 
+      // `role`, `org_id` and `counselor_position` ARE NOT WRITTEN HERE. They belong to the
+      // CALLING (migration 068) and migration 071 drops all three columns; the app stopped
+      // writing them in the same change, so a fixture that still did would seed a state no real
+      // account can be in. 068d dropped NOT NULL off `users.role` to make this possible.
       const { error: rowError } = await service.from("users").insert({
         id: created.user.id,
         ward_id: wardId,
         first_name: handle,
         last_name: `Fixture${runId}`,
         email,
-        role: spec.role,
-        org_id: orgId,
-        counselor_position: spec.counselorPosition ?? null,
       });
 
       if (rowError) {
         throw new Error(
           `Could not create public.users row for "${handle}": ${rowError.message}`,
         );
+      }
+
+      // THE CALLING, always — one per fixture, in their home ward. Without it
+      // current_user_role() returns null and every policy in the app fails closed, which would
+      // make a whole suite fail for a reason that has nothing to do with what it is testing.
+      const { error: callingError } = await service
+        .from("ward_role_assignments")
+        .insert({
+          user_id: created.user.id,
+          ward_id: wardId,
+          role: spec.role,
+          org_id: orgId,
+          counselor_position: spec.counselorPosition ?? null,
+        });
+
+      if (callingError) {
+        throw new Error(
+          `Could not create the calling for "${handle}": ${callingError.message}`,
+        );
+      }
+
+      // A SECOND REAL CALLING IN A SECOND WARD. `ward_role_assignments_one_per_ward` permits it
+      // because the ward differs; two in the SAME ward would be refused, which is what keeps
+      // current_user_role() single-valued.
+      if (spec.secondCalling) {
+        const secondWardId = spec.secondCalling.ward === "A" ? wardAId : wardBId;
+        const secondOrgId = spec.secondCalling.org ? orgIds[spec.secondCalling.org] : null;
+
+        const { error: secondCallingError } = await service
+          .from("ward_role_assignments")
+          .insert({
+            user_id: created.user.id,
+            ward_id: secondWardId,
+            role: spec.secondCalling.role,
+            org_id: secondOrgId,
+            counselor_position: spec.secondCalling.counselorPosition ?? null,
+          });
+
+        if (secondCallingError) {
+          throw new Error(
+            `Could not create the second calling for "${handle}": ${secondCallingError.message}`,
+          );
+        }
+      }
+
+      // AFTER the public.users row: unit_assignments.user_id references it.
+      if (spec.unitAssignment) {
+        const unitIds: Record<UnitKey, string> = {
+          stake: stakeUnitId,
+          outsideStake: outsideStakeUnitId,
+        };
+
+        const { error: assignmentError } = await service.from("unit_assignments").insert({
+          user_id: created.user.id,
+          unit_id: spec.unitAssignment.unit ? unitIds[spec.unitAssignment.unit] : null,
+          role: spec.unitAssignment.role,
+        });
+
+        if (assignmentError) {
+          throw new Error(
+            `Could not create unit_assignments row for "${handle}": ${assignmentError.message}`,
+          );
+        }
       }
 
       users[handle] = {
@@ -265,6 +471,10 @@ export async function seedFixtures(
       service,
       wardAId,
       wardBId,
+      stakeUnitId,
+      outsideStakeUnitId,
+      wardAUnitId,
+      wardBUnitId,
       eldersQuorumId,
       reliefSocietyId,
       wardBOrgId,

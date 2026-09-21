@@ -1,3 +1,12 @@
+// MUST STAY IN STEP WITH THE `users.role` AND `invites.role` CHECK CONSTRAINTS — one list, three
+// copies, all free to disagree (the `notification-trigger-drift` shape). Migration 002 defines
+// the CHECK twice and its own comment warns about it; migration 065 widened both, and
+// tests/lib/permissions.test.ts reads 065 from disk and asserts the lists match.
+//
+// The last five landed in migration 065. THREE stake values, not the prototype's four, because
+// `users.counselor_position` already collapses a 1st and 2nd counselor exactly as it does for the
+// bishopric. A stake role is assigned through `unit_assignments`, never through a ward's invite
+// form — see INVITABLE_ROLES below.
 export const ROLES = [
   "bishop",
   "counselor",
@@ -9,6 +18,11 @@ export const ROLES = [
   "music_coordinator",
   "ward_council_member",
   "sacrament_manager",
+  "stake_president",
+  "stake_counselor",
+  "stake_secretary",
+  "super_admin",
+  "resource_center_specialist",
 ] as const;
 export type Role = (typeof ROLES)[number];
 
@@ -25,14 +39,121 @@ export const ROLE_LABELS: Record<Role, string> = {
   music_coordinator: "Music Coordinator",
   ward_council_member: "Ward Council Member",
   sacrament_manager: "Sacrament Manager",
+  stake_president: "Stake President",
+  stake_counselor: "Stake Counselor",
+  stake_secretary: "Stake Secretary",
+  super_admin: "Super Admin",
+  resource_center_specialist: "Resource Center Specialist",
 };
 
-// Roles an emailed invite may carry, and the roles the admin user list may assign. A
-// sacrament_manager is a youth account authenticated by username and PIN with no email at all,
-// so it is created by its own flow in auth-c rather than by an invite link.
+// ---------------------------------------------------------------------------
+// THE ORGANIZATION HALF OF A CALLING'S NAME
+// ---------------------------------------------------------------------------
+//
+// ROLE_LABELS alone says "Organization President", which the walk of scenario 066 found too vague
+// to be useful and the user confirmed on 2026-09-21: a calling in an organization must NAME the
+// organization. "Relief Society President", not "Organization President".
+//
+// It matters more under the calling model than it did before. Somebody may hold an org calling in
+// one ward and a different calling in another, so the chrome line is what tells them which of
+// their callings is active — and "Organization President" answers that question only halfway.
+//
+// A FULL Record, with explicit nulls, rather than a Partial. That is ROLE_LABELS' own rule one
+// line up ("a role added there fails to compile until someone decides what to call it on screen")
+// and `role-access-overrides`' rule about letting the compiler enumerate: a new org-scoped role
+// must force a decision here rather than silently inheriting the generic label.
+export const ORG_SCOPED_ROLE_SUFFIXES: Record<Role, string | null> = {
+  bishop: null,
+  counselor: null,
+  ward_secretary: null,
+  executive_secretary: null,
+  org_president: "President",
+  org_counselor: "Counselor",
+  org_secretary: "Secretary",
+  music_coordinator: null,
+  ward_council_member: null,
+  sacrament_manager: null,
+  stake_president: null,
+  stake_counselor: null,
+  stake_secretary: null,
+  super_admin: null,
+  resource_center_specialist: null,
+};
+
+// What this session's calling is CALLED on screen.
+//
+// Falls back to the plain role label whenever the organization is unknown — a calling with no
+// organization (a bishop, a ward secretary), or one whose organization name could not be read.
+// A failed read must degrade to "Organization President" rather than to a blank or a raw id: the
+// generic label is worse than the specific one and better than nothing, and the header is chrome
+// on every page in the app.
+export function describeCalling(role: Role, organizationName: string | null): string {
+  const suffix = ORG_SCOPED_ROLE_SUFFIXES[role];
+  if (suffix === null || !organizationName) return ROLE_LABELS[role];
+  return `${organizationName} ${suffix}`;
+}
+
+// Roles a WARD may hand out — an emailed invite, and the admin user list's role dropdown. This is
+// deliberately NARROWER than ROLES, and each exclusion has its own reason:
+//
+//   sacrament_manager — a youth account authenticated by username and PIN with no email at all,
+//     so it is created by its own flow in auth-c rather than by an invite link.
+//
+//   the three stake roles — a stake officer's authority comes from a `unit_assignments` row over
+//     a unit, not from a ward's invite form. A ward that could invite a stake president would be
+//     granting authority over itself that it does not own.
+//
+//   super_admin — it bypasses the access matrix entirely (CLAUDE.md §7), so it must never be a
+//     value in an ordinary dropdown. lib/validation/adminUser.ts filters it out of the role-change
+//     schema for the same reason, and lib/auth/adminUsers.ts guards the last one. Assignment gets
+//     its own explicit path, with friction, in proto-d.
+//
+// resource_center_specialist stays invitable: it is an ordinary ward-scoped calling that simply
+// has no module to reach yet.
+const NON_INVITABLE_ROLES: readonly Role[] = [
+  "sacrament_manager",
+  "stake_president",
+  "stake_counselor",
+  "stake_secretary",
+  "super_admin",
+];
+
 export const INVITABLE_ROLES: readonly Role[] = ROLES.filter(
-  (role) => role !== "sacrament_manager",
+  (role) => !NON_INVITABLE_ROLES.includes(role),
 );
+
+// ---------------------------------------------------------------------------
+// The unit hierarchy
+// ---------------------------------------------------------------------------
+//
+// `units` is area | stake | ward with a parent reference (migration 065). The type covers three
+// levels because real church structure also has missions and districts as stake-equivalents and
+// how far up this goes is genuinely uncertain — BUILD NO AREA OR DISTRICT SCREENS. The shape
+// anticipates them; nothing else does.
+
+export const UNIT_TYPES = ["area", "stake", "ward"] as const;
+export type UnitType = (typeof UNIT_TYPES)[number];
+
+// The roles a `unit_assignments` row may carry. NOT the same list as the stake values in ROLES:
+// `super_admin` is assignable over every unit (unit_id null) and is not a stake officer, and the
+// `unit_assignments_scope` CHECK in migration 065 is what makes the two shapes unrepresentable
+// the wrong way round.
+export const UNIT_ASSIGNMENT_ROLES = [
+  "stake_president",
+  "stake_counselor",
+  "stake_secretary",
+  "super_admin",
+] as const;
+export type UnitAssignmentRole = (typeof UNIT_ASSIGNMENT_ROLES)[number];
+
+// The stake officers, without super_admin. Read-only across the stake — see
+// STAKE_OFFICER_PERMISSIONS in lib/auth/permissions.ts for why.
+export const STAKE_ROLES = [
+  "stake_president",
+  "stake_counselor",
+  "stake_secretary",
+] as const;
+export type StakeRole = (typeof STAKE_ROLES)[number];
 
 export const ORGANIZATION_TYPES = [
   "bishopric",
@@ -1090,8 +1211,38 @@ export type Permission = `${string}.${string}`;
 
 export type SessionUser = {
   id: string;
+  // THE EFFECTIVE WARD — the one this session is ACTING IN, which is what current_ward_id()
+  // returns and therefore what every RLS policy in the app compares against. It keeps its name
+  // deliberately: every one of the ~200 existing `user.wardId` reads —
+  // resolveRoleAccess(supabase, user.wardId), writeAuditLog({ wardId }), every query filter —
+  // keeps compiling and starts meaning the switched ward, which is exactly right. Renaming it
+  // would touch every route in the app to achieve the same thing.
+  //
+  // It is read from the database (session_context()), NEVER recomputed as `activeWardId ??
+  // wardId`. current_ward_id() re-validates the switch on every read and can fall back; an app
+  // that recomputed would render ward B's page frame around ward A's rows.
   wardId: string;
+  // The ward this person's ACCOUNT belongs to — users.ward_id, unaffected by any switch. It is
+  // where they land when no switch is active, and it is not privileged in any other way: a
+  // calling in the home ward and a calling in a second ward carry exactly the same authority in
+  // their own wards.
+  homeWardId: string;
+  // The raw column. Null means "not switched". Distinct from `wardId`: a switch whose calling has
+  // since ended leaves this set while the session has already fallen back to the home ward,
+  // because current_ward_id() re-validates on every read (migration 070b).
+  activeWardId: string | null;
+  // THE CALLING THIS SESSION IS ACTING UNDER — `ward_role_assignments.id`. The three fields below
+  // are ITS role, ITS organization and ITS counselor position, not the person's: somebody who is
+  // Relief Society president in ward A and ward secretary in ward B reads as an org_president
+  // here and a ward_secretary there, from the same account.
+  //
+  // It is here so a screen can say WHICH CALLING you are acting under rather than only which
+  // ward, which is the question a person with two of them actually has.
+  callingId: string;
   role: Role;
+  // The organization of the calling IN THE WARD BEING ACTED IN (migration 070b). Null when that
+  // calling has none — a bishop or a ward secretary — never null merely because a switch is
+  // active, which is what migration 066 got backwards.
   orgId: string | null;
   counselorPosition: 1 | 2 | null;
   firstName: string | null;
@@ -1099,6 +1250,35 @@ export type SessionUser = {
   username: string | null;
   themePreference: ThemePreference;
   isActive: boolean;
+};
+
+// ---------------------------------------------------------------------------
+// A calling
+// ---------------------------------------------------------------------------
+//
+// One row of `ward_role_assignments` (migration 068): this person holds this role, in this ward,
+// in this organization. It is the source of truth for current_user_role(), current_org_id() and
+// is_bishopric() from migration 070 on.
+//
+// A PERSON MAY HOLD ONE ACTIVE CALLING PER WARD AND SEVERAL ACROSS WARDS. The partial unique
+// index `ward_role_assignments_one_per_ward` is what enforces the first half — two simultaneous
+// callings in one ward is a state the session could not resolve, because current_user_role()
+// would have two answers.
+//
+// `isActive` false is a RELEASED calling, kept for the record. `startedOn` and `endedOn` are
+// record-keeping and drive no arithmetic anywhere: `isActive` is the column every query reads,
+// which is the same role `users.is_active` already has.
+export type Calling = {
+  id: string;
+  userId: string;
+  wardId: string;
+  role: Role;
+  orgId: string | null;
+  counselorPosition: 1 | 2 | null;
+  isActive: boolean;
+  startedOn: string | null;
+  endedOn: string | null;
+  createdAt: string;
 };
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { InvalidInputError } from "@/lib/auth/errors";
 import { BISHOPRIC_ROLES } from "@/lib/auth/permissions";
+import { findUsersOutsideWard } from "@/lib/callings/queries";
 import {
   formatDateOnly,
   lastDayOfMonth,
@@ -1856,6 +1858,29 @@ export async function updateSunday(
       ? (input.conductingUserId ?? null)
       : undefined;
 
+  // ⚠️ THE WARD CHECK MIGRATION 069 MADE NECESSARY. `sundays.conducting_user_id` carried
+  // `(conducting_user_id, ward_id) -> users (id, ward_id)` until then, so a conductor from
+  // another ward was refused by the database and nothing here ever had to look. 069 narrowed it —
+  // right for an AUTHOR, who may now legitimately write in a ward their account does not live in,
+  // and wrong for a SUBJECT like this one, which arrives in a request body. See
+  // lib/callings/queries.ts §filterUsersInWard.
+  //
+  // It asks about the CALLING, not `users.ward_id`: a counselor whose account lives in another
+  // ward holds a real bishopric calling here and must stay selectable, which is the whole point
+  // of the model.
+  if (conductingUserIdPatch) {
+    const outsiders = await findUsersOutsideWard(
+      wardId,
+      [conductingUserIdPatch],
+      supabase,
+    );
+    if (outsiders.length > 0) {
+      throw new InvalidInputError(
+        "The person you chose to conduct does not hold a calling in this ward.",
+      );
+    }
+  }
+
   const { data, error } = await supabase
     .from("sundays")
     .update({
@@ -1928,8 +1953,13 @@ export async function updateSunday(
 // counselor only — conducting is a bishopric assignment, so a ward_secretary who may EDIT the
 // Sunday still cannot put themselves in the conducting slot.
 //
-// Read through the caller's client: migration 020 makes `users` ward-readable, so no escalation is
-// needed and RLS stays the boundary (CLAUDE.md rule 2).
+// Read through the caller's client: migration 070d makes `users` readable to the ward whose
+// callings they hold, so no escalation is needed and RLS stays the boundary (CLAUDE.md rule 2).
+//
+// FROM CALLINGS, NOT FROM `users` (migration 068). The ward's bishopric is whoever holds a
+// bishopric CALLING here — which is not the same as whoever's account lives here — and `role` and
+// `counselor_position` are the calling's, not the person's. `users!inner` supplies the name and
+// filters on the ACCOUNT being active, which is a separate fact from the calling being current.
 export async function listBishopricUsers(
   wardId: string,
   client?: SupabaseClient<Database>,
@@ -1937,11 +1967,12 @@ export async function listBishopricUsers(
   const supabase = await resolveClient(client);
 
   const { data, error } = await supabase
-    .from("users")
-    .select("id, first_name, last_name, role, counselor_position")
+    .from("ward_role_assignments")
+    .select("user_id, role, counselor_position, users!user_id!inner(first_name, last_name, is_active)")
     .eq("ward_id", wardId)
     .in("role", BISHOPRIC_ROLES as unknown as string[])
     .eq("is_active", true)
+    .eq("users.is_active", true)
     .order("role")
     .order("counselor_position", { nullsFirst: true });
 
@@ -1951,9 +1982,9 @@ export async function listBishopricUsers(
   }
 
   return (data ?? []).map((row) => ({
-    id: row.id,
-    firstName: row.first_name,
-    lastName: row.last_name,
+    id: row.user_id,
+    firstName: row.users.first_name,
+    lastName: row.users.last_name,
     role: row.role === "bishop" ? "bishop" : "counselor",
     counselorPosition:
       row.counselor_position === 1 || row.counselor_position === 2
@@ -1966,8 +1997,9 @@ export async function listBishopricUsers(
 // the secretary of that organization. `orgId` omitted reads every organization in the ward, which
 // is what a page needs to turn a stored id into a name for organizations the viewer cannot manage.
 //
-// Read through the caller's client, like listBishopricUsers: migration 020 makes `users`
-// ward-readable, so no escalation is needed and RLS stays the boundary (CLAUDE.md rule 2).
+// Read through the caller's client, like listBishopricUsers, and from CALLINGS for the same
+// reason (migration 068): a presidency is whoever holds that calling in that organization, and
+// `org_id` lives on the calling — after migration 071 an account has no organization at all.
 export async function listOrgLeadershipUsers(
   wardId: string,
   orgId?: string,
@@ -1976,18 +2008,19 @@ export async function listOrgLeadershipUsers(
   const supabase = await resolveClient(client);
 
   let query = supabase
-    .from("users")
-    .select("id, first_name, last_name, role, org_id")
+    .from("ward_role_assignments")
+    .select("user_id, role, org_id, users!user_id!inner(first_name, last_name, is_active)")
     .eq("ward_id", wardId)
     .in("role", ORG_LEADERSHIP_ROLES as unknown as string[])
     .eq("is_active", true)
+    .eq("users.is_active", true)
     .not("org_id", "is", null);
 
   if (orgId !== undefined) {
     query = query.eq("org_id", orgId);
   }
 
-  const { data, error } = await query.order("role").order("last_name");
+  const { data, error } = await query.order("role").order("created_at");
 
   if (error) {
     console.error(`Could not read the organization leadership — ${error.message}`, {
@@ -2000,12 +2033,22 @@ export async function listOrgLeadershipUsers(
   return (data ?? [])
     .filter((row) => row.org_id !== null)
     .map((row) => ({
-      id: row.id,
-      firstName: row.first_name,
-      lastName: row.last_name,
-      role: toEnumValue(row.role, ORG_LEADERSHIP_ROLES, "users.role", "002"),
+      id: row.user_id,
+      firstName: row.users.first_name,
+      lastName: row.users.last_name,
+      role: toEnumValue(row.role, ORG_LEADERSHIP_ROLES, "ward_role_assignments.role", "068"),
       orgId: row.org_id as string,
-    }));
+    }))
+    // Sorted here rather than in PostgREST, and by BOTH keys rather than only the surname. The
+    // surname lives on the embedded `users` row and PostgREST cannot order parent rows by an
+    // embedded column — the same limit lib/youth's report feed ran into with `activity_logs`. So
+    // the role half is redone here too: sorting on the surname alone would silently promote it to
+    // the primary key and interleave the presidency.
+    .sort(
+      (left, right) =>
+        ORG_LEADERSHIP_ROLES.indexOf(left.role) - ORG_LEADERSHIP_ROLES.indexOf(right.role) ||
+        (left.lastName ?? "").localeCompare(right.lastName ?? ""),
+    );
 }
 
 // The organizations that may hold a conducting rotation of their own — the six with a presidency.
@@ -2065,10 +2108,15 @@ export async function readConductorName(
 ): Promise<string | null> {
   const supabase = await resolveClient(client);
 
+  // NOT filtered by `users.ward_id`, deliberately. The conductor is whoever holds a bishopric
+  // CALLING in this ward (migration 068), and their account may live in another one — filtering
+  // on the account's ward would render such a conductor nameless on the calendar and on the
+  // printed programme, with nothing to say why. The row's readability is `users_ward_select`'s
+  // job, which migration 070d widened to admit exactly this person; the caller has already
+  // checked the id belongs to the ward before writing it (§updateSunday).
   const { data, error } = await supabase
     .from("users")
     .select("first_name, last_name")
-    .eq("ward_id", wardId)
     .eq("id", userId)
     .maybeSingle();
 
@@ -2100,6 +2148,27 @@ export async function replaceConductingRotation(
   client?: SupabaseClient<Database>,
 ): Promise<ConductingRotationRow[]> {
   const supabase = await resolveClient(client);
+
+  // The same ward check as updateSunday, for the same reason and against the same narrowing:
+  // `conducting_rotation.user_id` is a SUBJECT out of a request body, and migration 069 removed
+  // the composite key that used to be the only thing checking it.
+  // A null `userId` is a position deliberately left empty, not a person — the ward check has
+  // nothing to ask about it.
+  const rotationOutsiders = await findUsersOutsideWard(
+    wardId,
+    input.positions
+      .map((entry) => entry.userId)
+      .filter((userId): userId is string => userId !== null),
+    supabase,
+  );
+
+  if (rotationOutsiders.length > 0) {
+    throw new InvalidInputError(
+      rotationOutsiders.length === 1
+        ? "One of the people in this rotation does not hold a calling in this ward."
+        : `${rotationOutsiders.length} of the people in this rotation do not hold a calling in this ward.`,
+    );
+  }
 
   const { data, error } = await supabase
     .from("conducting_rotation")

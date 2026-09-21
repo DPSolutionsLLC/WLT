@@ -2,9 +2,9 @@ import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { visibleNavigationItems } from "@/lib/auth/navigation";
 import { resolveRoleAccess } from "@/lib/auth/permissions";
+import { readCallingLabel } from "@/lib/callings/callingLabel";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { ROLE_LABELS } from "@/types/domain";
 
 // Deliberately thin, not unfinished. The real per-role dashboards are Phase 11
 // (SPEC.md §Role-Based Dashboards, plans/11-notifications-admin.md). This exists so sign-in
@@ -17,6 +17,9 @@ export default async function DashboardPage() {
   const supabase = await createServerSupabaseClient();
   const roleAccess = await resolveRoleAccess(supabase, user.wardId);
   const navigationItems = visibleNavigationItems(user, roleAccess);
+  // The same label the header shows, from the same helper — two sentences about one calling must
+  // never disagree about what it is called.
+  const callingLabel = await readCallingLabel(user, supabase);
 
   const greetingName = user.firstName ?? user.username ?? "there";
 
@@ -25,7 +28,7 @@ export default async function DashboardPage() {
       <div>
         <h1 className="text-xl font-semibold text-foreground">Hello, {greetingName}</h1>
         <p className="text-sm text-muted">
-          You are signed in as {ROLE_LABELS[user.role]}.
+          You are signed in as {callingLabel}.
         </p>
       </div>
 

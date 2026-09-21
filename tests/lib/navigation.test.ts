@@ -12,6 +12,14 @@ function sessionUser(role: Role): SessionUser {
   return {
     id: "00000000-0000-4000-8000-0000000000aa",
     wardId: "00000000-0000-4000-8000-000000000001",
+    // A session at HOME: the effective ward and the home ward are the same and
+    // nothing is switched. lib/auth/session.ts reads all of these from session_context().
+    homeWardId: "00000000-0000-4000-8000-000000000001",
+    activeWardId: null,
+    // The CALLING this session is acting under (migration 068). `role` and `orgId` below
+    // are ITS facts, not the person\'s — a fixed id is enough here because nothing in
+    // these tests reads it.
+    callingId: "00000000-0000-4000-8000-00000000ca11",
     role,
     orgId: null,
     counselorPosition: null,
@@ -85,15 +93,28 @@ describe("role-filtered navigation", () => {
   });
 
   // The roster is the module every other one browses through, so it is first in the list and
-  // reaches everyone with roster.view — which is every role except the music coordinator and
-  // the youth account.
-  it("shows the roster to every role that holds roster.view", () => {
+  // reaches everyone with roster.view.
+  //
+  // The expectation is DERIVED from can() rather than hardcoded as a list of exceptions, the way
+  // the /assignments case below already does. It used to read "every role except the music
+  // coordinator and the youth account", which was a true sentence about ten roles and became
+  // false the moment `resource_center_specialist` landed holding nothing at all — a role added
+  // deliberately with an empty list is not a bug in this file.
+  it("shows the roster to every role that holds roster.view and to no other", () => {
     for (const role of ROLES) {
       const canSeeRoster = hrefsFor(role).includes("/roster");
-      const expected = role !== "music_coordinator" && role !== "sacrament_manager";
+      const expected = can(sessionUser(role), "roster.view", ROLE_PERMISSIONS);
 
       expect(canSeeRoster, `role "${role}" disagrees on /roster`).toBe(expected);
     }
+  });
+
+  // The named exceptions the sentence above used to carry, kept as their own assertion so the
+  // derived test cannot go green by everybody losing the permission at once.
+  it("keeps the roster from the music coordinator and the youth account", () => {
+    expect(hrefsFor("music_coordinator")).not.toContain("/roster");
+    expect(hrefsFor("sacrament_manager")).not.toContain("/roster");
+    expect(hrefsFor("ward_council_member")).toContain("/roster");
   });
 
   // talks-b pointed the Talks entry at /assignments rather than SPEC.md's /talks/pipeline
@@ -116,12 +137,18 @@ describe("role-filtered navigation", () => {
     }
   });
 
-  it("shows the audit log to the bishopric and to nobody else", () => {
+  // The bishopric, and the super admin — who reaches it for the ordinary reason that they hold
+  // every permission there is (CLAUDE.md §7), not through a special case. A STAKE OFFICER does
+  // NOT: `audit.view` is deliberately absent from STAKE_OFFICER_PERMISSIONS, because a visiting
+  // officer reading the record of who changed what in a ward that is not theirs is a different
+  // promise from reading how the ward is doing.
+  it("shows the audit log to the bishopric and the super admin, and to nobody else", () => {
     for (const role of ROLES) {
       const canSeeAuditLog = hrefsFor(role).includes("/admin/audit-log");
-      const isBishopric = role === "bishop" || role === "counselor";
+      const expected =
+        role === "bishop" || role === "counselor" || role === "super_admin";
 
-      expect(canSeeAuditLog, `role "${role}" disagrees on /admin/audit-log`).toBe(isBishopric);
+      expect(canSeeAuditLog, `role "${role}" disagrees on /admin/audit-log`).toBe(expected);
     }
   });
 

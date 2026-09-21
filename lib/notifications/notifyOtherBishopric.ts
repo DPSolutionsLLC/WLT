@@ -24,13 +24,19 @@ export async function notifyOtherBishopric(
   try {
     const supabase = client ?? createServiceSupabaseClient();
 
+    // FROM CALLINGS, NOT FROM `users` — the ward's bishopric is whoever holds a bishopric CALLING
+    // here, which is not the same as whoever's account lives here (migration 068). Joined to
+    // `users.is_active` because a calling can be active on a deactivated account. Changed in the
+    // same commit as the other three helpers in this directory: miss one and a leader never
+    // receives that ward's notifications, silently (`notification-trigger-drift`).
     const { data, error } = await supabase
-      .from("users")
-      .select("id")
+      .from("ward_role_assignments")
+      .select("user_id, users!user_id!inner(is_active)")
       .eq("ward_id", wardId)
       .eq("is_active", true)
+      .eq("users.is_active", true)
       .in("role", [...BISHOPRIC_ROLES])
-      .neq("id", actingUserId);
+      .neq("user_id", actingUserId);
 
     if (error) {
       console.error("Could not resolve the other bishopric members", {
@@ -41,7 +47,7 @@ export async function notifyOtherBishopric(
       return;
     }
 
-    const recipientUserIds = (data ?? []).map((row) => row.id);
+    const recipientUserIds = [...new Set((data ?? []).map((row) => row.user_id))];
     if (recipientUserIds.length === 0) return;
 
     await emitNotification(

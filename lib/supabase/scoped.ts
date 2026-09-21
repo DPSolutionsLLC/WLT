@@ -33,11 +33,16 @@ export async function resolveSessionWardId(
     );
   }
 
-  const { data, error } = await supabase
-    .from("users")
-    .select("ward_id")
-    .eq("id", authData.user.id)
-    .maybeSingle();
+  // THE WARD BEING ACTED IN, NOT THE HOME WARD. This used to read `users.ward_id`, which is where
+  // a person's ACCOUNT lives — and under the calling model (migration 070) that is the wrong ward
+  // the moment somebody acts under a second calling. `scopedQuery` would then filter every read
+  // to ward A while RLS admitted only ward B, and the page would come back empty with no error
+  // anywhere to say why.
+  //
+  // So it reads the same answer the database does. current_ward_id() re-validates on every read,
+  // and session_context() is how the rest of the app asks for it (lib/auth/session.ts), which
+  // keeps one question with one answer rather than two that can drift.
+  const { data, error } = await supabase.rpc("session_context");
 
   if (error) {
     throw new Error(
@@ -45,13 +50,15 @@ export async function resolveSessionWardId(
     );
   }
 
-  if (!data) {
+  const context = data?.[0];
+
+  if (!context) {
     throw new Error(
       `Signed-in user ${authData.user.id} has no row in public.users, so no ward could be resolved.`,
     );
   }
 
-  return data.ward_id;
+  return context.ward_id;
 }
 
 // Returns the builder wrapped in an object rather than returning it directly. A

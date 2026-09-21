@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
+import { filterUsersInWard } from "@/lib/callings/queries";
 import {
   BISHOPRIC_ROLES,
   assertCan,
@@ -108,14 +109,27 @@ export async function POST(
       return NextResponse.json({ error: EVENT_NOT_FOUND }, { status: 404 });
     }
 
-    // Resolved through the CALLER'S OWN CLIENT, so a user in another ward simply is not there —
-    // migration 020's ward-scoped `users` select policy is what makes that true, rather than a
-    // filter here. Checked before the insert for the reason the event is: a composite foreign key
-    // violation is not a sentence anybody can act on.
+    // MEMBERSHIP IS A CALLING, NOT `users.ward_id` (migration 068). This filtered on the account's
+    // own ward, which was right while a person had exactly one — and now refuses the cross-ward
+    // leader the whole model exists to support: somebody holding a real calling in THIS ward,
+    // whose account lives in another, could not be asked to attend a game here.
+    //
+    // It also has to stay an explicit check rather than leaning on the foreign key. Migration 069
+    // narrowed `(user_id, ward_id) -> users (id, ward_id)` to the id alone, so the database no
+    // longer refuses an assignee from another ward at all — see lib/callings/queries.ts
+    // §filterUsersInWard for why a SUBJECT column needs this and an author column does not.
+    const inWard = await filterUsersInWard(user.wardId, [input.userId], supabase);
+
+    if (!inWard.has(input.userId)) {
+      return NextResponse.json({ error: USER_NOT_FOUND }, { status: 404 });
+    }
+
+    // The account itself must still be usable. A calling stays active on a deactivated account by
+    // design (lib/callings/writeCalling.ts), so this is a second question rather than a repeat of
+    // the first, and the name is wanted for the audit row either way.
     const { data: assignee, error: assigneeError } = await supabase
       .from("users")
       .select("id, first_name, last_name")
-      .eq("ward_id", user.wardId)
       .eq("id", input.userId)
       .eq("is_active", true)
       .maybeSingle();

@@ -4,10 +4,10 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { TopNav } from "@/components/layout/TopNav";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { visibleNavigationItems } from "@/lib/auth/navigation";
+import { readCallingLabel } from "@/lib/callings/callingLabel";
 import { resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { ROLE_LABELS } from "@/types/domain";
 
 // The authenticated boundary. Middleware only proves a session exists; this is where the app
 // learns who the session belongs to and what they may see.
@@ -31,6 +31,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const roleAccess = await resolveRoleAccess(supabase, user.wardId);
   const navigationItems = visibleNavigationItems(user, roleAccess);
 
+  // NAMES THE ORGANIZATION, not just the role. "Relief Society President", never the bare
+  // "Organization President" the walk of scenario 066 found too vague to act on. Under the calling
+  // model this line is what tells somebody holding callings in two wards WHICH ONE is active, so
+  // answering only half the question is worse here than it was before.
+  const callingLabel = await readCallingLabel(user, supabase);
+
   const { data: ward, error } = await supabase
     .from("wards")
     .select("name")
@@ -52,7 +58,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <TopNav
           user={user}
           wardName={ward?.name ?? "Ward Leadership Tools"}
-          roleLabel={ROLE_LABELS[user.role]}
+          roleLabel={callingLabel}
         />
         {/* The authenticated shell is the only place with a client fetch, so the query cache
             lives here and not in the root layout. The (auth) and (youth) shells have none and

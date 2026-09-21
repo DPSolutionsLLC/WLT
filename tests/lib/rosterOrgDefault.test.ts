@@ -18,6 +18,14 @@ function sessionUser(role: Role, orgId: string | null): SessionUser {
   return {
     id: "00000000-0000-4000-8000-000000000001",
     wardId: "00000000-0000-4000-8000-000000000002",
+    // A session at HOME: the effective ward and the home ward are the same and
+    // nothing is switched. lib/auth/session.ts reads all of these from session_context().
+    homeWardId: "00000000-0000-4000-8000-000000000002",
+    activeWardId: null,
+    // The CALLING this session is acting under (migration 068). `role` and `orgId` below
+    // are ITS facts, not the person\'s — a fixed id is enough here because nothing in
+    // these tests reads it.
+    callingId: "00000000-0000-4000-8000-00000000ca11",
     role,
     orgId,
     counselorPosition: null,
@@ -42,6 +50,21 @@ const WARD_WIDE_ROLES: readonly Role[] = [
   "music_coordinator",
   "ward_council_member",
   "sacrament_manager",
+  // The unit hierarchy's five (migration 065). All ward-wide, for two different reasons.
+  //
+  // A STAKE OFFICER HAS NO ORGANIZATION IN THE WARD THEY ARE VISITING — `current_org_id()`
+  // returns null across a switch (migration 066b) — so scoping the roster to "their" organization
+  // would scope it to nothing. They read the whole ward's roster, which is what `roster.view`
+  // in STAKE_OFFICER_PERMISSIONS grants and what a stake officer is there to do.
+  //
+  // `super_admin` holds every permission, and `resource_center_specialist` holds none and never
+  // reaches the roster at all — but it must still get an ANSWER rather than a thrown error, for
+  // the same reason `sacrament_manager` is on this list.
+  "stake_president",
+  "stake_counselor",
+  "stake_secretary",
+  "super_admin",
+  "resource_center_specialist",
 ];
 
 const ORGANIZATION_SCOPED_ROLES: readonly Role[] = [
