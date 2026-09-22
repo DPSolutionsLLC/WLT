@@ -2,7 +2,7 @@
 id: p2-admin-and-access
 type: feature
 iter: null
-commits: ["568b7c8"]
+commits: ["568b7c8", "35fc49a"]
 date: 2026-09-21
 files:
   - supabase/migrations/072_session_org_type.sql
