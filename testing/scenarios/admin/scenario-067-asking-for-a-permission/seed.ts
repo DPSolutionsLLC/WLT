@@ -88,7 +88,13 @@ export async function seed(): Promise<void> {
   // assignment app-wide rather than scoped to one stake.
   const superAdmin = await createTestUser({
     handle: "super-admin",
-    role: "ward_council_member",
+    // BOTH GRANTS, matching the `superAdmin` fixture in tests/helpers/seed.ts. The ward calling is
+    // `super_admin` and the app-wide authority is the `unit_assignments` row below.
+    //
+    // The walk of scenario 067 found this seeded only the second, and the person was refused the
+    // whole /admin section. The LAYOUT was fixed to admit a structural super admin either way —
+    // so this is no longer load-bearing — but the two fixtures should describe one kind of person.
+    role: "super_admin",
     firstName: "Dana",
     lastName: "Whitmore",
   });
@@ -114,7 +120,7 @@ export async function seed(): Promise<void> {
         ward_id: TEST_WARD_ID,
         requested_by: bishop.id,
         role: "org_president",
-        permission: "agendas.manage",
+        module: "agendas",
         level: "F",
         reason:
           "Our organization presidents build most of the ward council agenda before the " +
@@ -129,7 +135,7 @@ export async function seed(): Promise<void> {
         ward_id: TEST_WARD_ID,
         requested_by: bishop.id,
         role: "org_secretary",
-        permission: "roster.manage",
+        module: "roster",
         level: "F",
         reason:
           "Our secretaries keep the roster more current than anybody, and they are the ones " +

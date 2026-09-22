@@ -27,12 +27,15 @@
         "An audit row exists for the **submission** and for the **decision**",
         "The decision audit row is filed under the ward that **asked**, not the decider's ward",
         "Deciding the same request twice answers **409** \"already been answered\", and `decided_by`",
-        "A request naming an `admin.*` or `sacrament.*` permission is refused at the boundary (**400**)",
-        "A notification reaches the ward on a decision, and the super admins on a submission",
+        "A request naming a module the app does not know is refused at the boundary (**400**) — and",
+        "An approved module grants its WHOLE set, `read` included, so the grant is never inert",
+        "A notification reaches the ward on a decision",
+        "A notification reaches the SUPER ADMINS on a submission — they are addressed explicitly by",
         "**Does a denial read as a decision somebody made, or as the app refusing?** This is the",
         "Is it obvious, as the bishop, that somebody else has to answer — rather than looking like a",
         "Does the \"Approve for every ward\" confirmation make clear that **nothing turns on today**?",
-        "At 375px, does the request list stay readable and the reason text wrap cleanly?"
+        "At 375px, does the request list stay readable and the reason text wrap cleanly?",
+        "Do the module descriptors say enough on their own, or does the picker still need its"
       ],
       "seedCommand": "npm run seed -- admin/scenario-067-asking-for-a-permission"
     },

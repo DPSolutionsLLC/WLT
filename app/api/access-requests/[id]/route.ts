@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
+import { describeAccessRequest, permissionsForModule } from "@/lib/access/accessModules";
 import { withholdAppWideGrantFromExistingWards } from "@/lib/access/appWideGrant";
 import { decideAccessRequest, readAccessRequest } from "@/lib/access/requests";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
 import { ForbiddenError } from "@/lib/auth/errors";
-import type { KnownPermission } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { emitNotification } from "@/lib/notifications/emitNotification";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { isSuperAdmin } from "@/lib/units/queries";
 import { decideAccessRequestSchema } from "@/lib/validation/accessRequest";
+import { ROLE_LABELS } from "@/types/domain";
 
 // DECIDING A REQUEST. A super admin, and nobody else.
 //
@@ -79,11 +80,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     // the app for a decision that then failed to record.
     let fanOutFailures = 0;
     if (decided.status === "approved_app_wide") {
-      const result = await withholdAppWideGrantFromExistingWards(
-        decided.role,
-        decided.permission as KnownPermission,
-      );
-      fanOutFailures = result.failedCount;
+      // EVERY permission the module expands to, not one. An app-wide grant that wrote an
+      // off-override for only part of a module would let the rest of it through on deploy day,
+      // which is precisely what the fan-out exists to prevent.
+      for (const permission of permissionsForModule(decided.module, decided.level)) {
+        const result = await withholdAppWideGrantFromExistingWards(decided.role, permission);
+        fanOutFailures += result.failedCount;
+      }
     }
 
     await writeAuditLog(
@@ -98,7 +101,8 @@ export async function PATCH(request: Request, context: RouteContext) {
           requestId: decided.id,
           status: decided.status,
           role: decided.role,
-          permission: decided.permission,
+          module: decided.module,
+          level: decided.level,
           decidingWardId: user.wardId,
           ...(decided.status === "approved_app_wide" ? { fanOutFailures } : {}),
         },
@@ -121,7 +125,7 @@ export async function PATCH(request: Request, context: RouteContext) {
           decided.status === "denied"
             ? "Your access request was declined"
             : "Your access request was approved",
-        body: `${decided.role} · ${decided.permission}`,
+        body: `${ROLE_LABELS[decided.role]} · ${describeAccessRequest(decided.module, decided.level)}`,
       },
       supabase,
     );

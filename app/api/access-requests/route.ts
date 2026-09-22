@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { describeAccessRequest } from "@/lib/access/accessModules";
 import {
   createAccessRequest,
   listAccessRequests,
@@ -10,7 +11,9 @@ import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { emitNotification } from "@/lib/notifications/emitNotification";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { isSuperAdmin } from "@/lib/units/queries";
 import { createAccessRequestSchema } from "@/lib/validation/accessRequest";
+import { ROLE_LABELS } from "@/types/domain";
 
 // A WARD ASKS FOR A PERMISSION. GET lists what this session may see; POST files a request.
 //
@@ -35,7 +38,13 @@ export async function GET() {
     // `admin.view` and not `admin.manage_roles`: this list is the ward's own record of what it
     // asked for and what came back, and a counselor who did not file the request still needs to
     // read the outcome. Bishopric admin authority is shared (CLAUDE.md §7).
-    assertCan(user, "admin.view", roleAccess);
+    //
+    // OR a super admin, who is the person the queue exists for and whose authority is structural
+    // rather than a ward permission. Without this arm they could DECIDE a request (PATCH gates on
+    // isSuperAdmin) that they could not LIST — found by walking scenario 067.
+    if (!(await isSuperAdmin(supabase))) {
+      assertCan(user, "admin.view", roleAccess);
+    }
 
     const requests = await listAccessRequests(supabase);
 
@@ -69,7 +78,7 @@ export async function POST(request: Request) {
       wardId: user.wardId,
       requestedBy: user.id,
       role: input.role,
-      permission: input.permission,
+      module: input.module,
       level: input.level,
       reason: input.reason,
     });
@@ -83,7 +92,7 @@ export async function POST(request: Request) {
         detail: {
           requestId: accessRequest.id,
           role: accessRequest.role,
-          permission: accessRequest.permission,
+          module: accessRequest.module,
           level: accessRequest.level,
         },
       },
@@ -101,7 +110,9 @@ export async function POST(request: Request) {
         wardId: accessRequest.wardId,
         triggerKey: "access_request_submitted",
         title: "A ward has asked for access",
-        body: `${accessRequest.role} · ${accessRequest.permission}`,
+        // The DESCRIPTOR, not the key — this is read by a person in a notification list, and
+        // "Sacrament — Talks (read only)" says what `sacrament_talks` cannot.
+        body: `${ROLE_LABELS[accessRequest.role]} · ${describeAccessRequest(accessRequest.module, accessRequest.level)}`,
         recipientUserIds: await listActiveSuperAdminIds(),
       },
       supabase,

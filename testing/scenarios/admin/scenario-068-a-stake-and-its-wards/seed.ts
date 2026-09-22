@@ -36,7 +36,13 @@ export async function seed(): Promise<void> {
   // one stake, and the `unit_assignments_scope` CHECK permits that only for this role.
   const superAdmin = await createTestUser({
     handle: "super-admin",
-    role: "ward_council_member",
+    // BOTH GRANTS, matching the `superAdmin` fixture in tests/helpers/seed.ts. The ward calling is
+    // `super_admin` and the app-wide authority is the `unit_assignments` row below.
+    //
+    // The walk of scenario 067 found this seeded only the second, and the person was refused the
+    // whole /admin section. The LAYOUT was fixed to admit a structural super admin either way —
+    // so this is no longer load-bearing — but the two fixtures should describe one kind of person.
+    role: "super_admin",
     firstName: "Dana",
     lastName: "Whitmore",
   });

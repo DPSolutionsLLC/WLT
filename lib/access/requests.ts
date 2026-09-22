@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { findAccessModule, permissionsForModule } from "@/lib/access/accessModules";
 import { grantPermission, type WardSettings } from "@/lib/access/roleAccessDeltas";
 import type { KnownPermission } from "@/lib/auth/permissions";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -38,13 +39,13 @@ import {
 // error at every call site rather than as anything to do with the query. lib/units/queries.ts and
 // lib/callings/queries.ts keep theirs on one line for the same reason.
 const COLUMNS =
-  "id, ward_id, requested_by, role, permission, level, reason, status, decided_by, decision_note, decided_at, created_at";
+  "id, ward_id, requested_by, role, module, level, reason, status, decided_by, decision_note, decided_at, created_at";
 
 export type CreateAccessRequestParams = {
   wardId: string;
   requestedBy: string;
   role: Role;
-  permission: KnownPermission;
+  module: string;
   level: AccessLevel;
   reason: string;
 };
@@ -62,7 +63,7 @@ type AccessRequestRow = {
   ward_id: string;
   requested_by: string | null;
   role: string;
-  permission: string;
+  module: string;
   level: string;
   reason: string;
   status: string;
@@ -99,12 +100,20 @@ function toAccessRequest(row: AccessRequestRow): AccessRequest {
     );
   }
 
+  if (findAccessModule(row.module) === null) {
+    throw new Error(
+      `access_requests.module holds "${row.module}", which is not a module this app knows. The ` +
+        "request was written against a different version of ACCESS_MODULES in " +
+        "lib/access/accessModules.ts.",
+    );
+  }
+
   return {
     id: row.id,
     wardId: row.ward_id,
     requestedBy: row.requested_by,
     role: row.role as Role,
-    permission: row.permission,
+    module: row.module,
     level: row.level as AccessLevel,
     reason: row.reason,
     status: row.status as AccessRequestStatus,
@@ -171,7 +180,7 @@ export async function createAccessRequest(
       ward_id: params.wardId,
       requested_by: params.requestedBy,
       role: params.role,
-      permission: params.permission,
+      module: params.module,
       level: params.level,
       reason: params.reason.trim(),
     })
@@ -182,7 +191,7 @@ export async function createAccessRequest(
     console.error(`Could not create the access request — ${error.message}`, {
       wardId: params.wardId,
       role: params.role,
-      permission: params.permission,
+      module: params.module,
     });
     throw new Error(`Could not send the request: ${error.message}`);
   }
@@ -199,8 +208,26 @@ async function applyWardGrant(
   service: SupabaseClient<Database>,
   wardId: string,
   role: Role,
-  permission: string,
+  moduleKey: string,
+  level: AccessLevel,
 ): Promise<void> {
+  // THE EXPANSION, and the reason a grant can no longer arrive inert. `full` always contains its
+  // own `read`, so approving "Sacrament — Talks" hands over `talks.view` as well as
+  // `talks.approve` — which is what the walk of scenario 067 found missing when the unit of a
+  // request was a single permission.
+  const permissions = permissionsForModule(moduleKey, level);
+
+  if (permissions.length === 0) {
+    // A module the app no longer knows. THROWS rather than writing an empty delta: an approval
+    // that silently granted nothing is the exact failure this whole change was made to remove,
+    // and the route reports it rather than telling the ward it is turned on.
+    throw new Error(
+      `Cannot apply the grant: "${moduleKey}" is not a module this app knows, so there is ` +
+        "nothing to turn on. The request was written against a different version of " +
+        "ACCESS_MODULES.",
+    );
+  }
+
   const { data, error } = await service
     .from("wards")
     .select("settings")
@@ -217,11 +244,13 @@ async function applyWardGrant(
       ? (data.settings as WardSettings)
       : {};
 
-  // The cast is safe because the route validated `permission` against PERMISSIONS before the
-  // request row was ever written, and the mapper above re-checks the role. A permission removed
-  // from the app in a later phase would be dropped by `applyDelta`'s unknown-name filter at
-  // resolution time, with a warning — which is the right place for it, not here.
-  const next = grantPermission(settings, role, permission as KnownPermission);
+  // Folded one permission at a time through the same merge the single-permission path used, so
+  // the delta discipline in lib/access/roleAccessDeltas.ts still owns every write and this
+  // function never touches the settings object itself.
+  const next = permissions.reduce<WardSettings>(
+    (carried, permission) => grantPermission(carried, role, permission),
+    settings,
+  );
 
   const { error: writeError } = await service
     .from("wards")
@@ -232,7 +261,8 @@ async function applyWardGrant(
     console.error(`Could not apply the grant — ${writeError.message}`, {
       wardId,
       role,
-      permission,
+      module: moduleKey,
+      level,
     });
     throw new Error(`Could not apply the grant: ${writeError.message}`);
   }
@@ -285,7 +315,13 @@ export async function decideAccessRequest(
   const decided = toAccessRequest(data);
 
   if (decided.status === "approved_ward") {
-    await applyWardGrant(service, decided.wardId, decided.role, decided.permission);
+    await applyWardGrant(
+      service,
+      decided.wardId,
+      decided.role,
+      decided.module,
+      decided.level,
+    );
   }
 
   return decided;
@@ -313,7 +349,12 @@ export async function listActiveSuperAdminIds(
 
   const { data, error } = await service
     .from("unit_assignments")
-    .select("user_id, users!inner(is_active)")
+    // `users!user_id!inner`, NOT `users!inner`. `unit_assignments` has TWO foreign keys to `users`
+    // — `user_id` and `created_by` — so the bare embed is ambiguous and PostgREST refuses it with
+    // "more than one relationship was found". The error was caught and an empty list returned, so
+    // the notification silently never arrived: exactly the damage this function's own header warns
+    // about. Found by walking scenario 067.
+    .select("user_id, users!user_id!inner(is_active)")
     .eq("role", "super_admin")
     .eq("users.is_active", true);
 

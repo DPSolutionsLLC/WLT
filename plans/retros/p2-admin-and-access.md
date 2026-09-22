@@ -98,6 +98,36 @@ organization resolves differently from one in another.
   bishopric act, granted in full to the secretaries. `program-approval.test.ts` names the rule in
   a test title ("this is the one step they cannot take"). Both rows now say the same thing.
 
+## What the walk found
+
+Scenario 067 was walked in a real browser the same day. **The request flow's data behaviour was
+correct in every respect** — the delta merged, the second ward's settings stayed byte-identical, the
+refusals all carried real sentences, nobody could approve their own request. **Three defects, none
+of them in that logic, and all three fixed:**
+
+1. **A super admin could not open either new screen.** The `/admin` layout gated on `admin.view`,
+   which comes from the ward calling, while their authority is a `unit_assignments` row. Incoherent
+   as well as wrong: `PATCH .../[id]` gates on `isSuperAdmin`, so during the walk they **decided two
+   requests they could not list**. No test caught it because route tests call handlers directly and
+   never render the layout — **the gap was between two layers, and only a browser sits across both.**
+
+2. **The submission notification never arrived.** `unit_assignments` has two foreign keys to `users`
+   (`user_id`, `created_by`), so `users!inner(…)` is ambiguous and PostgREST refuses it.
+   `listActiveSuperAdminIds()` logged it and returned `[]`. **The same bug was pre-existing in
+   `countActiveSuperAdmins()`** from `2bd7f4e`, where it throws instead — so deactivating a super
+   admin answered 500 and the last-admin guard never ran. My own comment on the function predicted
+   the failure mode exactly, and the query it guarded was what produced it.
+
+3. **A granted permission could be inert while the app said it was on.** `topics.manage` was
+   approved, the delta landed, and `/talks/topics` still refused the org president because it gates
+   on `topics.view`. The card read *"This is now turned on for your ward."*
+
+**The fix for the third was the user's answer to a judgement question**, not a code review: asked
+whether a bishop should read raw permission keys, they said the descriptor from the role-access page
+would be more useful — and that page works in **modules**, not permissions. Adopting its shape
+(`role × module × level`) means a grant expands to a coherent set whose `full` contains its own
+`read`, so it can never arrive inert. **A wording question turned out to be a correctness fix.**
+
 ## What to watch
 
 - **The ward clerk can now build and distribute the programme while unable to open Music or see
@@ -117,6 +147,11 @@ organization resolves differently from one in another.
   header promises the caller would map surfaced as a **500 reading "Please try again"**. The
   original now travels on `cause`. No caller inspected it before, so the change is additive; what
   it fixes is a comment that was aspirational rather than true.
+
+- **A test suite that calls route handlers directly cannot see a layout.** Two of the three walk
+  defects lived in the seam between a Server Component gate and a route gate, and 3700 passing tests
+  said nothing about either. The scenario checklist is what caught them, because it describes what a
+  person does rather than what a handler returns.
 
 - **Migrations were applied to the hosted project during the build, and the suite must not run
   while a harness seed does.** Seeding mid-run clears harness data out from under a suite that is

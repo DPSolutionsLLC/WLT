@@ -1,13 +1,8 @@
 import { AccessRequests } from "@/app/(app)/admin/access-requests/AccessRequests";
 import { NotPermitted } from "@/components/ui/NotPermitted";
+import { ACCESS_MODULES } from "@/lib/access/accessModules";
 import { listAccessRequests } from "@/lib/access/requests";
-import {
-  NON_OVERRIDABLE_PERMISSIONS,
-  NON_OVERRIDABLE_ROLES,
-  PERMISSIONS,
-  can,
-  resolveRoleAccess,
-} from "@/lib/auth/permissions";
+import { NON_OVERRIDABLE_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { isSuperAdmin } from "@/lib/units/queries";
@@ -30,14 +25,15 @@ import { ROLES } from "@/types/domain";
 // can() rather than assertCan(): a ForbiddenError escaping a Server Component becomes a 500 whose
 // message Next.js strips in production (plans/retros/auth-b-invites-admin.md).
 
-// The SAME derivation lib/validation/accessRequest.ts uses, so the picker cannot offer something
-// the route would refuse with a 400. `admin.*` and `sacrament.*` are non-overridable in both
-// directions, so a request for one would be approved, written, and silently have no effect — and
-// a granted permission that does not arrive is worse than a refusal, because nobody goes looking
-// for it.
-const REQUESTABLE_PERMISSIONS = PERMISSIONS.filter(
-  (permission) => !NON_OVERRIDABLE_PERMISSIONS.includes(permission),
-);
+// The SAME constant lib/validation/accessRequest.ts validates against, so the picker cannot offer
+// something the route would refuse with a 400. Only the three display fields cross to the client:
+// the permission expansion is the server's business, and shipping it would put the whole access
+// matrix in the browser bundle for no purpose.
+const ACCESS_MODULE_OPTIONS = ACCESS_MODULES.map((accessModule) => ({
+  key: accessModule.key,
+  label: accessModule.label,
+  description: accessModule.description,
+}));
 
 const REQUESTABLE_ROLES = ROLES.filter((role) => !NON_OVERRIDABLE_ROLES.includes(role));
 
@@ -70,7 +66,7 @@ export default async function AccessRequestsPage() {
 
       <AccessRequests
         initialRequests={requests}
-        requestablePermissions={[...REQUESTABLE_PERMISSIONS]}
+        accessModules={ACCESS_MODULE_OPTIONS}
         requestableRoles={[...REQUESTABLE_ROLES]}
         canAsk={canAsk}
         canDecide={canDecide}

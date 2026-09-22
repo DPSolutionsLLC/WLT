@@ -231,7 +231,11 @@ export async function countActiveSuperAdmins(
 
   const { data, error } = await supabase
     .from("unit_assignments")
-    .select("user_id, users!inner(is_active)")
+    // `users!user_id!inner`, NOT `users!inner` — `unit_assignments` has two foreign keys to `users`
+    // (`user_id` and `created_by`), so the bare embed is ambiguous and PostgREST refuses it. Here it
+    // THROWS rather than failing silent, so deactivating a super admin answered 500 and this guard
+    // never ran. Found by walking scenario 067.
+    .select("user_id, users!user_id!inner(is_active)")
     .eq("role", "super_admin")
     .eq("users.is_active", true);
 

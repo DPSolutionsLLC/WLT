@@ -47,7 +47,7 @@ export type Database = {
           decision_note: string | null
           id: string
           level: string
-          permission: string
+          module: string
           reason: string
           requested_by: string | null
           role: string
@@ -61,7 +61,7 @@ export type Database = {
           decision_note?: string | null
           id?: string
           level?: string
-          permission: string
+          module: string
           reason: string
           requested_by?: string | null
           role: string
@@ -75,7 +75,7 @@ export type Database = {
           decision_note?: string | null
           id?: string
           level?: string
-          permission?: string
+          module?: string
           reason?: string
           requested_by?: string | null
           role?: string

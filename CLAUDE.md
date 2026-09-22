@@ -336,10 +336,25 @@ everything); `music_coordinator` keeps `talks.view` (§8 names it as the route-t
 every ward and that was **refused** — the 2026-09-21 decision recorded above stands, and it was
 made against the real security boundary where the prototype's is client state.
 
-**A WARD CAN NOW ASK.** `access_requests` (migration 073) is the conversation: a ward admin with
-`admin.manage_roles` files one with a written reason, a super admin decides, and an approval writes
-an ordinary **add-delta** into `wards.settings.role_access`. It is **not a second permission
-engine** — the resolution path is untouched.
+**A WARD ASKS FOR A MODULE, NOT FOR A PERMISSION — corrected 2026-09-22 by walking scenario 067.**
+`access_requests` (migration 073) is the conversation: a ward admin with `admin.manage_roles` files
+one with a written reason, a super admin decides, and an approval writes an ordinary **add-delta**
+into `wards.settings.role_access`. It is **not a second permission engine** — the resolution path is
+untouched.
+
+The unit of a request is an **ACCESS MODULE** with a **LEVEL** (`lib/access/accessModules.ts`,
+migration 075), the way the prototype's own role-access page works — *"Relief Society President —
+Sacrament — Talks (Full)"*. It first shipped asking for a single raw permission key, and the walk
+showed why that is wrong twice over: a bishop was expected to read `calendar.manage_org_conducting`,
+and **a grant could land inert**. The walk approved `topics.manage` for an org president, the delta
+landed correctly, and `/talks/topics` still refused them because it gates on `topics.view` — while
+the card read *"This is now turned on for your ward."*
+**A MODULE'S `full` ALWAYS CONTAINS ITS OWN `read`**, so that sentence is now true; it is asserted at
+import time and in `tests/lib/accessModules.test.ts`.
+`level` is `F` or `R`. **`Q` is not offered** — the prototype's "their own organization only" is the
+org scoping RLS already applies through `current_org_id()`, so there is nothing to turn on.
+**No module offers an `admin.*` or `sacrament.*` permission**, which is where the non-overridable
+guarantee now lives; and **none offers `program.approve`**, because approving is a bishopric act.
 **THE ONE RULE IT EXISTS FOR — a ward admin cannot approve their own request — is enforced by the
 ABSENCE OF A WRITE POLICY**, not by a route check somebody could forget. `access_requests` has a
 SELECT policy and nothing else, so both halves run through the service-role client behind the
@@ -359,6 +374,15 @@ are returned and the route reports them. **Every write merges**; a wholesale wri
 every ward's other overrides plus its timezone and venues, which is `writeCrossOrgVisibility()`'s
 warning for the same column. `tests/lib/appWideGrant.test.ts` is pure and was **proved able to fail**
 before being believed.
+
+**THE `/admin` SECTION ADMITS A STRUCTURAL SUPER ADMIN, NOT ONLY `admin.view` — found by walking
+scenario 067.** `app/(app)/admin/layout.tsx` gated the whole section on `admin.view`, which comes
+from the **ward calling**; a super admin's authority is a `unit_assignments` row and has no ward at
+all. So a super admin whose ward calling was an ordinary one was refused **both screens built for
+them** — while `PATCH /api/access-requests/[id]`, which gates on `isSuperAdmin`, let them DECIDE a
+request they could not SEE. The layout and `GET /api/access-requests` now ask the same question
+`countActiveSuperAdmins()` already treats as the source of truth. **A screen gated on a structural
+role must not sit behind a layout gated on a ward permission.**
 
 **STAKES & WARDS IS GATED ON `super_admin` IN `unit_assignments`, NEVER ON AN `admin.*`
 PERMISSION** — a ward has no standing to create the stake above itself, and a `units.*` permission

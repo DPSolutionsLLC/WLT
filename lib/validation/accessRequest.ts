@@ -1,32 +1,26 @@
 import { z } from "zod";
-import {
-  NON_OVERRIDABLE_PERMISSIONS,
-  NON_OVERRIDABLE_ROLES,
-  PERMISSIONS,
-  type KnownPermission,
-} from "@/lib/auth/permissions";
-import { ACCESS_LEVELS, ROLES, type Role } from "@/types/domain";
+import { ACCESS_MODULE_KEYS } from "@/lib/access/accessModules";
+import { NON_OVERRIDABLE_ROLES } from "@/lib/auth/permissions";
+import { ROLES, type Role } from "@/types/domain";
 
 // ---------------------------------------------------------------------------
 // A REQUEST CANNOT ASK FOR SOMETHING AN APPROVAL COULD NOT GRANT
 // ---------------------------------------------------------------------------
 //
-// `admin.*` and `sacrament.*` are NON-OVERRIDABLE IN BOTH DIRECTIONS (lib/auth/permissions.ts),
-// and `mergeRoleAccess` restores their code defaults whatever a delta says. So a request for one
-// of them would be accepted, queued, approved, written — and silently have no effect.
+// That guarantee now lives in lib/access/accessModules.ts rather than here: no module offers an
+// `admin.*` or `sacrament.*` permission, and that file ASSERTS it at import time, because those
+// are NON-OVERRIDABLE IN BOTH DIRECTIONS and `mergeRoleAccess` restores their code defaults
+// whatever a delta says. A request for one would be accepted, approved, written — and silently
+// have no effect, which is worse than a refusal because nobody goes looking for it.
 //
-// REFUSING AT THE BOUNDARY IS THE WHOLE POINT. A granted permission that does not arrive is worse
-// than a refusal, because nobody goes looking for it: the ward believes it was given something it
-// does not have. This is `visits-f`'s rule — refuse, and name the alternative — applied to the
-// one place in this phase where the approval path could otherwise lie.
-//
-// The two exclusions have their own reasons, both recorded on NON_OVERRIDABLE_PERMISSIONS:
-// `admin.*` runs through the service-role client where assertCan() is the only boundary, so
-// widening one is self-escalation; `sacrament.*` is the entire reach of a youth PIN account, and
-// widening that is a product decision rather than a checkbox.
-const REQUESTABLE_PERMISSIONS = PERMISSIONS.filter(
-  (permission) => !NON_OVERRIDABLE_PERMISSIONS.includes(permission),
-) as [KnownPermission, ...KnownPermission[]];
+// So the schema's job is narrower: accept a module key the app knows. An unknown one is refused
+// with a sentence rather than stored and rendered as a request nobody can act on.
+const REQUESTABLE_MODULES = ACCESS_MODULE_KEYS as [string, ...string[]];
+
+// `Q` IS NOT OFFERED. decisions.md §2.3: the prototype's "their own organization only" maps onto
+// WLT's EXISTING org scoping, which RLS applies through `current_org_id()` whether anybody asked
+// or not. Offering it would suggest a ward could turn something on that is already on.
+const REQUESTABLE_LEVELS = ["F", "R"] as const;
 
 // `super_admin` cannot be reconfigured by a ward in either direction either — a ward may not
 // disable the app-wide administrator who is there to help it — so a request naming that role
@@ -39,12 +33,12 @@ const REQUESTABLE_ROLES = ROLES.filter(
 // that could name the asking ward would let one ward file a request in another's name.
 export const createAccessRequestSchema = z.object({
   role: z.enum(REQUESTABLE_ROLES, "Choose which calling needs the access."),
-  permission: z.enum(
-    REQUESTABLE_PERMISSIONS,
-    "Choose something that can be granted. Administration and sacrament access cannot be " +
-      "changed by a request.",
+  module: z.enum(
+    REQUESTABLE_MODULES,
+    "Choose one of the listed modules. Administration and sacrament access cannot be changed " +
+      "by a request.",
   ),
-  level: z.enum(ACCESS_LEVELS).default("F"),
+  level: z.enum(REQUESTABLE_LEVELS, "Choose how much access they need.").default("F"),
   // A REQUEST WITH NO WRITTEN REASON IS NOT A REQUEST. The person deciding has nothing to decide
   // on, and the column is NOT NULL besides (migration 073a).
   reason: z

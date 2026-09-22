@@ -81,11 +81,11 @@ describe("/api/access-requests", () => {
     await fixtures?.cleanup();
   });
 
-  async function fileRequest(permission = "agendas.manage"): Promise<string> {
+  async function fileRequest(accessModule = "agendas"): Promise<string> {
     await actAs(fixtures, "bishop");
     const { status, body } = await postRequest({
       role: "org_president",
-      permission,
+      module: accessModule,
       level: "F",
       reason: "Our presidents build most of the agenda before the meeting anyway.",
     });
@@ -115,7 +115,7 @@ describe("/api/access-requests", () => {
 
     const { status } = await postRequest({
       role: "org_president",
-      permission: "agendas.manage",
+      module: "agendas",
       level: "F",
       reason: "A reason long enough to pass the schema's minimum length.",
     });
@@ -128,7 +128,7 @@ describe("/api/access-requests", () => {
 
     const { status } = await postRequest({
       role: "org_president",
-      permission: "agendas.manage",
+      module: "agendas",
       level: "F",
       reason: "no",
     });
@@ -136,22 +136,44 @@ describe("/api/access-requests", () => {
     expect(status).toBe(400);
   });
 
-  // ⚠️ THE SILENT-NO-OP REFUSAL. Approving one of these would write a delta that
-  // `mergeRoleAccess` then discards, so the ward would believe it had been given something it
-  // does not have.
-  it("refuses a request for a non-overridable permission", async () => {
+  // ⚠️ THE SILENT-NO-OP REFUSAL, re-pointed when the unit of a request became a MODULE.
+  //
+  // It used to post `permission: "admin.manage_users"` directly. That would still answer 400 —
+  // but for the wrong reason, because the schema no longer has a `permission` field at all, and a
+  // test that passes on an unknown-field error proves nothing about non-overridable permissions.
+  //
+  // The guarantee moved to lib/access/accessModules.ts, which offers no module containing an
+  // `admin.*` or `sacrament.*` permission and ASSERTS that at import time.
+  // tests/lib/accessModules.test.ts is where it is now proved; what belongs HERE is that a module
+  // key the app does not know is refused rather than stored.
+  it("refuses a module the app does not know", async () => {
     await actAs(fixtures, "bishop");
 
-    for (const permission of ["admin.manage_users", "sacrament.manage_pools"]) {
+    for (const unknown of ["ward_admin", "sacrament_assignments", "not_a_module"]) {
       const { status } = await postRequest({
         role: "org_president",
-        permission,
+        module: unknown,
         level: "F",
         reason: "A reason long enough to pass the schema's minimum length.",
       });
 
-      expect(status, `${permission} should be refused at the boundary`).toBe(400);
+      expect(status, `"${unknown}" should be refused at the boundary`).toBe(400);
     }
+  });
+
+  // `Q` is a level the prototype's matrix uses and WLT deliberately does not offer: it maps onto
+  // the org scoping RLS already applies through current_org_id().
+  it("refuses the quorum level", async () => {
+    await actAs(fixtures, "bishop");
+
+    const { status } = await postRequest({
+      role: "org_president",
+      module: "visits",
+      level: "Q",
+      reason: "A reason long enough to pass the schema's minimum length.",
+    });
+
+    expect(status).toBe(400);
   });
 
   // ---------------------------------------------------------------------------
@@ -217,7 +239,7 @@ describe("/api/access-requests", () => {
 
   it("writes an add-delta and leaves the ward's other settings alone", async () => {
     const before = await readWardSettings(fixtures.wardAId);
-    const id = await fileRequest("topics.manage");
+    const id = await fileRequest("sacrament_talks");
 
     await actAs(fixtures, "superAdmin");
     const { status } = await decide(id, { status: "approved_ward" });
@@ -226,7 +248,18 @@ describe("/api/access-requests", () => {
     const after = await readWardSettings(fixtures.wardAId);
     const roleAccess = after.role_access as Record<string, { add?: string[] }> | undefined;
 
-    expect(roleAccess?.org_president?.add).toContain("topics.manage");
+    // THE WHOLE MODULE, not one permission — and `full` contains its own `read`, which is what
+    // stops a grant arriving inert. `topics.view` is the one the walk of scenario 067 found
+    // missing when a request named a single permission.
+    expect(roleAccess?.org_president?.add).toEqual(
+      expect.arrayContaining([
+        "talks.view",
+        "topics.view",
+        "talks.plan",
+        "talks.approve",
+        "topics.manage",
+      ]),
+    );
 
     // EVERY OTHER KEY SURVIVED. A wholesale write is invisible from the delta alone.
     for (const key of Object.keys(before)) {
@@ -240,7 +273,7 @@ describe("/api/access-requests", () => {
   // Re-deciding would move `decided_by` onto whoever pressed last and re-run the grant under a
   // new name, so it is refused rather than silently re-stamped.
   it("refuses deciding the same request twice", async () => {
-    const id = await fileRequest("knowledge.manage");
+    const id = await fileRequest("knowledge");
 
     await actAs(fixtures, "superAdmin");
     expect((await decide(id, { status: "approved_ward" })).status).toBe(200);

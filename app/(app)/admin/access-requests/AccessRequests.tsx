@@ -10,6 +10,7 @@ import {
   ACCESS_REQUEST_STATUS_DESCRIPTIONS,
   ACCESS_REQUEST_STATUS_LABELS,
   ROLE_LABELS,
+  type AccessLevel,
   type AccessRequest,
   type AccessRequestStatus,
   type Role,
@@ -41,19 +42,34 @@ const STATUS_TONES: Record<AccessRequestStatus, "ok" | "pending" | "missing" | "
   denied: "missing",
 };
 
+// The shape lib/access/accessModules.ts exports, passed down rather than imported: this is a
+// client component, and that module imports lib/auth/permissions, which would pull its
+// dependencies into the browser bundle. Only `npm run build` catches that (youth-b, youth-c).
+export type AccessModuleOption = {
+  key: string;
+  label: string;
+  description: string;
+};
+
 export type AccessRequestsProps = {
   initialRequests: AccessRequest[];
-  // The permissions this ward may ask for — resolved on the server from the same list the Zod
-  // schema accepts, so the picker cannot offer something the route would refuse.
-  requestablePermissions: string[];
+  // The MODULES this ward may ask for, with the descriptors the prototype's role-access page uses
+  // — resolved on the server from the same constant the Zod schema accepts, so the picker cannot
+  // offer something the route would refuse.
+  accessModules: AccessModuleOption[];
   requestableRoles: Role[];
   canAsk: boolean;
   canDecide: boolean;
 };
 
+const LEVEL_LABELS: Record<"F" | "R", string> = {
+  F: "Full — they can do the work",
+  R: "Read only — they can see it",
+};
+
 export function AccessRequests({
   initialRequests,
-  requestablePermissions,
+  accessModules,
   requestableRoles,
   canAsk,
   canDecide,
@@ -65,9 +81,20 @@ export function AccessRequests({
 
   const [draft, setDraft] = useState({
     role: requestableRoles[0] ?? ("org_president" as Role),
-    permission: requestablePermissions[0] ?? "",
+    module: accessModules[0]?.key ?? "",
+    level: "F" as AccessLevel,
     reason: "",
   });
+
+  const chosenModule = accessModules.find((entry) => entry.key === draft.module);
+
+  // What the card and the notification both say. Kept in one place here so the two cannot drift
+  // from each other on screen; the server has its own copy for the notification body.
+  const describe = (request: AccessRequest): string => {
+    const label =
+      accessModules.find((entry) => entry.key === request.module)?.label ?? request.module;
+    return request.level === "R" ? `${label} (read only)` : label;
+  };
 
   const [notes, setNotes] = useState<Record<string, string>>({});
 
@@ -85,8 +112,8 @@ export function AccessRequests({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           role: draft.role,
-          permission: draft.permission,
-          level: "F",
+          module: draft.module,
+          level: draft.level,
           reason: draft.reason,
         }),
       });
@@ -182,7 +209,7 @@ export function AccessRequests({
           <span className="text-sm font-medium text-foreground">
             {ROLE_LABELS[request.role]}
           </span>
-          <span className="text-sm text-muted">{request.permission}</span>
+          <span className="text-sm text-muted">{describe(request)}</span>
         </div>
 
         <p className="mt-2 text-sm text-foreground">{request.reason}</p>
@@ -297,16 +324,39 @@ export function AccessRequests({
               <span className="font-medium text-foreground">What they need</span>
               <select
                 className="min-w-0 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
-                value={draft.permission}
+                value={draft.module}
                 onChange={(event) =>
-                  setDraft((current) => ({ ...current, permission: event.target.value }))
+                  setDraft((current) => ({ ...current, module: event.target.value }))
                 }
               >
-                {requestablePermissions.map((permission) => (
-                  <option key={permission} value={permission}>
-                    {permission}
+                {accessModules.map((entry) => (
+                  <option key={entry.key} value={entry.key}>
+                    {entry.label}
                   </option>
                 ))}
+              </select>
+            </label>
+
+            {/* The label alone still does not say what somebody would be able to DO —
+                "Sacrament — Talks" is a place, not a capability. */}
+            {chosenModule && (
+              <p className="-mt-1 text-sm text-muted">{chosenModule.description}</p>
+            )}
+
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-foreground">How much</span>
+              <select
+                className="min-w-0 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+                value={draft.level}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    level: event.target.value as AccessLevel,
+                  }))
+                }
+              >
+                <option value="F">{LEVEL_LABELS.F}</option>
+                <option value="R">{LEVEL_LABELS.R}</option>
               </select>
             </label>
 

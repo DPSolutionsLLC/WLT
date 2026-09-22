@@ -227,7 +227,9 @@ export type AccessRequest = {
   wardId: string;
   requestedBy: string | null;
   role: Role;
-  permission: string;
+  // An ACCESS_MODULES key (lib/access/accessModules.ts), NOT a permission. With `level` it expands
+  // to the permissions an approval writes — which is what stops a grant arriving inert.
+  module: string;
   level: AccessLevel;
   reason: string;
   status: AccessRequestStatus;
