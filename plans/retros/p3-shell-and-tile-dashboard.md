@@ -2,7 +2,7 @@
 id: p3-shell-and-tile-dashboard
 type: feature
 iter: null
-commits: []
+commits: ["3af2f72"]
 date: 2026-09-22
 files:
   - lib/auth/navigation.tsx
