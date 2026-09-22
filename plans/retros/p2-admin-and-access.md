@@ -2,7 +2,7 @@
 id: p2-admin-and-access
 type: feature
 iter: null
-commits: ["6271f5e"]
+commits: ["568b7c8"]
 date: 2026-09-21
 files:
   - supabase/migrations/072_session_org_type.sql
@@ -86,24 +86,37 @@ organization resolves differently from one in another.
   ships. The fan-out is idempotent, does not stop at a per-ward failure, and does not swallow
   one — a ward that silently missed its override is a ward that silently *gained* a permission.
 
-- **Three things the matrix said and WLT kept anyway**, each against a documented decision the
-  prototype could not see: the bishopric keeps music, `music_coordinator` keeps `talks.view`, and
+- **Four things the matrix said and WLT kept anyway**, each against a documented decision the
+  prototype could not see: the bishopric keeps music, `music_coordinator` keeps `talks.view`,
   `sacrament_manager` is not mapped to `sacrament-ordinance-coordinator` at all — the prototype's
-  is an adult calling and WLT's is a youth PIN account capped at one module.
+  is an adult calling and WLT's is a youth PIN account capped at one module — and
+  **`program.approve` is withheld from both secretaries**.
+
+  The fourth was found by the SUITE rather than by review, and it exposed an inconsistency in the
+  first pass: `sacramentProgram=F` appears on three rows, and it had been read two different ways
+  in one change — withheld for `resource_center_specialist` on the grounds that approving is a
+  bishopric act, granted in full to the secretaries. `program-approval.test.ts` names the rule in
+  a test title ("this is the one step they cannot take"). Both rows now say the same thing.
 
 ## What to watch
 
-- **The ward clerk can now build, approve and distribute the programme while unable to open Music
-  or see who is speaking.** That is what the matrix says, taken literally on the user's
-  instruction with the alternative put beside it. It is the most likely thing a walk will call
-  wrong, and the comment in `permissions.ts` says to change it there and say so rather than
-  quietly re-adding.
+- **The ward clerk can now build and distribute the programme while unable to open Music or see
+  who is speaking.** That is what the matrix says, taken literally on the user's instruction with
+  the alternative put beside it. It is the most likely thing a walk will call wrong, and the
+  comment in `permissions.ts` says to change it there and say so rather than quietly re-adding.
+  (Approving is NOT among those grants — see above.)
 
 - **Stakes & Wards is absent from `NAVIGATION_ITEMS` on purpose.** That file gates on a
   permission, and `super_admin` holds all of them — so no permission would show it to a super
   admin without also showing it to every bishop. Adding a `units.*` permission would be the wrong
   fix: `role_access` could then widen it, and a ward could grant itself the right to create the
   stake above itself.
+
+- **A latent defect in plan 1 was fixed here.** `createCalling()` wrapped the PostgREST error in
+  a plain `Error`, dropping the SQLSTATE — so the one-active-calling-per-ward refusal its own
+  header promises the caller would map surfaced as a **500 reading "Please try again"**. The
+  original now travels on `cause`. No caller inspected it before, so the change is additive; what
+  it fixes is a comment that was aspirational rather than true.
 
 - **Migrations were applied to the hosted project during the build, and the suite must not run
   while a harness seed does.** Seeding mid-run clears harness data out from under a suite that is
