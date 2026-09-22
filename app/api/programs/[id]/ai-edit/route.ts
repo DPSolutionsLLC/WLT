@@ -62,7 +62,7 @@ export async function POST(
     const input = aiProgramEditSchema.parse(await readJsonBody(request));
 
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     // `program.build`, not `program.view`. Describing a change is an act of BUILDING the program
     // — and it spends money on an outbound vendor call, which reading never does.

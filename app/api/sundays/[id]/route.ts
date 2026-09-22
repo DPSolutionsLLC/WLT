@@ -27,7 +27,7 @@ export async function PATCH(
     // member of the ward — including an org_secretary — so RLS stops a cross-WARD write and
     // nothing else. This check is the real boundary.
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "calendar.manage", roleAccess);
 

@@ -1,0 +1,249 @@
+{
+  "$meta": {
+    "title": "Church Organizational & Calling Hierarchy",
+    "source": "General Handbook: Serving in The Church of Jesus Christ of Latter-day Saints (December 2025 edition)",
+    "note": "Section numbers below (e.g. '10.3') refer to General Handbook sections. Each 'nuances' entry is something that is NOT obvious from the calling title alone.",
+    "levels": ["general", "area", "stake", "ward", "quorum_or_class"]
+  },
+
+  "general_church_leadership": {
+    "level": "general",
+    "children": [
+      {
+        "name": "First Presidency",
+        "notes": "Presides over the whole Church.",
+        "section": "5.1"
+      },
+      {
+        "name": "Quorum of the Twelve Apostles",
+        "section": "5.1"
+      },
+      {
+        "name": "Presiding Bishopric",
+        "reports_to": "First Presidency",
+        "members": ["Presiding Bishop", "First Counselor", "Second Counselor"],
+        "nuances": [
+          "Each member holds the actual office of 'bishop' and is a General Authority — this is a completely different calling from a ward bishop, despite the shared title.",
+          "They administer temporal matters (welfare, finances, physical facilities, humanitarian efforts) for the ENTIRE Church, not a congregation.",
+          "Called by the First Presidency, not sustained locally like a ward bishop."
+        ],
+        "section": "5.1.1.3"
+      },
+      {
+        "name": "General Officers (Presidencies of Relief Society, Young Men, Young Women, Primary, Sunday School)",
+        "reports_to": "First Presidency / Quorum of the Twelve / assigned General Authority Seventies",
+        "nuances": [
+          "These are the only auxiliary organizations with a 'general' presidency layer above the stake — note 'Young Men' exists as a general organization name, but at the ward level there is no separate 'Young Men presidency' (see ward nuance below).",
+          "General Officers typically serve about five years, unlike most local callings which have no fixed term."
+        ],
+        "section": "5.1.2"
+      }
+    ]
+  },
+
+  "area_leadership": {
+    "level": "area",
+    "children": [
+      {
+        "name": "Area Presidency",
+        "members": ["Area President (General Authority Seventy)", "Two Counselors (General Authority or Area Seventies)"],
+        "nuances": [
+          "Presides over stake AND mission presidents in the area — not just stakes."
+        ],
+        "section": "5.2.1"
+      }
+    ]
+  },
+
+  "stake_leadership": {
+    "level": "stake",
+    "children": [
+      {
+        "name": "Stake Presidency",
+        "members": ["Stake President", "First Counselor", "Second Counselor"],
+        "nuances": [
+          "The stake president is also, ex officio, the president of the stake high priests quorum (see nuance under High Council)."
+        ],
+        "section": "6.2"
+      },
+      {
+        "name": "High Council",
+        "composition": "12 high priests called by the stake presidency",
+        "nuances": [
+          "The high council does not meet as a body unless a member of the stake presidency is present to preside.",
+          "Individual high councilors are each assigned to a specific ward and to a specific elders quorum as the stake presidency's representative — this is a standing 1:1 assignment, not just committee work.",
+          "A high councilor can be authorized by the stake president to extend some callings, present members for sustaining, and set some members apart — i.e., high councilors can act with some of the stake presidency's calling authority."
+        ],
+        "section": "6.5"
+      },
+      {
+        "name": "Stake High Priests Quorum",
+        "reports_to": "Stake President (serves as its president)",
+        "composition": ["Bishops and their counselors", "High councilors", "Functioning patriarchs"],
+        "nuances": [
+          "This quorum is DIFFERENT from the ward-level elders quorum. Most ward high priests are NOT in this quorum — they're folded into their ward's elders quorum (see below). Only high priests currently serving in a stake presidency, bishopric, high council, or as patriarch belong to the stake high priests quorum."
+        ],
+        "section": "6.2.1.1"
+      },
+      {
+        "name": "Stake Patriarch",
+        "nuances": [
+          "A patriarch cannot be called to a bishopric, high council, stake/mission/temple presidency without advance approval from the Quorum of the Twelve Apostles. If approved, he's given 'not actively serving' patriarch status while he serves in the other calling."
+        ],
+        "section": "6.6.6"
+      },
+      {
+        "name": "Stake Clerk / Assistant Stake Clerks",
+        "section": "6.4.2"
+      },
+      {
+        "name": "Stake Executive Secretary",
+        "nuances": [
+          "Works closely with the stake presidency but is NOT a member of it."
+        ],
+        "section": "6.4.1"
+      },
+      {
+        "name": "Stake Organizations (Relief Society, Young Women, Primary, Sunday School, Young Men)",
+        "nuances": [
+          "The stake Sunday School president must be a sitting high councilor — unlike the other stake organization presidents.",
+          "The stake Young Men presidency is the ONLY stake organization presidency that does not hold its own annual stake leadership meeting; its instruction happens instead inside the stake priesthood leadership meeting alongside bishoprics and elders quorum presidencies.",
+          "These stake presidents/organizations exist ABOVE the ward organizations of the same name — do not confuse a 'stake Young Women president' with a ward's Young Women presidency; they're different callings at different levels."
+        ],
+        "section": "6.7"
+      }
+    ]
+  },
+
+  "ward_leadership": {
+    "level": "ward",
+    "children": [
+      {
+        "name": "Bishopric",
+        "members": ["Bishop", "First Counselor", "Second Counselor"],
+        "called_by": "Bishop by stake president (after First Presidency approval); counselors by stake president or assigned counselor",
+        "core_nuance": "THE BISHOPRIC IS THE PRESIDENCY OF THE AARONIC PRIESTHOOD IN THE WARD — this is the specific nuance you flagged. There is no separate 'ward Young Men president' calling; the bishopric fills that functional role.",
+        "nuances": [
+          "The bishop himself is, specifically, the president of the PRIESTS quorum (D&C 107:87) — not just a general overseer.",
+          "The First Counselor in the bishopric has direct responsibility for the TEACHERS quorum.",
+          "The Second Counselor in the bishopric has direct responsibility for the DEACONS quorum.",
+          "Whichever bishopric member attends a given Aaronic Priesthood quorum meeting presides in that meeting, regardless of which counselor 'owns' that quorum.",
+          "The bishopric also has foremost responsibility for young women (not just young men) as part of its 'rising generation' mandate, even though Young Women has its own ward presidency.",
+          "Only the bishop (not counselors, not the elders quorum president) counsels members on worthiness, abuse, and approval of fast-offering funds."
+        ],
+        "section": "7.1, 10.3, D&C 107:13-15, D&C 107:87"
+      },
+      {
+        "name": "Ward Clerk / Assistant Ward Clerks",
+        "recommended_by": "Bishop, approved by stake presidency and high council",
+        "nuances": [
+          "Works closely with the bishopric but is explicitly NOT a member of the bishopric.",
+          "Is a member of ward council in his own right.",
+          "An assistant clerk assigned to finances must hold the Melchizedek Priesthood."
+        ],
+        "section": "7.4, 33.4.3"
+      },
+      {
+        "name": "Ward Executive Secretary / Assistant Executive Secretaries",
+        "nuances": [
+          "Also explicitly NOT a member of the bishopric, despite preparing agendas and scheduling for it.",
+          "Is a member of ward council."
+        ],
+        "section": "7.3"
+      },
+      {
+        "name": "Elders Quorum",
+        "president_called_by": "Stake president (in consultation with the bishop) — NOT called by the bishop",
+        "core_nuance": "The elders quorum is not just 'elders' — it absorbs nearly all ward high priests too.",
+        "nuances": [
+          "Membership = all elders + all prospective elders + ALL high priests in the ward, EXCEPT those currently serving in a stake presidency, bishopric, high council, or as patriarch (those go to the stake high priests quorum instead).",
+          "The elders quorum president reports directly to the stake presidency (regular one-on-one meetings), while also receiving guidance from the bishop — he effectively has two lines of accountability.",
+          "A member of the elders quorum presidency may simply fill the role of 'ward mission leader' and/or 'ward temple and family history leader' — if so, he does NOT need to be separately called, sustained, or set apart for that role.",
+          "The elders quorum presidency partners directly with the Relief Society presidency (not the bishopric) to coordinate ministering assignments, missionary work, and temple/family history work."
+        ],
+        "section": "8.1.2, 8.3.1, 8.2.3, 8.2.4, 30.8.1"
+      },
+      {
+        "name": "Relief Society, Young Women, Primary, Sunday School Presidencies",
+        "president_recommended_and_called_by": "Bishopric only (no stake presidency/high council approval step required)",
+        "nuances": [
+          "Unlike the bishopric counselors, ward clerk, executive secretary, or elders quorum presidency — these four organization presidents and their counselors are entirely a ward-bishopric-level calling: recommended by the bishopric, approved by the bishopric, called by the bishop. The stake presidency isn't in this chain at all."
+        ],
+        "section": "30.8.1 (calling authority chart)"
+      },
+      {
+        "name": "Aaronic Priesthood Quorums (Priests, Teachers, Deacons)",
+        "presidents": {
+          "Priests Quorum": "The bishop (he IS the president; he calls 1-2 priests as his 'assistants' rather than a separate quorum president)",
+          "Teachers Quorum": "A teacher, called by a bishopric member (typically the First Counselor's area)",
+          "Deacons Quorum": "A deacon, called by a bishopric member (typically the Second Counselor's area)"
+        },
+        "nuances": [
+          "The priests quorum has no 'president' distinct from the bishop — his assistants are literally titled 'assistants,' not 'president/counselors.'",
+          "Youth quorum callings (deacons/teachers presidencies, priest assistants) are ANNOUNCED in sacrament meeting, not sustained by vote like adult callings.",
+          "Before extending any of these youth callings, the bishopric member must get the young man's parents' permission first."
+        ],
+        "section": "10.3, 10.4.1"
+      },
+      {
+        "name": "Young Women (ward)",
+        "nuances": [
+          "Young Women class presidents (or the whole presidency, if only one YW class exists) sit on the Ward Youth Council alongside the bishopric, a priests-quorum assistant, and the deacons/teachers quorum presidents."
+        ],
+        "section": "11, 29.2.6"
+      },
+      {
+        "name": "Ward Council",
+        "standing_members": [
+          "Bishopric",
+          "Ward Clerk",
+          "Ward Executive Secretary",
+          "Elders Quorum President",
+          "Relief Society President",
+          "Young Women President",
+          "Primary President",
+          "Sunday School President"
+        ],
+        "invited_as_needed": ["Ward Mission Leader", "Ward Temple & Family History Leader", "YSA committee leaders", "Ward music coordinator", "Full-time missionaries"],
+        "nuances": [
+          "The ward clerk and executive secretary are full standing members of ward council even though neither is a bishopric member.",
+          "Ward council members wear two hats simultaneously: (1) advisor for the whole ward, and (2) representative of their own organization — the handbook explicitly distinguishes these.",
+          "Distinct from 'Bishopric Meeting' (bishopric + clerk + executive secretary only, usually weekly) and 'Ward Youth Council' (a different, youth-focused meeting) — three separate standing meetings, easy to conflate."
+        ],
+        "section": "29.2.4, 29.2.5, 29.2.6"
+      },
+      {
+        "name": "Ward Mission Leader",
+        "nuances": [
+          "Can be, and often is, the same person as a member of the elders quorum presidency — in which case no separate call/sustain/set-apart happens."
+        ],
+        "section": "23.6, 30.8.1"
+      },
+      {
+        "name": "Ward Temple and Family History Leader",
+        "nuances": [
+          "Same dual-role pattern as ward mission leader: may simply be a member of the elders quorum presidency, with no separate calling."
+        ],
+        "section": "25.2.2, 25.2.3"
+      }
+    ]
+  },
+
+  "cross_cutting_nuances": [
+    {
+      "topic": "Calling authority is NOT uniform",
+      "detail": "Who recommends → approves → sustains → sets apart varies by calling. Bishopric counselors, ward clerk, executive secretary, and elders quorum presidency all require stake presidency + high council approval. Relief Society/Young Women/Primary/Sunday School presidencies require ONLY bishopric approval — no stake involvement. This is the single biggest 'looks similar but isn't' trap when modeling calling workflows.",
+      "section": "30.8.1"
+    },
+    {
+      "topic": "'Not a member of the bishopric' callings",
+      "detail": "Ward clerk and executive secretary both work in lockstep with the bishopric, attend its meetings, and are sometimes assumed to be bishopric members by members — but the handbook is explicit that they are not.",
+      "section": "7.3, 7.4"
+    },
+    {
+      "topic": "Title reuse across levels",
+      "detail": "'Young Men,' 'Young Women,' 'Relief Society,' 'Primary,' and 'Sunday School' presidencies all exist at BOTH the stake and ward level as distinct callings. A hierarchy model should namespace these by level (e.g., stake_relief_society_president vs ward_relief_society_president) to avoid collisions.",
+      "section": "5.1.2, 6.7, chapters 9-13"
+    }
+  ]
+}

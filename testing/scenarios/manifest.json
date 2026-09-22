@@ -1,7 +1,74 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 65,
+  "scenarioCount": 67,
   "scenarios": [
+    {
+      "id": "admin:scenario-067-asking-for-a-permission",
+      "path": "admin/scenario-067-asking-for-a-permission",
+      "name": "Asking for a permission",
+      "scope": "P2",
+      "part": 1,
+      "tags": [
+        "admin",
+        "auth",
+        "full"
+      ],
+      "prerequisites": "none",
+      "purpose": "**A ward asks for something it does not have, and somebody else answers.**\n\n`wards.settings.role_access` has been able to widen a role since ITER-005. What has never existed\nis a way for a ward to **ask**, and the one rule the whole flow turns on: **a ward admin cannot\napprove their own request**. If the asker could approve it, the ward would simply be granting\nitself the permission with paperwork around it.\n\nTwo halves are worth walking rather than unit-testing:\n\n1. **The requester can see the outcome.** The prototype shipped this flow *without* outcome\n   visibility and caught the gap itself. A denial nobody can read teaches leaders that asking does\n   nothing — and that is a judgement about wording on a screen, not an assertion about a row.\n2. **An approval lands as an ordinary delta** in one ward's settings, and **no other ward moves**.\n   That second half is what a wholesale settings write would break, and it is invisible from\n   inside the ward that asked.\n\nSeeding gives a **pending request** and a **super admin to decide it** — a state with no UI path\nuntil this slice, because there is no screen anywhere that creates a super admin.",
+      "checklist": [
+        "A ward admin submits a request with a reason and sees it as **pending**",
+        "The same admin **cannot** approve it — no control on the page, and",
+        "The database refuses it too: an authenticated UPDATE on `access_requests` as the bishop",
+        "After a super admin denies with a note, **the requester can read the note**",
+        "A denial with **no note** is refused with a sentence (`400`), because the requester would",
+        "After a ward-scoped approval, that ward's `role_access` gains an **add-delta**",
+        "**No other ward's settings changed** — ward 2's `music_coordinator` override is byte-identical",
+        "Ward 2's `timezone` and any other settings keys are unchanged",
+        "An audit row exists for the **submission** and for the **decision**",
+        "The decision audit row is filed under the ward that **asked**, not the decider's ward",
+        "Deciding the same request twice answers **409** \"already been answered\", and `decided_by`",
+        "A request naming an `admin.*` or `sacrament.*` permission is refused at the boundary (**400**)",
+        "A notification reaches the ward on a decision, and the super admins on a submission",
+        "**Does a denial read as a decision somebody made, or as the app refusing?** This is the",
+        "Is it obvious, as the bishop, that somebody else has to answer — rather than looking like a",
+        "Does the \"Approve for every ward\" confirmation make clear that **nothing turns on today**?",
+        "At 375px, does the request list stay readable and the reason text wrap cleanly?"
+      ],
+      "seedCommand": "npm run seed -- admin/scenario-067-asking-for-a-permission"
+    },
+    {
+      "id": "admin:scenario-068-a-stake-and-its-wards",
+      "path": "admin/scenario-068-a-stake-and-its-wards",
+      "name": "A stake and its wards",
+      "scope": "P2",
+      "part": 2,
+      "tags": [
+        "admin",
+        "full"
+      ],
+      "prerequisites": "none",
+      "purpose": "**The first time scenario 066's state is reachable without seeding.**\n\nScenario 066 proved that one person holding a real calling in two wards works — and said plainly\nthat *\"there is no UI anywhere for assigning a second calling until `proto-d`, so this state cannot\nbe reached by hand at all.\"* This is `proto-d`. A super admin creates a stake, nests wards under\nit, and gives somebody a calling in a second ward, and 066's state exists because a person made it.\n\nThe other half is what a ward must **not** see. \"Anyone who belongs to one ward never sees the\nunit layer at all\" is a stated requirement of this phase (CLAUDE.md §7), and this scenario is where\nit is checked against a ward that now genuinely **does** sit under a stake — which scenario 065\ncould not check, because there was no stake anywhere.\n\n**The destructive case is the one worth walking:** deleting a stake that still has wards under it\nmust **fail loudly**. `on delete restrict` is what enforces it (migration 065a, \"rather than\nsilently orphaning or destroying them\"), and the screen's job is to turn that into a sentence\nnaming what to do first.",
+      "checklist": [
+        "A super admin creates a stake and nests two wards under it",
+        "`unit_number` starts **empty** and saves when typed",
+        "A second unit given the **same** unit number is refused with a sentence (**409**), not a 500",
+        "Assigning a second calling makes `GET /api/session/active-ward` return **two wards** for",
+        "Every other account still gets `[]` from that endpoint — one calling is not a choice",
+        "A ward admin sees **no Stakes & wards entry anywhere**: not on `/admin`, not in the",
+        "`POST /api/units` as the bishop answers **403**",
+        "An authenticated INSERT into `units` at the table is **refused** — the route is not the only",
+        "Deleting a stake with wards under it **fails loudly** (`409`, `on delete restrict`), and the",
+        "Deleting a stake with nothing under it succeeds",
+        "An audit row exists for the unit creation, the unit update and the calling assignment",
+        "Assigning a calling in a ward the caller is not acting in, **without** super admin, is a 403",
+        "Releasing the last active bishop of a ward is refused with a sentence (**409**)",
+        "Does \"No unit number yet\" read as a normal, expected state rather than as missing data?",
+        "When the stake deletion is refused, does the message make the next step obvious — move the",
+        "Does the screen make the nesting visible at a glance, or does it read as a flat list?",
+        "At 375px, do the unit cards and the add-a-unit form stay usable?"
+      ],
+      "seedCommand": "npm run seed -- admin/scenario-068-a-stake-and-its-wards"
+    },
     {
       "id": "ai:scenario-020-preview-before-you-save",
       "path": "ai/scenario-020-preview-before-you-save",
@@ -529,7 +596,7 @@
         "`users.active_ward_id` is `null` for all four accounts and no page offers to change it",
         "`unit_assignments` holds **zero** rows for all four accounts",
         "`PATCH /api/session/active-ward` with the ward's OWN id returns 200 — setting your active",
-        "No new console error appears on any page (the two pre-existing 404 prefetch errors for",
+        "No new console error appears on any page (the pre-existing 404 for `/admin/audit-log` is",
         "Does any page show a ward name, badge or chip that was not there before? A ward label is",
         "Is there any control, menu item or affordance anywhere that hints a different ward exists?",
         "Do the dashboard and sidebar look **identical** to how you remember them — not merely",

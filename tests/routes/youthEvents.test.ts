@@ -151,11 +151,11 @@ describe("/api/youth/events", () => {
   beforeAll(async () => {
     fixtures = await seedFixtures([
       "bishop",
-      "eqPresident",
-      "eqSecretary",
+      "ywPresident",
+      "ywSecretary",
       "musicCoordinator",
       // A DIFFERENT ORGANIZATION'S president, for the ward-wide gate on migration 061's column.
-      "rsPresident",
+      "ymPresident",
       "wardBBishop",
     ]);
     wardId = fixtures.wardAId;
@@ -189,7 +189,7 @@ describe("/api/youth/events", () => {
       .insert([
         {
           ward_id: wardId,
-          org_id: fixtures.eldersQuorumId,
+          org_id: fixtures.youngWomenId,
           activity_name: `Basketball ${fixtures.runId}`,
           activity_type: "sport",
         },
@@ -269,7 +269,7 @@ describe("/api/youth/events", () => {
 
   describe("reading", () => {
     it("defaults to upcoming events only", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callGet();
       const ids = eventsFrom(body).map((event) => event.id);
@@ -280,7 +280,7 @@ describe("/api/youth/events", () => {
     });
 
     it("widens to past events on includePast=true", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callGet("?includePast=true");
       const ids = eventsFrom(body).map((event) => event.id);
@@ -291,7 +291,7 @@ describe("/api/youth/events", () => {
     });
 
     it("does not widen on any other spelling", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { body } = await callGet("?includePast=1");
 
@@ -299,7 +299,7 @@ describe("/api/youth/events", () => {
     });
 
     it("orders upcoming events soonest first", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { body } = await callGet("?includePast=true");
       const dates = eventsFrom(body).map((event) => new Date(event.eventDate).getTime());
@@ -308,7 +308,7 @@ describe("/api/youth/events", () => {
     });
 
     it("narrows to one activity on profileId", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callGet(
         `?includePast=true&profileId=${encodeURIComponent(profileId)}`,
@@ -319,7 +319,7 @@ describe("/api/youth/events", () => {
     });
 
     it("refuses a floating from bound rather than ignoring it", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callGet("?from=2026-09-01T00:00");
 
@@ -328,7 +328,7 @@ describe("/api/youth/events", () => {
     });
 
     it("lets an org secretary read", async () => {
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
 
       const { status } = await callGet();
 
@@ -346,7 +346,7 @@ describe("/api/youth/events", () => {
 
   describe("creating", () => {
     it("stores an offset-bearing instant and defaults to tbd and upcoming", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPost({
         profileId,
@@ -369,7 +369,7 @@ describe("/api/youth/events", () => {
     });
 
     it("writes a null calendar_id on a hand-entered event", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPost({
         profileId,
@@ -388,7 +388,7 @@ describe("/api/youth/events", () => {
 
     // THE CASE THIS SUITE IS FOR.
     it("refuses a floating eventDate with the sentence, and stores nothing", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const before = eventsFrom((await callGet("?includePast=true")).body).length;
 
       const { status, body } = await callPost({
@@ -403,7 +403,7 @@ describe("/api/youth/events", () => {
     });
 
     it("accepts an instant in UTC", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPost({
         profileId,
@@ -417,7 +417,7 @@ describe("/api/youth/events", () => {
 
     // A SENTENCE, NOT A CONSTRAINT VIOLATION.
     it("returns 404 for a profile in another ward", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPost({
         profileId: wardBProfileId,
@@ -430,7 +430,7 @@ describe("/api/youth/events", () => {
     });
 
     it("refuses an org secretary, who may read but not manage", async () => {
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
 
       const { status } = await callPost({
         profileId,
@@ -449,7 +449,7 @@ describe("/api/youth/events", () => {
     // STAMPS BOTH ROWS in one request — so the two come out of it either both linked or neither,
     // which is the state a client making two calls could not guarantee.
     it("creates an occasion and stamps both rows when the source has none", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { body: sourceBody } = await callPost({
         profileId,
         title: `Occasion source ${fixtures.runId}`,
@@ -477,7 +477,7 @@ describe("/api/youth/events", () => {
     });
 
     it("joins the source's existing occasion rather than creating a second", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { body: firstBody } = await callPost({
         profileId,
         title: `Existing source ${fixtures.runId}`,
@@ -523,7 +523,7 @@ describe("/api/youth/events", () => {
         .select("id")
         .single();
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const before = eventsFrom((await callGet("?includePast=true")).body).length;
 
       const { status, body } = await callPost({
@@ -550,7 +550,7 @@ describe("/api/youth/events", () => {
     // expectation by design — and nothing anywhere would say so (youth-c). This pins the rule
     // against exactly the shortcut a later reader would take.
     it("classifies the new row from its own location rather than copying the source", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { body: sourceBody } = await callPost({
         profileId,
         title: `Away source ${fixtures.runId}`,
@@ -580,7 +580,7 @@ describe("/api/youth/events", () => {
     });
 
     it("refuses an org secretary from adding a young person to a game", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { body: sourceBody } = await callPost({
         profileId,
         title: `Gate source ${fixtures.runId}`,
@@ -589,7 +589,7 @@ describe("/api/youth/events", () => {
       const sourceId = eventFrom(sourceBody).id;
       created.push(sourceId);
 
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
       const { status } = await callPost({
         profileId,
         title: `Gate joiner ${fixtures.runId}`,
@@ -604,7 +604,7 @@ describe("/api/youth/events", () => {
     it("writes an audit row", async () => {
       const before = await countAuditRows("youth_activity_event_created");
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { status, body } = await callPost({
         profileId,
         title: `Audited ${fixtures.runId}`,
@@ -622,7 +622,7 @@ describe("/api/youth/events", () => {
     let editableId: string;
 
     beforeAll(async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { body } = await callPost({
         profileId,
         title: `Editable ${fixtures.runId}`,
@@ -635,7 +635,7 @@ describe("/api/youth/events", () => {
     // CANCELLING IS AN UPDATE. The row stays, marked, because the record that a game was ever
     // scheduled is what answers "why did nobody go?" (migration 054c).
     it("cancels an event without removing it", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callPatch(editableId, { status: "cancelled" });
 
@@ -644,7 +644,7 @@ describe("/api/youth/events", () => {
     });
 
     it("keeps a cancelled event in the upcoming list", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { body } = await callGet();
 
@@ -652,7 +652,7 @@ describe("/api/youth/events", () => {
     });
 
     it("un-cancels through the same control", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callPatch(editableId, { status: "upcoming" });
 
@@ -663,7 +663,7 @@ describe("/api/youth/events", () => {
     // THE DOUBLE-CONVERSION BUG, ASSERTED ACROSS THE WIRE: saving the same instant twice must
     // leave the same moment, not one shifted by the offset each time.
     it("does not shift the instant when the same value is saved twice", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const instant = "2027-11-20T19:30:00-07:00";
 
       await callPatch(editableId, { eventDate: instant });
@@ -677,7 +677,7 @@ describe("/api/youth/events", () => {
     });
 
     it("refuses a floating eventDate on a patch", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const before = (await storedEvent(editableId))!.event_date;
 
       const { status } = await callPatch(editableId, { eventDate: "2027-11-21T19:30" });
@@ -687,7 +687,7 @@ describe("/api/youth/events", () => {
     });
 
     it("refuses a removed status value", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callPatch(editableId, { status: "covered" });
 
@@ -695,7 +695,7 @@ describe("/api/youth/events", () => {
     });
 
     it("refuses an empty patch with a sentence", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPatch(editableId, {});
 
@@ -704,7 +704,7 @@ describe("/api/youth/events", () => {
     });
 
     it("returns 404 for an event in another ward", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { data } = await fixtures.service
         .from("activity_events")
@@ -729,7 +729,7 @@ describe("/api/youth/events", () => {
     it("writes an audit row on a successful update", async () => {
       const before = await countAuditRows("youth_activity_event_updated");
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { status } = await callPatch(editableId, { location: `Gym ${fixtures.runId}` });
 
       expect(status).toBe(200);
@@ -754,7 +754,7 @@ describe("/api/youth/events", () => {
   // client goes on sending one and believing it took effect.
   describe("youthAttended is no longer accepted here", () => {
     it("refuses a patch carrying only youthAttended, rather than reporting a no-op success", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callPatch(upcomingEventId, { youthAttended: false });
 
@@ -764,7 +764,7 @@ describe("/api/youth/events", () => {
     });
 
     it("ignores it beside a real change rather than writing it", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callPatch(upcomingEventId, {
         title: `Renamed ${fixtures.runId}`,
@@ -783,7 +783,7 @@ describe("/api/youth/events", () => {
 
   describe("deleting", () => {
     it("removes an event and audits it", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { body } = await callPost({
         profileId,
         title: `Removable ${fixtures.runId}`,
@@ -800,7 +800,7 @@ describe("/api/youth/events", () => {
     });
 
     it("refuses an org secretary", async () => {
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
 
       const { status } = await callDelete(upcomingEventId);
 
@@ -814,7 +814,7 @@ describe("/api/youth/events", () => {
   // EVENT is what disappears.
   describe("deleting a profile cascades to its events", () => {
     it("removes the events with it", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { body: profileBody } = await readResponse(
         await (await import("@/app/api/youth/profiles/route")).POST(

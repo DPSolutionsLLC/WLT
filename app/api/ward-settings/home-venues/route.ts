@@ -37,7 +37,7 @@ export async function GET() {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "youth_activities.view", roleAccess);
 
@@ -55,8 +55,13 @@ export async function GET() {
 
 // Two checks, same shape and same order as the assign route: the permission first, so a ward
 // whose role_access override removed the module refuses before the role check can allow it; then
-// the bishopric list, because `youth_activities.manage` is also held by org presidents and ward
-// council members.
+// the bishopric list, because `youth_activities.manage` is also held by others.
+//
+// WHO "OTHERS" MEANS NARROWED IN P2 and this comment used to name the wrong people. The matrix
+// became organization-aware: an Elders Quorum, Relief Society or Primary president no longer
+// holds `youth_activities.manage` at all and is refused by the FIRST check. The people the
+// second check exists for are now a YOUNG WOMEN (or Young Men) president and
+// `ward_council_member`, which keeps the permission and has no organization.
 //
 // RLS is a genuine boundary here too — wards_update (migration 019) is bishopric-only — so the
 // assertCan is belt to that policy's braces, and it turns a refusal into a 403 rather than the
@@ -66,7 +71,7 @@ export async function PUT(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "youth_activities.manage", roleAccess);
 

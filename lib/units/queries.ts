@@ -4,9 +4,12 @@ import type { Database } from "@/types/database";
 import {
   UNIT_ASSIGNMENT_ROLES,
   UNIT_TYPES,
+  type Unit,
   type UnitAssignmentRole,
   type UnitType,
 } from "@/types/domain";
+
+export type { Unit };
 
 // Reads over the unit hierarchy (migration 065). Shaped after lib/ward/crossOrgVisibility.ts:
 // small named exports, snake_case → camelCase mapped ONCE, here.
@@ -14,14 +17,6 @@ import {
 // EVERY READ IN THIS FILE IS GOVERNED BY RLS AND NOTHING ELSE (CLAUDE.md rule 2). `units_select`
 // and `unit_assignments_select` decide what comes back; nothing here filters for security, and
 // nothing here should start to.
-
-export type Unit = {
-  id: string;
-  type: UnitType;
-  parentId: string | null;
-  unitNumber: string | null;
-  name: string;
-};
 
 export type UnitAssignment = {
   id: string;
@@ -83,6 +78,32 @@ function toUnit(row: UnitRow): Unit {
     unitNumber: row.unit_number,
     name: row.name,
   };
+}
+
+// EVERY UNIT THIS SESSION MAY SEE, which `units_select` (migration 065f) already decides: a
+// super admin sees all of them, everybody else sees their own ward's unit and any unit they hold
+// an assignment over. Nothing here filters for security and nothing here should start to
+// (CLAUDE.md rule 2).
+//
+// Ordered by type then name so a stake sorts above the wards under it without the caller having
+// to rebuild the tree to render a list. The nesting itself is `parentId`, which the screen walks.
+export async function listUnits(
+  client?: SupabaseClient<Database>,
+): Promise<Unit[]> {
+  const supabase = client ?? (await createServerSupabaseClient());
+
+  const { data, error } = await supabase
+    .from("units")
+    .select(UNIT_COLUMNS)
+    .order("type", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (error) {
+    console.error(`Could not list the units — ${error.message}`);
+    throw new Error(`Could not load the units: ${error.message}`);
+  }
+
+  return (data ?? []).map(toUnit);
 }
 
 export async function readUnit(
@@ -210,4 +231,44 @@ export async function listSwitchableWards(
     // RETURNS TABLE function claims non-nullable, and `wards.unit_id` is nullable until proto-d.
     unitId: row.unit_id ?? null,
   }));
+}
+
+// ---------------------------------------------------------------------------
+// IS THIS SESSION A SUPER ADMIN?
+// ---------------------------------------------------------------------------
+//
+// A MIRROR OF THE SQL `is_super_admin()` (migration 065e), and it must stay one. That function is
+// what `units_select` and `unit_assignments_select` read; this is what the routes and screens
+// read. If the two ever disagree, a screen offers something the database refuses, or hides
+// something it would allow — `youth-a-D1`'s mirror, and 060-D2's lesson that a mirror must copy
+// every half of the rule.
+//
+// THE ANSWER COMES FROM `unit_assignments`, NOT FROM A WARD ROLE, and that distinction is the
+// whole guard. `super_admin` also exists as a value in ROLES, and SUPER_ADMIN_PERMISSIONS grants
+// everything — but that is authority WITHIN a ward. Creating the stake above a ward is not a ward
+// act, and a ward has no standing to perform it, so the question asked here is the structural one.
+//
+// The deactivated-account check is not repeated here: `unit_assignments_select` already admits
+// only `is_super_admin() or user_id = auth.uid()`, lib/auth/session.ts refuses a deactivated
+// account before any of this is reached, and the SQL function joins `users.is_active` itself.
+export async function isSuperAdmin(
+  client?: SupabaseClient<Database>,
+): Promise<boolean> {
+  const supabase = client ?? (await createServerSupabaseClient());
+
+  const { data, error } = await supabase
+    .from("unit_assignments")
+    .select("id")
+    .eq("role", "super_admin")
+    .limit(1);
+
+  if (error) {
+    // THROWS rather than answering false. A read failure is not "you are not a super admin" — on
+    // a screen that grants app-wide authority, guessing in either direction is wrong, and
+    // resolveRoleAccess() takes the same line for the same reason.
+    console.error(`Could not resolve super-admin status — ${error.message}`);
+    throw new Error(`Could not check your administrator access: ${error.message}`);
+  }
+
+  return (data ?? []).length > 0;
 }

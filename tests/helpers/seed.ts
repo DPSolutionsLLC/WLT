@@ -15,7 +15,7 @@ import type { Role } from "@/types/domain";
 export const FIXTURE_EMAIL_PREFIX = "wlt-test";
 
 type WardKey = "A" | "B";
-type OrgKey = "eldersQuorum" | "reliefSociety" | "wardBOrg";
+type OrgKey = "eldersQuorum" | "reliefSociety" | "youngWomen" | "youngMen" | "wardBOrg";
 
 type UnitKey = "stake" | "outsideStake";
 
@@ -65,6 +65,19 @@ const HANDLE_SPECS = {
   eqCounselor: { role: "org_counselor", ward: "A", org: "eldersQuorum" },
   eqSecretary: { role: "org_secretary", ward: "A", org: "eldersQuorum" },
   rsPresident: { role: "org_president", ward: "A", org: "reliefSociety" },
+  // THE ORGANIZATIONS THAT MANAGE YOUTH, from P2 on. The permission matrix became
+  // organization-aware: `youth_activities.manage` belongs to Young Women (and to Young Men, whose
+  // organization exists in this schema even though the bishopric is its presidency), while the
+  // Elders Quorum, the Relief Society and the Primary support the youth without managing them.
+  //
+  // The youth route suites used `eqPresident` as "the org leader who owns this profile" and that
+  // role no longer manages youth at all, so they use these instead. `ymPresident` is the
+  // DIFFERENT organization foil — it also holds manage, so a refusal there proves the ORG
+  // scoping rather than merely proving the permission is missing, which is what an Elders Quorum
+  // president would now prove instead.
+  ywPresident: { role: "org_president", ward: "A", org: "youngWomen" },
+  ywSecretary: { role: "org_secretary", ward: "A", org: "youngWomen" },
+  ymPresident: { role: "org_president", ward: "A", org: "youngMen" },
   musicCoordinator: { role: "music_coordinator", ward: "A" },
   wardCouncilMember: { role: "ward_council_member", ward: "A" },
   sacramentManager: { role: "sacrament_manager", ward: "A" },
@@ -154,6 +167,8 @@ export type Fixtures = {
   wardBUnitId: string;
   eldersQuorumId: string;
   reliefSocietyId: string;
+  youngWomenId: string;
+  youngMenId: string;
   wardBOrgId: string;
   users: Partial<Record<FixtureHandle, SeededUser>>;
   user: (handle: FixtureHandle) => SeededUser;
@@ -193,6 +208,8 @@ export async function seedFixtures(
   const wardBUnitId = randomUUID();
   const eldersQuorumId = randomUUID();
   const reliefSocietyId = randomUUID();
+  const youngWomenId = randomUUID();
+  const youngMenId = randomUUID();
   const wardBOrgId = randomUUID();
 
   const createdAuthUserIds: string[] = [];
@@ -314,6 +331,18 @@ export async function seedFixtures(
         type: "relief_society",
       },
       {
+        id: youngWomenId,
+        ward_id: wardAId,
+        name: "Young Women",
+        type: "young_women",
+      },
+      {
+        id: youngMenId,
+        ward_id: wardAId,
+        name: "Young Men",
+        type: "young_men",
+      },
+      {
         id: wardBOrgId,
         ward_id: wardBId,
         name: "Elders Quorum",
@@ -327,6 +356,8 @@ export async function seedFixtures(
     const orgIds: Record<OrgKey, string> = {
       eldersQuorum: eldersQuorumId,
       reliefSociety: reliefSocietyId,
+      youngWomen: youngWomenId,
+      youngMen: youngMenId,
       wardBOrg: wardBOrgId,
     };
 
@@ -477,6 +508,8 @@ export async function seedFixtures(
       wardBUnitId,
       eldersQuorumId,
       reliefSocietyId,
+      youngWomenId,
+      youngMenId,
       wardBOrgId,
       users,
       user(handle) {

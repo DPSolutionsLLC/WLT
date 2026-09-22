@@ -128,7 +128,7 @@ export async function PUT(
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     // Not `roster.manage`. See the header: an org president owns this decision and does not own
     // the roster.
@@ -197,7 +197,7 @@ export async function DELETE(
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "visits.manage_goals", roleAccess);
 

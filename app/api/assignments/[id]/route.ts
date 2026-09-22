@@ -118,7 +118,7 @@ export async function PATCH(
     const input = updateAssignmentSchema.parse(await readJsonBody(request));
 
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     const existing = await getAssignment(user.wardId, assignmentId, supabase);
     if (!existing) {

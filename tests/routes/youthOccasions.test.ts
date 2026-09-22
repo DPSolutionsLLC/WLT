@@ -154,9 +154,9 @@ describe("/api/youth/events/[id]/occasion", () => {
   beforeAll(async () => {
     fixtures = await seedFixtures([
       "bishop",
-      "eqPresident",
-      "eqSecretary",
-      "rsPresident",
+      "ywPresident",
+      "ywSecretary",
+      "ymPresident",
       "wardBBishop",
     ]);
     wardId = fixtures.wardAId;
@@ -188,13 +188,13 @@ describe("/api/youth/events/[id]/occasion", () => {
       .insert([
         {
           ward_id: wardId,
-          org_id: fixtures.eldersQuorumId,
+          org_id: fixtures.youngWomenId,
           activity_name: `EQ basketball ${fixtures.runId}`,
           activity_type: "sport",
         },
         {
           ward_id: wardId,
-          org_id: fixtures.reliefSocietyId,
+          org_id: fixtures.youngMenId,
           activity_name: `RS basketball ${fixtures.runId}`,
           activity_type: "sport",
         },
@@ -228,7 +228,7 @@ describe("/api/youth/events/[id]/occasion", () => {
       const first = await seedEvent("Roosevelt one");
       const second = await seedEvent("Roosevelt two", ywProfileId);
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const before = await occasionCount();
 
       const { status, body } = await callJoin(first, { otherEventId: second });
@@ -255,7 +255,7 @@ describe("/api/youth/events/[id]/occasion", () => {
       const second = await seedEvent("Jefferson two", ywProfileId);
       const third = await seedEvent("Jefferson three");
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { body } = await callJoin(first, { otherEventId: second });
       const occasionId = body.occasionId as string;
       createdOccasions.push(occasionId);
@@ -272,7 +272,7 @@ describe("/api/youth/events/[id]/occasion", () => {
     it("refuses an event joined to itself", async () => {
       const only = await seedEvent("Madison alone");
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { status, body } = await callJoin(only, { otherEventId: only });
 
       expect(status).toBe(400);
@@ -284,7 +284,7 @@ describe("/api/youth/events/[id]/occasion", () => {
       const first = await seedEvent("Adams one");
       const second = await seedEvent("Adams two", ywProfileId);
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { body } = await callJoin(first, { otherEventId: second });
       createdOccasions.push(body.occasionId as string);
 
@@ -302,7 +302,7 @@ describe("/api/youth/events/[id]/occasion", () => {
       const rightA = await seedEvent("Right A");
       const rightB = await seedEvent("Right B", ywProfileId);
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { body: left } = await callJoin(leftA, { otherEventId: leftB });
       const { body: right } = await callJoin(rightA, { otherEventId: rightB });
       const leftOccasion = left.occasionId as string;
@@ -328,7 +328,7 @@ describe("/api/youth/events/[id]/occasion", () => {
       const mine = await seedEvent("Cross ward mine");
       const theirs = await seedEvent("Cross ward theirs", wardBProfileId, fixtures.wardBId);
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { status, body } = await callJoin(mine, { otherEventId: theirs });
 
       expect(status).toBe(404);
@@ -343,7 +343,7 @@ describe("/api/youth/events/[id]/occasion", () => {
       const first = await seedEvent("Secretary one");
       const second = await seedEvent("Secretary two", ywProfileId);
 
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
       const { status } = await callJoin(first, { otherEventId: second });
 
       expect(status).toBe(403);
@@ -354,7 +354,7 @@ describe("/api/youth/events/[id]/occasion", () => {
     it("refuses a body with no otherEventId", async () => {
       const only = await seedEvent("No body");
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { status } = await callJoin(only, {});
 
       expect(status).toBe(400);
@@ -365,7 +365,7 @@ describe("/api/youth/events/[id]/occasion", () => {
       const second = await seedEvent("Audited two", ywProfileId);
       const third = await seedEvent("Audited three");
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const before = await countAuditRows("youth_activity_occasion_joined");
 
       const { body } = await callJoin(first, { otherEventId: second });
@@ -391,7 +391,7 @@ describe("/api/youth/events/[id]/occasion", () => {
       const eqEvent = await seedEvent("Cross org EQ");
       const rsEvent = await seedEvent("Cross org RS", ywProfileId);
 
-      await actAs(fixtures, "rsPresident");
+      await actAs(fixtures, "ymPresident");
       const { status, body } = await callJoin(rsEvent, { otherEventId: eqEvent });
 
       expect(status).toBe(200);
@@ -405,7 +405,7 @@ describe("/api/youth/events/[id]/occasion", () => {
       const first = await seedEvent("Leaving one");
       const second = await seedEvent("Leaving two", ywProfileId);
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { body } = await callJoin(first, { otherEventId: second });
       const occasionId = body.occasionId as string;
       createdOccasions.push(occasionId);
@@ -435,7 +435,7 @@ describe("/api/youth/events/[id]/occasion", () => {
       const second = await seedEvent("Three two", ywProfileId);
       const third = await seedEvent("Three three");
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { body } = await callJoin(first, { otherEventId: second });
       const occasionId = body.occasionId as string;
       createdOccasions.push(occasionId);
@@ -453,7 +453,7 @@ describe("/api/youth/events/[id]/occasion", () => {
     it("refuses an event that is not in an occasion", async () => {
       const only = await seedEvent("Alone");
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { status, body } = await callLeave(only);
 
       expect(status).toBe(409);
@@ -463,7 +463,7 @@ describe("/api/youth/events/[id]/occasion", () => {
     it("returns 404 for an event in another ward", async () => {
       const theirs = await seedEvent("Their event", wardBProfileId, fixtures.wardBId);
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { status, body } = await callLeave(theirs);
 
       expect(status).toBe(404);
@@ -474,12 +474,12 @@ describe("/api/youth/events/[id]/occasion", () => {
       const first = await seedEvent("Secretary leaving one");
       const second = await seedEvent("Secretary leaving two", ywProfileId);
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { body } = await callJoin(first, { otherEventId: second });
       const occasionId = body.occasionId as string;
       createdOccasions.push(occasionId);
 
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
       const { status } = await callLeave(first);
 
       expect(status).toBe(403);
@@ -490,7 +490,7 @@ describe("/api/youth/events/[id]/occasion", () => {
       const first = await seedEvent("Audit leaving one");
       const second = await seedEvent("Audit leaving two", ywProfileId);
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { body } = await callJoin(first, { otherEventId: second });
       createdOccasions.push(body.occasionId as string);
 

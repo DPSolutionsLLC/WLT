@@ -138,9 +138,9 @@ describe("youth activity roster routes", () => {
   beforeAll(async () => {
     fixtures = await seedFixtures([
       "bishop",
-      "eqPresident",
-      "eqSecretary",
-      "rsPresident",
+      "ywPresident",
+      "ywSecretary",
+      "ymPresident",
       "wardBBishop",
     ]);
     wardId = fixtures.wardAId;
@@ -188,8 +188,8 @@ describe("youth activity roster routes", () => {
     adultId = members!.find((row) => row.first_name === "Dee")!.id;
     wardBYouthId = members!.find((row) => row.first_name === "Bo")!.id;
 
-    eqProfileId = await seedProfile(fixtures.eldersQuorumId, "EQ basketball");
-    rsProfileId = await seedProfile(fixtures.reliefSocietyId, "RS choir");
+    eqProfileId = await seedProfile(fixtures.youngWomenId, "EQ basketball");
+    rsProfileId = await seedProfile(fixtures.youngMenId, "RS choir");
 
     const { data: wardBProfile, error: wardBError } = await fixtures.service
       .from("youth_activity_profiles")
@@ -211,7 +211,7 @@ describe("youth activity roster routes", () => {
 
   describe("adding a young person", () => {
     it("adds them, returns the row, and writes an audit row", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const before = await countAuditRows("youth_activity_roster_added");
       const { status, body } = await callPost(eqProfileId, { memberId: youthId });
@@ -231,7 +231,7 @@ describe("youth activity roster routes", () => {
     });
 
     it("records a joining date when one is given", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPost(eqProfileId, {
         memberId: secondYouthId,
@@ -244,7 +244,7 @@ describe("youth activity roster routes", () => {
 
     // 409 RATHER THAN A SILENT SUCCESS, and with a sentence a person can act on.
     it("answers 409 with a sentence when they are already on the roster", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPost(eqProfileId, { memberId: youthId });
 
@@ -258,7 +258,7 @@ describe("youth activity roster routes", () => {
     // Migration 062f's policies are ward-wide on all four verbs, matching `activity_events`. If a
     // later reader narrows them to `org_id = current_org_id()`, this fails — which is the point.
     it("lets an Elders Quorum president add to a Relief Society team", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callPost(rsProfileId, { memberId: youthId });
 
@@ -266,7 +266,7 @@ describe("youth activity roster routes", () => {
     });
 
     it("answers 404 for a profile in another ward", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPost(wardBProfileId, { memberId: youthId });
 
@@ -275,7 +275,7 @@ describe("youth activity roster routes", () => {
     });
 
     it("answers 404 for a member in another ward", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPost(eqProfileId, { memberId: wardBYouthId });
 
@@ -287,7 +287,7 @@ describe("youth activity roster routes", () => {
     // not refuse a member the picker would never have offered, and a hand-made request would have
     // put an adult on a youth activity.
     it("answers 404 for a member who is not a youth", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPost(eqProfileId, { memberId: adultId });
 
@@ -306,7 +306,7 @@ describe("youth activity roster routes", () => {
     // `org_secretary` HOLDS `.view` AND `.log` BUT NOT `.manage`. Checked against
     // lib/auth/permissions.ts rather than guessed.
     it("refuses an org secretary with 403", async () => {
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
 
       const { status } = await callPost(eqProfileId, { memberId: secondYouthId });
 
@@ -318,8 +318,8 @@ describe("youth activity roster routes", () => {
     let rosterId: string;
 
     beforeAll(async () => {
-      await actAs(fixtures, "eqPresident");
-      const profileId = await seedProfile(fixtures.eldersQuorumId, "Window squad");
+      await actAs(fixtures, "ywPresident");
+      const profileId = await seedProfile(fixtures.youngWomenId, "Window squad");
       const { body } = await callPost(profileId, {
         memberId: youthId,
         startedOn: "2027-01-10",
@@ -328,7 +328,7 @@ describe("youth activity roster routes", () => {
     });
 
     it("records a leaving date and audits BOTH dates, before and after", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPatch(rosterId, { endedOn: "2027-02-15" });
 
@@ -356,7 +356,7 @@ describe("youth activity roster routes", () => {
     // THE WAY BACK. An explicit null clears the date rather than deleting the roster row —
     // somebody who came back after all keeps their `started_on` and their place in the record.
     it("clears a leaving date with an explicit null", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callPatch(rosterId, { endedOn: null });
 
@@ -371,7 +371,7 @@ describe("youth activity roster routes", () => {
     // it sees one request, not the row. A window containing nothing would silently zero this young
     // person's percentage with nothing on any screen saying why.
     it("refuses an endedOn before the STORED startedOn, with a sentence", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPatch(rosterId, { endedOn: "2026-12-01" });
 
@@ -381,7 +381,7 @@ describe("youth activity roster routes", () => {
     });
 
     it("refuses a backwards pair sent together", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callPatch(rosterId, {
         startedOn: "2027-03-01",
@@ -392,7 +392,7 @@ describe("youth activity roster routes", () => {
     });
 
     it("refuses a date that is not a day", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callPatch(rosterId, { endedOn: "15/02/2027" });
 
@@ -400,7 +400,7 @@ describe("youth activity roster routes", () => {
     });
 
     it("refuses an empty patch", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callPatch(rosterId, {});
 
@@ -408,7 +408,7 @@ describe("youth activity roster routes", () => {
     });
 
     it("refuses an org secretary with 403", async () => {
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
 
       const { status } = await callPatch(rosterId, { endedOn: "2027-02-15" });
 
@@ -426,9 +426,9 @@ describe("youth activity roster routes", () => {
     // A ROSTER ROW is different in kind: follow-ups hang off EVENTS, so there is nothing a person
     // wrote for this delete to reach. This test is what makes that a fact rather than a claim.
     it("removes the row, leaves the follow-up written on the team's event, and audits it", async () => {
-      const profileId = await seedProfile(fixtures.eldersQuorumId, "Removable squad");
+      const profileId = await seedProfile(fixtures.youngWomenId, "Removable squad");
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { body } = await callPost(profileId, { memberId: youthId });
       const rosterId = (body.member as RosterBody).rosterId;
 
@@ -451,7 +451,7 @@ describe("youth activity roster routes", () => {
         .insert({
           ward_id: wardId,
           event_id: event.id,
-          logged_by: fixtures.user("eqPresident").id,
+          logged_by: fixtures.user("ywPresident").id,
           shared_notes: "A good night.",
         })
         .select("id")
@@ -460,7 +460,7 @@ describe("youth activity roster routes", () => {
 
       const before = await countAuditRows("youth_activity_roster_removed");
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { status } = await callDelete(rosterId);
 
       expect(status).toBe(200);
@@ -496,7 +496,7 @@ describe("youth activity roster routes", () => {
         .single();
       if (error) throw new Error(error.message);
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { status } = await callDelete(data.id);
 
       expect(status).toBe(404);
@@ -505,13 +505,13 @@ describe("youth activity roster routes", () => {
     });
 
     it("refuses an org secretary with 403", async () => {
-      const profileId = await seedProfile(fixtures.eldersQuorumId, "Secretary squad");
+      const profileId = await seedProfile(fixtures.youngWomenId, "Secretary squad");
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { body } = await callPost(profileId, { memberId: youthId });
       const rosterId = (body.member as RosterBody).rosterId;
 
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
       const { status } = await callDelete(rosterId);
 
       expect(status).toBe(403);

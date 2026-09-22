@@ -35,7 +35,7 @@ export async function POST(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     // `knowledge.manage`, not `view`. Resolving is an act of BUILDING the scope, and it spends
     // money on an outbound vendor call — the same reasoning POST /api/topics/ai-suggest records.

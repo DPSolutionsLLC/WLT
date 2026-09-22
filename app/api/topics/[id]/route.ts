@@ -37,7 +37,7 @@ export async function PATCH(
     const input = updateTopicSchema.parse(await readJsonBody(request));
 
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "topics.manage", roleAccess);
 

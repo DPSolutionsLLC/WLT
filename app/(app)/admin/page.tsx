@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/Card";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { isSuperAdmin } from "@/lib/units/queries";
 import { readCrossOrgVisibility } from "@/lib/ward/crossOrgVisibility";
 
 // The section index. It exists so the Admin item in NAVIGATION_ITEMS resolves to a real page
@@ -22,21 +23,55 @@ const ADMIN_PAGES = [
     label: "Users",
     description: "Invite new accounts, change roles, and deactivate accounts.",
   },
+  {
+    href: "/admin/access-requests",
+    label: "Access requests",
+    description:
+      "Ask for something a calling in your ward needs, and read the answer.",
+  },
+];
+
+// ---------------------------------------------------------------------------
+// STAKES & WARDS IS LISTED HERE AND NOT IN NAVIGATION_ITEMS, DELIBERATELY
+// ---------------------------------------------------------------------------
+//
+// `lib/auth/navigation.ts` gates every item on a PERMISSION, and `super_admin` holds all of them
+// (SUPER_ADMIN_PERMISSIONS is PERMISSIONS). So there is no permission that would put this in the
+// sidebar for a super admin without also putting it there for every bishop — and "anyone who
+// belongs to one ward never sees the unit layer at all" is a stated requirement of this phase
+// (CLAUDE.md §7), not a nicety.
+//
+// The question this screen turns on is STRUCTURAL — do you hold a `super_admin` row in
+// `unit_assignments` — and that is not expressible as a ward permission. So it is surfaced by
+// asking that question directly, here, where the answer is already being resolved.
+//
+// A NEW `units.*` PERMISSION WOULD BE THE WRONG FIX: `wards.settings.role_access` could then
+// widen it, which means a ward could grant itself the right to create the stake above itself.
+// app/api/session/active-ward/route.ts refuses a `units.*` permission for exactly this reason.
+const SUPER_ADMIN_PAGES = [
+  {
+    href: "/admin/stakes",
+    label: "Stakes & wards",
+    description: "The structure above a ward, and the real unit numbers.",
+  },
 ];
 
 export default async function AdminPage() {
   const user = await requireSessionUser();
   const supabase = await createServerSupabaseClient();
-  const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+  const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
   const crossOrgVisibility = await readCrossOrgVisibility(user.wardId, supabase);
+  const pages = (await isSuperAdmin(supabase))
+    ? [...ADMIN_PAGES, ...SUPER_ADMIN_PAGES]
+    : ADMIN_PAGES;
 
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-semibold text-foreground">Administration</h1>
 
       <ul className="flex flex-col gap-3">
-        {ADMIN_PAGES.map((page) => (
+        {pages.map((page) => (
           <li key={page.href}>
             <Card>
               <Link

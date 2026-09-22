@@ -15,7 +15,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 export default async function DashboardPage() {
   const user = await requireSessionUser();
   const supabase = await createServerSupabaseClient();
-  const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+  const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
   const navigationItems = visibleNavigationItems(user, roleAccess);
   // The same label the header shows, from the same helper — two sentences about one calling must
   // never disagree about what it is called.

@@ -39,7 +39,7 @@ export async function GET(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "calendar.view", roleAccess);
 
@@ -112,7 +112,7 @@ export async function PATCH(request: Request) {
     const supabase = await createServerSupabaseClient();
     // Resolved above the branch so BOTH gates see the ward's configuration. It used to be
     // resolved only inside the else, which made this route disagree with itself (ITER-005).
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     let organizationName: string | null = null;
 

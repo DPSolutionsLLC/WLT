@@ -69,7 +69,16 @@ describe("/api/ward-settings/home-venues", () => {
 
   beforeAll(async () => {
     fixtures = await seedFixtures(
-      ["bishop", "counselor1", "eqPresident", "eqSecretary", "musicCoordinator"],
+      [
+        "bishop",
+        "counselor1",
+        "eqPresident",
+        "eqSecretary",
+        "musicCoordinator",
+        // Holds `youth_activities.manage` under the organization-aware matrix, which is what the
+        // route's SECOND guard needs somebody to hold in order to be reached at all.
+        "ywPresident",
+      ],
       { roleAccess: ROLE_ACCESS_OVERRIDE },
     );
   }, 180_000);
@@ -113,8 +122,16 @@ describe("/api/ward-settings/home-venues", () => {
   });
 
   describe("writing", () => {
+    // ⚠️ THE FIXTURE CHANGED IN P2 AND THE TEST'S POINT DID NOT. This check exists to prove the
+    // SECOND of the route's two guards — somebody who genuinely HOLDS `youth_activities.manage`
+    // but is not in the bishopric gets the specific sentence rather than the generic refusal.
+    //
+    // It used an Elders Quorum president, who no longer holds that permission at all under the
+    // organization-aware matrix: they would now be refused by the FIRST guard, with the generic
+    // message, and this test would be asserting nothing about the bishopric rule. A Young Women
+    // president is the organization that does still manage youth, so the second guard is reached.
     it("refuses an org president with a sentence naming the rule", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await putVenues({ homeVenues: ["Lincoln High School"] });
 

@@ -39,6 +39,7 @@ const YOUTH_SESSION_USER: SessionUser = {
   callingId: "00000000-0000-4000-8000-00000000ca11",
   role: "sacrament_manager",
   orgId: null,
+  orgType: null,
   counselorPosition: null,
   firstName: "Youth",
   lastName: "Fixture",

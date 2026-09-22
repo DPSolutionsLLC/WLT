@@ -50,7 +50,7 @@ export async function GET(
     const sundayId = programSundayIdSchema.parse(rawSundayId);
 
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "program.view", roleAccess);
 

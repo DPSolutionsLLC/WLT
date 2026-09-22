@@ -38,7 +38,7 @@ export async function GET() {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "youth_activities.view", roleAccess);
 
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     // Not `youth_activities.view`. An org secretary can read this list and cannot add to it, and
     // the permission matrix is what says so — never a comparison of `user.role` to a string,

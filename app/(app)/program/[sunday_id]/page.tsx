@@ -33,7 +33,7 @@ export type ProgramPageProps = {
 export default async function ProgramPage({ params }: ProgramPageProps) {
   const user = await requireSessionUser();
   const supabase = await createServerSupabaseClient();
-  const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+  const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
   // can() rather than assertCan(), for the reason recorded in plans/retros/auth-b-invites-admin.md.
   if (!can(user, "program.view", roleAccess)) {

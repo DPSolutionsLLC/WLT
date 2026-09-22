@@ -30,7 +30,11 @@ const ORGANIZATIONS: { id: string; type: OrganizationType }[] = [
 
 const ELIGIBLE_IDS = [ELDERS_QUORUM, RELIEF_SOCIETY];
 
-function sessionUser(role: Role, orgId: string | null): SessionUser {
+function sessionUser(
+  role: Role,
+  orgId: string | null,
+  orgType: OrganizationType | null = null,
+): SessionUser {
   return {
     id: "00000000-0000-4000-8000-000000000001",
     wardId: "00000000-0000-4000-8000-000000000002",
@@ -44,6 +48,7 @@ function sessionUser(role: Role, orgId: string | null): SessionUser {
     callingId: "00000000-0000-4000-8000-00000000ca11",
     role,
     orgId,
+    orgType,
     counselorPosition: null,
     firstName: "Test",
     lastName: "User",

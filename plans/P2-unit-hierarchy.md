@@ -2,10 +2,15 @@
 
 **Depends on:** nothing (runs in parallel with P1). **Size:** Large — the biggest single piece
 of work since Foundation.
-**Status:** `proto-b` applied (migration 065). `proto-c` applied (066, 067) but **its model was
-wrong**; **CORRECTED by [plans/ward-callings-model.md](ward-callings-model.md), migrations
-068–071**, 2026-09-21. `proto-d` — [plans/p2-admin-and-access.md](p2-admin-and-access.md) — not
-started, and it builds on the table 068 created.
+**Status: ✅ CLOSED 2026-09-21.** All four slices shipped.
+`proto-b` applied (migration 065). `proto-c` applied (066, 067) but **its model was wrong**;
+**CORRECTED by [plans/ward-callings-model.md](ward-callings-model.md), migrations 068–071**.
+`proto-d` — [plans/p2-admin-and-access.md](p2-admin-and-access.md) — shipped with migrations
+072–074: an **organization-aware permission matrix** re-derived from the prototype, the
+**Stakes & Wards** screen, `POST /api/callings` (which makes scenario 066's state reachable by
+hand for the first time), `access_requests` with its request → decide flow, the app-wide grant
+fan-out, and `lib/roster/wardRoster.ts`. See CLAUDE.md §7 for what a super admin actually reaches
+and what survived the re-derivation unchanged.
 
 Stakes above wards, a super admin above both, and a session that can act in a ward other than
 the user's own — without rewriting 131 RLS policies.

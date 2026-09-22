@@ -146,9 +146,9 @@ describe("/api/youth/profiles", () => {
   beforeAll(async () => {
     fixtures = await seedFixtures([
       "bishop",
-      "eqPresident",
-      "eqSecretary",
-      "rsPresident",
+      "ywPresident",
+      "ywSecretary",
+      "ymPresident",
       "wardCouncilMember",
       "musicCoordinator",
       "wardBBishop",
@@ -194,7 +194,7 @@ describe("/api/youth/profiles", () => {
       .from("youth_activity_profiles")
       .insert({
         ward_id: wardId,
-        org_id: fixtures.reliefSocietyId,
+        org_id: fixtures.youngMenId,
         activity_name: `RS choir ${fixtures.runId}`,
         activity_type: "performance",
       })
@@ -222,7 +222,7 @@ describe("/api/youth/profiles", () => {
 
   describe("reading", () => {
     it("returns every organization's profiles to an org secretary", async () => {
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
 
       const { status, body } = await callGet();
       const profiles = body.profiles as ProfileBody[];
@@ -237,7 +237,7 @@ describe("/api/youth/profiles", () => {
     // embed rather than from one on the profile itself. A profile is a TEAM, so the answer is a
     // LIST — and a team of one is what every pre-youth-j profile became.
     it("carries the roster, with each young person's name", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { body } = await callGet();
       const profiles = body.profiles as ProfileBody[];
@@ -264,7 +264,7 @@ describe("/api/youth/profiles", () => {
     // `memberId: string` became `memberIds: string[]`, because a profile is a TEAM now. The two
     // cases below are the two shapes ITER-033's flow produces, and BOTH must work.
     it("writes a roster row for every memberId, in one request", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPost({
         memberIds: [youthId, secondYouthId],
@@ -305,7 +305,7 @@ describe("/api/youth/profiles", () => {
     // The state is made LOUD rather than refused: RosterPanel says so in a sentence, and
     // lib/youth/roster.ts's branch 5 keeps the team's games on ordinary coverage.
     it("accepts an empty memberIds and leaves the team readable", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPost({
         memberIds: [],
@@ -328,7 +328,7 @@ describe("/api/youth/profiles", () => {
     });
 
     it("stamps an org president's own organization when the body names none", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPost({
         memberIds: [youthId],
@@ -340,37 +340,37 @@ describe("/api/youth/profiles", () => {
       const profile = profileFrom(body);
       created.push(profile.id);
 
-      expect(profile.orgId).toBe(fixtures.eldersQuorumId);
-      expect(await storedOrgId(profile.id)).toBe(fixtures.eldersQuorumId);
+      expect(profile.orgId).toBe(fixtures.youngWomenId);
+      expect(await storedOrgId(profile.id)).toBe(fixtures.youngWomenId);
     });
 
     it("accepts a body orgId that matches the author's own organization", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPost({
         memberIds: [youthId],
         activityName: `EQ track ${fixtures.runId}`,
         activityType: "sport",
-        orgId: fixtures.eldersQuorumId,
+        orgId: fixtures.youngWomenId,
       });
 
       expect(status).toBe(201);
       const profile = profileFrom(body);
       created.push(profile.id);
 
-      expect(profile.orgId).toBe(fixtures.eldersQuorumId);
+      expect(profile.orgId).toBe(fixtures.youngWomenId);
     });
 
     // REFUSED, NOT IGNORED. A leader who thinks they entered an activity for another organization
     // and did not is worse off than one who was told they may not.
     it("refuses a body orgId naming another organization, with a sentence", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPost({
         memberIds: [youthId],
         activityName: `Forged RS ${fixtures.runId}`,
         activityType: "performance",
-        orgId: fixtures.reliefSocietyId,
+        orgId: fixtures.youngMenId,
       });
 
       expect(status).toBe(403);
@@ -414,14 +414,14 @@ describe("/api/youth/profiles", () => {
         memberIds: [youthId],
         activityName: `Bishop for RS ${fixtures.runId}`,
         activityType: "performance",
-        orgId: fixtures.reliefSocietyId,
+        orgId: fixtures.youngMenId,
       });
 
       expect(status).toBe(201);
       const profile = profileFrom(body);
       created.push(profile.id);
 
-      expect(profile.orgId).toBe(fixtures.reliefSocietyId);
+      expect(profile.orgId).toBe(fixtures.youngMenId);
     });
 
     it("lets the bishopric create a ward-wide profile by omitting the organization", async () => {
@@ -457,7 +457,7 @@ describe("/api/youth/profiles", () => {
     });
 
     it("refuses an org secretary, who may read but not manage", async () => {
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
 
       const { status } = await callPost({
         memberIds: [youthId],
@@ -469,7 +469,7 @@ describe("/api/youth/profiles", () => {
     });
 
     it("refuses a member from another ward", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callPost({
         memberIds: [wardBYouthId],
@@ -484,7 +484,7 @@ describe("/api/youth/profiles", () => {
     it("writes an audit row for every created profile", async () => {
       const before = await countAuditRows("youth_activity_profile_created");
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { status, body } = await callPost({
         memberIds: [youthId],
         activityName: `Audited ${fixtures.runId}`,
@@ -502,7 +502,7 @@ describe("/api/youth/profiles", () => {
     let ownProfileId: string;
 
     beforeAll(async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { body } = await callPost({
         memberIds: [youthId],
         activityName: `Editable ${fixtures.runId}`,
@@ -513,7 +513,7 @@ describe("/api/youth/profiles", () => {
     });
 
     it("saves a change to the author's own organization's profile", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callPatch(ownProfileId, {
         activityName: `Renamed ${fixtures.runId}`,
@@ -528,7 +528,7 @@ describe("/api/youth/profiles", () => {
     // route turning a zero-row update into an answer.
     it("returns 404 rather than editing another organization's profile", async () => {
       const before = await storedName(rsProfileId);
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPatch(rsProfileId, {
         activityName: `Hijacked ${fixtures.runId}`,
@@ -540,7 +540,7 @@ describe("/api/youth/profiles", () => {
     });
 
     it("refuses an empty patch with a sentence", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPatch(ownProfileId, {});
 
@@ -549,7 +549,7 @@ describe("/api/youth/profiles", () => {
     });
 
     it("refuses an id that is not a uuid", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callPatch("not-a-uuid", { activityName: "Anything" });
 
@@ -559,7 +559,7 @@ describe("/api/youth/profiles", () => {
     it("writes an audit row on a successful update", async () => {
       const before = await countAuditRows("youth_activity_profile_updated");
 
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { status } = await callPatch(ownProfileId, { activityType: "community" });
 
       expect(status).toBe(200);
@@ -569,7 +569,7 @@ describe("/api/youth/profiles", () => {
 
   describe("deleting", () => {
     it("removes the author's own profile and audits it", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       const { body } = await callPost({
         memberIds: [youthId],
         activityName: `Removable ${fixtures.runId}`,
@@ -586,7 +586,7 @@ describe("/api/youth/profiles", () => {
     });
 
     it("returns 404 rather than removing another organization's profile", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callDelete(rsProfileId);
 
@@ -595,7 +595,7 @@ describe("/api/youth/profiles", () => {
     });
 
     it("refuses an org secretary", async () => {
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
 
       const { status } = await callDelete(rsProfileId);
 
@@ -629,20 +629,20 @@ describe("/api/youth/profiles", () => {
             // one in which a leader may delete an activity whose follow-ups are hidden from them.
             // 054d's DELETE admits them through `entered_by`; 057c's SELECT does not mention it.
             ward_id: wardId,
-            org_id: fixtures.reliefSocietyId,
+            org_id: fixtures.youngMenId,
             activity_name: `Reassigned with follow-up ${fixtures.runId}`,
             activity_type: "sport",
-            entered_by: fixtures.user("eqPresident").id,
+            entered_by: fixtures.user("ywPresident").id,
           },
           {
             ward_id: wardId,
-            org_id: fixtures.eldersQuorumId,
+            org_id: fixtures.youngWomenId,
             activity_name: `EQ events only ${fixtures.runId}`,
             activity_type: "sport",
           },
           {
             ward_id: wardId,
-            org_id: fixtures.eldersQuorumId,
+            org_id: fixtures.youngWomenId,
             activity_name: `EQ empty ${fixtures.runId}`,
             activity_type: "sport",
           },
@@ -690,7 +690,7 @@ describe("/api/youth/profiles", () => {
       const { error: logError } = await fixtures.service.from("activity_logs").insert({
         ward_id: wardId,
         event_id: followUpEventId,
-        logged_by: fixtures.user("rsPresident").id,
+        logged_by: fixtures.user("ymPresident").id,
         shared_notes: `He played well and seemed happier ${fixtures.runId}`,
       });
       if (logError) throw new Error(logError.message);
@@ -701,7 +701,7 @@ describe("/api/youth/profiles", () => {
     // arrangement is over-built — and if it returns nothing while the delete succeeds, the
     // follow-up was destroyed by somebody who could not even read it.
     it("hides that follow-up from the leader who may nonetheless delete the activity", async () => {
-      const eqClient = await asRole(fixtures, "eqPresident");
+      const eqClient = await asRole(fixtures, "ywPresident");
 
       const { data, error } = await eqClient
         .from("activity_logs")
@@ -715,7 +715,7 @@ describe("/api/youth/profiles", () => {
     // THE ASSERTION THE WHOLE ITEM EXISTS FOR.
     it("refuses with 409 and destroys nothing", async () => {
       const auditBefore = await countAuditRows("youth_activity_profile_deleted");
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callDelete(withFollowUpId);
 
@@ -753,7 +753,7 @@ describe("/api/youth/profiles", () => {
     // CLOSE IS ADVICE, NOT A LOCK. Only a WRITTEN ACCOUNT is protected — that is the thing nobody
     // can reconstruct. An activity full of imported fixtures and no follow-ups still deletes.
     it("still deletes an activity that has events but no follow-ups", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callDelete(withEventsOnlyId);
 
@@ -765,7 +765,7 @@ describe("/api/youth/profiles", () => {
     // defect: a reader could not tell a mistyped activity removed the same afternoon from a season
     // of fixtures.
     it("deletes an empty activity and records its name and event count", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callDelete(emptyId);
       expect(status).toBe(200);

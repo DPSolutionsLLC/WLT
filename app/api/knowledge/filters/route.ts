@@ -30,7 +30,7 @@ export async function GET() {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     // `knowledge.view`, not `manage`. Reading which filters exist is part of reading the scope
     // panel; only changing them needs manage.
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "knowledge.manage", roleAccess);
 

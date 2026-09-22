@@ -254,9 +254,25 @@ Do not lose these in the re-skin. Each still needs a design.
 | `resource-center-specialist` | — | **1 new** |
 | `sacrament-ordinance-coordinator` | `sacrament_manager`? | **verify** |
 
-⚠️ **The prototype's role list has no Young Men.** Five org presidencies where
-`organizations.type` has six. Almost certainly an omission in the prototype, not a decision —
-confirm before treating the list as authoritative.
+✅ **The prototype's role list has no Young Men, AND THAT IS CORRECT — RESOLVED 2026-09-21.**
+This row used to read "almost certainly an omission in the prototype, not a decision". It was
+neither: it is the handbook. The user supplied `calling-hierarchy.json` (General Handbook,
+December 2025), which says in as many words that **the bishopric IS the presidency of the Aaronic
+Priesthood in the ward** and that **there is no separate ward Young Men president calling** — the
+bishopric fills that role, with the bishop presiding over the priests quorum directly. Young Women
+is different and does have its own ward presidency, which is why the prototype lists it.
+
+So five org presidencies is the right number, and the matrix was treated as authoritative on this
+point when it was re-derived in P2. What follows from it:
+
+* `org_president` × `young_men` is a calling that **should not normally exist**. WLT still has a
+  `young_men` organization TYPE and the youth module is built around one, so the permission matrix
+  gives it the same grants as Young Women rather than refusing it — the handbook point is about
+  which CALLING presides, not about whether the work exists.
+* The bishopric holds `youth_activities.manage`, which is how the Aaronic Priesthood side is
+  covered.
+
+See `lib/auth/permissions.ts` §organizationYouthPermissions for the rule and its reasoning.
 
 ⚠️ **`ward_council_member`** exists in WLT and has no prototype equivalent. It is the role
 CLAUDE.md calls "the widest role in the app" and "the role most likely to have no organization

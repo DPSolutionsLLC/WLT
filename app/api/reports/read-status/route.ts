@@ -95,7 +95,7 @@ export async function POST(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     const input = setReportReadStatusSchema.parse(await readJsonBody(request));
     const reportModule = REPORT_MODULES[input.reportType];
@@ -152,7 +152,7 @@ export async function PATCH(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     const input = markReportsReadSchema.parse(await readJsonBody(request));
     const reportModule = REPORT_MODULES[input.reportType];

@@ -57,7 +57,7 @@ export async function POST(
     const programId = programIdSchema.parse(id);
 
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     // program.build, not program.approve. The ward secretary builds the programme all week and
     // generates its PDF; the bishopric signs it off. Gating this on approve would put the

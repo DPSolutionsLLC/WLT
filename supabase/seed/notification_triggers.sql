@@ -88,6 +88,16 @@ cross join (values
   ('sacrament_assignments_overdue', array['bishop', 'counselor']),
   ('sacrament_manager_changed',     array['bishop', 'counselor']),
 
+  -- Access requests (P2). A ward asking for a permission, and the answer coming back.
+  --
+  -- `access_request_submitted` carries an EMPTY default_roles on purpose. Its recipients are the
+  -- app's SUPER ADMINS, resolved explicitly by the route and passed as recipientUserIds — and a
+  -- super admin is not a ward role, so there is no role list in the ASKING ward that could name
+  -- them. Naming the bishopric here would notify the people who just pressed the button.
+  ('access_request_submitted',      array[]::text[]),
+  ('access_request_decided',        array['bishop', 'counselor']),
+  ('access_app_wide_grant',         array['bishop', 'counselor']),
+
   -- Youth accounts
   ('youth_account_locked',          array['bishop', 'counselor'])
 ) as trigger(key, default_roles)

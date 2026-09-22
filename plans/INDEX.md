@@ -73,8 +73,8 @@ scope lives on in the P-track.
 
 | # | Phase | File | Depends on | Size |
 |---|---|---|---|---|
-| **P1** | Design system — tokens, fonts, primitives | [P1-design-system.md](P1-design-system.md) | — | Medium |
-| **P2** | Unit hierarchy — stakes, super admin, ward switching | [P2-unit-hierarchy.md](P2-unit-hierarchy.md) | — | **Large** |
+| ~~**P1**~~ | ~~Design system — tokens, fonts, primitives~~ | [P1-design-system.md](P1-design-system.md) | — | ✅ **Shipped 2026-09-20** |
+| ~~**P2**~~ | ~~Unit hierarchy — stakes, super admin, ward switching~~ | [P2-unit-hierarchy.md](P2-unit-hierarchy.md) | — | ✅ **Shipped 2026-09-21** |
 | **P3** | Shell & IA — tile dashboard, chrome bar, sidebar deleted | [P3-shell-and-ia.md](P3-shell-and-ia.md) | P1, P2 | Medium |
 | **P4** | Module re-skins — 9 modules, ~40 named behaviours | [P4-module-reskins.md](P4-module-reskins.md) | P3 | **Large** |
 | **P5** | To Do & My Appointments | [P5-todo-and-appointments.md](P5-todo-and-appointments.md) | P3 | Medium |

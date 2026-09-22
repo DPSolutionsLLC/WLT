@@ -39,6 +39,73 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_requests: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_note: string | null
+          id: string
+          level: string
+          permission: string
+          reason: string
+          requested_by: string | null
+          role: string
+          status: string
+          ward_id: string
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          id?: string
+          level?: string
+          permission: string
+          reason: string
+          requested_by?: string | null
+          role: string
+          status?: string
+          ward_id: string
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          id?: string
+          level?: string
+          permission?: string
+          reason?: string
+          requested_by?: string | null
+          role?: string
+          status?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "access_requests_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "access_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "access_requests_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       action_items: {
         Row: {
           agenda_id: string | null
@@ -3697,6 +3764,7 @@ export type Database = {
           home_ward_id: string
           is_bishopric: boolean
           org_id: string
+          org_type: string
           role: string
           ward_id: string
         }[]

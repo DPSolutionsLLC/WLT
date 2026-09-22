@@ -13,7 +13,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 export default async function AdminUsersPage() {
   const user = await requireSessionUser();
   const supabase = await createServerSupabaseClient();
-  const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+  const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
   if (!can(user, "admin.manage_users", roleAccess)) {
     return <NotPermitted detail="Managing accounts is limited to the bishopric." />;

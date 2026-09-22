@@ -2153,6 +2153,9 @@ export const NOTIFICATION_TRIGGERS: Array<{ key: string; defaultRoles: Role[] }>
   { key: "sacrament_assignments_sent", defaultRoles: ["bishop", "counselor"] },
   { key: "sacrament_assignments_overdue", defaultRoles: ["bishop", "counselor"] },
   { key: "sacrament_manager_changed", defaultRoles: ["bishop", "counselor"] },
+  { key: "access_request_submitted", defaultRoles: [] },
+  { key: "access_request_decided", defaultRoles: ["bishop", "counselor"] },
+  { key: "access_app_wide_grant", defaultRoles: ["bishop", "counselor"] },
   { key: "youth_account_locked", defaultRoles: ["bishop", "counselor"] },
 ];
 

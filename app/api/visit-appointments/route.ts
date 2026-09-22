@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "visits.view", roleAccess);
 
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     // An org secretary holds `visits.create` and therefore books appointments. Checked against
     // lib/auth/permissions.ts rather than assumed; the matrix is not always the intuitive answer.

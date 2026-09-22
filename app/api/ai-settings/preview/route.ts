@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     // `.manage`, not `.view`. A preview spends money and sends ward text to a third-party vendor.
     // That is the authority to CHANGE the settings, not the authority to read them.

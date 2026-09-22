@@ -97,7 +97,7 @@ describe("youth activity participation route", () => {
   };
 
   beforeAll(async () => {
-    fixtures = await seedFixtures(["bishop", "eqPresident", "eqSecretary", "wardBBishop"]);
+    fixtures = await seedFixtures(["bishop", "ywPresident", "ywSecretary", "wardBBishop"]);
     wardId = fixtures.wardAId;
 
     const { data: members, error: memberError } = await fixtures.service
@@ -138,7 +138,7 @@ describe("youth activity participation route", () => {
       .from("youth_activity_profiles")
       .insert({
         ward_id: wardId,
-        org_id: fixtures.eldersQuorumId,
+        org_id: fixtures.youngWomenId,
         activity_name: `Team of two ${fixtures.runId}`,
         activity_type: "sport",
       })
@@ -204,7 +204,7 @@ describe("youth activity participation route", () => {
     });
 
     it("stores false and audits it", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const before = await countAuditRows("youth_activity_participation_recorded");
       const { status } = await callPatch(eventId, { memberId: ethanId, takingPart: false });
@@ -227,7 +227,7 @@ describe("youth activity participation route", () => {
     // "confirmed taking part" distinguishable from "nobody has said", and it is the second way
     // back from a wrong mark.
     it("stores true", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callPatch(eventId, { memberId: joshId, takingPart: true });
 
@@ -241,7 +241,7 @@ describe("youth activity participation route", () => {
     // A double tap on a slow phone is the ordinary case in this module, and it must not raise and
     // must not write a second marker.
     it("writes ONE row for a double PATCH", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       await callPatch(eventId, { memberId: ethanId, takingPart: false });
       const { status } = await callPatch(eventId, { memberId: ethanId, takingPart: false });
@@ -256,7 +256,7 @@ describe("youth activity participation route", () => {
     // and the row is DELETED — which is precisely "nobody has said" rather than "they were there",
     // a different claim nobody made (migration 060a's reversibility rule).
     it("DELETES the row and audits the clear", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       await callPatch(eventId, { memberId: ethanId, takingPart: false });
 
       const before = await countAuditRows("youth_activity_participation_cleared");
@@ -278,7 +278,7 @@ describe("youth activity participation route", () => {
     // CLEARING AN ANSWER NOBODY GAVE IS THE STATE THE CALLER WANTED, so it is a success rather
     // than a 404 — the same reading addAttendee gives its unique violation.
     it("succeeds when there was no row to clear", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callPatch(eventId, { memberId: ethanId, takingPart: null });
 
@@ -295,7 +295,7 @@ describe("youth activity participation route", () => {
     // young person is not on this team", because there was no roster to check against. A person
     // can act on this sentence; nobody can act on a constraint violation.
     it("refuses a young person who is not on the event's team, with a sentence", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPatch(eventId, {
         memberId: outsiderId,
@@ -308,7 +308,7 @@ describe("youth activity participation route", () => {
     });
 
     it("refuses a ward-wide event, which has no team and therefore no roster", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPatch(wardWideEventId, {
         memberId: ethanId,
@@ -321,7 +321,7 @@ describe("youth activity participation route", () => {
     });
 
     it("answers 404 for an event in another ward", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPatch(wardBEventId, {
         memberId: ethanId,
@@ -335,7 +335,7 @@ describe("youth activity participation route", () => {
     // A STRING OR A NUMBER IS REFUSED RATHER THAN COERCED. `"false"` is truthy in JavaScript, so a
     // coercing schema would record the exact opposite of what the caller sent.
     it("refuses a string or a number rather than coercing it", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       for (const takingPart of ["false", 0]) {
         const { status } = await callPatch(eventId, { memberId: ethanId, takingPart });
@@ -346,7 +346,7 @@ describe("youth activity participation route", () => {
     });
 
     it("refuses a body with no memberId", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status } = await callPatch(eventId, { takingPart: false });
 
@@ -357,7 +357,7 @@ describe("youth activity participation route", () => {
     // lib/auth/permissions.ts rather than guessed. This is the same gate `Cancel` runs under,
     // which is what migration 061 required and what migration 062f preserved.
     it("refuses an org secretary with 403", async () => {
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
 
       const { status } = await callPatch(eventId, { memberId: ethanId, takingPart: false });
 

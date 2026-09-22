@@ -134,6 +134,19 @@ export const INVITABLE_ROLES: readonly Role[] = ROLES.filter(
 export const UNIT_TYPES = ["area", "stake", "ward"] as const;
 export type UnitType = (typeof UNIT_TYPES)[number];
 
+// One row of `units` (migration 065a). It lives here rather than in lib/units/queries.ts because
+// BOTH the read path and the service-role write path in lib/units/writeUnit.ts need it, and
+// queries.ts imports the server client — which a service-role module cannot import without
+// dragging next/headers in behind it.
+export type Unit = {
+  id: string;
+  type: UnitType;
+  parentId: string | null;
+  // The REAL church-assigned number, never an app-invented id. Null until a human knows it.
+  unitNumber: string | null;
+  name: string;
+};
+
 // The roles a `unit_assignments` row may carry. NOT the same list as the stake values in ROLES:
 // `super_admin` is assignable over every unit (unit_id null) and is not a stake officer, and the
 // `unit_assignments_scope` CHECK in migration 065 is what makes the two shapes unrepresentable
@@ -154,6 +167,75 @@ export const STAKE_ROLES = [
   "stake_secretary",
 ] as const;
 export type StakeRole = (typeof STAKE_ROLES)[number];
+
+// ---------------------------------------------------------------------------
+// Access requests (migration 073)
+// ---------------------------------------------------------------------------
+//
+// A ward asking for a permission its roles do not hold by default, and somebody else answering.
+// An approval writes an ordinary add-delta into `wards.settings.role_access` — this is the
+// conversation, not a second permission engine.
+
+export const ACCESS_REQUEST_STATUSES = [
+  "pending",
+  "approved_ward",
+  "approved_app_wide",
+  "denied",
+] as const;
+export type AccessRequestStatus = (typeof ACCESS_REQUEST_STATUSES)[number];
+
+// The two approvals are separate statuses rather than one `approved` plus a flag, because they
+// are two different acts with two very different blast radii — one ward, or every ward in the
+// app — and the audit trail must never be ambiguous about which one happened.
+export const ACCESS_REQUEST_STATUS_LABELS: Record<AccessRequestStatus, string> = {
+  pending: "Waiting for a decision",
+  approved_ward: "Approved for your ward",
+  approved_app_wide: "Approved for every ward",
+  denied: "Not approved",
+};
+
+// THE WORDS THE REQUESTER READS. Kept beside the labels rather than in a page file because both
+// admin screens are client components, and a "use client" component importing a constant out of
+// a route or a lib module with a server dependency pulls next/headers into the browser bundle —
+// which only `npm run build` catches (youth-b, youth-c).
+//
+// A DENIAL MUST READ AS A DECISION SOMEBODY MADE, not as the app refusing. The prototype shipped
+// this flow without outcome visibility at all and caught the gap itself; a denial nobody can read
+// teaches leaders that asking does nothing.
+export const ACCESS_REQUEST_STATUS_DESCRIPTIONS: Record<AccessRequestStatus, string> = {
+  pending: "Nobody has answered this yet.",
+  approved_ward: "This is now turned on for your ward.",
+  approved_app_wide:
+    "This was approved for every ward. It stays off for yours until you turn it on.",
+  denied: "Someone reviewed this and decided against it. Their note is below.",
+};
+
+// The prototype's three levels. `F` and `Q` are the only ones its own matrix ever uses; `R`
+// exists in its vocabulary and is never used anywhere (decisions.md §2.3), so it is accepted and
+// means nothing yet. WLT's own view/manage split already covers what `R` would express.
+export const ACCESS_LEVELS = ["F", "R", "Q"] as const;
+export type AccessLevel = (typeof ACCESS_LEVELS)[number];
+
+export const ACCESS_LEVEL_LABELS: Record<AccessLevel, string> = {
+  F: "Full",
+  R: "Read only",
+  Q: "Their own organization only",
+};
+
+export type AccessRequest = {
+  id: string;
+  wardId: string;
+  requestedBy: string | null;
+  role: Role;
+  permission: string;
+  level: AccessLevel;
+  reason: string;
+  status: AccessRequestStatus;
+  decidedBy: string | null;
+  decisionNote: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+};
 
 export const ORGANIZATION_TYPES = [
   "bishopric",
@@ -1244,6 +1326,15 @@ export type SessionUser = {
   // calling has none — a bishop or a ward secretary — never null merely because a switch is
   // active, which is what migration 066 got backwards.
   orgId: string | null;
+  // The TYPE of that organization, from the same round trip (migration 072). The permission
+  // matrix is organization-aware from P2 on — an org_president in Young Women may manage youth
+  // activities, one in Sunday School reaches them not at all — and that rule keys on the type,
+  // never on the id. Null exactly when orgId is null.
+  //
+  // It is not resolved in TypeScript from orgId. Reading it in a second query would let the app
+  // and RLS disagree about which organization this session is in, which is the failure 070e
+  // exists to prevent.
+  orgType: OrganizationType | null;
   counselorPosition: 1 | 2 | null;
   firstName: string | null;
   lastName: string | null;

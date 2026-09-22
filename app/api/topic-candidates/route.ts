@@ -36,7 +36,7 @@ export async function GET() {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "topics.view", roleAccess);
 
@@ -57,7 +57,7 @@ export async function PATCH(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     // `topics.manage`, not `topics.view`. Accepting a candidate CREATES a topic, so it is the
     // same authority as adding one by hand — reviewing is not a reading activity.

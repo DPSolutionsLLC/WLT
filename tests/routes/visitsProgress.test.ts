@@ -442,12 +442,22 @@ describe("GET /api/visits/progress", () => {
       expect(progressFrom(body).orgId).toBe(fixtures.eldersQuorumId);
     });
 
-    it("refuses a ward secretary, who does not hold visits.view", async () => {
+    // REVERSED IN P2, and written as a reversal so it reads as a decision. This asserted that a
+    // ward secretary was refused because they did not hold `visits.view`. The prototype's matrix
+    // gives the ward clerk `visitsAll=F` and `visitsQuorum=F` and the user took the row literally
+    // on 2026-09-21, so they hold it now.
+    //
+    // What stops them is no longer the PERMISSION but the DENOMINATOR: a ward secretary has no
+    // organization, and this dashboard measures one organization's progress against its own goal.
+    // So the refusal is a 400 naming the cause rather than a 403 — which is the more useful
+    // answer, because it tells them what is missing instead of that they are not allowed.
+    it("asks a ward secretary which organization, now that they hold visits.view", async () => {
       await actAs(fixtures, "wardSecretary");
 
-      const { status } = await callProgress(PROGRESS_URL);
+      const { status, body } = await callProgress(PROGRESS_URL);
 
-      expect(status).toBe(403);
+      expect(status).toBe(400);
+      expect(String((body as { error?: string }).error)).toContain("organization");
     });
 
     it("refuses a music coordinator", async () => {

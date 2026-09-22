@@ -1828,6 +1828,11 @@ sacrament_assignments_sent
 sacrament_assignments_overdue
 sacrament_manager_changed
 
+-- Access Requests
+access_request_submitted       -- a ward asked for a permission; goes to the super admins, not to a ward role (P2)
+access_request_decided         -- approved or declined; the asking ward reads the note either way (P2)
+access_app_wide_grant          -- a default changed app-wide; every ward is told, and turns it on for itself (P2)
+
 -- Youth Accounts
 youth_account_locked           -- a youth PIN account was locked after repeated failed attempts
 ```

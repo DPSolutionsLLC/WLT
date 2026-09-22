@@ -297,6 +297,83 @@ treatment and nothing else did.
 > `current_user_role()` belongs on that list: the role comes from the calling in the ward being
 > acted in, not from the person.
 
+### P2 IS CLOSED — 2026-09-21. What a super admin actually reaches, and what a ward asks for
+
+**`proto-d` shipped**, and with it P2. Three things landed that the sections above anticipated and
+deliberately left open.
+
+**THE PERMISSION MATRIX IS ORGANIZATION-AWARE.** Until P2, every `org_president` held the same
+grants and WHICH organization was narrowed by RLS alone. The prototype's matrix does not work that
+way and the user adopted it in full: **only Young Women manage youth activities**; the Elders
+Quorum, the Relief Society and the Primary see them and write follow-ups without managing the
+schedule; **Sunday School reaches them not at all**. The seam is narrow on purpose — **youth is the
+only module that varies**, and `tests/lib/permissions.test.ts` asserts that nothing else does, so a
+later change making a second module org-dependent has to be a deliberate edit.
+
+It cost **no change to `can()`, `assertCan()`, the delta schema or any of the 62 call sites**.
+`resolveRoleAccess(supabase, wardId, orgType)` specializes the base matrix once per request and
+`mergeRoleAccess` merges the ward's deltas onto that. **`orgType` is REQUIRED and has no default**
+— ITER-005's lesson applied a second time: a default is how 25 of 62 checks came to ignore the
+ward's configuration with nothing failing.
+
+**`session_context()` CARRIES `org_type`** (migration 072). The app must not resolve it separately:
+that is 070e's rule, and a second query could disagree with what RLS resolved.
+
+**THE MATRIX RE-DERIVATION CHANGED FOUR ROLES AND DELIBERATELY DID NOT CHANGE THREE.**
+The ward clerk gained tithing, visits, goals, youth view/log and `program.approve`, and **lost
+`talks.view` and `music.view`** — the matrix has columns for both and withholds them, which is a
+withholding rather than an absence. The executive secretary gained the same minus tithing and lost
+`talks.view`. All five org presidents gained `agendas.view` — they are the ward council's standing
+members. `resource_center_specialist` went from empty to **`program.view` + `program.distribute`**:
+printing, never approving, because approval is what publishes to an unauthenticated page.
+**Unchanged, against the matrix and on purpose:** the bishopric keeps music (§7 gives it
+everything); `music_coordinator` keeps `talks.view` (§8 names it as the route-test gotcha);
+`sacrament_manager` keeps exactly its three permissions — the prototype's
+`sacrament-ordinance-coordinator` is an ADULT calling and WLT's is a youth PIN account, so they are
+**not the same role and are not mapped**; and org secretaries still do not set goals.
+
+**STAKE OFFICERS STILL REACH NOTHING.** The prototype's matrix grants them `wardAdmin=F` across
+every ward and that was **refused** — the 2026-09-21 decision recorded above stands, and it was
+made against the real security boundary where the prototype's is client state.
+
+**A WARD CAN NOW ASK.** `access_requests` (migration 073) is the conversation: a ward admin with
+`admin.manage_roles` files one with a written reason, a super admin decides, and an approval writes
+an ordinary **add-delta** into `wards.settings.role_access`. It is **not a second permission
+engine** — the resolution path is untouched.
+**THE ONE RULE IT EXISTS FOR — a ward admin cannot approve their own request — is enforced by the
+ABSENCE OF A WRITE POLICY**, not by a route check somebody could forget. `access_requests` has a
+SELECT policy and nothing else, so both halves run through the service-role client behind the
+route's guard. `tests/rls/access-requests.test.ts` asserts it at the table.
+**A request cannot ask for what an approval could not grant:** `admin.*` and `sacrament.*` are
+non-overridable in both directions, so the schema refuses them at the boundary — a granted
+permission that silently does not arrive is worse than a refusal, because nobody goes looking for it.
+**A denial must carry a note**, because the requester reads it; the prototype shipped this flow
+without outcome visibility and caught the gap itself.
+
+**AN APP-WIDE GRANT NEVER TURNS ON SILENTLY.** Approving app-wide changes a code default AND writes
+an explicit **off**-override into **every existing ward**, so no ward's effective access moves on
+the day it deploys; each ward is notified and turns it on for itself. `lib/access/appWideGrant.ts`
+is **idempotent**, **does not stop at a per-ward failure**, and **does not swallow one** — a ward
+that silently missed its off-override is a ward that silently gained a permission, so the failures
+are returned and the route reports them. **Every write merges**; a wholesale write would delete
+every ward's other overrides plus its timezone and venues, which is `writeCrossOrgVisibility()`'s
+warning for the same column. `tests/lib/appWideGrant.test.ts` is pure and was **proved able to fail**
+before being believed.
+
+**STAKES & WARDS IS GATED ON `super_admin` IN `unit_assignments`, NEVER ON AN `admin.*`
+PERMISSION** — a ward has no standing to create the stake above itself, and a `units.*` permission
+could be widened by `role_access`. It is therefore **absent from `NAVIGATION_ITEMS`**, which can
+only gate on a permission that `super_admin` holds anyway; it is surfaced on `/admin` by asking the
+structural question directly. `units` and `unit_assignments` stay **SELECT-only** and
+`tests/rls/units-write.test.ts` is what keeps them that way.
+
+**`wards.unit_id` STAYS NULLABLE.** Tightening it would turn every RLS suite red, because
+`tests/helpers/seed.ts` inserts wards directly — and a ward with no unit is the ordinary state of
+every ward created before this screen.
+
+**`lib/roster/wardRoster.ts` is a SEAM, not a rewrite** — one read, so a future LCR integration
+replaces what is behind one boundary. Roster import stays ward-level and ward-owned.
+
 **Genuinely new — FIVE role values landed, not the seven this said before. BUILT, migration
 065.** The arithmetic: the prototype's "4 stake roles" are `stake-president`,
 `stake-1st-counselor`, `stake-2nd-counselor` and `stake-secretary`, but `users.counselor_position`

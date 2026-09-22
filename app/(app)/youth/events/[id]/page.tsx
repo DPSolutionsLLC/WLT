@@ -49,7 +49,7 @@ export type YouthEventPageProps = { params: Promise<{ id: string }> };
 export default async function YouthEventPage({ params }: YouthEventPageProps) {
   const user = await requireSessionUser();
   const supabase = await createServerSupabaseClient();
-  const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+  const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
   if (!can(user, "youth_activities.view", roleAccess)) {
     return (

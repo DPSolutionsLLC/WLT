@@ -53,7 +53,7 @@ export type YouthHistoryPageProps = { params: Promise<{ member_id: string }> };
 export default async function YouthHistoryPage({ params }: YouthHistoryPageProps) {
   const user = await requireSessionUser();
   const supabase = await createServerSupabaseClient();
-  const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+  const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
   if (!can(user, "youth_activities.view", roleAccess)) {
     return (

@@ -37,6 +37,10 @@ describe("getSessionUser", () => {
     expect(user?.wardId).toBe(fixtures.wardAId);
     expect(user?.role).toBe("org_president");
     expect(user?.orgId).toBe(fixtures.eldersQuorumId);
+    // THE ORGANIZATION'S TYPE, from the same round trip (migration 072). It decides permissions
+    // from P2 on — an org_president in Young Women may manage youth activities, one in Sunday
+    // School may not — so it is asserted against a real organization rather than a stub.
+    expect(user?.orgType).toBe("elders_quorum");
     expect(user?.isActive).toBe(true);
   });
 
@@ -72,6 +76,9 @@ describe("getSessionUser", () => {
       "isActive",
       "lastName",
       "orgId",
+      // Added by migration 072. The TYPE of the calling's organization, resolved in the same
+      // query as the organization itself so the app and RLS cannot disagree about it.
+      "orgType",
       "role",
       "themePreference",
       "username",

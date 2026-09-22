@@ -96,6 +96,7 @@ const PRESIDENT: SessionUser = {
   callingId: "00000000-0000-4000-8000-00000000ca11",
   role: "org_president",
   orgId: YOUNG_MEN,
+  orgType: "young_men",
   counselorPosition: null,
   firstName: "Miguel",
   lastName: "Cortez",

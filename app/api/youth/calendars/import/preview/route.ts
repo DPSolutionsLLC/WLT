@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     // `.view` is not enough. Reading the ward's schedule and writing thirty rows into it are
     // different things, and `org_secretary` holds the first and not the second.

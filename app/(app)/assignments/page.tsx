@@ -37,7 +37,7 @@ export type AssignmentsPageProps = {
 export default async function AssignmentsPage({ searchParams }: AssignmentsPageProps) {
   const user = await requireSessionUser();
   const supabase = await createServerSupabaseClient();
-  const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+  const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
   // can() rather than assertCan(): a ForbiddenError escaping a Server Component becomes a 500
   // whose message Next.js strips in production (plans/retros/auth-b-invites-admin.md).

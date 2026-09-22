@@ -20,6 +20,7 @@ import {
   type MemberStatus,
   type Role,
   type SessionUser,
+  type OrganizationType,
 } from "@/types/domain";
 
 const ELDERS_QUORUM_ID = "00000000-0000-4000-8000-0000000000e1";
@@ -27,7 +28,11 @@ const RELIEF_SOCIETY_ID = "00000000-0000-4000-8000-0000000000e2";
 const ANDERSEN_HOUSEHOLD_ID = "00000000-0000-4000-8000-0000000000h1";
 const SMITH_HOUSEHOLD_ID = "00000000-0000-4000-8000-0000000000h2";
 
-function sessionUser(role: Role, orgId: string | null = null): SessionUser {
+function sessionUser(
+  role: Role,
+  orgId: string | null = null,
+  orgType: OrganizationType | null = null,
+): SessionUser {
   return {
     id: "00000000-0000-4000-8000-000000000001",
     wardId: "00000000-0000-4000-8000-000000000002",
@@ -41,6 +46,7 @@ function sessionUser(role: Role, orgId: string | null = null): SessionUser {
     callingId: "00000000-0000-4000-8000-00000000ca11",
     role,
     orgId,
+    orgType,
     counselorPosition: null,
     firstName: "Test",
     lastName: "User",

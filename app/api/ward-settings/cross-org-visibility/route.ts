@@ -43,7 +43,7 @@ export async function GET() {
     // "why can I see the Relief Society's visits?" is a question the page should answer without a
     // leader having to ask a counselor.
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "visits.view", roleAccess);
 
@@ -70,7 +70,7 @@ export async function PATCH(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "admin.manage_ward", roleAccess);
 

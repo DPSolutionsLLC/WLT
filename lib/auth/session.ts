@@ -4,8 +4,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 import {
+  ORGANIZATION_TYPES,
   ROLES,
   THEME_PREFERENCES,
+  type OrganizationType,
   type Role,
   type SessionUser,
   type ThemePreference,
@@ -37,6 +39,25 @@ function toThemePreference(value: string): ThemePreference {
 
 function toCounselorPosition(value: number | null): 1 | 2 | null {
   return value === 1 || value === 2 ? value : null;
+}
+
+// THROWS like toRole, and for the same reason rather than by analogy: from P2 on this value
+// DECIDES PERMISSIONS (an org_president in Young Women may manage youth activities, one in
+// Sunday School may not), so an unrecognised type must never fall back to a default that grants
+// something nobody chose. The organizations.type CHECK in migration 002 already restricts it to
+// ORGANIZATION_TYPES, so a value outside that list means the constraint and the union drifted.
+//
+// Null is not an error — it is a calling with no organization, which a bishop, a ward secretary
+// and a ward_council_member all legitimately are.
+function toOrganizationType(value: string | null): OrganizationType | null {
+  if (value === null) return null;
+  if (!(ORGANIZATION_TYPES as readonly string[]).includes(value)) {
+    throw new Error(
+      `A calling's organization has the type "${value}", which the app does not know. The CHECK ` +
+        "constraint in migration 002 and ORGANIZATION_TYPES in types/domain.ts have drifted.",
+    );
+  }
+  return value as OrganizationType;
 }
 
 async function resolveSessionUser(
@@ -160,6 +181,7 @@ async function resolveSessionUser(
     // ward, so none of them can disagree with what RLS reads (migration 070e).
     role: toRole(context.role),
     orgId: context.org_id ?? null,
+    orgType: toOrganizationType(context.org_type ?? null),
     counselorPosition: toCounselorPosition(context.counselor_position ?? null),
     firstName: data.first_name,
     lastName: data.last_name,

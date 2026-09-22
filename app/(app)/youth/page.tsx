@@ -57,7 +57,7 @@ export type YouthPageProps = { searchParams: Promise<{ youth?: string }> };
 export default async function YouthActivitiesPage({ searchParams }: YouthPageProps) {
   const user = await requireSessionUser();
   const supabase = await createServerSupabaseClient();
-  const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+  const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
   if (!can(user, "youth_activities.view", roleAccess)) {
     return (

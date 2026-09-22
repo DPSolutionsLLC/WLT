@@ -78,7 +78,7 @@ describe("PATCH /api/youth/profiles/[id]/close", () => {
   };
 
   beforeAll(async () => {
-    fixtures = await seedFixtures(["bishop", "eqPresident", "eqSecretary", "rsPresident"]);
+    fixtures = await seedFixtures(["bishop", "ywPresident", "ywSecretary", "ymPresident"]);
     wardId = fixtures.wardAId;
 
     const { error: memberError } = await fixtures.service
@@ -99,13 +99,13 @@ describe("PATCH /api/youth/profiles/[id]/close", () => {
       .insert([
         {
           ward_id: wardId,
-          org_id: fixtures.eldersQuorumId,
+          org_id: fixtures.youngWomenId,
           activity_name: `EQ basketball ${fixtures.runId}`,
           activity_type: "sport",
         },
         {
           ward_id: wardId,
-          org_id: fixtures.reliefSocietyId,
+          org_id: fixtures.youngMenId,
           activity_name: `RS choir ${fixtures.runId}`,
           activity_type: "performance",
         },
@@ -115,10 +115,10 @@ describe("PATCH /api/youth/profiles/[id]/close", () => {
           // `entered_by`; WITH CHECK refuses the result and RAISES rather than matching no
           // rows — the shape a release and a recall leave behind (060-D2).
           ward_id: wardId,
-          org_id: fixtures.reliefSocietyId,
+          org_id: fixtures.youngMenId,
           activity_name: `Reassigned ${fixtures.runId}`,
           activity_type: "sport",
-          entered_by: fixtures.user("eqPresident").id,
+          entered_by: fixtures.user("ywPresident").id,
         },
       ])
       .select("id, activity_name");
@@ -135,7 +135,7 @@ describe("PATCH /api/youth/profiles/[id]/close", () => {
 
   it("closes a season, stamps an instant and audits it as CLOSED", async () => {
     const before = await countAuditRows("youth_activity_profile_closed");
-    await actAs(fixtures, "eqPresident");
+    await actAs(fixtures, "ywPresident");
 
     const { status, body } = await callClose(eqProfileId, { closed: true });
 
@@ -147,7 +147,7 @@ describe("PATCH /api/youth/profiles/[id]/close", () => {
 
   it("reopens it through the same route and audits it as REOPENED", async () => {
     const before = await countAuditRows("youth_activity_profile_reopened");
-    await actAs(fixtures, "eqPresident");
+    await actAs(fixtures, "ywPresident");
 
     const { status, body } = await callClose(eqProfileId, { closed: false });
 
@@ -174,7 +174,7 @@ describe("PATCH /api/youth/profiles/[id]/close", () => {
   // The POLICY decides which, not a branch in the route (CLAUDE.md rule 2). The 404 is the route
   // turning a zero-row update into an answer, and the sentence must not confirm the row exists.
   it("returns 404 rather than closing another organization's season", async () => {
-    await actAs(fixtures, "eqPresident");
+    await actAs(fixtures, "ywPresident");
 
     const { status, body } = await callClose(rsProfileId, { closed: true });
 
@@ -185,7 +185,7 @@ describe("PATCH /api/youth/profiles/[id]/close", () => {
 
   // `.manage`, NOT `.log`. An org secretary may write follow-ups and may not end a season.
   it("refuses a role holding .log but not .manage, and leaves the row alone", async () => {
-    await actAs(fixtures, "eqSecretary");
+    await actAs(fixtures, "ywSecretary");
 
     const { status } = await callClose(eqProfileId, { closed: true });
 
@@ -205,7 +205,7 @@ describe("PATCH /api/youth/profiles/[id]/close", () => {
   // first press. It now joins the quiet refusal on the same path: 404, and the sentence the
   // caller already gets for a profile that is not theirs.
   it("answers 404 rather than 500 when WITH CHECK refuses the result", async () => {
-    await actAs(fixtures, "eqPresident");
+    await actAs(fixtures, "ywPresident");
 
     const { status, body } = await callClose(reassignedProfileId, { closed: true });
 
@@ -220,7 +220,7 @@ describe("PATCH /api/youth/profiles/[id]/close", () => {
   // THE SAME HOLE IN THE ORDINARY EDIT, which had it first and since youth-a. Fixed in the same
   // change, because leaving one of two identical paths returning 500 is how it comes back.
   it("answers 404 rather than 500 on the ordinary PATCH too", async () => {
-    await actAs(fixtures, "eqPresident");
+    await actAs(fixtures, "ywPresident");
 
     const { PATCH } = await import("@/app/api/youth/profiles/[id]/route");
     const { status, body } = await readResponse(
@@ -245,7 +245,7 @@ describe("PATCH /api/youth/profiles/[id]/close", () => {
   });
 
   it("returns 404 for a profile that is not in this ward", async () => {
-    await actAs(fixtures, "eqPresident");
+    await actAs(fixtures, "ywPresident");
 
     const { status, body } = await callClose(MISSING_PROFILE_ID, { closed: true });
 
@@ -254,7 +254,7 @@ describe("PATCH /api/youth/profiles/[id]/close", () => {
   });
 
   it("refuses a body whose `closed` is not a boolean", async () => {
-    await actAs(fixtures, "eqPresident");
+    await actAs(fixtures, "ywPresident");
 
     const { status } = await callClose(eqProfileId, { closed: "yes" });
 
@@ -263,7 +263,7 @@ describe("PATCH /api/youth/profiles/[id]/close", () => {
   });
 
   it("refuses an id that is not a uuid", async () => {
-    await actAs(fixtures, "eqPresident");
+    await actAs(fixtures, "ywPresident");
 
     const { status } = await callClose("not-a-uuid", { closed: true });
 

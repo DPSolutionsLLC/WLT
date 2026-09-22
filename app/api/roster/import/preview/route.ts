@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     // secretary insert members (roster-a Decision 3), so RLS alone does not make this bishopric
     // only — this line does.
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "roster.import", roleAccess);
 

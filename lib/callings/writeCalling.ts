@@ -90,7 +90,12 @@ export async function createCalling(
       wardId: params.wardId,
       role: params.role,
     });
-    throw new Error(`Could not record the calling: ${error.message}`);
+    // THE ORIGINAL ERROR TRAVELS ON `cause`, which is what makes the sentence above this function
+    // true: "the caller turns 23505 into a sentence". Wrapping without it dropped the SQLSTATE,
+    // so every caller saw an indistinguishable Error and a one-active-calling-per-ward refusal
+    // surfaced as a 500 reading "Please try again" — which is untrue, and is the same class of
+    // defect as 060-D2's raising policy refusal.
+    throw new Error(`Could not record the calling: ${error.message}`, { cause: error });
   }
 
   return toCalling(data);

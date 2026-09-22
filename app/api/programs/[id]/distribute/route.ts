@@ -69,7 +69,7 @@ export async function POST(
     const input = distributeProgramSchema.parse(await readJsonBody(request));
 
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     // Held by ward_secretary AND the bishopric. 06-program-music.md is explicit that this must
     // never be gated on the secretary alone — a ward whose secretary is away on the Thursday

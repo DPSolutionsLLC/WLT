@@ -29,7 +29,7 @@ export default async function YouthSacramentPage() {
   // authenticated user whose current_ward_id() matches, with no role predicate, which is what the
   // youth layout already relies on for the ward name.
   const supabase = await createServerSupabaseClient();
-  const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+  const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
   assertCan(user, "sacrament.view_assignments", roleAccess);
 

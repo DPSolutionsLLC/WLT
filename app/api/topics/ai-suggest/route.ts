@@ -44,7 +44,7 @@ export async function POST(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     // `topics.manage`, not `topics.view` — the same reasoning PATCH /api/topic-candidates
     // records. Generating candidates is an act of BUILDING the library, not reading it, and it

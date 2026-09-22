@@ -75,7 +75,7 @@ export async function POST(request: Request, context: AiMessageRouteContext) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     const { id: assignmentId } = await context.params;
     const input = aiMessageSchema.parse(await readJsonBody(request));

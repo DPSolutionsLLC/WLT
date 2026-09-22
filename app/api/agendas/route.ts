@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "agendas.view", roleAccess);
 
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     // `agendas.manage`, which bishop, counselor, ward_secretary and executive_secretary all hold.
     // §Step A4: "Bishopric can build and publish without the secretary — never gate on the

@@ -179,7 +179,7 @@ describe("/api/youth/calendars/import", () => {
   };
 
   beforeAll(async () => {
-    fixtures = await seedFixtures(["bishop", "eqPresident", "eqSecretary", "wardBBishop"]);
+    fixtures = await seedFixtures(["bishop", "ywPresident", "ywSecretary", "wardBBishop"]);
     wardId = fixtures.wardAId;
 
     const { data: members, error: memberError } = await fixtures.service
@@ -208,7 +208,7 @@ describe("/api/youth/calendars/import", () => {
       .insert([
         {
           ward_id: wardId,
-          org_id: fixtures.eldersQuorumId,
+          org_id: fixtures.youngWomenId,
           activity_name: `Varsity Basketball ${fixtures.runId}`,
           activity_type: "sport",
         },
@@ -236,7 +236,7 @@ describe("/api/youth/calendars/import", () => {
   // ---------------------------------------------------------------------------
   describe("preview", () => {
     it("describes the file and writes absolutely nothing", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const eventsBefore = await countEvents();
       const calendarsBefore = await calendarRows();
@@ -266,7 +266,7 @@ describe("/api/youth/calendars/import", () => {
     });
 
     it("refuses a profile in another ward with a sentence, not a constraint violation", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPreview(
         formRequest(PREVIEW_URL, { text: SEASON(), profileId: wardBProfileId }),
@@ -277,7 +277,7 @@ describe("/api/youth/calendars/import", () => {
     });
 
     it("refuses a file of prose with a sentence naming the likely cause", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPreview(
         formRequest(PREVIEW_URL, {
@@ -294,7 +294,7 @@ describe("/api/youth/calendars/import", () => {
     });
 
     it("refuses a calendar with no events at all", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPreview(
         formRequest(PREVIEW_URL, { text: icsFile([]), profileId }),
@@ -305,7 +305,7 @@ describe("/api/youth/calendars/import", () => {
     });
 
     it("refuses a file that is not a .ics before reading a byte of it", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPreview(
         formRequest(PREVIEW_URL, { text: SEASON(), fileName: "schedule.csv", profileId }),
@@ -316,7 +316,7 @@ describe("/api/youth/calendars/import", () => {
     });
 
     it("refuses a file over the size limit with a 413", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       // Padded past 1MB with a comment property, so the refusal is about SIZE rather than about
       // the file being unreadable.
@@ -330,7 +330,7 @@ describe("/api/youth/calendars/import", () => {
     });
 
     it("refuses a request with no profileId", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callPreview(formRequest(PREVIEW_URL, { text: SEASON() }));
 
@@ -341,7 +341,7 @@ describe("/api/youth/calendars/import", () => {
     // org_secretary holds `.view` and `.log` and NOT `.manage` — checked in
     // lib/auth/permissions.ts, which CLAUDE.md §8 warns is not always the intuitive answer.
     it("refuses an org secretary, who may read the schedule but not write to it", async () => {
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
 
       const { status } = await callPreview(
         formRequest(PREVIEW_URL, { text: SEASON(), profileId }),
@@ -356,7 +356,7 @@ describe("/api/youth/calendars/import", () => {
   // ---------------------------------------------------------------------------
   describe("confirm", () => {
     it("refuses without a fileHash", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callImport(
         formRequest(IMPORT_URL, { text: SEASON(), profileId }),
@@ -368,7 +368,7 @@ describe("/api/youth/calendars/import", () => {
     });
 
     it("refuses a file that changed since the preview", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { body: previewBody } = await callPreview(
         formRequest(PREVIEW_URL, { text: SEASON(), profileId }),
@@ -392,7 +392,7 @@ describe("/api/youth/calendars/import", () => {
     });
 
     it("refuses an org secretary", async () => {
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
 
       const { status } = await callImport(
         formRequest(IMPORT_URL, { text: SEASON(), profileId, fileHash: "a".repeat(64) }),
@@ -403,7 +403,7 @@ describe("/api/youth/calendars/import", () => {
     });
 
     it("creates the calendar and the events, and writes one audit row and no notification", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const notificationsBefore = await countNotifications();
 
@@ -452,7 +452,7 @@ describe("/api/youth/calendars/import", () => {
     // Asserted by COUNTING ROWS. `created: 0` in the response and zero new rows in the table are
     // different claims, and only the second one is the guarantee.
     it("creates nothing on a second import of the identical file", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const before = await countEvents();
       const calendarsBefore = await calendarRows();
@@ -493,7 +493,7 @@ describe("/api/youth/calendars/import", () => {
     });
 
     it("updates a moved game in place and leaves hand-made changes alone", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const before = await storedEvents();
       const jefferson = before.find((event) => event.source_uid === "g2@lincoln")!;
@@ -592,7 +592,7 @@ describe("/api/youth/calendars/import", () => {
     });
 
     it("leaves an event absent from the file exactly as it was", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const before = await storedEvents();
       const beforeCount = before.length;
@@ -633,7 +633,7 @@ describe("/api/youth/calendars/import", () => {
 
   describe("recurring and all-day entries reach the database intact", () => {
     it("writes one row per occurrence with a shared uid and distinct recurrence ids", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const withSeries = icsFile([
         [

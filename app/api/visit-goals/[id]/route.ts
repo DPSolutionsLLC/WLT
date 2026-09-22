@@ -27,7 +27,7 @@ export async function PATCH(
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     // Not `visits.view`. An org secretary can read this goal and cannot change it, and the
     // permission matrix is what says so (plans/retros/role-access-overrides.md).

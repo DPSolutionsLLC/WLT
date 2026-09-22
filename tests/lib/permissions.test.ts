@@ -9,6 +9,7 @@ import {
   PERMISSIONS,
   ROLE_PERMISSIONS,
   assertCan,
+  basePermissionsFor,
   can,
   mergeRoleAccess,
   resolveRoleAccess,
@@ -17,7 +18,14 @@ import {
 } from "@/lib/auth/permissions";
 import { updateUserSchema } from "@/lib/validation/adminUser";
 import type { Database } from "@/types/database";
-import { INVITABLE_ROLES, ROLES, type Role, type SessionUser } from "@/types/domain";
+import {
+  INVITABLE_ROLES,
+  ORGANIZATION_TYPES,
+  ROLES,
+  type OrganizationType,
+  type Role,
+  type SessionUser,
+} from "@/types/domain";
 
 function sessionUser(role: Role): SessionUser {
   return {
@@ -33,6 +41,7 @@ function sessionUser(role: Role): SessionUser {
     callingId: "00000000-0000-4000-8000-00000000ca11",
     role,
     orgId: null,
+  orgType: null,
     counselorPosition: null,
     firstName: "Test",
     lastName: "User",
@@ -163,12 +172,59 @@ describe("sacrament_manager", () => {
 });
 
 describe("role restrictions from FEATURES.md", () => {
-  it("keeps both secretaries out of visits and tithing", () => {
+  // REVERSED IN P2, and written here as a reversal rather than a rewrite so it reads as a
+  // decision. This used to assert that neither secretary reached visits or tithing. The
+  // prototype's matrix gives the ward clerk and the executive secretary `visitsAll=F` and
+  // `visitsQuorum=F`, and the ward clerk `tithingCalculator=F`, and the user took the row
+  // literally on 2026-09-21.
+  //
+  // The tithing half is the sharpest evidence the matrix is right rather than merely different:
+  // calling-hierarchy.json records that an assistant clerk over finances must hold the
+  // Melchizedek Priesthood, so counting money is clerk work — and the matrix gives tithing to the
+  // clerk and the bishopric and to nobody else.
+  it("gives both secretaries visits, and tithing to the ward clerk alone", () => {
     for (const role of ["ward_secretary", "executive_secretary"] as const) {
       const user = sessionUser(role);
-      expect(can(user, "visits.view", ROLE_PERMISSIONS)).toBe(false);
-      expect(can(user, "visits.create", ROLE_PERMISSIONS)).toBe(false);
-      expect(can(user, "tithing.view", ROLE_PERMISSIONS)).toBe(false);
+      expect(can(user, "visits.view", ROLE_PERMISSIONS)).toBe(true);
+      expect(can(user, "visits.create", ROLE_PERMISSIONS)).toBe(true);
+    }
+
+    expect(can(sessionUser("ward_secretary"), "tithing.view", ROLE_PERMISSIONS)).toBe(true);
+    expect(can(sessionUser("ward_secretary"), "tithing.manage", ROLE_PERMISSIONS)).toBe(true);
+
+    // NOT the executive secretary. The two rows differ by exactly this module, and collapsing
+    // them into one "the secretaries" list is how the distinction would be lost.
+    expect(
+      can(sessionUser("executive_secretary"), "tithing.view", ROLE_PERMISSIONS),
+    ).toBe(false);
+  });
+
+  // THE MATRIX WITHHOLDS AS WELL AS GRANTS, and this is the half most likely to be "fixed" back
+  // by a later reader who finds it surprising. `sacramentTalks` and `music` are both COLUMNS in
+  // the matrix, and neither secretary row carries them — which is a withholding, unlike a module
+  // absent from the matrix entirely (roster, calendar, notifications), which rule 1.12 leaves
+  // open. The consequence is odd and was accepted deliberately: the ward clerk can build,
+  // approve and distribute the programme without seeing the music on it or who is speaking.
+  it("withholds talks from both secretaries, and music from the ward clerk", () => {
+    for (const role of ["ward_secretary", "executive_secretary"] as const) {
+      expect(can(sessionUser(role), "talks.view", ROLE_PERMISSIONS)).toBe(false);
+    }
+
+    expect(can(sessionUser("ward_secretary"), "music.view", ROLE_PERMISSIONS)).toBe(false);
+
+    // The programme grants they DO hold, so the oddity above is asserted from both sides rather
+    // than described in a comment.
+    expect(can(sessionUser("ward_secretary"), "program.build", ROLE_PERMISSIONS)).toBe(true);
+    expect(
+      can(sessionUser("ward_secretary"), "program.distribute", ROLE_PERMISSIONS),
+    ).toBe(true);
+
+    // BUT NOT APPROVE — the one cell of the literal reading that was overridden. Approving is a
+    // bishopric act (program-a) and is what publishes the programme to an unauthenticated page.
+    // Asserted for BOTH secretaries, because the matrix gives them the same cell and a fix
+    // applied to one row only is how this comes back.
+    for (const role of ["ward_secretary", "executive_secretary"] as const) {
+      expect(can(sessionUser(role), "program.approve", ROLE_PERMISSIONS), role).toBe(false);
     }
   });
 
@@ -508,7 +564,7 @@ describe("resolveRoleAccess", () => {
     const client = stubWardClient({
       role_access: { music_coordinator: { remove: ["music.manage"] } },
     });
-    const resolved: RoleAccess = await resolveRoleAccess(client, "ward-id");
+    const resolved: RoleAccess = await resolveRoleAccess(client, "ward-id", null);
 
     expect(can(sessionUser("music_coordinator"), "music.manage", resolved)).toBe(false);
     expect(can(sessionUser("music_coordinator"), "music.view", resolved)).toBe(true);
@@ -517,7 +573,7 @@ describe("resolveRoleAccess", () => {
   it("returns the code default when the ward stores no override", async () => {
     const client = stubWardClient({ timezone: "America/Denver" });
 
-    expect(await resolveRoleAccess(client, "ward-id")).toEqual(ROLE_PERMISSIONS);
+    expect(await resolveRoleAccess(client, "ward-id", null)).toEqual(ROLE_PERMISSIONS);
   });
 
   // Falling back to the code default on a read failure can now be wrong in EITHER direction:
@@ -526,7 +582,9 @@ describe("resolveRoleAccess", () => {
   it("throws rather than failing open when the read errors", async () => {
     const client = stubWardClient(null, { message: "connection reset" });
 
-    await expect(resolveRoleAccess(client, "ward-id")).rejects.toThrow(/connection reset/);
+    await expect(resolveRoleAccess(client, "ward-id", null)).rejects.toThrow(
+      /connection reset/,
+    );
   });
 });
 
@@ -632,12 +690,39 @@ describe("super_admin", () => {
 });
 
 describe("resource_center_specialist", () => {
-  // EMPTY ON PURPOSE. WLT has no resource-centre module for this role to reach, and guessing a
-  // grant is how a role comes to hold a permission nobody chose. proto-d decides what it gets
-  // when somebody can say what it does — at which point this assertion is the thing to change
-  // deliberately.
-  it("holds nothing at all, deliberately", () => {
-    expect(ROLE_PERMISSIONS.resource_center_specialist).toEqual([]);
+  // proto-d SAID WHAT IT DOES, so this assertion changed deliberately — which is what the
+  // version it replaces asked for in as many words. It printed and handed out the programme, so
+  // it reads one and sends one.
+  it("prints the programme: view and distribute, and nothing else", () => {
+    expect([...ROLE_PERMISSIONS.resource_center_specialist].sort()).toEqual(
+      ["program.distribute", "program.view"].sort(),
+    );
+  });
+
+  // THE WITHHELD HALF IS THE POINT. The matrix says `sacramentProgram=F`, which would map to the
+  // whole programme set; approving is what writes `programs.public_data` and puts the programme
+  // on an unauthenticated page, and that is a bishopric act (program-a). A specialist who hands
+  // out the programme does not decide that it is final.
+  it("cannot build or approve a programme", () => {
+    const specialist = sessionUser("resource_center_specialist");
+
+    expect(can(specialist, "program.build", ROLE_PERMISSIONS)).toBe(false);
+    expect(can(specialist, "program.approve", ROLE_PERMISSIONS)).toBe(false);
+  });
+
+  // Its other three matrix cells — prayerRoll, zoom, wltCommunicate — have no WLT module, and
+  // nothing was granted for them. A permission shipped before its page is how CLAUDE.md §9's
+  // dead sidebar links happened.
+  it("reaches no module that does not exist yet", () => {
+    const specialist = sessionUser("resource_center_specialist");
+
+    for (const permission of PERMISSIONS) {
+      if (permission === "program.view" || permission === "program.distribute") continue;
+      expect(
+        can(specialist, permission, ROLE_PERMISSIONS),
+        `resource_center_specialist unexpectedly holds "${permission}"`,
+      ).toBe(false);
+    }
   });
 });
 
@@ -754,5 +839,172 @@ describe("INVITABLE_ROLES", () => {
   it("is matched by the admin role-change schema refusing super_admin", () => {
     expect(updateUserSchema.safeParse({ role: "super_admin" }).success).toBe(false);
     expect(updateUserSchema.safeParse({ role: "ward_secretary" }).success).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE ORGANIZATION-AWARE MATRIX (P2)
+// ---------------------------------------------------------------------------
+//
+// Until P2 an org_president held the same grants whatever the organization was, and WHICH
+// organization was narrowed by RLS. The prototype's matrix does not work that way and the user
+// adopted it in full on 2026-09-21.
+//
+// Both halves still hold and must keep holding: this decides WHAT the role may do,
+// current_org_id() still decides WHOSE rows it may do it to.
+describe("organization-aware org leadership", () => {
+  // A fixed organization id is enough — nothing in the matrix reads it. The TYPE is what decides
+  // the grants, which is the whole point of migration 072 putting it on the session.
+  function inOrg(role: Role, orgType: OrganizationType | null): SessionUser {
+    return {
+      ...sessionUser(role),
+      orgId: "00000000-0000-4000-8000-0000000000f1",
+      orgType,
+    };
+  }
+
+  function accessFor(orgType: OrganizationType | null): RoleAccess {
+    return basePermissionsFor(orgType);
+  }
+
+  it("lets Young Women manage youth activities and Sunday School reach them not at all", () => {
+    expect(
+      can(inOrg("org_president", "young_women"), "youth_activities.manage", accessFor("young_women")),
+    ).toBe(true);
+
+    expect(
+      can(inOrg("org_president", "sunday_school"), "youth_activities.view", accessFor("sunday_school")),
+    ).toBe(false);
+    expect(
+      can(inOrg("org_president", "sunday_school"), "youth_activities.log", accessFor("sunday_school")),
+    ).toBe(false);
+    expect(
+      can(inOrg("org_president", "sunday_school"), "youth_activities.manage", accessFor("sunday_school")),
+    ).toBe(false);
+  });
+
+  // THE MIDDLE BAND, and the one most likely to be flattened away by a later tidy-up. The Elders
+  // Quorum, the Relief Society and the Primary SUPPORT the youth without running the programme:
+  // they see the calendar and write follow-ups, they do not manage the schedule.
+  it("gives Elders Quorum, Relief Society and Primary support without management", () => {
+    for (const orgType of ["elders_quorum", "relief_society", "primary"] as const) {
+      const access = accessFor(orgType);
+      const president = inOrg("org_president", orgType);
+
+      expect(can(president, "youth_activities.view", access), orgType).toBe(true);
+      expect(can(president, "youth_activities.log", access), orgType).toBe(true);
+      expect(can(president, "youth_activities.manage", access), orgType).toBe(false);
+    }
+  });
+
+  // young_men has NO row in the prototype, and that is correct rather than an omission:
+  // calling-hierarchy.json records that the bishopric IS the presidency of the Aaronic
+  // Priesthood, so there is no ward Young Men president calling. The organization still exists in
+  // this schema and the youth module is built around it, so whoever is assigned to one is doing
+  // youth work and keeps the pre-P2 grants. Rule 1.12: never invent a restriction nobody
+  // specified.
+  it("leaves young_men, bishopric, other and a null organization on the pre-P2 grants", () => {
+    for (const orgType of ["young_men", "bishopric", "other", null] as const) {
+      const access = accessFor(orgType);
+      const label = orgType ?? "null";
+
+      expect(can(inOrg("org_president", orgType), "youth_activities.manage", access), label).toBe(
+        true,
+      );
+    }
+  });
+
+  // A SECRETARY NEVER MANAGES, in any organization. The matrix gives secretaries `youthSupport`
+  // and never `youthActivities`, which is also what WLT already did.
+  it("never gives an org secretary youth management, in any organization", () => {
+    for (const orgType of ORGANIZATION_TYPES) {
+      expect(
+        can(inOrg("org_secretary", orgType), "youth_activities.manage", accessFor(orgType)),
+        orgType,
+      ).toBe(false);
+    }
+  });
+
+  // ALL FIVE PRESIDENTS SIT ON THE WARD COUNCIL AND NOBODY ELSE IN THEIR PRESIDENCY DOES. This is
+  // the one grant that makes org_president and org_counselor stop sharing a list, and it lines up
+  // exactly with the standing-member list in calling-hierarchy.json.
+  it("gives the ward council agenda to presidents only", () => {
+    for (const orgType of ORGANIZATION_TYPES) {
+      const access = accessFor(orgType);
+
+      expect(can(inOrg("org_president", orgType), "agendas.view", access), orgType).toBe(true);
+      expect(can(inOrg("org_counselor", orgType), "agendas.view", access), orgType).toBe(false);
+      expect(can(inOrg("org_secretary", orgType), "agendas.view", access), orgType).toBe(false);
+    }
+  });
+
+  // A SECRETARY DOES NOT SET GOALS — kept from WLT against the matrix, which gives org secretaries
+  // the same visitsQuorum=F as presidents. The reason is already written about
+  // calendar.manage_org_conducting: deciding is a presidency act.
+  it("keeps goal-setting away from org secretaries in every organization", () => {
+    for (const orgType of ORGANIZATION_TYPES) {
+      const access = accessFor(orgType);
+      const secretary = inOrg("org_secretary", orgType);
+
+      expect(can(secretary, "goals.manage", access), orgType).toBe(false);
+      expect(can(secretary, "visits.manage_goals", access), orgType).toBe(false);
+      // Still a real participant in the work, so the narrowing is asserted from both sides.
+      expect(can(secretary, "visits.create", access), orgType).toBe(true);
+    }
+  });
+
+  // NOTHING BUT YOUTH AND THE WARD COUNCIL AGENDA VARIES. If a later change makes some other
+  // module organization-dependent it must be a deliberate edit here, not a side effect.
+  it("varies by organization in youth and agendas.view alone", () => {
+    const mayVary = new Set<string>([
+      "youth_activities.view",
+      "youth_activities.log",
+      "youth_activities.manage",
+      "agendas.view",
+    ]);
+
+    for (const role of ["org_president", "org_counselor", "org_secretary"] as const) {
+      for (const permission of PERMISSIONS) {
+        if (mayVary.has(permission)) continue;
+
+        const answers = new Set(
+          ORGANIZATION_TYPES.map((orgType) =>
+            can(inOrg(role, orgType), permission, accessFor(orgType)),
+          ),
+        );
+
+        expect(
+          answers.size,
+          `"${permission}" differs between organizations for "${role}"`,
+        ).toBe(1);
+      }
+    }
+  });
+
+  // A WARD'S OVERRIDE RESOLVES AGAINST THE ORGANIZATION IT IS ACTING IN. Resolving a Sunday School
+  // president's delta against Young Women's defaults would hand them youth management through an
+  // override that never asked for it — which is why applyDelta takes the base rather than closing
+  // over ROLE_PERMISSIONS.
+  it("merges a ward override onto the organization's own defaults", () => {
+    const override = { org_president: { remove: ["visits.create"] } };
+
+    const sundaySchool = mergeRoleAccess(override, accessFor("sunday_school"));
+    const youngWomen = mergeRoleAccess(override, accessFor("young_women"));
+
+    // The delta applied in both.
+    expect(
+      can(inOrg("org_president", "sunday_school"), "visits.create", sundaySchool),
+    ).toBe(false);
+    expect(can(inOrg("org_president", "young_women"), "visits.create", youngWomen)).toBe(
+      false,
+    );
+
+    // And the organization's own youth answer survived it, in both directions.
+    expect(
+      can(inOrg("org_president", "sunday_school"), "youth_activities.manage", sundaySchool),
+    ).toBe(false);
+    expect(
+      can(inOrg("org_president", "young_women"), "youth_activities.manage", youngWomen),
+    ).toBe(true);
   });
 });

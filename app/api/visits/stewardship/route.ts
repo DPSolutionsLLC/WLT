@@ -168,7 +168,7 @@ export async function GET(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     // `visits.view`, not `visits.manage_goals`. An org secretary may READ what their organization
     // is measured against — the panel renders read-only for them — and may not change it.
@@ -213,7 +213,7 @@ export async function PUT(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "visits.manage_goals", roleAccess);
 
@@ -279,7 +279,7 @@ export async function DELETE(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "visits.manage_goals", roleAccess);
 

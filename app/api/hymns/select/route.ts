@@ -24,7 +24,7 @@ export async function POST(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     // Held by music_coordinator AND the bishopric. Bishopric admin authority is shared and a
     // counselor must never be able to do less than the bishop (CLAUDE.md §7). Migration 043
@@ -116,7 +116,7 @@ export async function DELETE(request: Request) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const roleAccess = await resolveRoleAccess(supabase, user.wardId);
+    const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "music.manage", roleAccess);
 

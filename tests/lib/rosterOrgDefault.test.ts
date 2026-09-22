@@ -10,11 +10,17 @@
 
 import { describe, expect, it } from "vitest";
 import { defaultOrganizationFilter } from "@/lib/roster/organizationScope";
-import { ROLES, type Role, type SessionUser } from "@/types/domain";
+import { ROLES, type Role, type SessionUser,
+  type OrganizationType,
+} from "@/types/domain";
 
 const ORGANIZATION_ID = "00000000-0000-4000-8000-00000000000a";
 
-function sessionUser(role: Role, orgId: string | null): SessionUser {
+function sessionUser(
+  role: Role,
+  orgId: string | null,
+  orgType: OrganizationType | null = null,
+): SessionUser {
   return {
     id: "00000000-0000-4000-8000-000000000001",
     wardId: "00000000-0000-4000-8000-000000000002",
@@ -28,6 +34,7 @@ function sessionUser(role: Role, orgId: string | null): SessionUser {
     callingId: "00000000-0000-4000-8000-00000000ca11",
     role,
     orgId,
+    orgType,
     counselorPosition: null,
     firstName: "Test",
     lastName: "User",

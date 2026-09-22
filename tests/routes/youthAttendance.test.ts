@@ -144,7 +144,7 @@ describe("youth activity attendance", () => {
 
   beforeAll(async () => {
     fixtures = await seedFixtures(
-      ["bishop", "counselor1", "eqPresident", "eqSecretary", "rsPresident", "wardBBishop"],
+      ["bishop", "counselor1", "ywPresident", "ywSecretary", "ymPresident", "wardBBishop"],
       {
         // The seeded default reaches every org president, counselor and secretary in the ward,
         // which is exactly what the assign route must NOT use.
@@ -183,7 +183,7 @@ describe("youth activity attendance", () => {
       .insert([
         {
           ward_id: fixtures.wardAId,
-          org_id: fixtures.eldersQuorumId,
+          org_id: fixtures.youngWomenId,
           activity_name: `Basketball ${fixtures.runId}`,
           activity_type: "sport",
         },
@@ -220,13 +220,13 @@ describe("youth activity attendance", () => {
     it("lets an org secretary self-add and returns the row", async () => {
       // `.view`, not `.manage`. An org secretary holds the first and not the second, and is
       // exactly the sort of person who turns up to a basketball game.
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
 
       const { status, body } = await callAttend(eventId, "POST");
 
       expect(status).toBe(201);
       expect((body.attendee as { userId: string }).userId).toBe(
-        fixtures.user("eqSecretary").id,
+        fixtures.user("ywSecretary").id,
       );
     });
 
@@ -234,13 +234,13 @@ describe("youth activity attendance", () => {
       // The record of HOW the row came to exist. A name there means somebody asked them, and the
       // card says which.
       const rows = await attendeeRows(eventId);
-      const own = rows.find((row) => row.user_id === fixtures.user("eqSecretary").id);
+      const own = rows.find((row) => row.user_id === fixtures.user("ywSecretary").id);
 
       expect(own?.assigned_by).toBeNull();
     });
 
     it("answers a second self-add with a sentence and no second row", async () => {
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
 
       const { status, body } = await callAttend(eventId, "POST");
 
@@ -249,7 +249,7 @@ describe("youth activity attendance", () => {
 
       // BOTH HALVES. A 200 that still wrote a second row would double every coverage count.
       const rows = await attendeeRows(eventId);
-      expect(rows.filter((row) => row.user_id === fixtures.user("eqSecretary").id)).toHaveLength(
+      expect(rows.filter((row) => row.user_id === fixtures.user("ywSecretary").id)).toHaveLength(
         1,
       );
     });
@@ -259,10 +259,10 @@ describe("youth activity attendance", () => {
     });
 
     it("removes only your own row", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
       await callAttend(secondEventId, "POST");
 
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
       await callAttend(secondEventId, "POST");
 
       // The secretary comes off; the president stays.
@@ -271,13 +271,13 @@ describe("youth activity attendance", () => {
       expect(status).toBe(200);
 
       const rows = await attendeeRows(secondEventId);
-      expect(rows.map((row) => row.user_id)).toEqual([fixtures.user("eqPresident").id]);
+      expect(rows.map((row) => row.user_id)).toEqual([fixtures.user("ywPresident").id]);
     });
 
     it("says so rather than reporting success when there was nothing to remove", async () => {
       // An RLS-denied or no-op DELETE is a zero-row success, not an error (CLAUDE.md §8), so the
       // route has to say so instead of claiming a change that did not happen.
-      await actAs(fixtures, "rsPresident");
+      await actAs(fixtures, "ymPresident");
 
       const { status, body } = await callAttend(secondEventId, "DELETE");
 
@@ -286,7 +286,7 @@ describe("youth activity attendance", () => {
     });
 
     it("answers a foreign ward's event with a sentence, not a constraint violation", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callAttend(wardBEventId, "POST");
 
@@ -299,10 +299,10 @@ describe("youth activity attendance", () => {
     it("refuses an org president with a sentence naming the rule", async () => {
       // The gate that matters. `org_president` HOLDS `youth_activities.manage`, so a check on the
       // permission alone would let this through — which is the mistake this case exists to catch.
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
       const { status, body } = await callAssign(assignEventId, {
-        userId: fixtures.user("rsPresident").id,
+        userId: fixtures.user("ymPresident").id,
       });
 
       expect(status).toBe(403);
@@ -313,10 +313,10 @@ describe("youth activity attendance", () => {
     });
 
     it("refuses an org secretary", async () => {
-      await actAs(fixtures, "eqSecretary");
+      await actAs(fixtures, "ywSecretary");
 
       const { status } = await callAssign(assignEventId, {
-        userId: fixtures.user("rsPresident").id,
+        userId: fixtures.user("ymPresident").id,
       });
 
       // 403 either way: assertCan on `.manage` refuses first, which is what makes a ward whose
@@ -328,7 +328,7 @@ describe("youth activity attendance", () => {
       await actAs(fixtures, "bishop");
 
       const { status, body } = await callAssign(assignEventId, {
-        userId: fixtures.user("rsPresident").id,
+        userId: fixtures.user("ymPresident").id,
       });
 
       expect(status).toBe(201);
@@ -349,7 +349,7 @@ describe("youth activity attendance", () => {
     // WHAT A LEADER NEEDS IS STILL THERE: which event, which activity, and when. Who is playing is
     // on the card the notification links to, where it can be a list.
     it("notifies the assignee, naming the event, the activity and when", async () => {
-      const received = await notificationsFor(fixtures.user("rsPresident").id);
+      const received = await notificationsFor(fixtures.user("ymPresident").id);
 
       expect(received).toHaveLength(1);
       expect(received[0]?.body ?? "").toContain("Game three");
@@ -363,15 +363,15 @@ describe("youth activity attendance", () => {
     it("notifies nobody else", async () => {
       // EXPLICIT RECIPIENTS, not the trigger's default_roles — which would have reached every org
       // president, counselor and secretary in the ward, including the two below.
-      expect(await notificationsFor(fixtures.user("eqPresident").id)).toHaveLength(0);
-      expect(await notificationsFor(fixtures.user("eqSecretary").id)).toHaveLength(0);
+      expect(await notificationsFor(fixtures.user("ywPresident").id)).toHaveLength(0);
+      expect(await notificationsFor(fixtures.user("ywSecretary").id)).toHaveLength(0);
     });
 
     it("answers a second assignment of the same person with a sentence", async () => {
       await actAs(fixtures, "bishop");
 
       const { status, body } = await callAssign(assignEventId, {
-        userId: fixtures.user("rsPresident").id,
+        userId: fixtures.user("ymPresident").id,
       });
 
       expect(status).toBe(200);
@@ -403,31 +403,31 @@ describe("youth activity attendance", () => {
       await actAs(fixtures, "counselor1");
 
       const { status } = await callAssign(assignEventId, {
-        userId: fixtures.user("eqPresident").id,
+        userId: fixtures.user("ywPresident").id,
       });
 
       expect(status).toBe(201);
     });
 
     it("refuses an org president withdrawing an assignment", async () => {
-      await actAs(fixtures, "eqPresident");
+      await actAs(fixtures, "ywPresident");
 
-      const { status } = await callUnassign(assignEventId, fixtures.user("rsPresident").id);
+      const { status } = await callUnassign(assignEventId, fixtures.user("ymPresident").id);
 
       expect(status).toBe(403);
       const rows = await attendeeRows(assignEventId);
-      expect(rows.map((row) => row.user_id)).toContain(fixtures.user("rsPresident").id);
+      expect(rows.map((row) => row.user_id)).toContain(fixtures.user("ymPresident").id);
     });
 
     it("lets the bishopric withdraw one, and writes an audit row", async () => {
       await actAs(fixtures, "counselor1");
 
-      const { status } = await callUnassign(assignEventId, fixtures.user("rsPresident").id);
+      const { status } = await callUnassign(assignEventId, fixtures.user("ymPresident").id);
 
       expect(status).toBe(200);
 
       const rows = await attendeeRows(assignEventId);
-      expect(rows.map((row) => row.user_id)).not.toContain(fixtures.user("rsPresident").id);
+      expect(rows.map((row) => row.user_id)).not.toContain(fixtures.user("ymPresident").id);
       expect(await auditCount("youth_activity_unassigned")).toBeGreaterThan(0);
     });
   });

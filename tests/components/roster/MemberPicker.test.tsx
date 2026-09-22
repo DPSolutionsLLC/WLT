@@ -31,6 +31,7 @@ const BISHOP: SessionUser = {
   callingId: "00000000-0000-4000-8000-00000000ca11",
   role: "bishop",
   orgId: null,
+  orgType: null,
   counselorPosition: null,
   firstName: "Test",
   lastName: "Bishop",
