@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { NAVIGATION_ITEMS, visibleNavigationItems } from "@/lib/auth/navigation";
+import {
+  NAVIGATION_ITEMS,
+  NAVIGATION_SECTIONS,
+  visibleNavigationItems,
+} from "@/lib/auth/navigation";
 import {
   PERMISSIONS,
   ROLE_PERMISSIONS,
@@ -59,6 +63,38 @@ describe("navigation items", () => {
       ).toBe(true);
     }
   });
+
+  it("gives every item a section that NAVIGATION_SECTIONS knows about", () => {
+    const known = new Set(NAVIGATION_SECTIONS.map((section) => section.id));
+    const unknown = NAVIGATION_ITEMS.filter((item) => !known.has(item.section));
+
+    expect(unknown.map((item) => item.href)).toEqual([]);
+  });
+
+  it("gives every item a blurb somebody could read", () => {
+    const blank = NAVIGATION_ITEMS.filter((item) => item.blurb.trim().length === 0);
+
+    expect(blank.map((item) => item.href)).toEqual([]);
+  });
+
+  it("gives every item an icon", () => {
+    const missing = NAVIGATION_ITEMS.filter((item) => item.icon === undefined);
+
+    expect(missing.map((item) => item.href)).toEqual([]);
+  });
+
+  // The accent is DUPLICATED onto each item so a tile rendered outside the grid carries its
+  // colour without the caller looking the section up. This is what stops the duplicate drifting.
+  it("gives every item its own section's accent", () => {
+    const accents = new Map(
+      NAVIGATION_SECTIONS.map((section) => [section.id, section.accent]),
+    );
+    const mismatched = NAVIGATION_ITEMS.filter(
+      (item) => item.accent !== accents.get(item.section),
+    );
+
+    expect(mismatched.map((item) => item.href)).toEqual([]);
+  });
 });
 
 describe("role-filtered navigation", () => {
@@ -68,16 +104,42 @@ describe("role-filtered navigation", () => {
     expect(hrefsFor("counselor")).toEqual(hrefsFor("bishop"));
   });
 
-  it("gives the bishop every item", () => {
-    expect(hrefsFor("bishop")).toEqual(NAVIGATION_ITEMS.map((item) => item.href));
+  // BUILT *and* PERMITTED. This compares against the FILTERED list rather than against all of
+  // NAVIGATION_ITEMS, because `built: false` rows are withheld from everybody including a bishop.
+  it("gives the bishop every BUILT item", () => {
+    expect(hrefsFor("bishop")).toEqual(
+      NAVIGATION_ITEMS.filter((item) => item.built).map((item) => item.href),
+    );
   });
 
-  // FEATURES.md §Module 17: a youth account reaches exactly one module.
-  it("gives a sacrament_manager exactly one item, under /sacrament", () => {
-    const hrefs = hrefsFor("sacrament_manager");
+  // The sibling that stops the assertion above going green the day somebody marks everything
+  // unbuilt — two assertions, not one (plans/retros/notification-trigger-drift.md).
+  it("offers the bishop none of the unbuilt items", () => {
+    const unbuilt = NAVIGATION_ITEMS.filter((item) => !item.built).map((item) => item.href);
+    const offered = hrefsFor("bishop");
 
-    expect(hrefs).toHaveLength(1);
-    expect(hrefs[0].startsWith("/sacrament")).toBe(true);
+    expect(unbuilt.length).toBeGreaterThan(0);
+    for (const href of unbuilt) {
+      expect(offered, `"${href}" is unbuilt and must not be offered`).not.toContain(href);
+    }
+  });
+
+  // FEATURES.md §Module 17: a youth account reaches exactly one module. Asserted against the
+  // UNFILTERED list, because /sacrament is `built: false` FOR THE APP SHELL — the page lives in
+  // app/(youth)/, whose layout is where a sacrament_manager actually lands. They never render the
+  // app shell at all (app/(app)/layout.tsx redirects them), so an empty app-shell list for that
+  // role is correct rather than a regression, and the invariant worth pinning is the one below.
+  it("gives a sacrament_manager exactly one item, under /sacrament", () => {
+    const permitted = NAVIGATION_ITEMS.filter((item) =>
+      can(sessionUser("sacrament_manager"), item.permission, ROLE_PERMISSIONS),
+    );
+
+    expect(permitted).toHaveLength(1);
+    expect(permitted[0].href.startsWith("/sacrament")).toBe(true);
+  });
+
+  it("renders no app-shell navigation for a sacrament_manager", () => {
+    expect(hrefsFor("sacrament_manager")).toEqual([]);
   });
 
   it("keeps the music coordinator out of visits, tithing, and admin", () => {
@@ -143,13 +205,24 @@ describe("role-filtered navigation", () => {
   // NOT: `audit.view` is deliberately absent from STAKE_OFFICER_PERMISSIONS, because a visiting
   // officer reading the record of who changed what in a ward that is not theirs is a different
   // promise from reading how the ward is doing.
-  it("shows the audit log to the bishopric and the super admin, and to nobody else", () => {
+  //
+  // It is asserted on `can()` rather than on the rendered list, because /admin/audit-log is
+  // `built: false` until P12 builds the viewer — so the list withholds it from EVERY role today,
+  // and asserting on the list would quietly stop checking the permission rule at all.
+  it("grants the audit log to the bishopric and the super admin, and to nobody else", () => {
     for (const role of ROLES) {
-      const canSeeAuditLog = hrefsFor(role).includes("/admin/audit-log");
+      const auditLog = NAVIGATION_ITEMS.find((item) => item.href === "/admin/audit-log");
+      const granted = can(sessionUser(role), auditLog!.permission, ROLE_PERMISSIONS);
       const expected =
         role === "bishop" || role === "counselor" || role === "super_admin";
 
-      expect(canSeeAuditLog, `role "${role}" disagrees on /admin/audit-log`).toBe(expected);
+      expect(granted, `role "${role}" disagrees on /admin/audit-log`).toBe(expected);
+    }
+  });
+
+  it("offers the audit log to nobody, because it is not built", () => {
+    for (const role of ROLES) {
+      expect(hrefsFor(role)).not.toContain("/admin/audit-log");
     }
   });
 

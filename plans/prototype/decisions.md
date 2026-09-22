@@ -336,7 +336,17 @@ any screens for creating or switching wards.
 
 ## 6. Open questions — do not guess
 
-- **Quick-links persistence:** per-user or per-device? Never settled.
+- ~~**Quick-links persistence:** per-user or per-device? Never settled.~~ **ANSWERED 2026-09-22
+  in P3 — `users.settings` jsonb, per USER.** A pin follows the PERSON, not the device: a leader
+  who pins Visits on a laptop and then opens the app on a phone in a car park is the case the
+  feature is for, and per-device would fail exactly there. It mirrors `wards.settings`, which
+  already holds `role_access`, `timezone`, `cross_org_visibility` and `home_venues`, so it is the
+  idiom this codebase already has rather than a new one.
+  **The column is USER-WRITABLE (migration 077 grants it), so NOTHING may ever read authorization
+  out of it** — anything security-relevant stored there would be self-granted. That is the whole
+  reason the ward's `role_access` lives in `wards.settings` behind a bishopric-only policy, and
+  the two columns must not be thought of as the same kind of thing because they share a name and a
+  type. A size CHECK (4 KB) is what makes the open grant safe.
 - **Message group renaming:** the user was actively deciding and had not landed. A two-tier
   personal-nickname version was built; whether the canonical name is renameable is open.
 - **A conducting script is a richer object than the line-item model.** Reading a real Church
@@ -347,7 +357,25 @@ any screens for creating or switching wards.
 - **Ministering Sandbox vs Visits** — the Visits tile blurb says "Ministering & check-ins" while
   the sandbox plans assignments. Confirmed separate (the formal ministering program is not a
   quorum's own visit goal), but the naming still collides.
-- **Known unfixed:** the message thread's scroll-direction header reveal still stutters on a
+- ~~**Known unfixed:** the message thread's scroll-direction header reveal still stutters on a
   fast scroll after two fix attempts. Deferred deliberately. Re-verify in the real environment
   before assuming it is fine; a transform-based slide rather than `max-height` is the likely
-  clean rebuild.
+  clean rebuild.~~
+  **DIAGNOSED AND FIXED IN P3, 2026-09-22 — and the cause was neither `max-height` nor the
+  animation.** Re-verified in the real environment exactly as this note asked, by walking scenario
+  070, and the transform-based rebuild was done up front and **did not fix it on its own**.
+
+  **THE COLLAPSE FEEDS ITS OWN SCROLL LISTENER.** Collapsing removes the extras' height from the
+  document; a shorter document makes the browser CLAMP the scroll position; and that clamp fires
+  another scroll event. Observed from one downward flick: **`900, 876, 900`**. The hook read the
+  24px clamp as the reader scrolling UP, past its reveal threshold, so it re-expanded — which
+  restored the height and the position. It settles open, so a fast scroll looks like a header that
+  simply refuses to collapse, and a slow one looks fine because 60px steps outrun a 24px rebound.
+
+  **The fix is a settle window**, not a different animation: after the state flips, movement is
+  ignored for as long as the transition runs and the baseline is re-synced to wherever the browser
+  has left the page. `components/layout/useCollapsingHeader.ts` carries it.
+
+  ⚠️ **NO jsdom TEST CAN CATCH THIS CLASS OF BUG** — jsdom has no layout, so nothing clamps and the
+  second event never fires. **Any later phase building a collapsing, sticky or height-animating
+  surface inherits this trap**, and P10's message thread is the one this note was originally about.

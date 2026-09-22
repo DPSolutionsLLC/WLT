@@ -21,7 +21,7 @@ describe("users column-level update grant", () => {
   let selfId: string;
 
   beforeAll(async () => {
-    fixtures = await seedFixtures(["musicCoordinator"]);
+    fixtures = await seedFixtures(["musicCoordinator", "bishop"]);
     musicCoordinator = await asRole(fixtures, "musicCoordinator");
     selfId = fixtures.user("musicCoordinator").id;
   });
@@ -163,6 +163,69 @@ describe("users column-level update grant", () => {
       .eq("id", selfId);
 
     expect(error).toBeNull();
+  });
+
+  // THE GRANT WIDENED BY A SECOND COLUMN IN MIGRATION 077. `settings` holds one person's own
+  // display preferences — the pinned quick links today — and it follows the PERSON rather than
+  // the device, which is the whole reason it is a column and not localStorage.
+  //
+  // Without the grant this write fails with "permission denied for table users" rather than the
+  // zero-row success an RLS denial produces, because COLUMN PRIVILEGES ARE CHECKED BEFORE
+  // POLICIES. That distinction cost real time on `active_ward_id`, which is why both halves are
+  // pinned here rather than inferred from one another.
+  it("lets a user write their own settings", async () => {
+    const { error } = await musicCoordinator
+      .from("users")
+      .update({ settings: { quick_links: ["/music", "/calendar"] } })
+      .eq("id", selfId);
+
+    expect(error).toBeNull();
+
+    const { data: after } = await fixtures.service
+      .from("users")
+      .select("settings")
+      .eq("id", selfId)
+      .single();
+
+    expect((after?.settings as { quick_links?: string[] })?.quick_links).toEqual([
+      "/music",
+      "/calendar",
+    ]);
+  });
+
+  // The row half of the rule, which the column grant says nothing about: `users_update_self` is
+  // `id = auth.uid()` on both halves, so another person's preferences are out of reach. A denied
+  // UPDATE is a ZERO-ROW SUCCESS, so the re-read is what catches a policy that had been opened up.
+  it("refuses a user writing somebody else's settings", async () => {
+    const otherId = fixtures.user("bishop").id;
+
+    const { error } = await musicCoordinator
+      .from("users")
+      .update({ settings: { quick_links: ["/admin"] } })
+      .eq("id", otherId);
+
+    expect(error).toBeNull();
+
+    const { data: after } = await fixtures.service
+      .from("users")
+      .select("settings")
+      .eq("id", otherId)
+      .single();
+
+    expect((after?.settings as { quick_links?: string[] })?.quick_links).toBeUndefined();
+  });
+
+  // THE SIZE CHECK IS WHAT MAKES THE OPEN GRANT SAFE. An ungated jsonb column a user may write
+  // directly is a storage hole; 4 KB is far more than a list of pins needs.
+  it("refuses an oversized settings value", async () => {
+    const { error } = await musicCoordinator
+      .from("users")
+      .update({ settings: { padding: "x".repeat(5000) } })
+      .eq("id", selfId);
+
+    // A CHECK violation RAISES, unlike the policy refusals above.
+    expect(error).not.toBeNull();
+    expect(error?.message).toMatch(/users_settings_size/);
   });
 
   it("refuses a user rewriting their own name", async () => {

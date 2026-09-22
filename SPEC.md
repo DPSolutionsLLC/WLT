@@ -1557,9 +1557,13 @@ PATCH  /api/admin/ward-settings  Update ward settings (with bishopric notificati
 
 /components
   /ui/                         Shared primitives (Button, Card, Modal, etc.)
-  /layout/
-    Sidebar.tsx
-    TopNav.tsx
+  /layout/                     P3 DELETED Sidebar.tsx and TopNav.tsx. The dashboard IS the
+    ChromeBar.tsx              navigation; the chrome bar is the way back to it from anywhere,
+    AccountMenu.tsx            and its back link is unconditionally /dashboard.
+    WardSwitcher.tsx
+    DashboardGrid.tsx
+    DashboardHeader.tsx
+    useCollapsingHeader.ts
     NotificationBell.tsx
     ThemeToggle.tsx
   /roster/

@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 67,
+  "scenarioCount": 70,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -1321,6 +1321,103 @@
         "Correct in both light and dark mode"
       ],
       "seedCommand": "npm run seed -- roster/scenario-009-import-lcr-export-twice"
+    },
+    {
+      "id": "shell:scenario-069-the-grid-every-role-actually-gets",
+      "path": "shell/scenario-069-the-grid-every-role-actually-gets",
+      "name": "The grid every role actually gets",
+      "scope": "P3",
+      "part": 1,
+      "tags": [
+        "shell",
+        "smoke",
+        "permissions"
+      ],
+      "prerequisites": "none",
+      "purpose": "P3 deletes the sidebar and makes the dashboard the navigation, so every mistake about who may\nreach what is now a mistake somebody can SEE — a tile that 404s, a heading with nothing under it,\na page that silently bounces back to `/dashboard`.\n\nThis needs a walk rather than a test for a reason `p2-admin-and-access` recorded in terms: **two\nof that phase's three walk defects lived in the seam between a Server Component gate and a route\ngate, and 3700 passing tests said nothing about either, because route tests call handlers\ndirectly and never render a layout.** P3 is almost entirely layouts. `navigationRoutesExist.test.ts`\nproves every `built: true` href has a `page.tsx` on disk; it cannot prove that opening one as a\nmusic coordinator does not redirect.",
+      "checklist": [
+        "The bishop's grid contains **no Audit Log tile and no Sacrament tile** — both are",
+        "Every unlocked tile, for every one of the six, opens a real page: no 404, and no silent",
+        "**\"Tasks & Communication\" does not render at all** — not as an empty heading. It is empty",
+        "The music coordinator sees Music, Talks, Prayers and Calendar and **nothing else** — no",
+        "**There is no un-clickable card anywhere on any grid.** Every tile rendered is a link the",
+        "A section with nothing that person can reach **renders no heading** — the music coordinator",
+        "`resource_center_specialist` sees **exactly one tile — Program** — and nothing else.",
+        "`stake_president` sees **no tiles at all** and gets the empty-state SENTENCE, not a blank",
+        "**Zero console errors on `/dashboard` for every one of the six.** Before P3 a bishop's",
+        "**The chrome bar renders on `/dashboard` too**, carrying Report an issue, Help, the bell and",
+        "On `/dashboard` the chrome bar shows **no back link** — a \"← Dashboard\" link there does",
+        "The ward is named **once**, in the chrome bar, not twice",
+        "**No ward switcher on any of them** — each holds exactly one calling",
+        "No horizontal scrollbar at 375px on any of the six grids",
+        "Every tile and every chrome-bar control is at least 44×44",
+        "A narrow calling's grid reads as **a place to start work**, not as a page missing most of",
+        "`stake_president`'s empty state reads as deliberate rather than broken — a person with",
+        "The four section headings group the modules the way a leader would expect to find them",
+        "The blurb under each tile says something true and useful about the module, in one line",
+        "Both themes: the sticky bar reads as part of the page, not as an inset in light and a hole"
+      ],
+      "seedCommand": "npm run seed -- shell/scenario-069-the-grid-every-role-actually-gets"
+    },
+    {
+      "id": "shell:scenario-070-the-way-home-always-works",
+      "path": "shell/scenario-070-the-way-home-always-works",
+      "name": "The way home always works",
+      "scope": "P3",
+      "part": 1,
+      "tags": [
+        "shell",
+        "smoke"
+      ],
+      "prerequisites": "none",
+      "purpose": "The chrome-bar back link is the regression the phase file names as **the one most likely to be\nreintroduced**. The prototype made it dynamic — following one step of history — and got genuinely\nstuck: that mechanism tracks one step, overwritten on every navigation, so after a couple of hops\nit ping-pongs between the last two pages and **permanently loses the path home**. Build note\n§`dashboard-back-link-regression-fix` calls it \"a real design flaw, not an edge case\".\n\n`tests/components/layout/ChromeBar.test.tsx` asserts the link is `/dashboard` from several\npathnames, and that is worth having — but it renders one component with a mocked pathname. **No\nunit test can reproduce \"after a couple of hops\"**, because the failure needs a real session\naccumulating real history.\n\nThe collapsing header is here for the same reason: the stutter it is built to avoid is a frame\n-timing problem, and `plans/prototype/decisions.md` §6 still lists the prototype's version as\nKNOWN UNFIXED after two attempts, with the note to *re-verify in the real environment*. This is\nthat environment.",
+      "checklist": [
+        "The chrome-bar back link reads \"Dashboard\" and points at `/dashboard` at **every** stop,",
+        "Using it from the fifth hop lands on `/dashboard`, not on the fourth",
+        "It never alternates between the last two pages",
+        "The chrome bar **does** render on `/dashboard`, carrying Report an issue, Help, the bell and",
+        "The sticky title and search box stay visible through a full-page scroll, at 375px **and** at",
+        "The calling line and the ward switcher collapse on scroll down and reveal on **any** upward",
+        "**A single fast flick collapses it and it STAYS collapsed.** The collapse removes height from",
+        "No horizontal scrollbar at 375px on any page visited, including the chrome bar with all",
+        "`/admin` shows **exactly one** \"← Dashboard\" link, in the chrome bar — not one there and a",
+        "The collapse is smooth **with no stutter on a fast scroll**, and the extras do not flicker",
+        "The reveal feels immediate rather than grudging — scrolling up a little brings the extras",
+        "With \"reduce motion\" on in the OS, the extras appear and disappear instantly rather than",
+        "Both themes: the chrome bar and the sticky header read as raised surfaces belonging to the",
+        "One-handed at 375px, the back link is reachable without shifting grip"
+      ],
+      "seedCommand": "npm run seed -- shell/scenario-070-the-way-home-always-works"
+    },
+    {
+      "id": "shell:scenario-071-a-report-carries-its-context",
+      "path": "shell/scenario-071-a-report-carries-its-context",
+      "name": "A report carries its context",
+      "scope": "P3",
+      "part": 1,
+      "tags": [
+        "shell",
+        "admin",
+        "full"
+      ],
+      "prerequisites": "none",
+      "purpose": "The whole value of Report an issue is in what the reporter does **not** have to type: the page\nthey were on, and the calling they were acting under, both taken from the session. A report tagged\nwith the wrong page — or with `/dashboard` because the modal forgot where it was opened — is worse\nthan one tagged with none, because nobody doubts it.\n\n`tests/routes/issue-reports.test.ts` proves the route takes the role from the session and ignores\none in the body. It cannot prove the **modal** passes the right `page_path`, because a route test\ncalls the handler directly and never renders a chrome bar. That seam — a component gate and a\nroute gate disagreeing — is where two of `p2-admin-and-access`'s three walk defects lived.\n\nThe second ward is here for the other half: `issue_reports` has the most open INSERT policy in the\napp, so ward isolation is the only thing holding, and it is worth seeing it hold.",
+      "checklist": [
+        "Each row's `page_path` is **the page the modal was opened from** — `/visits` and `/youth` —",
+        "Each row's `role` is `org_president`: the **session's** role, not anything typed",
+        "Each row's `calling_id` is set, and names the reporter's active Relief Society calling",
+        "`ward_id` is ward 1 on both",
+        "Ward 2's bishop can read **neither** row",
+        "A `writeAuditLog` row exists for each submission: `action = 'issue_reported'`,",
+        "The empty report is refused, and **the typed text is not lost** — the modal stays open with",
+        "No chrome-bar control is under 44×44, and the five of them do not overflow at 375px",
+        "The modal says, before you type, **which page this report will be tagged with** — so the",
+        "The refusal on an empty report reads as \"say something\" rather than as an error",
+        "After a successful submit, it is obvious the report was sent — not merely that the modal",
+        "**Help says plainly that per-page help has not been written yet**, and points at Report an",
+        "Both themes: the two icons read as controls rather than as decoration"
+      ],
+      "seedCommand": "npm run seed -- shell/scenario-071-a-report-carries-its-context"
     },
     {
       "id": "talks:scenario-012-three-approval-gate",

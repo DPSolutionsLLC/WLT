@@ -104,6 +104,7 @@ it is too large — split it.
 | Vector search | pgvector | 1536-dim embeddings |
 | AI | Claude API — `claude-sonnet-5` | Server-side only. Adaptive thinking |
 | Embeddings | OpenAI `text-embedding-3-small` | 1536 dims. Second vendor — see §9 |
+| Icons | `lucide-react` | The prototype's own library. Import PER ICON — never `import * as` |
 | PDF | `@react-pdf/renderer` | Server-side render |
 | Email | Resend | Agenda + program PDFs only |
 | Data fetching | TanStack Query | Client components only |
@@ -1295,14 +1296,24 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   into a day in the SAME zone its own time is printed in, and both halves moved together, so the
   invariant it protects is unchanged and only its premise did. `lib/ward/wardTimezone.ts` now
   answers what a floating imported time means AND what day a rendered card belongs to; it used to
-  answer only the first. **Still unfixed and unrelated — and it is THREE links, not
-  two:** the sidebar is gated on the **permission a reader holds, never on whether the page
-  exists** (`lib/auth/navigation.ts`), so a bishop is offered `/agendas` and `/admin/audit-log`
-  (both 404) plus `/sacrament`, which answers 307 and **silently returns them to `/dashboard`** —
-  the click just does nothing. Phases 9, 10 and 11. **Left deliberately** on the user's instruction
-  2026-08-30 ("expected, haven't gotten there yet"); the standing cost is two console errors on
-  every page a bishop opens, because Next.js prefetches the two 404s. Any future phase that ships a
-  permission before its page will repeat this.
+  answer only the first. **FIXED IN P3, and the note this replaced was stale by one.** It
+  said THREE links; `/agendas` had been built since `797672e`, leaving two. Navigation was gated on
+  the **permission a reader holds, never on whether the page exists**, so a bishop was offered
+  `/admin/audit-log` (no page at all, a 404) and `/sacrament` (a page in the YOUTH shell, whose
+  layout answers 307 and **silently returns an adult to `/dashboard`** — the click just did
+  nothing). The standing cost was two console errors on every page a bishop opened, because
+  Next.js prefetched the two 404s. **That cost is gone.**
+  `NavigationItem` now carries `built`, `visibleNavigationItems()` filters on **built AND
+  permitted in that order**, and both rows survive with `built: false` so a later phase flips one
+  boolean rather than re-deriving where a module belongs. `/sacrament` is the subtle one: the page
+  exists, so it is `built: false` **for the app shell** and P11 re-points the href when the adult
+  screen lands.
+  **It is enforced MECHANICALLY, not by care.** `tests/lib/navigationRoutesExist.test.ts` reads
+  `app/` from disk and fails if any `built: true` href has no `page.tsx`, resolving route groups
+  the way a URL does. No assertion about a rendered component can catch a dead route — the failure
+  is a FILE THAT IS NOT THERE — which is the same reason `explicitTimeZone.test.ts` reads source.
+  It also asserts the NEGATIVE against a named anchor (`/admin/audit-log`), so it cannot pass
+  trivially the day somebody marks everything built.
 
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.

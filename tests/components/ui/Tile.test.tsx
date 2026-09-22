@@ -4,13 +4,19 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Tile } from "@/components/ui/Tile";
 
-// TWO ASSERTIONS CARRY THIS FILE AND BOTH ARE ABOUT `locked`.
+// THE HEADLINE ASSERTION IS THAT A TILE IS ALWAYS A LINK.
 //
-// A locked tile must render NO LINK, because a disabled anchor is not a thing the platform has:
-// an <a href> at 50% opacity is still focusable, still activates on Enter and still navigates.
-// And it must say WHY IN WORDS, because greying out is a colour-only signal and this app does not
-// use those (MemberStatusBadge's rule for do_not_contact; ITER-022). A tile somebody cannot open,
-// with nothing on it explaining that, reads as a page that failed to load.
+// This file used to be carried by two assertions about `locked` — that a locked tile rendered no
+// link, and that it said why in words. Both were correct, and the capability they guarded was
+// REMOVED on 2026-09-22 after walking scenario 069: a person sees only what they can open, so a
+// module somebody lacks is absent rather than shown locked. Tile.tsx's header carries the
+// reasoning. These tests went with the behaviour, not because they became inconvenient.
+//
+// What replaces them is the inverse guarantee, asserted on SHAPE rather than on text: whatever
+// else changes, this component renders an <a>. A future "disabled" tile that rendered a styled
+// <div>, or an <a> at reduced opacity, would fail here — and the second of those is the one worth
+// catching, because a disabled anchor is not a thing the platform has: an <a href> at 50% opacity
+// is still focusable, still activates on Enter, and still navigates.
 //
 // The accent classes are asserted for the Tailwind reason every badge in this codebase states: an
 // interpolated `border-l-${accent}` compiles fine and produces no CSS at all.
@@ -23,37 +29,27 @@ describe("Tile", () => {
     expect(screen.getByText("Who is due a visit")).toBeInTheDocument();
   });
 
-  it("is a link to its href when it is not locked", () => {
+  it("is a link to its href", () => {
     render(<Tile href="/visits" label="Visits" />);
 
     expect(screen.getByRole("link", { name: /Visits/ })).toHaveAttribute("href", "/visits");
   });
 
-  // THE HEADLINE ASSERTION.
-  it("renders NO link at all when locked", () => {
-    render(<Tile href="/agendas" label="Agendas" locked />);
+  // THE SHAPE ASSERTION. See the header: there is no locked state, so the top-level element is an
+  // anchor every time.
+  it("renders an anchor as its root element, never a div", () => {
+    const { container } = render(<Tile href="/visits" label="Visits" />);
 
-    expect(screen.queryByRole("link")).toBeNull();
-    expect(screen.getByText("Agendas")).toBeInTheDocument();
+    expect(container.firstElementChild?.tagName).toBe("A");
+    expect(container.querySelectorAll("a")).toHaveLength(1);
   });
 
-  it("says why it is locked in words, not by opacity alone", () => {
-    render(
-      <Tile
-        href="/agendas"
-        label="Agendas"
-        locked
-        lockedReason="The bishopric has not opened this yet."
-      />,
-    );
+  it("is reachable by keyboard and carries no opacity dimming", () => {
+    const { container } = render(<Tile href="/visits" label="Visits" />);
+    const tile = container.firstElementChild;
 
-    expect(screen.getByText("The bishopric has not opened this yet.")).toBeInTheDocument();
-  });
-
-  it("falls back to a default reason rather than rendering a silently dead tile", () => {
-    const { container } = render(<Tile href="/agendas" label="Agendas" locked />);
-
-    expect(container.textContent).toContain("You do not have access to this yet.");
+    expect(tile).not.toHaveAttribute("tabindex", "-1");
+    expect(tile?.className).not.toContain("opacity-");
   });
 
   it.each([

@@ -48,12 +48,35 @@ Replace [app/(app)/dashboard/page.tsx](<../app/(app)/dashboard/page.tsx>), which
 marks as a placeholder for the real per-role dashboards. Four sections of `Tile` (from P1),
 sticky header with the Fraunces title and a search box, ward/stake line beneath.
 
-**Locked tiles** grey out with a lock icon and do not navigate — the prototype's treatment for a
+~~**Locked tiles** grey out with a lock icon and do not navigate — the prototype's treatment for a
 module a role cannot reach. Keep it: it tells a leader the module exists and is not theirs,
-which is friendlier than a tile that silently vanishes.
+which is friendlier than a tile that silently vanishes.~~
 
-**Header scroll:** only the title and search stay sticky; the ward line, the switchers and the
-quick-links row collapse away on scroll down and reveal on any real scroll up.
+**REVERSED BY THE USER 2026-09-22, walking scenario 069. A PERSON SEES ONLY WHAT THEY CAN OPEN.**
+It was built as described above and then removed, because the walk showed what "friendlier than a
+tile that silently vanishes" actually produces at real permission levels: a music coordinator with
+4 usable tiles and **11 locks**, and a stake officer with **15 locks and nothing to do** — each
+lock advising them to ask a bishopric that has no power to grant it. A grid is a place to start
+work from, not an inventory of what the app contains, and saying eleven times over what somebody
+may not touch is noise on every visit to make a point that matters at most once.
+
+So a module a person cannot reach is **ABSENT**, a section with nothing they can reach renders
+**no heading**, and `Tile`'s `locked`/`lockedReason` were removed outright rather than left unused.
+The one thing the old treatment protected — a role holding nothing seeing a sentence rather than a
+blank page — is now genuinely reachable, which it was not while locks filled the grid.
+See `plans/retros/p3-shell-and-tile-dashboard.md`.
+
+**Header scroll:** only the title and search stay sticky; the calling line and the switcher
+collapse away on scroll down and reveal on any real scroll up. (The ward line moved to the chrome
+bar, which never collapses and now renders on every page; the quick-links button lives in the
+STICKY row so it survives the collapse.)
+
+> ⚠️ **The collapse feeds its own scroll listener, and this is almost certainly the prototype's
+> known-unfixed stutter.** Collapsing removes the extras' height, the browser CLAMPS `scrollY` by
+> that amount, and that fires a scroll event the hook reads as the reader scrolling UP — observed
+> as `900, 876, 900` from one flick. It re-expands and settles open, so a fast scroll looks like a
+> header that refuses to collapse. Fixed with a settle window after each state flip. **No jsdom
+> test can catch this**: jsdom has no layout, so nothing clamps.
 
 > **Two traps the prototype hit here, both worth reading before you write this.**
 > `position: sticky` only holds an element while its **own direct parent** is still in view — the
@@ -93,9 +116,13 @@ dashboard's own structure and the `Tile` primitive, not a lookalike.
 **Quick links** — a pinnable, reorderable subset behind a button in the sticky bar with a live
 count, opening a modal rather than pushing the grid down.
 
-> **Open:** quick-link persistence is per-user or per-device and was never settled. A
-> `users.settings` JSON column is the durable answer and matches how `wards.settings` already
-> works; `localStorage` is the cheap one. Decide in the slice and write down why.
+> **ANSWERED 2026-09-22 — `users.settings` jsonb, per USER.** A pin follows the PERSON, not the
+> device; `localStorage` would fail the case the feature is for, which is somebody who pinned
+> Visits on a laptop opening the app on a phone. Migration 077 adds the column, its size CHECK and
+> the column GRANT — that grant is load-bearing and easy to forget, because column privileges are
+> checked BEFORE policies and a missing one fails as "permission denied" rather than as a zero-row
+> RLS denial. **Nothing may ever read authorization out of that column**, since the user writes it
+> directly. See `plans/prototype/decisions.md` §6.
 
 ## Step 5 — Delete the sidebar
 

@@ -72,7 +72,7 @@ import type {
 //
 // `user` is the one addition to roster-b's table. The plan has both the page and the picker
 // call defaultOrganizationFilter(), which a client component cannot do without the session —
-// and passing SessionUser into a client component is already how TopNav works. The alternative
+// and passing SessionUser into a client component is already how the chrome bar works. The alternative
 // was to make every future caller remember to pass filter.organizationId, which is exactly the
 // invisible default Decision 4 set out to avoid.
 // ============================================================================

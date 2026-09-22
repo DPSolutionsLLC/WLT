@@ -1668,6 +1668,61 @@ export type Database = {
           },
         ]
       }
+      issue_reports: {
+        Row: {
+          body: string
+          calling_id: string | null
+          created_at: string
+          id: string
+          page_path: string
+          reported_by: string | null
+          role: string
+          ward_id: string
+        }
+        Insert: {
+          body: string
+          calling_id?: string | null
+          created_at?: string
+          id?: string
+          page_path: string
+          reported_by?: string | null
+          role: string
+          ward_id: string
+        }
+        Update: {
+          body?: string
+          calling_id?: string | null
+          created_at?: string
+          id?: string
+          page_path?: string
+          reported_by?: string | null
+          role?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "issue_reports_calling_id_fkey"
+            columns: ["calling_id"]
+            isOneToOne: false
+            referencedRelation: "ward_role_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "issue_reports_reported_by_fkey"
+            columns: ["reported_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "issue_reports_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       knowledge_documents: {
         Row: {
           conference_date: string | null
@@ -3070,6 +3125,7 @@ export type Database = {
           id: string
           is_active: boolean
           last_name: string | null
+          settings: Json
           theme_preference: string
           username: string | null
           ward_id: string
@@ -3082,6 +3138,7 @@ export type Database = {
           id: string
           is_active?: boolean
           last_name?: string | null
+          settings?: Json
           theme_preference?: string
           username?: string | null
           ward_id: string
@@ -3094,6 +3151,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           last_name?: string | null
+          settings?: Json
           theme_preference?: string
           username?: string | null
           ward_id?: string

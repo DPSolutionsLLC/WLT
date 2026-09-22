@@ -1430,3 +1430,40 @@ export const YOUTH_CROSS_ORG_VISIBILITY_STATE_LABELS: Record<"on" | "off", strin
     "Follow-ups are visible to their own organization's leaders, to the bishopric, and to " +
     "whoever wrote them. The activity calendar itself stays open to everybody.",
 };
+
+// ---------------------------------------------------------------------------
+// A LEADER TELLING US SOMETHING IS WRONG (migration 076)
+// ---------------------------------------------------------------------------
+//
+// `pagePath`, `role` and `callingId` are taken from the SESSION and the browser, never from
+// anything the reporter types. That is the whole feature: a report carries where they were and
+// what they were acting as, so nobody has to reconstruct it from a text message a day later.
+//
+// CAPTURE ONLY IN P3. Nothing in the app reads these rows; P12 owns the review screen. The type
+// exists in full so that screen inherits a shape rather than inventing one.
+//
+// `reportedBy` is nullable ONLY because `on delete set null` must be able to fire — a report
+// outlives the account that made it. It appears in no policy predicate, which is the `talks-d`
+// hole and is why migration 076b's SELECT does not mention the column.
+export type IssueReport = {
+  id: string;
+  wardId: string;
+  reportedBy: string | null;
+  pagePath: string;
+  role: string;
+  callingId: string | null;
+  body: string;
+  createdAt: string;
+};
+
+// WHAT HELP SAYS, AND IT SAYS PLAINLY THAT THERE IS NONE YET.
+//
+// Per-page help has not been written for any page in this app. Fabricating it is worse than
+// admitting it: help that describes a screen somebody has not read is help that will be wrong,
+// and a leader who follows it will do the wrong thing confidently. The phase file and build note
+// §issue-reporting both insist on this. When real help arrives it replaces this constant; until
+// then the honest answer is the one that points at the button beside it.
+export const HELP_NOT_WRITTEN_YET =
+  "There is no written help for this page yet. If something here is confusing or looks wrong, " +
+  "use Report an issue — it records which page you were on and what calling you are acting " +
+  "under, so you do not have to explain any of that.";

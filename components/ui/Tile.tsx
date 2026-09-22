@@ -6,19 +6,24 @@ import type { ReactNode } from "react";
 // redesign it.
 //
 // ---------------------------------------------------------------------------
-// A LOCKED TILE IS NOT A LINK, AND IT SAYS WHY IN WORDS
+// A TILE IS ALWAYS A LINK. THERE IS NO LOCKED STATE, AND ADDING ONE BACK IS A PRODUCT DECISION.
 // ---------------------------------------------------------------------------
-// Two separate rules, and the second is the one that gets dropped.
+// This primitive used to carry `locked` + `lockedReason`, rendering a <div> instead of a <Link>
+// with a sentence saying why somebody could not open it. P3 built the dashboard on it, and
+// walking scenario 069 showed what that produces: a music coordinator with 4 usable tiles and 11
+// locks, and a stake officer with FIFTEEN locks and nothing to do — each advising them to ask a
+// bishopric with no power to grant it.
 //
-// It must not be a LINK because a disabled anchor is not a thing the platform has: an <a href>
-// styled at 50% opacity is still focusable, still activates on Enter, and still navigates. The
-// only correct disabled link is no link, so `locked` renders a <div>.
+// The user's decision, 2026-09-22: **a person sees only what they can open**. A grid is a place to
+// start work from, not an inventory of what the app contains, and telling a leader eleven times
+// over what they may not touch is noise on every visit to make a point that matters at most once.
+// So the capability was removed rather than left unused — dead code with an elaborate rationale
+// invites somebody to "restore" it.
 //
-// And it must say WHY IN TEXT because greying out is a colour-only signal, and this app does not
-// use those — the rule MemberStatusBadge states for do_not_contact ("a member whose only marker
-// is a red dot is a member somebody will phone by mistake") and ITER-022 restates. A tile a
-// leader cannot open, with nothing on it explaining that, reads as a page that failed to load.
-// `lockedReason` is therefore rendered, not merely announced.
+// Filtering happens BEFORE this component: visibleNavigationItems() in lib/auth/navigation.tsx
+// decides what a person is offered, and components/layout/DashboardGrid.tsx renders only that.
+// Hiding a tile is cosmetic, never a security boundary — every guarded page still calls
+// assertCan() and RLS still blocks the query behind it.
 //
 // ---------------------------------------------------------------------------
 // THE ACCENT CARRIES NO MEANING
@@ -42,9 +47,6 @@ export type TileProps = {
   blurb?: string;
   icon?: ReactNode;
   accent?: TileAccent;
-  locked?: boolean;
-  // Why it is locked, in words. Rendered on the tile, because opacity is not a signal.
-  lockedReason?: string;
   pinned?: boolean;
   className?: string;
 };
@@ -64,8 +66,6 @@ export function Tile({
   blurb,
   icon,
   accent,
-  locked = false,
-  lockedReason,
   pinned = false,
   className = "",
 }: TileProps) {
@@ -90,24 +90,8 @@ export function Tile({
         ) : null}
       </span>
       {blurb === undefined ? null : <span className="text-sm text-muted">{blurb}</span>}
-      {locked ? (
-        <span className="text-sm text-muted">
-          {lockedReason ?? "You do not have access to this yet."}
-        </span>
-      ) : null}
     </>
   );
-
-  if (locked) {
-    return (
-      <div
-        // No href, no tabIndex, no role="link". There is nothing here to activate.
-        className={`${BASE_CLASSES} ${accentClasses} opacity-75 ${className}`.trim()}
-      >
-        {body}
-      </div>
-    );
-  }
 
   return (
     <Link
