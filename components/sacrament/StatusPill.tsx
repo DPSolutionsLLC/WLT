@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FinalizeTopicsButton } from "@/components/sacrament/FinalizeTopicsButton";
 import { Pill } from "@/components/ui/Pill";
 import type { PillStatus, SundayPill } from "@/lib/sacrament/sundayStatus";
 
@@ -52,6 +53,20 @@ const STATUS_TONES: Record<PillStatus, string> = {
   complete: "border-stage-complete bg-stage-complete text-background",
 };
 
+// ---------------------------------------------------------------------------
+// THE FINALIZE CHECKMARK IS A SIBLING, NOT A CHILD — p4-sacrament-b2
+// ---------------------------------------------------------------------------
+// The pill above is an `<a>`. A `<button>` inside it would be invalid HTML and would leave a
+// screen reader unable to reach either, which is the same interactive-nesting trap SundayCard
+// avoided with a stretched pseudo-element and SundayMusicCard states for its accordion. So the
+// two sit side by side in one flex row: they READ as one control and remain two elements, which
+// is exactly what the prototype's `FinalizablePill` is.
+//
+// IT APPEARS ON A PILL WHOSE `finalized` IS A BOOLEAN, AND ONLY IF THE READER MAY WRITE IT. Today
+// that is `topics` alone; the other three carry null and cannot grow a control by accident
+// (lib/sacrament/sundayStatus.ts). Somebody without `topics.manage` sees the pill and NO
+// checkmark — absent, never disabled, which is the rule this file's header already states for the
+// pill itself.
 export type StatusPillProps = {
   pill: SundayPill;
   href: string;
@@ -59,10 +74,26 @@ export type StatusPillProps = {
   // on a month. A screen reader moving link to link needs "Topics, 2 of 3 — Sunday, March 1",
   // not "Topics" thirty times over.
   sundayLabel: string;
+  // Needed only by the finalize control, which writes to this Sunday.
+  sundayId: string;
+  // `topics.manage` — the permission PATCH /api/sundays/[id]/topics-finalized asserts. Resolved
+  // once per page and handed down, never re-derived here (CLAUDE.md rule 10).
+  canFinalizeTopics: boolean;
 };
 
-export function StatusPill({ pill, href, sundayLabel }: StatusPillProps) {
+export function StatusPill({
+  pill,
+  href,
+  sundayLabel,
+  sundayId,
+  canFinalizeTopics,
+}: StatusPillProps) {
+  const showsFinalizeControl = pill.finalized !== null && canFinalizeTopics;
+
   return (
+    // NO GAP. The pill and the checkmark are ONE segmented control, and the whole reason this
+    // wrapper exists is to hold them against each other — see the header above.
+    <span className="inline-flex items-center">
     <Link
       href={href}
       aria-label={`${pill.label}, ${pill.filled} of ${pill.total} — ${sundayLabel}`}
@@ -74,7 +105,14 @@ export function StatusPill({ pill, href, sundayLabel }: StatusPillProps) {
       // `Pill`, so the badge shape is untouched everywhere else it is used.
       className="inline-flex min-h-11 items-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
     >
-      <Pill toneClassName={STATUS_TONES[pill.status]} className="font-medium">
+      {/* `rounded-r-none` SQUARES OFF THE SIDE THE CHECKMARK ATTACHES TO, and only when one is
+          there — a pill with a flat right edge and nothing beside it would just look broken.
+          Tailwind emits the per-corner utilities after the `rounded-full` shorthand, which is what
+          makes `rounded-full rounded-r-none` resolve the way it reads. */}
+      <Pill
+        toneClassName={STATUS_TONES[pill.status]}
+        className={showsFinalizeControl ? "font-medium rounded-r-none" : "font-medium"}
+      >
         {/* aria-hidden on the visible text, because the anchor's own aria-label already says all
             of it and more. Without this a screen reader reads the pill twice. */}
         <span aria-hidden="true">
@@ -82,5 +120,15 @@ export function StatusPill({ pill, href, sundayLabel }: StatusPillProps) {
         </span>
       </Pill>
     </Link>
+
+      {showsFinalizeControl && (
+        <FinalizeTopicsButton
+          sundayId={sundayId}
+          // Narrowed by showsFinalizeControl above; the boolean is what makes a pill finalizable.
+          finalized={pill.finalized === true}
+          sundayLabel={sundayLabel}
+        />
+      )}
+    </span>
   );
 }

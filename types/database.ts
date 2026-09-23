@@ -2743,6 +2743,7 @@ export type Database = {
           presiding_override: string | null
           slot_config: Json | null
           speaking_slots: number
+          topics_finalized_at: string | null
           type: string
           ward_id: string
         }
@@ -2756,6 +2757,7 @@ export type Database = {
           presiding_override?: string | null
           slot_config?: Json | null
           speaking_slots?: number
+          topics_finalized_at?: string | null
           type?: string
           ward_id: string
         }
@@ -2769,6 +2771,7 @@ export type Database = {
           presiding_override?: string | null
           slot_config?: Json | null
           speaking_slots?: number
+          topics_finalized_at?: string | null
           type?: string
           ward_id?: string
         }

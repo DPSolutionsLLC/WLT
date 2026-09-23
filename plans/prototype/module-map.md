@@ -391,13 +391,25 @@ there is a reason, since a jumped-to date is reachable either way.
 `app/(app)/music/MusicSundayList.tsx` owns the single `openSundayId`, and the Music pill carries
 `?sunday=<id>&from=sacrament#sunday-<id>`.
 
-**ITEM 4 AND THE WORKFLOW PILL OF ITEM 2 ARE NOT BUILT, DELIBERATELY — they are P4 slice `b`'s**
-(Topics finalize), and were not missed. Neither concept exists in WLT: there is no
-`topics_finalized` or `topicsFinalized` anywhere in the repo, and `decisions.md` §1.15 is explicit
-that finalize is *"a conductor's deliberate click, **not** derived from every slot happening to
-have a topic"* — so dimming a card because its Sunday happens to have topics assigned would tell a
-coordinator the topics were settled when nobody had said so. The collapsed card therefore carries
-the completion pill alone. Add both in the same change that adds the concept.
+**ITEM 4 IS NOW BUILT — 2026-09-23, P4 slice `b2`** (`plans/sacrament-topics-finalize-and-history.md`).
+`sundays.topics_finalized_at` (migration 078) is the concept it was waiting for. A Sunday whose
+topics nobody has finalized renders at `opacity-70` with its completion pill **REPLACED** by a
+single `Topics pending` — not accompanied, which is the build note's own rule: a completion count
+is *"premature before the conductor has actually decided the day's shape"*. **The card stays
+clickable.** Dimmed, never disabled, and `app/(app)/music/SundayMusicCard.tsx` carries the
+reasoning.
+
+It is the COLUMN, never a derivation. `decisions.md` §1.15 is explicit that finalize is *"a
+conductor's deliberate click, **not** derived from every slot happening to have a topic"*, so
+inferring it from "this Sunday has topics assigned" would tell a coordinator the topics were
+settled when nobody had said so. `lib/topics/finalize.ts` holds the rule that clears it again, and
+the rule is about **what** changed rather than about **who** moved — advancing a speaker through
+the pipeline leaves a finalized Sunday finalized.
+
+**THE WORKFLOW PILL OF ITEM 2 IS STILL NOT BUILT, and it is not slice `b`'s.**
+`Draft` / `Pending approval` / `Approved` reports the **programme's** state, not the topics', so it
+belongs with the programme — module 6, or whichever slice next touches `/program`. Its absence on
+the collapsed music card is correct rather than outstanding.
 
 ### 6.3 The contextual back link — ~17 pages, and WLT has sanctioned it but built none
 

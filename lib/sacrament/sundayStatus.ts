@@ -70,6 +70,20 @@ export type SundayPill = {
   filled: number;
   total: number;
   status: PillStatus;
+  // ---------------------------------------------------------------------------
+  // `null` MEANS "THIS PILL HAS NO FINALIZE CONCEPT", AND IT IS NOT A DEFAULTED false
+  // ---------------------------------------------------------------------------
+  // Only `topics` is finalizable today, so the other three carry null — the same absent-means-no
+  // idiom `activity_events.youth_attended` uses, and for the same reason: `false` on the Music
+  // pill would assert that somebody has not finalized the music, which is not a thing anybody can
+  // do. components/sacrament/StatusPill.tsx renders a checkmark on exactly the pills where this
+  // is a boolean, so a null pill cannot grow a control by accident.
+  //
+  // THE PROTOTYPE ADDS THREE MORE LATER — References, Talks and Prayers each gain their own
+  // finalize on the same `FinalizablePill` (build notes §references-pill-and-modal,
+  // §talks-finalize-todo-accept-decline, §prayers-finalize-todo-accept-decline). This is the
+  // shape they arrive into; none of them is built, and none should be inferred.
+  finalized: boolean | null;
 };
 
 export type SundayStatusAssignment = {
@@ -97,6 +111,21 @@ export type SundayStatusInput = {
   assignments: readonly SundayStatusAssignment[];
   prayers: readonly SundayStatusPrayer[];
   hymnSelectionCount: number;
+  // ---------------------------------------------------------------------------
+  // REQUIRED, NOT OPTIONAL — AND AN INPUT, NEVER A COMPUTATION
+  // ---------------------------------------------------------------------------
+  // Required so the COMPILER enumerates every caller. That is ITER-005's lesson — a default is
+  // how 25 of 62 permission checks came to ignore the ward's configuration with nothing failing —
+  // and it is the same reason `SundayStatusAssignment.stage` is required here while nothing reads
+  // it yet.
+  //
+  // It ARRIVES as a boolean because this module has NO CLOCK and reads no database: the caller
+  // resolves `sundays.topics_finalized_at !== null` and hands the answer down. And it must never
+  // be derived from `countTopics(input) === slots` — decisions.md §1.15 is explicit that finalize
+  // is "a conductor's deliberate click, NOT derived from every slot happening to have a topic",
+  // and a derived one would tell a music coordinator the topics were settled when nobody had said
+  // so.
+  topicsFinalized: boolean;
 };
 
 // Three hymns — opening, sacrament, closing (HYMN_TYPES). Musical numbers are extra and
@@ -187,7 +216,12 @@ export function sundayPills(input: SundayStatusInput): readonly SundayPill[] {
           // speaking_slots warns and reverts assignments (calendar-b's CalendarChangeWarning),
           // and a surviving row would otherwise render `4/3`, which reads as a bug in the pill
           // rather than as a fact about the Sunday.
-          pill("topics", Math.min(countTopics(input), slots), slots),
+          pill(
+            "topics",
+            Math.min(countTopics(input), slots),
+            slots,
+            input.topicsFinalized,
+          ),
           pill("talks", Math.min(countTalks(input), slots), slots),
         ];
 
@@ -198,8 +232,24 @@ export function sundayPills(input: SundayStatusInput): readonly SundayPill[] {
   ];
 }
 
-function pill(key: SundayPillKey, filled: number, total: number): SundayPill {
-  return { key, label: PILL_LABELS[key], filled, total, status: pillStatus(filled, total) };
+// `finalized` DEFAULTS TO null HERE and is passed explicitly by the one pill that has the concept.
+// That is the opposite of the rule on SundayStatusInput above, and deliberately: this is an
+// internal constructor with four call sites in one file, where a default means "this kind of pill
+// has no finalize" rather than "somebody forgot".
+function pill(
+  key: SundayPillKey,
+  filled: number,
+  total: number,
+  finalized: boolean | null = null,
+): SundayPill {
+  return {
+    key,
+    label: PILL_LABELS[key],
+    filled,
+    total,
+    status: pillStatus(filled, total),
+    finalized,
+  };
 }
 
 // Whether the hub renders pills for this Sunday at all. A stake- or general-conference Sunday

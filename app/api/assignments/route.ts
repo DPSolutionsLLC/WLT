@@ -10,6 +10,7 @@ import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { getSunday } from "@/lib/calendar/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { unfinalizeTopicsIfNeeded } from "@/lib/topics/finalize";
 import {
   createAssignmentSchema,
   listAssignmentsQuerySchema,
@@ -133,6 +134,12 @@ export async function POST(request: Request) {
     }
 
     const assignment = await createAssignment(user.wardId, input, user.id, supabase);
+
+    // ALWAYS, with no condition on whether the new row carries a topic. A new speaking slot
+    // changes what the day IS — a Sunday somebody finalized as three talks is not the Sunday they
+    // finalized once it has four — and an empty slot is the loudest possible statement that the
+    // day is not settled. lib/topics/finalize.ts holds the whole rule and never throws.
+    await unfinalizeTopicsIfNeeded(user.wardId, assignment.sundayId, supabase);
 
     await writeAuditLog(
       {

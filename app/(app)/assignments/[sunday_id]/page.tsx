@@ -9,6 +9,7 @@ import { SpeakerLine, speakerDisplayName } from "@/components/assignments/Speake
 import { GoalAlertBanner } from "@/components/goals/GoalAlertBanner";
 import type { GoalAlert } from "@/components/goals/GoalAlerts";
 import { StageBadge } from "@/components/assignments/StageBadge";
+import { TopicsFinalizedPanel } from "@/components/sacrament/TopicsFinalizedPanel";
 import { SundayTypeBadge } from "@/components/calendar/SundayTypeBadge";
 import { Card } from "@/components/ui/Card";
 import { NotPermitted } from "@/components/ui/NotPermitted";
@@ -61,6 +62,9 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
   if (!sunday) notFound();
 
   const canPlan = can(user, "talks.plan", roleAccess);
+  // `topics.manage`, which is bishopric-only and is what the finalize route asserts. The PANEL
+  // renders for everybody who can open this page; only the CONTROL is gated.
+  const canFinalizeTopics = can(user, "topics.manage", roleAccess);
   const canApprove = can(user, "talks.approve", roleAccess);
   const canRequest = can(user, "talks.request", roleAccess);
   const canConfirm = can(user, "talks.confirm", roleAccess);
@@ -191,6 +195,19 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
           footnote to them. Dismissible for the month — see components/goals/GoalAlertBanner.tsx
           for why these are here and not on the calendar. */}
       <GoalAlertBanner alerts={goalAlerts} monthKey={monthKey} />
+
+      {/* ONLY WHERE THERE ARE TOPICS TO DECIDE. A Sunday with no speaking slots — a fast Sunday,
+          a stake conference — has no talks, so "are the topics decided" has no referent. The hub
+          omits its talk pills on the same test and for the same reason, keyed on `speaking_slots`
+          rather than on the Sunday's TYPE (lib/sacrament/sundayStatus.ts). */}
+      {sunday.speakingSlots > 0 && (
+        <TopicsFinalizedPanel
+          sundayId={sunday.id}
+          sundayLabel={formatSundayLabel(sunday.date)}
+          topicsFinalizedAt={sunday.topicsFinalizedAt}
+          canFinalize={canFinalizeTopics}
+        />
+      )}
 
       {assignments.length === 0 ? (
         <Card>

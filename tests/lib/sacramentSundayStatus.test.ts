@@ -23,6 +23,7 @@ function input(overrides: Partial<SundayStatusInput> = {}): SundayStatusInput {
     assignments: [],
     prayers: [],
     hymnSelectionCount: 0,
+    topicsFinalized: false,
     ...overrides,
   };
 }

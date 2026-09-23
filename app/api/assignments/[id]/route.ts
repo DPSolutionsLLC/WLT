@@ -25,6 +25,7 @@ import { requireSessionUser } from "@/lib/auth/session";
 import { getSunday, listBishopricUsers } from "@/lib/calendar/queries";
 import { emitNotification } from "@/lib/notifications/emitNotification";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { topicShapeChanged, unfinalizeTopicsIfNeeded } from "@/lib/topics/finalize";
 import { stampTopicAssigned } from "@/lib/topics/queries";
 import { updateAssignmentSchema } from "@/lib/validation/assignment";
 import type { Database } from "@/types/database";
@@ -137,6 +138,17 @@ export async function PATCH(
 
       if (!assignment) {
         return NextResponse.json({ error: WRITE_REFUSED }, { status: 404 });
+      }
+
+      // ⚠️ THE PATCH IS INSPECTED, NOT THE ROUTE. This handler carries both kinds of change —
+      // a slot's topic, and every contact field — so "did this route run" is the wrong question
+      // and "did the day's topics move" is the right one. topicShapeChanged() is where that rule
+      // lives and where it is tested; getting it backwards unravels a month of finalized topics
+      // as speakers are contacted (lib/topics/finalize.ts).
+      //
+      // AFTER the write, so a refused UPDATE cannot clear a stamp that still stands.
+      if (topicShapeChanged(input)) {
+        await unfinalizeTopicsIfNeeded(user.wardId, assignment.sundayId, supabase);
       }
 
       // An approval is a decision about the plan AS IT STOOD. Editing it invalidates every

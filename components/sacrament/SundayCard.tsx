@@ -58,6 +58,10 @@ export type SundayCardProps = {
   // own `talks.view` does not imply, and offering a link that refuses on arrival is worse than
   // rendering the name as plain text.
   conductingHref: string | null;
+  // `topics.manage`, which PATCH /api/sundays/[id]/topics-finalized asserts. False withholds the
+  // finalize checkmark from the Topics pill entirely — absent, never disabled, the same rule the
+  // conducting link above follows and the one StatusPill's header states for the pills.
+  canFinalizeTopics: boolean;
 };
 
 export function SundayCard({
@@ -69,6 +73,7 @@ export function SundayCard({
   hrefs,
   programHref,
   conductingHref,
+  canFinalizeTopics,
 }: SundayCardProps) {
   const sundayLabel = formatSundayLabel(date);
   const holdsMeeting = sundayHasPills(type);
@@ -121,7 +126,13 @@ export function SundayCard({
           <ul className="relative z-10 flex flex-wrap items-center gap-1.5">
             {pills.map((pill) => (
               <li key={pill.key}>
-                <StatusPill pill={pill} href={hrefs[pill.key]} sundayLabel={sundayLabel} />
+                <StatusPill
+                  pill={pill}
+                  href={hrefs[pill.key]}
+                  sundayLabel={sundayLabel}
+                  sundayId={sundayId}
+                  canFinalizeTopics={canFinalizeTopics}
+                />
               </li>
             ))}
           </ul>

@@ -75,6 +75,14 @@ export type Sunday = {
   slotConfig: SlotConfigEntry[] | null;
   presidingOverride: string | null;
   fastSundayPinned: boolean;
+  // WHEN a member of the bishopric said this Sunday's topics are decided; null means nobody has
+  // (migration 078). A TIMESTAMP rather than a boolean, and nullable so un-finalizing is a return
+  // to the starting state rather than a delete — youth_activity_profiles.closed_at's rule.
+  //
+  // NEVER DERIVED from every slot happening to have a topic: decisions.md §1.15 is explicit that
+  // this is "a conductor's deliberate click", and a conductor filling slots in one at a time
+  // while still deciding must not read as done.
+  topicsFinalizedAt: string | null;
   createdAt: string;
 };
 
@@ -198,6 +206,7 @@ type SundayRow = {
   slot_config: Json | null;
   presiding_override: string | null;
   fast_sunday_pinned: boolean;
+  topics_finalized_at: string | null;
   created_at: string;
 };
 
@@ -215,7 +224,7 @@ type RotationRow = {
 // mapped row into GenericStringError. lib/roster/queries.ts keeps its column lists on one line
 // for the same reason.
 const SUNDAY_COLUMNS =
-  "id, date, type, notes, conducting_user_id, speaking_slots, slot_config, presiding_override, fast_sunday_pinned, created_at";
+  "id, date, type, notes, conducting_user_id, speaking_slots, slot_config, presiding_override, fast_sunday_pinned, topics_finalized_at, created_at";
 
 // One string literal on ONE line, however long it gets, and never a `+` concatenation.
 // Concatenation widens the type to `string`, which defeats supabase-js's literal-type parsing of
@@ -331,6 +340,7 @@ export function mapSundayRow(row: SundayRow): Sunday {
     slotConfig: mapSlotConfig(row.slot_config),
     presidingOverride: row.presiding_override,
     fastSundayPinned: row.fast_sunday_pinned,
+    topicsFinalizedAt: row.topics_finalized_at,
     createdAt: row.created_at,
   };
 }
@@ -420,6 +430,67 @@ export async function getSunday(
     throw new Error(`Could not read that Sunday: ${error.message}`);
   }
 
+  return data ? mapSundayRow(data) : null;
+}
+
+// ---------------------------------------------------------------------------
+// "THE TOPICS FOR THIS SUNDAY ARE DECIDED" — p4-sacrament-b2, migration 078
+// ---------------------------------------------------------------------------
+// THE RULE LIVES HERE, NOT IN THE ROUTE, for the reason updateSunday()'s header already gives
+// about fast-Sunday re-resolution: a future caller cannot reach the column and skip it. Two
+// callers already exist — the finalize route and lib/topics/finalize.ts's auto-unfinalize — and
+// they must agree about what "finalize an already-finalized Sunday" does.
+//
+// IDEMPOTENT, AND THE STAMP DOES NOT MOVE. Finalizing a Sunday that is already finalized writes
+// nothing at all, so the recorded instant stays the one somebody actually decided at rather than
+// the one they last pressed the button at. That matters because the stamp is the ONLY durable
+// record of when the decision was taken — there is no `topics_finalized_by` (migration 078's
+// header says why), so the audit row and this timestamp are the whole history.
+//
+// UN-finalizing an already-unfinalized Sunday writes nothing either, which is what lets the
+// auto-unfinalize helper be called unconditionally on every assignment write and cost one read in
+// the ordinary case.
+//
+// THE SERVER DECIDES THE INSTANT. The caller passes a boolean, never a timestamp — the same rule
+// PATCH /api/youth/profiles/[id]/close states, and for the same reason: a client clock could
+// stamp a moment nobody chose.
+//
+// Returns null when the Sunday is not this ward's OR when the write was refused, which the route
+// turns into a 404. Those two are indistinguishable here and both mean "not yours"
+// (plans/retros/foundation-c-services.md).
+export async function setTopicsFinalized(
+  wardId: string,
+  sundayId: string,
+  finalized: boolean,
+  client?: SupabaseClient<Database>,
+): Promise<Sunday | null> {
+  const supabase = await resolveClient(client);
+
+  const before = await getSunday(wardId, sundayId, supabase);
+  if (!before) return null;
+
+  const alreadyInTheRightState = finalized === (before.topicsFinalizedAt !== null);
+  if (alreadyInTheRightState) return before;
+
+  const { data, error } = await supabase
+    .from("sundays")
+    .update({ topics_finalized_at: finalized ? new Date().toISOString() : null })
+    .eq("ward_id", wardId)
+    .eq("id", sundayId)
+    .select(SUNDAY_COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`Could not set a Sunday's topics-finalized stamp — ${error.message}`, {
+      wardId,
+      sundayId,
+      finalized,
+    });
+    throw new Error(`Could not update that Sunday: ${error.message}`);
+  }
+
+  // A denied UPDATE is a ZERO-ROW SUCCESS, not an error (plans/retros/foundation-c-services.md),
+  // so the absence of a row is the real signal rather than `error`.
   return data ? mapSundayRow(data) : null;
 }
 

@@ -1,13 +1,20 @@
 // @vitest-environment jsdom
 
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { SundayCard, type SundayCardProps } from "@/components/sacrament/SundayCard";
 import {
   sundayPills,
   type SundayPillKey,
   type SundayStatusInput,
 } from "@/lib/sacrament/sundayStatus";
+
+// The finalize checkmark is a "use client" component that calls useRouter(), which throws outside
+// an App Router tree. Only the ROUTER is mocked — the button, its markup and its gating are the
+// real thing, which is what these assertions are about.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: () => {} }),
+}));
 
 // ---------------------------------------------------------------------------
 // ASSERTED ON WHAT A LEADER MUST BE ABLE TO DO, NOT ON WHAT THE CARD CURRENTLY RENDERS
@@ -42,6 +49,9 @@ function statusInput(overrides: Partial<SundayStatusInput> = {}): SundayStatusIn
     assignments: [],
     prayers: [],
     hymnSelectionCount: 0,
+    // The starting state. Every finalize assertion overrides it explicitly, so no test below
+    // depends on which way this default points.
+    topicsFinalized: false,
     ...overrides,
   };
 }
@@ -58,6 +68,9 @@ function props(overrides: Partial<SundayCardProps> = {}): SundayCardProps {
     hrefs: HREFS,
     programHref: PROGRAM_HREF,
     conductingHref: CONDUCTING_HREF,
+    // The conservative default: a reader who cannot finalize. The checkmark tests below turn it
+    // on explicitly, so the absence assertions cannot pass because somebody forgot to.
+    canFinalizeTopics: false,
     ...overrides,
   };
 }
@@ -315,5 +328,112 @@ describe("SundayCard", () => {
     for (const link of pillLinks) {
       expect(link.getAttribute("aria-label")).toContain("Sunday, March 7");
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE FINALIZE CHECKMARK — p4-sacrament-b2
+// ---------------------------------------------------------------------------
+// The prototype's `FinalizablePill`: "handy to be able to just do it from the pill". It writes the
+// same column as the page's own button, so there is nothing here about a second system — what
+// these assertions pin is the SHAPE, which is where this kind of control goes wrong.
+describe("SundayCard — the topics finalize checkmark", () => {
+  const FINALIZE_NAME = /^Topics are decided/;
+
+  it("offers it on the Topics pill to somebody who may finalize", () => {
+    render(<SundayCard {...props({ canFinalizeTopics: true })} />);
+
+    expect(screen.getByRole("button", { name: FINALIZE_NAME })).toBeInTheDocument();
+  });
+
+  // ABSENT, NEVER DISABLED. `topics.manage` is bishopric-only while this page gates on
+  // `talks.view`, which a music coordinator holds — so a rendered-and-refused control is exactly
+  // the youth-a-D1 failure, and a DISABLED one would look broken while claiming to be a rule.
+  it("withholds it entirely from somebody who may not", () => {
+    render(<SundayCard {...props({ canFinalizeTopics: false })} />);
+
+    expect(screen.queryByRole("button", { name: FINALIZE_NAME })).toBeNull();
+    // The pill itself is untouched — this withholds a control, not information.
+    expect(screen.getByText("Topics 0/3")).toBeInTheDocument();
+  });
+
+  // ONE CONTROL, ON THE TOPICS PILL ALONE. The other three pills carry `finalized: null` and must
+  // not grow a checkmark when a later slice adds one to References or Talks.
+  it("offers exactly one, and it is beside Topics", () => {
+    const { container } = render(<SundayCard {...props({ canFinalizeTopics: true })} />);
+
+    expect(screen.getAllByRole("button", { name: FINALIZE_NAME })).toHaveLength(1);
+
+    const topicsItem = screen.getByText("Topics 0/3").closest("li");
+    expect(topicsItem).not.toBeNull();
+    expect(within(topicsItem!).getByRole("button", { name: FINALIZE_NAME })).toBeInTheDocument();
+    expect(container.querySelectorAll("li button")).toHaveLength(1);
+  });
+
+  // ⚠️ A <button> INSIDE AN <a> IS INVALID HTML and leaves a screen reader able to reach neither.
+  // SundayCard already avoids exactly this for the card link with a stretched pseudo-element;
+  // this is the same trap one level down, and it is the single most likely way to build this
+  // control wrong.
+  it("renders the checkmark as a SIBLING of the pill link, never inside it", () => {
+    render(<SundayCard {...props({ canFinalizeTopics: true })} />);
+
+    const button = screen.getByRole("button", { name: FINALIZE_NAME });
+
+    expect(button.closest("a")).toBeNull();
+  });
+
+  // aria-pressed, so the state is announced rather than only coloured — and the accessible NAME
+  // is the same in both states, so the control does not read as a different one after a press.
+  it("reports its state with aria-pressed and keeps one name", () => {
+    const { unmount } = render(<SundayCard {...props({ canFinalizeTopics: true })} />);
+
+    expect(screen.getByRole("button", { name: FINALIZE_NAME })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+
+    unmount();
+
+    render(
+      <SundayCard
+        {...props({
+          canFinalizeTopics: true,
+          pills: sundayPills(statusInput({ topicsFinalized: true })),
+        })}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: FINALIZE_NAME })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  // The count and the finalize state are INDEPENDENT, and that is the decision rather than an
+  // accident: decisions.md §1.15 forbids deriving one from the other, so a Sunday with every slot
+  // filled is still un-finalized until somebody says so.
+  it("leaves a full Topics pill un-finalized until somebody says otherwise", () => {
+    render(
+      <SundayCard
+        {...props({
+          canFinalizeTopics: true,
+          pills: sundayPills(
+            statusInput({
+              assignments: [
+                { topicId: "t1", memberId: "m1", externalSpeakerName: null, stage: "plan" },
+                { topicId: "t2", memberId: "m2", externalSpeakerName: null, stage: "plan" },
+                { topicId: "t3", memberId: "m3", externalSpeakerName: null, stage: "plan" },
+              ],
+            }),
+          ),
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Topics 3/3")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: FINALIZE_NAME })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 });

@@ -154,6 +154,11 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
   // Resolved ONCE, outside the map, from the roleAccess already in hand (CLAUDE.md rule 10).
   const canOpenSundayEditor = can(user, "calendar.view", roleAccess);
 
+  // `topics.manage`, which is BISHOPRIC-ONLY and is what the finalize route asserts. Resolved once
+  // here rather than per card (CLAUDE.md rule 10), and gating on the permission the API checks is
+  // youth-a-D1's rule: never hide a control the server would allow, never offer one it refuses.
+  const canFinalizeTopics = can(user, "topics.manage", roleAccess);
+
   // FILTERED WITH THE SAME HELPER THE DASHBOARD USES, from the same roleAccess. This page gates on
   // `talks.view` and /talks/topics gates on `topics.view`, which is BISHOPRIC-ONLY — a
   // music_coordinator holds the first and not the second. Rendering the row unfiltered would
@@ -177,6 +182,10 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
       assignments: assignmentsBySunday.get(sunday.id) ?? [],
       prayers: prayersBySunday.get(sunday.id) ?? [],
       hymnSelectionCount: (selectionsBySunday.get(sunday.id) ?? []).length,
+      // The COLUMN answers this and nothing else does. Never
+      // `countTopics(...) === sunday.speakingSlots` — decisions.md §1.15 forbids deriving it, and
+      // lib/sacrament/sundayStatus.ts's own header says so at the field.
+      topicsFinalized: sunday.topicsFinalizedAt !== null,
     }),
     hrefs: sundayPillHrefs(sunday.id, sunday.date),
     // The whole card opens this Sunday's programme — there is no programme PILL any more
@@ -187,6 +196,7 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
     // and the two are genuinely separate grants. Offering a link that refuses on arrival is the
     // mirror of youth-a-D1, and the conservative direction is to render the name as plain text.
     conductingHref: canOpenSundayEditor ? `/calendar/sunday/${sunday.id}` : null,
+    canFinalizeTopics,
   }));
 
   return (

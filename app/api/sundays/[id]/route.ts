@@ -7,6 +7,7 @@ import { requireSessionUser } from "@/lib/auth/session";
 import { getSunday, readConductorName, updateSunday } from "@/lib/calendar/queries";
 import { notifyOtherBishopric } from "@/lib/notifications/notifyOtherBishopric";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { unfinalizeTopicsIfNeeded } from "@/lib/topics/finalize";
 import { updateSundaySchema } from "@/lib/validation/calendar";
 
 const sundayIdSchema = z.uuid("That Sunday id is not valid.");
@@ -67,9 +68,31 @@ export async function PATCH(
       );
     }
 
-    const { sunday, assignmentsReverted } = result;
+    const { assignmentsReverted } = result;
     const { conductingReshiftCount, orgConductingReshiftCount } = result;
     const changedFields = Object.keys(changes);
+
+    // THE DAY'S SHAPE CHANGED, so "the topics are decided" is no longer a true statement about it
+    // (lib/topics/finalize.ts). Only `speakingSlots` — this route also carries the type, the
+    // conductor, the notes and the presiding override, and none of those is a claim about what
+    // the talks are ABOUT.
+    //
+    // ⚠️ `changes.speakingSlots` RATHER THAN `sunday.speakingSlots !== before.speakingSlots`, and
+    // the difference is not cosmetic: updateSunday() may change the count WITHOUT it being in the
+    // patch (a type change to a conference zeroes it, a change away from fast_sunday restores the
+    // ward default), and it may also be sent unchanged by SundayEditor, which submits the whole
+    // form on every save. Keying on the SUBMITTED FIELD matches topicShapeChanged()'s rule on the
+    // other route — a patch that names the field is somebody deciding about it.
+    //
+    // The cleared row REPLACES the one in the response. `result.sunday` was read before this ran,
+    // so answering with it would hand the client a row still claiming to be finalized a moment
+    // after the server cleared it. `?? result.sunday` is the honest fallback: the helper never
+    // throws, so null means "nothing was observed" rather than "it is cleared".
+    const sunday =
+      changes.speakingSlots === undefined
+        ? result.sunday
+        : ((await unfinalizeTopicsIfNeeded(user.wardId, sundayId, supabase)) ??
+          result.sunday);
 
     await writeAuditLog(
       {

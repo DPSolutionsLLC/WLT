@@ -44,6 +44,9 @@ import type { SundayType } from "@/types/domain";
 
 export type MusicSundayEntry = {
   sunday: { id: string; date: string; type: SundayType };
+  // `sundays.topics_finalized_at !== null`, resolved by the page. A false here dims the card and
+  // replaces its completion pill with `Topics pending` (p4-sacrament-b2).
+  topicsFinalized: boolean;
   topicTitles: string[];
   selections: HymnSelection[];
   musicalNumber: MusicalNumber | null;
@@ -83,6 +86,7 @@ export function MusicSundayList({
         <li key={entry.sunday.id}>
           <SundayMusicCard
             sunday={entry.sunday}
+            topicsFinalized={entry.topicsFinalized}
             topicTitles={entry.topicTitles}
             selections={entry.selections}
             musicalNumber={entry.musicalNumber}

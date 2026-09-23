@@ -32,15 +32,31 @@ import { HYMN_TYPES, type HymnType, type SundayType } from "@/types/domain";
 // own state, so a hymn saved in one slot still cannot stale the other two.
 //
 // ---------------------------------------------------------------------------
-// WHAT IS NOT BUILT HERE, AND MUST NOT BE APPROXIMATED
+// TOPICS PENDING — DIMMED, THE PILL REPLACED, AND STILL CLICKABLE (p4-sacrament-b2)
 // ---------------------------------------------------------------------------
-// The prototype's collapsed card also carries a workflow pill (`Draft` / `Pending approval` /
-// `Approved`) and, when topics are not settled, dims itself and reads `Topics pending` instead.
-// Both belong to P4 slice `b` (Topics finalize) and neither concept exists in WLT yet — there is
-// no `topics_finalized` anywhere in the repo, and decisions.md §1.15 is explicit that finalize is
-// "a conductor's deliberate click, NOT derived from every slot happening to have a topic". So
-// inferring it from "this Sunday has topics assigned" would tell a coordinator the topics were
-// settled when nobody had said so. The completion pill is the only pill here until slice `b`.
+// module-map.md §6.2 item 4, built. A Sunday whose topics nobody has finalized renders at
+// `opacity-70` with the completion pill REPLACED — not accompanied — by a single `Topics pending`.
+//
+// The build note's reason for replacing rather than adding: a completion count is "premature
+// before the conductor has actually decided the day's shape". `2/3 chosen` beside `Topics pending`
+// would be two answers to one question — pick hymns now, or wait — and the coordinator would have
+// to work out which one governs.
+//
+// ⚠️ DIMMED, NEVER DISABLED. The card still opens, every control inside it still works, and a
+// coordinator who wants to get ahead may. P3 deleted `Tile.locked` outright for this reason and
+// components/sacrament/StatusPill.tsx states the same rule from the other side: a control
+// somebody cannot act on is one that should not have been rendered. This is a SIGNAL about
+// somebody else's work, not a lock on this reader's.
+//
+// ⚠️ IT IS THE COLUMN, NEVER A DERIVATION. `topicsFinalized` arrives as a boolean resolved from
+// `sundays.topics_finalized_at`. decisions.md §1.15 is explicit that finalize is "a conductor's
+// deliberate click, NOT derived from every slot happening to have a topic", so inferring it from
+// "this Sunday has topics assigned" would tell a coordinator the topics were settled when nobody
+// had said so — which is the single thing this signal exists to prevent.
+//
+// STILL NOT BUILT, and must not be approximated: the prototype's workflow pill
+// (`Draft` / `Pending approval` / `Approved`). That reports the PROGRAMME's state and belongs with
+// the programme, not with the topics.
 
 const HYMN_SLOT_LABELS: Record<HymnType, string> = {
   opening: "Opening hymn",
@@ -50,6 +66,9 @@ const HYMN_SLOT_LABELS: Record<HymnType, string> = {
 
 export type SundayMusicCardProps = {
   sunday: { id: string; date: string; type: SundayType };
+  // Resolved from `sundays.topics_finalized_at` by the page and handed down as a boolean. This is
+  // a "use client" file, so it could not read the column itself even if it wanted to.
+  topicsFinalized: boolean;
   topicTitles: string[];
   selections: HymnSelection[];
   musicalNumber: MusicalNumber | null;
@@ -119,6 +138,7 @@ const COMPLETION_TONES = {
 
 export function SundayMusicCard({
   sunday,
+  topicsFinalized,
   topicTitles,
   selections,
   musicalNumber,
@@ -146,7 +166,12 @@ export function SundayMusicCard({
     // #sunday-<id>. The query parameter is what OPENS this card; the fragment is what scrolls to
     // it with no JavaScript. PrayerBoard carries the identical spelling on its own Sunday cards
     // (p4-sacrament-a).
-    <Card id={`sunday-${sunday.id}`}>
+    // opacity-70 ON THE CARD, exactly as the prototype dims it. Nothing inside is disabled and
+    // nothing is aria-hidden — a dimmed card is still read, still tabbed into and still opened.
+    <Card
+      id={`sunday-${sunday.id}`}
+      className={topicsFinalized ? undefined : "opacity-70"}
+    >
       {/* THE WHOLE SUMMARY ROW IS THE CONTROL, and it is a real <button> inside the heading —
           the WAI-ARIA accordion shape, which keeps the document outline and gives the row one
           keyboard path rather than a div with a key handler bolted on. min-h-11 is 44px;
@@ -171,9 +196,15 @@ export function SundayMusicCard({
             {formatSundayLabelWithYear(sunday.date)}
           </span>
           <SundayTypeBadge type={sunday.type} />
-          <Pill tone={COMPLETION_TONES[pillStatus(chosenCount, HYMNS_PER_SUNDAY)]}>
-            {chosenCount}/{HYMNS_PER_SUNDAY} chosen
-          </Pill>
+          {/* REPLACED, NOT ACCOMPANIED — see the header. Two pills here would be two answers to
+              "is this ready to work on". */}
+          {topicsFinalized ? (
+            <Pill tone={COMPLETION_TONES[pillStatus(chosenCount, HYMNS_PER_SUNDAY)]}>
+              {chosenCount}/{HYMNS_PER_SUNDAY} chosen
+            </Pill>
+          ) : (
+            <Pill tone="pending">Topics pending</Pill>
+          )}
         </button>
       </h2>
 

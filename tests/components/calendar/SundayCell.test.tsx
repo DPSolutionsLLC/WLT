@@ -25,6 +25,7 @@ function sunday(overrides: Partial<Sunday> = {}): Sunday {
     slotConfig: null,
     presidingOverride: null,
     fastSundayPinned: false,
+    topicsFinalizedAt: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };

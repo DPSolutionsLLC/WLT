@@ -114,6 +114,10 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
 
   const entries: MusicSundayEntry[] = windowed.map((sunday) => ({
     sunday: { id: sunday.id, date: sunday.date, type: sunday.type },
+    // THE COLUMN, never `topicTitles.length > 0`. A Sunday with three topics on it that nobody
+    // has finalized is still pending — decisions.md §1.15, and the reason migration 078 exists
+    // rather than the card inferring it from what is already on this page.
+    topicsFinalized: sunday.topicsFinalizedAt !== null,
     topicTitles: topicsBySunday.get(sunday.id) ?? [],
     selections: selections.filter((selection) => selection.sundayId === sunday.id),
     musicalNumber:

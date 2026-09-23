@@ -815,6 +815,13 @@ export async function createSunday(options: {
   speakingSlots?: number;
   notes?: string;
   fastSundayPinned?: boolean;
+  // WHEN somebody said this Sunday's topics are decided (migration 078). Omitted means NOT
+  // finalized, which is the starting state of every Sunday and what a scenario wants unless it is
+  // about this column.
+  //
+  // A TIMESTAMP, never a boolean — a seed that wrote `true` could not express "finalized in
+  // January and then edited in March", which is the case the auto-unfinalize rule turns on.
+  topicsFinalizedAt?: string;
 }): Promise<string> {
   return insertRow("sundays", {
     id: options.id ?? testUuid(`sunday:${options.date}`),
@@ -825,6 +832,7 @@ export async function createSunday(options: {
     speaking_slots: options.speakingSlots ?? 3,
     notes: options.notes ?? null,
     fast_sunday_pinned: options.fastSundayPinned ?? false,
+    topics_finalized_at: options.topicsFinalizedAt ?? null,
   });
 }
 
