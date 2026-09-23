@@ -63,7 +63,7 @@ land first.
 > finalize, `c` References over pgvector, `d` day categories, `e` musical numbers by
 > `afterTalkIndex`, `f` Talks finalize → to-dos (**P5**), `g` Prayers finalize (**P5**, `f`).
 > Plus one the walk of scenario 072 found and the roadmap did not anticipate, now **SHIPPED
-> 2026-09-22** (`78f1505`, `plans/p4-sacrament-music-month.md`, closing defect 072-D1): **`/music` is a
+> 2026-09-22** (`06910f8`, `plans/p4-sacrament-music-month.md`, closing defect 072-D1): **`/music` is a
 > month board**, not a rolling six-Sunday horizon. The Music pill could not reach a Sunday more
 > than ~6 weeks out — precisely the horizon a bishopric plans at — so it landed on a page
 > claiming nothing was on the calendar. `sundayPillHrefs()` moved out of the hub page into

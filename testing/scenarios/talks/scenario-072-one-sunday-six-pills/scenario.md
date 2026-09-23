@@ -214,7 +214,7 @@ the broken-link bug P3 closed.
 ### Defects found
 
 **072-D1 — THE MUSIC PILL CANNOT REACH ITS OWN SUNDAY. FIXED 2026-09-22**, by
-`plans/p4-sacrament-music-month.md` (`78f1505`). `/music` is now a month board — `?month=YYYY-MM`,
+`plans/p4-sacrament-music-month.md` (`06910f8`). `/music` is now a month board — `?month=YYYY-MM`,
 `MonthNavigation`, two empty states — and `sundayPillHrefs()` sends it the Sunday's own month
 plus an anchor, exactly as the Prayer pill already did. The original finding, kept because the
 reasoning is what the next reader needs:
