@@ -44,8 +44,9 @@ that a topic they just approved has visibly moved down the list.
 
 1. `npm run seed -- talks/scenario-017-topic-library-and-queue`
 2. `npm run dev`, then open http://localhost:3000
-3. Sign in as `bishop`. Open `/talks/topics` and read the whole list before touching anything.
-   **Note the order.**
+3. Sign in as `bishop`. **Read the dashboard grid, then open `/sacrament` and press Topics in the
+   shortcut row under the heading** — that is now the only way in (p4-sacrament-b1). Read the whole
+   list before touching anything. **Note the order.**
 4. Set the Category filter to each of the five categories in turn, then back to "All categories".
 5. Set "Showing" to **Archived**, read the list, then set it back to **In the library**.
 6. Press **Add a topic**, fill it in with two suggested scriptures on separate lines, and save.
@@ -67,9 +68,25 @@ that a topic they just approved has visibly moved down the list.
 17. Go back to `/talks/topics` and find that topic again.
 18. Sign out. Sign in as `secretary` and open `/talks/topics`.
 19. Sign out. Sign in as `counselor1` and open `/talks/topics`.
+19b. Still as `secretary` earlier, or signing back in: open `/sacrament` and read the shortcut row.
 20. In the Supabase dashboard, read `topics` and `topic_candidates` for this ward.
 
 ## Verification Checklist
+
+How the page is reached — CHANGED by p4-sacrament-b1
+
+- [ ] There is **no Topics tile on the dashboard**, for anybody. The user's decision, 2026-09-23:
+      "I don't think that's really necessary. If anything I'd probably rather just have that
+      accessible from within the Sacrament module"
+- [ ] `/sacrament` carries a row of module shortcuts under its heading, and **Topics is one of
+      them**
+- [ ] The shortcut lands on this page — it is not offered and then refused
+- [ ] ⚠️ **The AI candidate queue is still reachable.** This page is its only home, and CLAUDE.md
+      rule 3 forbids AI output reaching a row without an explicit accept. If removing the tile has
+      made the queue unreachable, stop and say so — that is the one failure in this slice that
+      breaks a non-negotiable rule
+- [ ] `secretary` sees **no Topics shortcut** on `/sacrament`. They hold no topics permission, so
+      the link must be absent rather than rendered and refused on arrival
 
 The library and its order
 
@@ -134,6 +151,8 @@ Permissions
 - [ ] `secretary` gets a **"Not permitted"** page, not an empty library. `topics.view` is
       bishopric-only in both `lib/auth/permissions.ts` and migration 019, so an empty library
       would be a different and misleading claim
+- [ ] Step 19b: `secretary` holds `talks.view`, so they open `/sacrament` — and the row there
+      carries **no Topics shortcut**, because they do not hold `topics.view`
 - [ ] `counselor1` sees **exactly** what the bishop sees, with every control the bishop has.
       CLAUDE.md §7: bishopric authority is shared, and any difference here is a bug
 

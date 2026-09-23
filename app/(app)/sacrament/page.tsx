@@ -1,9 +1,11 @@
 import { MonthNavigation } from "@/app/(app)/calendar/MonthNavigation";
 import { SacramentCalendar } from "@/app/(app)/sacrament/SacramentCalendar";
+import { ModuleShortcutRow } from "@/components/layout/ModuleShortcutRow";
 import type { SundayCardProps } from "@/components/sacrament/SundayCard";
 import { Card } from "@/components/ui/Card";
 import { NotPermitted } from "@/components/ui/NotPermitted";
 import { listAssignments } from "@/lib/assignments/queries";
+import { shortcutNavigationItems } from "@/lib/auth/navigation";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import {
@@ -51,6 +53,33 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 // calendar-c's half-generated months, which app/(app)/assignments/page.tsx records at its own
 // listSundays call for the same reason.
 //
+// ---------------------------------------------------------------------------
+// THE SHORTCUT ROW — p4-sacrament-b1
+// ---------------------------------------------------------------------------
+// The prototype's `.sac-nav`, a STANDING CONVENTION rather than a one-off (module-map.md §6.4).
+// Its row is eight: Ward List, Conducting, Topics, Music, Messages, Assignments, Program, To-Do.
+// Below is that order, narrowed to what WLT has a NAVIGATION_ITEMS row for — which is the whole
+// reason this is a list of HREFS and not a list of labels and icons. Conducting, Messages and
+// To-Do are P5's, P10's and the Conducting Sheet's; when one is built it gains a row in
+// lib/auth/navigation.tsx and appears here with no edit to this constant beyond its href.
+//
+// ⚠️ `/assignments` IS ABSENT, AND IT IS THE ONE OMISSION WORTH EXPLAINING. p4-sacrament-a
+// deliberately removed its NAVIGATION_ITEMS row — three tiles for one module is what this hub
+// exists to undo — and shortcutNavigationItems() can only resolve an href that HAS a row, which
+// is the constraint working rather than failing. Nothing became unreachable: every Sunday's
+// Topics and Talks pills, a few centimetres below this row, open /assignments/[id] for that date.
+// Whether the cross-month LIST at /assignments deserves a row of its own is a real question and
+// belongs to a slice that can answer it, not to a shortcut row.
+//
+// ORDER IS THE PROTOTYPE'S, not NAVIGATION_ITEMS'. shortcutNavigationItems() preserves what it
+// is given for exactly this reason.
+const SACRAMENT_SHORTCUT_HREFS = [
+  "/roster",
+  "/talks/topics",
+  "/music",
+  "/program",
+] as const;
+
 // searchParams is a Promise in Next 16, typed explicitly rather than with the generated PageProps
 // helper — that only exists after a build (plans/retros/foundation-a-scaffold.md).
 export type SacramentPageProps = {
@@ -125,6 +154,13 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
   // Resolved ONCE, outside the map, from the roleAccess already in hand (CLAUDE.md rule 10).
   const canOpenSundayEditor = can(user, "calendar.view", roleAccess);
 
+  // FILTERED WITH THE SAME HELPER THE DASHBOARD USES, from the same roleAccess. This page gates on
+  // `talks.view` and /talks/topics gates on `topics.view`, which is BISHOPRIC-ONLY — a
+  // music_coordinator holds the first and not the second. Rendering the row unfiltered would
+  // offer them a link that refuses on arrival, which is youth-a-D1 and p4-sacrament-a's
+  // conducting link, both from the same direction.
+  const shortcuts = shortcutNavigationItems(user, roleAccess, SACRAMENT_SHORTCUT_HREFS);
+
   const cards: SundayCardProps[] = sundays.map((sunday) => ({
     sundayId: sunday.id,
     date: sunday.date,
@@ -171,6 +207,9 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
           basePath="/sacrament"
         />
       </div>
+
+      {/* Under the heading and above the calendar — the prototype's placement exactly. */}
+      <ModuleShortcutRow items={shortcuts} label="Related modules" />
 
       {sundays.length === 0 ? (
         <Card>

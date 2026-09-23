@@ -343,7 +343,7 @@ This section catalogues **interaction**, because the two are independent: the Mu
 new behaviours, all four were respected, and the page still came out wrong because nothing said it
 was a collapsed list.
 
-Read this alongside your module's row. If your module is not in §6.4, open the component in
+Read this alongside your module's row. If your module is not in §6.5, open the component in
 `prototype/WLT.jsx` and add it **before planning** — the same rule §1 already applies to a missing
 verdict row.
 
@@ -431,7 +431,77 @@ same fact §6.3 opens with. **A later page copying the prototype's fallback woul
 duplication** — `tests/components/layout/ContextualBackLink.test.tsx` fails if it comes back.
 Every later page should reuse this component rather than growing its own.
 
-### 6.4 The catalogue
+### 6.4 The module shortcut row — `.sac-nav`, a STANDING CONVENTION and a shared class
+
+**Added 2026-09-23, found by the user on the deployed build and missed by the original harvest.**
+§6.1–6.3 catalogue how a page's *list* is worked. This is about how a page links to **other
+modules**, and the prototype has one answer for it that it states as a rule.
+
+The Sacrament hub renders a row of **eight** shortcut buttons under its header
+(`prototype/WLT.jsx` §`SacramentPage` ~5203, from the module-level `NAV_LINKS` ~4805):
+
+| | | | | | | | |
+|---|---|---|---|---|---|---|---|
+| Ward List | Conducting | **Topics** | Music | Messages | Assignments | Program | To-Do |
+
+Each is an icon plus a label, and **each icon is the destination's own Dashboard tile icon** —
+deliberately, so the shortcut is recognisable rather than arbitrary.
+
+**⚠️ THIS IS A STANDING CONVENTION, IN THE PROTOTYPE'S OWN WORDS.** Build note
+§`global-stylesheet-nav-consistency` puts `.sac-nav` / `.sac-nav-link` in the *global* stylesheet
+precisely so it is not re-invented per page, and says:
+
+> "STANDING CONVENTION FOR FUTURE BUILDS: any page's row of nav links to other modules should use
+> `.sac-nav`/`.sac-nav-link` from the global stylesheet, not a one-off `.btn` row or new CSS."
+
+It is already used on **two** pages — Sacrament, and the Conducting Sheet, whose row is
+Sacrament / Music / Program / Agendas / Ward Calendar (~12246). So in WLT this is a **shared
+component**, not a per-page block: whichever slice builds the second row should extract it, and
+`decisions.md` §1's *"generalize a component the second time it is needed, not the third"* already
+names that moment.
+
+**WHAT THIS SETTLES ABOUT `/talks/topics`.** §2.1 correction (b) established that the topic
+library is a WLT-only supporting surface the hub **links to** and does not absorb — that stands,
+and this is *where* the link goes. **Topics does not need a dashboard tile**: the user's decision,
+2026-09-23, on seeing it deployed. It is bishopric-only, it is not a destination somebody opens
+cold, and the prototype reaches it from exactly one place — this row.
+
+**AND WHAT IT DOES NOT SETTLE.** The row is a set of LINKS. Moving the Topics entry point into it
+does not decide what the topic page should *show* — the user's ask is a view of **topics used
+recently and who spoke on them**, so a conductor planning a month can avoid repeating one. That is
+a real change to the page behind the link and is scoped with it, not assumed by it.
+
+**THE TRAP, and it is the reason this cannot be a one-line tile deletion.** `/talks/topics` is
+also the only home for the **AI topic candidate queue** — generated topics a bishop accepts or
+rejects. CLAUDE.md rule 3 forbids AI output reaching a row without explicit approval, so removing
+the tile without rehoming that queue makes the approval step unreachable and quietly breaks the
+rule. Name its new home in the plan.
+
+**BUILT — 2026-09-23, P4 slice `b1`** (`plans/sacrament-topics-finalize-and-history.md`).
+`components/layout/ModuleShortcutRow.tsx` is the shared component this section asked for, from the
+day the first row shipped rather than the second — so the Conducting Sheet slice adds a caller
+rather than a second block of markup.
+
+**THE ROW IS DRIVEN FROM `NAVIGATION_ITEMS`, WHICH IS THE WHOLE POINT.** `NavigationItem` gained
+`onDashboard?: boolean` (absent means true) and the Topics row carries `onDashboard: false` — so
+the tile is withheld and **the entry survives**, carrying the label, the icon, the permission and
+the `built` flag that a hardcoded shortcut would have re-typed and drifted from.
+`shortcutNavigationItems(user, roleAccess, hrefs)` takes the hrefs the page wants and filters them
+**built AND permitted**, which is the same rule the grid uses and the reason a
+`music_coordinator` — who holds `talks.view` and not `topics.view` — is offered no Topics link at
+all rather than one that refuses on arrival.
+
+**THE ROW IS SHORT TODAY, AND THAT IS THE CONSTRAINT WORKING.** Of the prototype's eight, WLT has
+a navigation row for four: **Ward List, Topics, Music, Program**. Conducting, Messages and To-Do
+are unbuilt and `built: false` keeps them out with no edit to the hub. `/assignments` is absent
+because `p4-sacrament-a` deliberately removed its row — and nothing became unreachable, because
+every Sunday's Topics and Talks pills sit a few centimetres below the row and open
+`/assignments/[id]` for that date.
+
+**THE QUEUE KEPT ITS HOME.** The page was not deleted; only the tile was. `lib/auth/navigation.tsx`
+says so at the Topics row, because the next reader will wonder whether rule 3 was considered.
+
+### 6.5 The catalogue
 
 | Prototype page | Shape | Jump target? | Contextual back link |
 |---|---|---|---|

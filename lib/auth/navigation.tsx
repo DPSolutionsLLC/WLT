@@ -79,6 +79,25 @@ export type NavigationItem = {
   accent: TileAccent;
   // Is there a page at this href, reachable from the app shell? See the header above.
   built: boolean;
+  // ---------------------------------------------------------------------------
+  // `onDashboard` — A ROW THAT BELONGS TO THE LIST BUT NOT TO THE GRID
+  // ---------------------------------------------------------------------------
+  // ABSENT MEANS TRUE, so every row above keeps its behaviour with no edit — the same
+  // absent-means-default idiom `household_stewardships` and `youth_activity_profiles.org_id`
+  // already use, and the reason this field could be added without touching fifteen entries.
+  //
+  // `false` means: this module is real, built and permission-gated exactly like any other, and it
+  // is simply not a place somebody STARTS from. It is reached from the page that owns it.
+  // DELETING SUCH A ROW IS THE WRONG FIX and is the instinct this field exists to head off — the
+  // label, the icon, the permission and the `built` flag would then be re-typed into whichever
+  // component links to it, and one list hand-maintained in two places always drifts
+  // (plans/retros/notification-trigger-drift.md).
+  //
+  // CONSEQUENCE, STATED RATHER THAN DISCOVERED: the quick-links modal takes the dashboard's own
+  // list, so a module withheld from the grid cannot be PINNED either. That is coherent — a pin is
+  // a shortcut to a tile — and an already-pinned href is dropped from the view rather than
+  // rendered as a link to nowhere (components/layout/QuickLinksButton.tsx does that already).
+  onDashboard?: boolean;
 };
 
 export const NAVIGATION_SECTIONS: readonly {
@@ -122,6 +141,20 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
     accent: "pine",
     built: true,
   },
+  // ---------------------------------------------------------------------------
+  // TOPICS IS REACHED FROM THE SACRAMENT HUB'S SHORTCUT ROW, NOT FROM THE DASHBOARD
+  // ---------------------------------------------------------------------------
+  // The user's decision, 2026-09-23, on seeing it deployed: "I don't think that's really
+  // necessary. If anything I'd probably rather just have that accessible from within the
+  // Sacrament module." The prototype has agreed since the beginning — its Sacrament hub carries a
+  // `.sac-nav` row of eight shortcuts and Topics is one of them (module-map.md §6.4).
+  //
+  // ⚠️ THE ROW SURVIVES AND THE TILE DOES NOT. `/talks/topics` is the ONLY home for the AI topic
+  // candidate accept/reject queue (app/(app)/talks/topics/CandidateQueue.tsx, rendered inside
+  // TopicList), and CLAUDE.md rule 3 is that no AI output reaches a row without explicit
+  // approval. The page is untouched; only the TILE is withheld, and the shortcut row is what
+  // keeps the queue reachable. That was considered rather than overlooked — say so here, because
+  // the next reader will wonder.
   {
     label: "Topics",
     href: "/talks/topics",
@@ -131,6 +164,7 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
     icon: <Lightbulb />,
     accent: "pine",
     built: true,
+    onDashboard: false,
   },
   {
     label: "Program",
@@ -294,11 +328,55 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
 // BUILT *AND* PERMITTED, IN THAT ORDER. Permission alone is what produced the standing
 // broken-link bug CLAUDE.md §9 records: a bishop holds `audit.view`, so the audit log was offered
 // on every page and 404'd on every click.
+//
+// ONE FILTER, SHARED BY BOTH VIEWS BELOW. The dashboard grid and a page's shortcut row are two
+// VIEWS of one list and differ in exactly one flag; copying this predicate into the second one is
+// how they come to disagree about whether an unbuilt module may be linked to.
+function isReachable(
+  item: NavigationItem,
+  user: SessionUser,
+  roleAccess: RoleAccess,
+): boolean {
+  return item.built && can(user, item.permission, roleAccess);
+}
+
+// THE DASHBOARD GRID, and — through it — the quick-links modal. Reachable, and meant to be
+// started from.
 export function visibleNavigationItems(
   user: SessionUser,
   roleAccess: RoleAccess,
 ): NavigationItem[] {
   return NAVIGATION_ITEMS.filter(
-    (item) => item.built && can(user, item.permission, roleAccess),
+    (item) => item.onDashboard !== false && isReachable(item, user, roleAccess),
   );
+}
+
+// A PAGE'S ROW OF LINKS TO OTHER MODULES — the prototype's `.sac-nav`, which build note
+// §global-stylesheet-nav-consistency states as a STANDING CONVENTION rather than a one-off
+// (module-map.md §6.4). components/layout/ModuleShortcutRow.tsx renders what this returns.
+//
+// IT TAKES THE HREFS THE PAGE WANTS, and that is the whole difference between a shortcut row and
+// a dashboard. WHICH modules belong beside the Sacrament hub is a fact about that page; WHAT each
+// of them is called, which icon it carries and who may open it is a fact about the module, and
+// stays in NAVIGATION_ITEMS. A page that spelled its own labels and icons would be the second
+// copy this file's header refuses.
+//
+// It does NOT consult `onDashboard`. Topics is withheld from the grid precisely so that this is
+// where it is reached from, so honouring that flag here would leave it with no entry point at all.
+//
+// THE GIVEN ORDER IS KEPT, not NAVIGATION_ITEMS' — the prototype's row has its own order and the
+// caller is the only thing that knows it. An href naming no row, or naming an unbuilt or
+// unpermitted one, is silently absent: that is the same conservative direction `built` already
+// takes, and a row of links must never offer one that refuses on arrival (youth-a-D1).
+export function shortcutNavigationItems(
+  user: SessionUser,
+  roleAccess: RoleAccess,
+  hrefs: readonly string[],
+): NavigationItem[] {
+  return hrefs
+    .map((href) => NAVIGATION_ITEMS.find((item) => item.href === href))
+    .filter(
+      (item): item is NavigationItem =>
+        item !== undefined && isReachable(item, user, roleAccess),
+    );
 }

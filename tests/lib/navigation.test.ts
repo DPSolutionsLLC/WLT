@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   NAVIGATION_ITEMS,
   NAVIGATION_SECTIONS,
+  shortcutNavigationItems,
   visibleNavigationItems,
 } from "@/lib/auth/navigation";
 import {
@@ -104,11 +105,14 @@ describe("role-filtered navigation", () => {
     expect(hrefsFor("counselor")).toEqual(hrefsFor("bishop"));
   });
 
-  // BUILT *and* PERMITTED. This compares against the FILTERED list rather than against all of
-  // NAVIGATION_ITEMS, because `built: false` rows are withheld from everybody including a bishop.
-  it("gives the bishop every BUILT item", () => {
+  // BUILT *and* PERMITTED *and* ON THE DASHBOARD. This compares against the FILTERED list rather
+  // than against all of NAVIGATION_ITEMS, because `built: false` rows are withheld from everybody
+  // including a bishop — and since p4-sacrament-b1, so are `onDashboard: false` rows.
+  it("gives the bishop every BUILT item that belongs on the dashboard", () => {
     expect(hrefsFor("bishop")).toEqual(
-      NAVIGATION_ITEMS.filter((item) => item.built).map((item) => item.href),
+      NAVIGATION_ITEMS.filter((item) => item.built && item.onDashboard !== false).map(
+        (item) => item.href,
+      ),
     );
   });
 
@@ -233,15 +237,27 @@ describe("role-filtered navigation", () => {
     expect(hrefs).not.toContain("/prayers");
   });
 
-  // KEPT, and deliberately so. /talks/topics is the ward-level topic LIBRARY a slot's topic is
-  // chosen FROM — not a per-Sunday view — so the hub links to it rather than absorbing it
-  // (plans/prototype/module-map.md §2.1, correction b).
-  it("keeps the topic library as its own tile", () => {
+  // KEPT AS A ROW, AND NO LONGER A TILE — p4-sacrament-b1. /talks/topics is the ward-level topic
+  // LIBRARY a slot's topic is chosen FROM — not a per-Sunday view — so the hub links to it rather
+  // than absorbing it (plans/prototype/module-map.md §2.1, correction b). The user decided on
+  // 2026-09-23 that the link belongs in the hub's shortcut row rather than on the dashboard.
+  //
+  // THE ROW ITSELF IS ASSERTED TO SURVIVE, because deleting it is the instinct `onDashboard`
+  // exists to head off: the label, the icon and the permission would then be re-typed into the
+  // component that links to it.
+  it("keeps the topic library in the list, gated on topics.view, and off the dashboard", () => {
     const topics = NAVIGATION_ITEMS.find((item) => item.href === "/talks/topics");
 
     expect(topics).toBeDefined();
     expect(topics?.permission).toBe("topics.view");
     expect(topics?.built).toBe(true);
+    expect(topics?.onDashboard).toBe(false);
+  });
+
+  it("offers the topic library to nobody on the dashboard, not even a bishop", () => {
+    for (const role of ROLES) {
+      expect(hrefsFor(role)).not.toContain("/talks/topics");
+    }
   });
 
   // The bishopric, and the super admin — who reaches it for the ordinary reason that they hold
@@ -298,5 +314,105 @@ describe("role-filtered navigation", () => {
     // The defaults it never mentioned are still there — the point of deltas.
     expect(hrefs).toContain("/music");
     expect(hrefs).toContain("/calendar");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE SHORTCUT ROW — p4-sacrament-b1
+// ---------------------------------------------------------------------------
+// The dashboard grid and a page's row of links to other modules are two VIEWS of one list. They
+// differ in exactly ONE flag, and these assertions are what keeps the difference to one flag: an
+// unbuilt or unpermitted href must be absent from BOTH, and only `onDashboard` may separate them.
+describe("shortcut navigation", () => {
+  const SACRAMENT_ROW = ["/roster", "/talks/topics", "/music", "/program"] as const;
+
+  function shortcutsFor(role: Role, hrefs: readonly string[] = SACRAMENT_ROW): string[] {
+    return shortcutNavigationItems(sessionUser(role), ROLE_PERMISSIONS, hrefs).map(
+      (item) => item.href,
+    );
+  }
+
+  // The whole point of the slice: Topics left the dashboard and has exactly one entry point now.
+  it("offers the topic library to a bishop", () => {
+    expect(shortcutsFor("bishop")).toContain("/talks/topics");
+  });
+
+  // THE OFFERED-THEN-REFUSED NEGATIVE. A music_coordinator holds `talks.view`, so they open the
+  // Sacrament hub, and does NOT hold `topics.view`, which is bishopric-only — so the link must be
+  // ABSENT rather than rendered and refused on arrival (youth-a-D1).
+  it("withholds the topic library from a music coordinator, who can open the hub", () => {
+    expect(can(sessionUser("music_coordinator"), "talks.view", ROLE_PERMISSIONS)).toBe(true);
+    expect(can(sessionUser("music_coordinator"), "topics.view", ROLE_PERMISSIONS)).toBe(false);
+
+    const hrefs = shortcutsFor("music_coordinator");
+
+    expect(hrefs).not.toContain("/talks/topics");
+    // Not empty — the row still renders, which is what makes the absence a filter rather than a
+    // broken read.
+    expect(hrefs).toContain("/music");
+  });
+
+  it("withholds the roster from a music coordinator too", () => {
+    expect(shortcutsFor("music_coordinator")).not.toContain("/roster");
+  });
+
+  // BUILT *and* permitted, the same rule and in the same order as the grid. `/admin/audit-log` is
+  // permitted to a bishop and has no page, which is the standing broken-link bug CLAUDE.md §9
+  // records — a shortcut row must not be a second way to reach it.
+  it("never offers an unbuilt item, even to somebody who holds its permission", () => {
+    const unbuilt = NAVIGATION_ITEMS.filter((item) => !item.built);
+
+    expect(unbuilt.length).toBeGreaterThan(0);
+
+    for (const item of unbuilt) {
+      expect(
+        shortcutsFor("bishop", [item.href]),
+        `"${item.href}" is unbuilt and must not be offered`,
+      ).toEqual([]);
+    }
+  });
+
+  // An href naming no row at all is silently absent rather than throwing. A page's row is a
+  // constant somebody edits; a typo in it must cost one missing link, not a 500 on the hub.
+  it("ignores an href that names no navigation item", () => {
+    expect(shortcutsFor("bishop", ["/nothing-here"])).toEqual([]);
+  });
+
+  // THE CALLER'S ORDER, NOT NAVIGATION_ITEMS'. The prototype's row has its own order and the page
+  // is the only thing that knows it.
+  it("keeps the order it was given", () => {
+    expect(shortcutsFor("bishop", ["/program", "/music", "/talks/topics"])).toEqual([
+      "/program",
+      "/music",
+      "/talks/topics",
+    ]);
+  });
+
+  // The flag separates the two views and nothing else does. If this fails, the two filters have
+  // drifted apart.
+  it("offers a bishop everything the dashboard does, plus the off-dashboard rows", () => {
+    const everyHref = NAVIGATION_ITEMS.map((item) => item.href);
+    const shortcuts = shortcutsFor("bishop", everyHref);
+
+    for (const href of hrefsFor("bishop")) {
+      expect(shortcuts, `"${href}" is on the dashboard but not offerable as a shortcut`).toContain(
+        href,
+      );
+    }
+
+    expect(shortcuts).toContain("/talks/topics");
+  });
+
+  it("honours a ward override that narrows a role", () => {
+    const roleAccess = mergeRoleAccess({ bishop: { remove: ["topics.view"] } });
+
+    const hrefs = shortcutNavigationItems(
+      sessionUser("bishop"),
+      roleAccess,
+      SACRAMENT_ROW,
+    ).map((item) => item.href);
+
+    expect(hrefs).not.toContain("/talks/topics");
+    expect(hrefs).toContain("/music");
   });
 });
