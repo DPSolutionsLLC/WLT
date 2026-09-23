@@ -2,7 +2,7 @@
 id: p4-sacrament-a-hub-and-reskin
 type: feature
 iter: null
-commits: ["7e3d30f"]
+commits: ["c39e70f"]
 date: 2026-09-22
 files:
   - lib/sacrament/sundayStatus.ts
