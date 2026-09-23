@@ -386,6 +386,19 @@ with a month board and `MonthNavigation`. **The user reversed that on 2026-09-23
 this. The 8 is an arbitrary client-side constant and WLT is free to change it; keep it unless
 there is a reason, since a jumped-to date is reachable either way.
 
+**BUILT IN WLT — 2026-09-23** (`plans/music-collapsed-list-and-rolling-year.md`). Items 1, 2, 3,
+5 and 6 are shipped: `lib/music/sundayWindow.ts` owns the 8 and the insert,
+`app/(app)/music/MusicSundayList.tsx` owns the single `openSundayId`, and the Music pill carries
+`?sunday=<id>&from=sacrament#sunday-<id>`.
+
+**ITEM 4 AND THE WORKFLOW PILL OF ITEM 2 ARE NOT BUILT, DELIBERATELY — they are P4 slice `b`'s**
+(Topics finalize), and were not missed. Neither concept exists in WLT: there is no
+`topics_finalized` or `topicsFinalized` anywhere in the repo, and `decisions.md` §1.15 is explicit
+that finalize is *"a conductor's deliberate click, **not** derived from every slot happening to
+have a topic"* — so dimming a card because its Sunday happens to have topics assigned would tell a
+coordinator the topics were settled when nobody had said so. The collapsed card therefore carries
+the completion pill alone. Add both in the same change that adds the concept.
+
 ### 6.3 The contextual back link — ~17 pages, and WLT has sanctioned it but built none
 
 Nearly every prototype page captures where you came from **once at mount** via
@@ -401,12 +414,29 @@ says, in as many words, that **per-page contextual back links are safe precisely
 chrome bar's is not**, captured once at mount so they cannot cycle — and that P3 built none of
 them. So this is an unbuilt sanctioned behaviour, not a decision to revisit.
 
+**THE FIRST ONE IS NOW BUILT — `components/layout/ContextualBackLink.tsx`, 2026-09-23.** It
+departs from the prototype in **two** ways, both on purpose.
+
+**The origin is a query parameter (`?from=`), not a ref captured at mount.** That is strictly
+better here — it survives a refresh, a shared link and a restored tab, where a ref does not — and
+it costs nothing, because the only links into these pages are ones WLT builds itself. `from` is
+resolved through an **allowlist** and is never rendered or navigated to as free text.
+
+**⚠️ THERE IS NO "Back to Dashboard" FALLBACK. No origin means NO LINK** — decided by the user on
+2026-09-23 after the first build shipped with the prototype's fallback and scenario 072's walk
+showed the result: WLT's chrome bar already carries an **unconditional** "← Dashboard" on every
+page, so a page reached from the navigation rendered **two stacked back links to the same place**.
+The prototype needs its fallback because its global link is broken; WLT's is not, which is the
+same fact §6.3 opens with. **A later page copying the prototype's fallback would reintroduce the
+duplication** — `tests/components/layout/ContextualBackLink.test.tsx` fails if it comes back.
+Every later page should reuse this component rather than growing its own.
+
 ### 6.4 The catalogue
 
 | Prototype page | Shape | Jump target? | Contextual back link |
 |---|---|---|---|
 | Sacrament | Month calendar (`HomeCalendar`, `visibleMonths`) + sub-view machine | — | — |
-| Music | Single-open date list (8 Sundays) | ✓ `jumpToDateKey` | ✓ |
+| Music | Single-open date list (8 Sundays) | ✓ `jumpToDateKey` | ✓ **built** |
 | Program | Single-open date list (8 Sundays) | ✓ `jumpToDateKey` | ✓ |
 | Conducting | **Week offset**, not a list — a jump sets the offset | ✓ `jumpToDateKey` | ✓ |
 | Ward Calendar | `viewMode` month/other + single-open event | ✓ `initialOpenEventId` | ✓ |

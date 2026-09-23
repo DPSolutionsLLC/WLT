@@ -69,12 +69,27 @@ land first.
 > claiming nothing was on the calendar. `sundayPillHrefs()` moved out of the hub page into
 > `lib/sacrament/sundayStatus.ts` so the href rule is testable. **This completes slice `a`.**
 >
-> ⚠️ **THE MONTH BOARD IS BEING REVERSED — 2026-09-23.** The prototype's `/music` is a
-> **collapsed list of 8 rolling Sundays** you click into, and it closes 072-D1 by inserting a
-> jumped-to date rather than by adding month navigation. Recorded in
+> ⚠️ **THE MONTH BOARD WAS REVERSED — SHIPPED 2026-09-23**
+> (`plans/music-collapsed-list-and-rolling-year.md`). The prototype's `/music` is a **collapsed
+> list of 8 rolling Sundays** you click into, and it closes 072-D1 by inserting a jumped-to date
+> rather than by adding month navigation. Recorded in
 > [prototype/module-map.md](prototype/module-map.md) §6.2, which is new: the harvest carried no
-> navigation at all, which is why this was missed. `sundayPillHrefs()` and the anchor survive;
-> `MonthNavigation` on `/music` does not.
+> navigation at all, which is why this was missed. `sundayPillHrefs()` and the `#sunday-<id>`
+> anchor survive; `MonthNavigation` on `/music`, `parseMonthParam` and the month range do not,
+> and the Music href now carries `?sunday=<id>&from=sacrament`.
+>
+> That change shipped with two more things worth finding from here. **A rolling 12-month horizon
+> of Sundays** (`ensureHorizonGenerated()`, called from `/calendar` under the existing
+> `calendar.manage` gate) — no UI, and it removes the round trip through the calendar for every
+> Sunday-keyed module at once, which is why it was its own slice. And
+> **`components/layout/ContextualBackLink.tsx`**, the first of the ~17 contextual back links
+> module-map.md §6.3 catalogues.
+>
+> **THIS COMPLETES SLICE `a` FOR THE SECOND TIME.** Module 1 moves to `b` (Topics finalize),
+> which owns the two things §6.2 names and this slice deliberately did NOT build: the
+> `Topics pending` dimmed card and the `Draft`/`Pending approval`/`Approved` workflow pill.
+> Neither concept exists in WLT — there is no `topics_finalized` anywhere — and inferring one
+> from "this Sunday has topics assigned" is exactly what decisions.md §1.15 forbids.
 
 The chain is the point: **Topics → References → Talks → Prayers**, each with an explicit
 finalize, each gating the next. Finalizing Talks **generates real to-dos** — which means this

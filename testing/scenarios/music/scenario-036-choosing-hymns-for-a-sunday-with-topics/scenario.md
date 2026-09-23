@@ -62,26 +62,39 @@ one-and-none side of the same check.
 1. `npm run seed -- music/scenario-036-choosing-hymns-for-a-sunday-with-topics`
 2. `npm run dev`, then open http://localhost:3000
 3. Sign in as the music coordinator.
-4. Open **Music** from the sidebar, then use **Next** until the heading reads
-   **Music — November 2026**. `/music` is a MONTH board and lands on the current month
-   (p4-sacrament-music-month, closing 072-D1); the two seeded Sundays are in November.
-5. On **Sunday, November 1**, read the topics listed under "Talks that Sunday".
+4. Open **Music** from the sidebar. `/music` is a **collapsed rolling list** of the next few
+   Sundays — no month navigation. Both seeded Sundays are roughly six weeks out, so both are in
+   the list already.
+5. Expand **Sunday, November 1** by pressing its card, then read the topics listed under "Talks
+   that Sunday".
 6. Press **Suggest hymns**. Wait for the shortlist.
 7. **Open a physical hymnbook** and look up three of the suggested numbers.
 8. Accept one suggestion into a slot — press "Use as sacrament", say.
 9. Fill the remaining slot with **Choose** → search by title or subject.
 10. Search for `43` in the picker and look at what comes back.
 11. Navigate to **Calendar** and back to **Music** without accepting the rest of the shortlist
-    (you will land on the current month again — return to November 2026).
-12. Scroll to **Sunday, November 8** — the one with no topics — and choose a hymn there by search.
+    (the list comes back collapsed — expand November 1 again).
+12. Press **Sunday, November 8** — the one with no topics — and choose a hymn there by search.
 
 ## Verification Checklist
 
 ### Machine-checkable
 
 - [ ] The Music link appears in the sidebar for the music coordinator
-- [ ] The heading names a month — **Music — November 2026** — and every Sunday listed holds a
-      sacrament meeting
+- [ ] **The music coordinator opening `/calendar` creates NO Sunday rows.** Count
+      `select count(*) from sundays where ward_id = '<ward>'` before and after. This is the one
+      fixture in the harness that can prove the generation gate: a `music_coordinator` holds
+      `calendar.view` and **not** `calendar.manage`, so they reach the page and must still not
+      write. **Moved here from scenario 072 during the 2026-09-23 walk**, which found that 072's
+      only non-manager is an `org_president` holding neither permission — refused at the view
+      gate, so it wrote nothing for the wrong reason
+- [ ] The page opens as a **collapsed list — no card expanded** — and there is **no month
+      navigation** on it
+- [ ] **Every Sunday listed holds a sacrament meeting.** A stake conference or a general
+      conference Sunday is absent entirely, not greyed out
+- [ ] Expanding a second card **collapses the first**. One open at a time
+- [ ] Each collapsed card carries the date and an `n/3 chosen` pill; November 1 reads `1/3
+      chosen` before step 8 and `3/3 chosen` once both slots are filled
 - [ ] Sunday A's card shows the opening hymn as `19 — We Thank Thee, O God, for a Prophet` and the other two slots as "Not chosen yet"
 - [ ] Sunday A's card counts only the EMPTY slots — two, not three. With two empty it reads
   "2 hymns still to choose"; with one empty, "One hymn still to choose"; with none,
@@ -123,10 +136,17 @@ one-and-none side of the same check.
 
 ## Walkthrough record
 
-> **NOT RE-WALKED SINCE `/music` BECAME A MONTH BOARD — 2026-09-23.** Steps 4 and 11 and the
-> first machine-checkable item changed with it (`plans/p4-sacrament-music-month.md`); the walk
-> below predates that and its "Six Sundays or fewer" observation no longer describes the app.
-> Everything it records about hymns, topics, the AI shortlist and the leak checks is unaffected.
+> **NOT RE-WALKED SINCE `/music` BECAME A COLLAPSED LIST — 2026-09-23.** The page changed shape
+> twice in one day: first to a month board (`plans/p4-sacrament-music-month.md`), then — on the
+> user's decision after seeing that deployed — back to the prototype's **collapsed rolling list**
+> with the jumped-to Sunday inserted (`plans/music-collapsed-list-and-rolling-year.md`,
+> module-map.md §6.2). Steps 4, 5, 11 and 12 and the first machine-checkable items were rewritten
+> for the second shape; the month-navigation step is gone entirely, because both seeded Sundays
+> are within the 8-Sunday window.
+>
+> The walk below predates both, and its "Six Sundays or fewer" observation no longer describes
+> the app. Everything it records about hymns, topics, the AI shortlist and the leak checks is
+> unaffected — those live inside the expanded card, which did not change.
 
 **Walked 2026-08-25 by Claude, driven through a real browser (Playwright MCP) against the hosted
 project, with every write read back through the service-role client. The five judgement items were

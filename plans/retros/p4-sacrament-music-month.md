@@ -19,13 +19,20 @@ related:
 fixes: p4-sacrament-a-hub-and-reskin
 ---
 
-> ⚠️ **THE FIX IN THIS RETRO IS BEING REVERSED — 2026-09-23.** The defect was real and the
-> diagnosis holds; the *mechanism* was wrong. The prototype solves 072-D1 by keeping a rolling
-> list and **inserting the jumped-to date into it**, not by replacing the horizon with a month
-> board. The user reversed the month decision after seeing `/music` deployed. See
-> `plans/prototype/module-map.md` §6.2 for the shape it becomes. Kept as written because the
-> "Pattern" section below is still the useful part — and because it turns out to have been
-> pointing at its own cause.
+> ⚠️ **THE FIX IN THIS RETRO WAS REVERSED — 2026-09-23, by
+> [music-collapsed-list-and-rolling-year](music-collapsed-list-and-rolling-year.md).** The defect
+> was real and the diagnosis holds; the *mechanism* was wrong. The prototype solves 072-D1 by
+> keeping a rolling list and **inserting the jumped-to date into it**, not by replacing the
+> horizon with a month board. The user reversed the month decision after seeing `/music`
+> deployed. See `plans/prototype/module-map.md` §6.2 for the shape it became.
+>
+> **What survived:** `sundayPillHrefs()` in `lib/sacrament/sundayStatus.ts` and its tests (moving
+> the href rule out of the page was right), the `#sunday-<id>` anchor on the card, and the
+> two-empty-states insight — a window has more than one way to be empty, exactly as a month does.
+> **What went:** `MonthNavigation` on `/music`, `parseMonthParam` there, and the month range.
+>
+> Kept as written because the "Pattern" section below is still the useful part — and because it
+> turns out to have been pointing at its own cause.
 
 ## What was broken
 

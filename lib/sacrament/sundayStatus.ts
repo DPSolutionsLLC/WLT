@@ -221,12 +221,26 @@ export function sundayHasPills(type: SundayType): boolean {
 // LIBRARY a slot's topic is chosen FROM (module-map.md §2.1, correction 2). The near-collision
 // in the two names is the single most likely thing to get backwards here.
 //
-// `/music` IS A MONTH BOARD, so the Music pill carries the month and the Sunday anchor exactly
-// as Prayer does. It used to carry neither: /music was a rolling six-Sunday horizon from today
-// with no date parameter, so a pill reporting real work on a Sunday more than six weeks out
-// opened a page saying there were no sacrament meetings on the calendar at all. That is 072-D1,
-// found by walking scenario 072, and this href plus app/(app)/music/page.tsx's month parameter
-// are the two halves of the fix.
+// `/music` IS A ROLLING LIST THAT INSERTS THE SUNDAY YOU JUMPED TO, so the Music pill names the
+// SUNDAY rather than its month. It used to name neither: /music was a rolling six-Sunday horizon
+// with no date parameter at all, so a pill reporting real work on a Sunday more than six weeks
+// out opened a page saying there were no sacrament meetings on the calendar (072-D1, found by
+// walking scenario 072).
+//
+// ⚠️ `06910f8` CLOSED THAT BY MAKING /music A MONTH BOARD, and this paragraph said so. THE USER
+// REVERSED IT ON 2026-09-23 after seeing it deployed: the prototype closes the same defect by
+// keeping the rolling list and inserting the jumped-to date into it in date order
+// (module-map.md §6.2 item 6). The diagnosis was right both times; only the mechanism moved.
+//
+// THE QUERY PARAMETER AND THE FRAGMENT ARE NOT REDUNDANT. `?sunday=` is what OPENS that card —
+// /music is a collapsed list, so without it the reader lands on a closed row. `#sunday-<id>` is
+// what SCROLLS to it, and it does that with no JavaScript. Dropping either leaves half a jump.
+//
+// `&from=sacrament` is read by components/layout/ContextualBackLink.tsx, which resolves it
+// through an allowlist and never renders or navigates to it as free text.
+//
+// PRAYER DID NOT CHANGE. /prayers is a month board in the prototype AND here, so its pill still
+// carries a month. The two pills reading differently is the decision, not an oversight.
 export function sundayPillHrefs(
   sundayId: string,
   date: DateOnly,
@@ -236,10 +250,9 @@ export function sundayPillHrefs(
   return {
     topics: assignment,
     talks: assignment,
-    // /prayers and /music are MONTH boards with no per-Sunday page, so the pill lands on the
-    // month and scrolls to the card. PrayerBoard and SundayMusicCard each carry the matching
-    // `id` on that Sunday's Card.
+    // Neither has a per-Sunday page, so both land on the list and scroll to the card. PrayerBoard
+    // and SundayMusicCard each carry the matching `id` on that Sunday's Card.
     prayer: `/prayers?month=${monthOf(date)}#sunday-${sundayId}`,
-    music: `/music?month=${monthOf(date)}#sunday-${sundayId}`,
+    music: `/music?sunday=${sundayId}&from=sacrament#sunday-${sundayId}`,
   };
 }

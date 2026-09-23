@@ -56,12 +56,20 @@ page out of `app/(youth)/`, and changes what the dashboard offers. Every one of 
 2. `npm run dev`, then open http://localhost:3000
 3. Sign in as the bishop. Open the browser console and **leave it open**.
 4. Read the dashboard. Count the Sacrament-related tiles.
-5. Open the Sacrament tile, then navigate to **August 2027** with the month controls.
-6. Read the pill row on each of the five Sundays without clicking anything.
-7. Click **every** pill on 08-15 and come back each time. Check the date you landed on.
-8. Resize to 375px and read the month again. Switch themes.
-9. Sign out. Sign in as the Relief Society president and open `/sacrament` directly.
-10. Sign out. Sign in with the youth PIN account if one exists in your database, or simply open
+5. Open `/calendar` **once** and check the database for a 12-month horizon. Open it a **second**
+   time and check that nothing was written.
+   ⚠️ **DO THIS BEFORE STEP 9.** The seed creates only the five Sundays of August 2027, so until
+   the horizon has run there is nothing for the jumped-to card to sit *among* — step 9's
+   "in date order" check has no content without it.
+6. Open the Sacrament tile, then navigate to **August 2027** with the month controls.
+7. Read the pill row on each of the five Sundays without clicking anything.
+8. Click **every** pill on 08-15 and come back each time. Check the date you landed on.
+9. Open `/music` from the nav and read the collapsed list. Then come back to 08-15 and press its
+   Music pill, and read where you land, what is expanded, and what the back link says.
+10. Resize to 375px and read the month again. Switch themes.
+11. Sign out. Sign in as the Relief Society president and open `/sacrament` directly. Open
+    `/calendar` as them and confirm it creates no Sundays.
+12. Sign out. Sign in with the youth PIN account if one exists in your database, or simply open
     `/ordinances` and `/sacrament` and note where each lands.
 
 ## Verification Checklist
@@ -99,10 +107,27 @@ page out of `app/(youth)/`, and changes what the dashboard offers. Every one of 
 - [ ] **Every pill on 08-15 opens THAT Sunday**, not the nearest one — check the date on each
       landing page. The prototype shipped this exact bug (`openProgram(key)` ignored its key)
 - [ ] The Prayer pill lands on `/prayers` **scrolled to 08-15**, not at the top of the month
-- [ ] The Music pill on 08-15 lands on **`/music` showing August 2027**, scrolled to the 08-15
-      card — not the current month, and not an empty page. **This is 072-D1 re-armed**; the
-      destination now reads `?month=` and the href now carries one
-- [ ] `/music` opened from the **nav**, with no month, shows the **current** month
+- [ ] The Music pill on 08-15 opens **`/music` with the 08-15 card ALREADY EXPANDED**, its two
+      chosen hymns visible — not a list to scroll, and not an empty page. **This is 072-D1
+      re-armed**, and the fix was RESHAPED on 2026-09-23: `/music` is a collapsed rolling list
+      again and the link INSERTS the jumped-to Sunday into it
+- [ ] That card sits **in date order** among the ordinary upcoming Sundays, not pinned to the top
+- [ ] The page shows **"Back to Sacrament Calendar"**, and pressing it returns to `/sacrament`
+- [ ] `/music` opened from the **nav** shows the list **collapsed — nothing expanded** — and has
+      **NO back link in the page at all**. The chrome bar's unconditional "← Dashboard" is the way
+      home, and a second link beside it saying the same thing is the duplication the user removed
+      on 2026-09-23. ⚠️ **CHANGED BY THE WALK** — this item used to require "Back to Dashboard"
+- [ ] `/music?from=<anything unrecognised>` **also shows no back link** — never the raw value, and
+      never a fallback
+- [ ] Clicking a second card **closes the first**. One open at a time, never two
+- [ ] The **Collapse** button inside an open card closes it
+- [ ] A **Collapse all** control appears above the list **only while a card is open**, closes it,
+      and then disappears. ⚠️ **There is deliberately NO "Expand all"** — §6.1's rule is
+      single-open ⇔ jump target, and expanding everything is the `Set` that rule forbids on a page
+      somebody is deep-linked into. Its absence is the design
+- [ ] `/music?sunday=<a uuid that does not exist>` renders the ordinary collapsed list, no crash
+- [ ] The card's completion pill reads `2/3 chosen` on 08-15 — **the same numbers as the hub's
+      `Music 2/3` pill**, because both count `HYMNS_PER_SUNDAY`
 - [ ] Each of the six pills is a **link** — focusable, reachable by Tab, no dimming
 - [ ] 08-08 reads `Conducting: open`; 08-15 names the **counselor**, 08-22 the **bishop**
 - [ ] `/talks/topics` is titled **"Topic library"** and is a different page from the Topics pill
@@ -116,6 +141,35 @@ page out of `app/(youth)/`, and changes what the dashboard offers. Every one of 
       text-xs` had never had to be a tap target before. **Was defect 072-D2; FIXED the same day**
       — the target grows on the anchor, so `Pill`'s badge shape is untouched everywhere else
 - [ ] The month controls move between July, August and September and the pills re-read correctly
+
+### The rolling 12-month horizon — slice 1
+
+- [ ] As the bishop, open `/calendar` **once**. Then confirm in the database that the ward now
+      holds a full year:
+      `select count(*), min(date), max(date) from sundays where ward_id = '<ward>'` returns
+      **52 or 53**, starting in the CURRENT month and ending 12 months later.
+      ⚠️ **CORRECTED DURING THE WALK, 2026-09-23.** This item first asked for
+      `date > current_date` returning **≥ 50**, which is wrong and would have failed a correct
+      build: the horizon is **whole months from `monthStart(today)`**, so it deliberately includes
+      the Sundays already past in the current month. Observed 52 total and **49** in the future.
+      The whole-month range is what makes the coverage check exact — see
+      `ensureHorizonGenerated()`'s header
+- [ ] Re-open `/calendar`, and open it again on a **different month**.
+      `select max(created_at) from sundays where ward_id = '<ward>'` is **unchanged** — the later
+      visits wrote nothing, because the coverage check found the horizon already full
+- [ ] **The seeded Sundays are not disturbed.** After the horizon runs, 08-01 is still
+      `fast_sunday` with 0 slots and 08-29 is still `stake_conference`, **with their original
+      ids** — `generateSundayRange()` inserts with `ignoreDuplicates`, and an overwrite here would
+      silently discard every bishopric edit in the year
+- [ ] **⚠️ THE `calendar.manage` GATE CANNOT BE WALKED IN THIS SCENARIO, and that is a fixture
+      gap rather than a skipped check.** The gate only means something for somebody who holds
+      `calendar.view` **and not** `calendar.manage`. This scenario's three users are a bishop and
+      a counselor (both hold manage) and an `org_president`, who holds **neither** — so
+      `/calendar` refuses them at the *view* gate and writes nothing for the wrong reason.
+      The right fixture is a `music_coordinator`; **scenario 036 seeds one**, and the check lives
+      there. At the table it is `tests/rls/calendar-access.test.ts`, which calls the page as a
+      music_coordinator and was proved able to fail (swapping the actor to the bishop takes the
+      ward from 1 Sunday to 52)
 
 ### The route move — Option A
 
@@ -142,19 +196,31 @@ page out of `app/(youth)/`, and changes what the dashboard offers. Every one of 
 
 - [ ] A month with no Sundays generated shows the "not on the calendar yet" card and **creates
       nothing** — generating a month is a calendar write and stays on `/calendar`
-- [ ] A hand-edited `?month=` of nonsense falls back to the current month rather than erroring
+- [ ] A hand-edited `?month=` of nonsense falls back to the current month rather than erroring —
+      on `/sacrament` and `/prayers`. **On `/music` the parameter is dead** and is ignored
+      silently; `?sunday=` of nonsense is ignored there too
 - [ ] Automated: `tests/lib/sacramentSundayStatus.test.ts` pins every count,
       `tests/components/sacrament/SundayCard.test.tsx` pins the card's shape, and
       `tests/lib/navigationRoutesExist.test.ts` fails if `/sacrament` loses its page
 
 ## Walkthrough record
 
-> **THE 072-D1 FIX IS NOT YET WALKED — 2026-09-23.** `/music` became a month board
-> (`plans/p4-sacrament-music-month.md`) and the walk was deliberately SKIPPED at the user's
-> instruction. The two Music checklist items below are therefore **unverified in a browser**:
-> lint, typecheck, 3856 unit tests and a production build are green, and none of them can prove
-> the destination honours the `?month=` the pill now sends — which is exactly what 072-D1 was.
-> Re-walk before trusting the Music pill.
+> **THE 072-D1 FIX IS NOW WALKED — 2026-09-23. See the second record at the end of this
+> section.** The reshaped fix was driven in a real browser and verified against the database.
+> The paragraph that follows is kept as the record of the window in which it was unwalked.
+>
+> **THE 072-D1 FIX WAS NOT WALKED WHEN FIRST SHIPPED, AND WAS RESHAPED ONCE — 2026-09-23.**
+>
+> First `/music` became a month board (`plans/p4-sacrament-music-month.md`, `06910f8`) and the
+> walk was deliberately SKIPPED at the user's instruction. The user then saw that deployed and
+> **reversed the mechanism the same day**: `/music` is a collapsed rolling list again, and the
+> link inserts the jumped-to Sunday into it in date order — the prototype's own fix for this
+> defect (`plans/music-collapsed-list-and-rolling-year.md`, module-map.md §6.2 item 6).
+>
+> **The defect and the diagnosis were right both times; only the mechanism moved.** The Music
+> checklist items below are still **unverified in a browser**: lint, typecheck, the unit suite
+> and a production build are green, and none of them can prove the destination opens the card the
+> pill sent it to — which is exactly what 072-D1 was. Re-walk before trusting the Music pill.
 
 **2026-09-22 — driven by Claude (agent) in a real browser; screenshots for the user to review.**
 That distinction matters: this is agent-driven evidence, not a person using the app, and the
@@ -213,11 +279,21 @@ the broken-link bug P3 closed.
 
 ### Defects found
 
-**072-D1 — THE MUSIC PILL CANNOT REACH ITS OWN SUNDAY. FIXED 2026-09-22**, by
-`plans/p4-sacrament-music-month.md` (`06910f8`). `/music` is now a month board — `?month=YYYY-MM`,
-`MonthNavigation`, two empty states — and `sundayPillHrefs()` sends it the Sunday's own month
-plus an anchor, exactly as the Prayer pill already did. The original finding, kept because the
-reasoning is what the next reader needs:
+**072-D1 — THE MUSIC PILL CANNOT REACH ITS OWN SUNDAY. FIXED 2026-09-22, RESHAPED 2026-09-23.**
+Both records are kept, because the second is not a new defect and the first was not wrong.
+
+*Fix 1 (`06910f8`, `plans/p4-sacrament-music-month.md`):* `/music` became a month board —
+`?month=YYYY-MM`, `MonthNavigation`, two empty states — and `sundayPillHrefs()` sent it the
+Sunday's own month plus an anchor, exactly as the Prayer pill already did.
+
+*Fix 2 (`plans/music-collapsed-list-and-rolling-year.md`), on the user's decision after seeing
+fix 1 deployed:* the month board is **reversed**. `/music` is the prototype's collapsed rolling
+list of the next 8 Sundays, and the pill carries `?sunday=<id>&from=sacrament` — the page INSERTS
+that Sunday into the list in date order and opens its card (module-map.md §6.2 item 6). A Sunday
+a year out is reachable because the link puts it in the list, not because the reader navigated to
+its month. `?month=` is now dead on `/music`.
+
+The original finding, kept because the reasoning is what the next reader needs:
 
 `Music 2/3` on Aug 15 links to
 `/music`, which is a rolling **six-Sunday horizon from today** with no date parameter
@@ -256,6 +332,179 @@ convention across 10+ components.
   `org_president`'s refusal page.
 - The counselor account was never signed in as; it exists to put a name that is not the bishop's
   on Aug 15's conducting line, which was verified from the bishop's view.
+
+---
+
+**2026-09-23 (second walk) — driven by Claude (agent) in a real browser; the reshaped 072-D1 fix
+plus the 12-month Sunday horizon.** Agent-driven evidence, not a person using the app: every
+machine-checkable item below was performed and read back through the service-role client
+(`.walk/readback.mjs`), and the judgement items were captured as screenshots for the user rather
+than answered.
+
+Screenshots: `.walk/scenario-072-reshape/` (excluded from git via `.git/info/exclude`,
+deliberately kept). Dev server on **port 3000**.
+
+### Slice 1 — the rolling 12-month horizon
+
+| Moment | `count(*)` | `max(created_at)` | Range |
+|---|---|---|---|
+| After seeding | **5** | 17:05:19.239 | 2027-08-01 → 2027-08-29 |
+| After the bishop's **first** `/calendar` | **52** | 17:07:07.531 | **2026-09-06 → 2027-08-29** |
+| After a visit to `?month=2026-10` | 52 | 17:07:07.531 | unchanged |
+| After a **third** visit to `/calendar` | 52 | **17:07:07.531 — unchanged** | unchanged |
+
+- **47 Sundays created in one visit**, spanning whole months from September 2026 to August 2027.
+- **Repeat visits wrote nothing.** `max(created_at)` is identical across three loads, which is the
+  coverage check doing its job — `calendar-c`'s "a read that re-runs writes on every page view" is
+  the bug this had to avoid, and it did.
+- **The seeded Sundays survived untouched**, with their original ids: 08-01 still `fast_sunday`
+  with `speaking_slots = 0`, 08-29 still `stake_conference`. `ignoreDuplicates` held.
+- **The generated year is correct, not merely present:** 2026-10-04 is general conference and is
+  absent from the Music list, and October's fast Sunday has moved to **10-11** accordingly.
+
+**FIRST-RUN COST, MEASURED AS THE PLAN ASKED — and it produced the one open defect below.**
+Three timed `/calendar` fetches from the browser, dev server against the hosted project:
+
+| Load | Wall time |
+|---|---|
+| First (creates 47 Sundays + conducting resolution) | **8 996 ms** |
+| Second | 2 736 ms |
+| Third | 2 865 ms |
+
+So the horizon costs **~6.2 s once per ward**, on top of a 2.7 s baseline. Every later visit is
+free. Reported rather than acted on: the plan names the alternative (move it behind the existing
+`POST /api/sundays` and a button) and says explicitly **not** to shrink the horizon silently.
+Measured in dev against a remote database, so production is likely faster — but not 6 s faster.
+
+### Slice 2 — Music as a collapsed list
+
+**The jump, end to end.** `Music 2/3` on 08-15 →
+`/music?sunday=11b53542…&from=sacrament#sunday-11b53542…`:
+
+- **9 Sundays**, and the 8 window rows are collapsed. August 15 2027 is **`aria-expanded="true"`**
+  and sits **last — in date order**, after November 22 2026, not pinned to the top.
+- `scrollY = 970`, with the card's top at **viewport y = 0**. The fragment scrolled it into view.
+- The card reads **`2/3 chosen`** and *"One hymn still to choose."*, showing
+  `19 — We Thank Thee, O God, for a Prophet` and `193 — I Stand All Amazed`, with the closing slot
+  *"Not chosen yet"*. **The database holds exactly those two rows** (`opening 19`,
+  `sacrament 193`) — the card, the hub pill and the table all agree.
+- Back link: **"← Back to Sacrament Calendar" → `/sacrament`**.
+- **Zero console errors and zero warnings.**
+
+**Single-open, and the controls.**
+
+- Opening October 18 **closed** August 15. Exactly one `aria-expanded="true"` at all times.
+- **Collapse** (92 × 44) closed the open card: 0 open, and the button unmounted with its panel.
+- **Keyboard:** Tab moves from one collapsed card to the next as a real `<button>`; **Enter opened
+  the focused card and focus stayed on it.**
+- Every summary row is **963 × 44** at desktop and 44 high at 375px. `aria-controls` points at the
+  panel only while it exists, and the panel is present when it does.
+
+**From the nav, with no parameters:** heading *"Music"*, **8 Sundays**, **0 expanded**, back link
+**"← Back to Dashboard" → `/dashboard`**. No month navigation anywhere on the page.
+
+> **⚠️ THAT LAST OBSERVATION IS NOW OUT OF DATE, AND IT IS WHY.** Seeing it beside the chrome
+> bar's own unconditional "← Dashboard" — two back links, stacked, to the same place — the user
+> decided on 2026-09-23 that the contextual link should render **only for a real origin**.
+> `ContextualBackLink` now returns `null` when `from` is absent or unrecognised, and
+> `tests/components/layout/ContextualBackLink.test.tsx` (6 tests, proved to fail if the fallback
+> returns) pins it. The observation is kept because it is the evidence the decision was made
+> from. The "Back to Sacrament Calendar" half is unchanged.
+
+**Every fallback path, fetched and parsed (all 200, none crashed):**
+
+| URL | Result |
+|---|---|
+| `?sunday=00000000-0000-4000-8000-000000000000` | ordinary list, 8 cards, 0 expanded |
+| `?sunday=banana` | ordinary list — the uuid guard stopped it reaching Postgres |
+| `?sunday=<the stake-conference Sunday>` | **ignored**, 8 cards — no card for a meeting not held |
+| `?from=https://evil.example.com` | back link is **"Back to Dashboard" → `/dashboard`**, never the supplied string |
+| `?from=toString` | **"Back to Dashboard"** — `Object.hasOwn` held; a bare lookup would have returned `Object.prototype.toString` and rendered `href={undefined}` |
+| `?month=2027-08` | **ignored silently**, ordinary 8-card list |
+
+**375px, both themes.** `scrollWidth 360 === clientWidth 360`, **no horizontal scroll**, and **zero
+elements past the viewport**. Every *visible* control ≥ 44×44; the only sub-44 hits are 0 × 0
+`Close` / `Clear this hymn` buttons inside **closed** `HymnSearchModal` dialogs — pre-existing
+markup, not this slice. Rendered and captured in **dark and light**.
+
+
+### Defect found after the walk, by answering Q4
+
+**072-D3 — THE HORIZON COSTS ~14 s EVERY MONTH, NOT ONCE. OPEN; NOT FIXED, BY REQUEST.**
+
+Reviewing Q4 the user accepted the 9-second first load on a stated premise — *"I guess we're
+talking about very first initial login … I assume after that it'd be loading a week at a time
+which would not really take any extra time at all"* — and said plainly that if the cost recurred,
+*"we need to discuss something to do differently to try to remedy"*.
+
+**The premise is wrong, so the measurement was taken.** Deleting one month from inside the
+horizon (July 2027, 4 Sundays) leaves it exactly as a month rolling off the front does — short,
+by the coverage check's reckoning. The next `/calendar` load:
+
+| State of the horizon | Wall time |
+|---|---|
+| Complete (52 of 52) | **2 720 ms** |
+| **Short by ONE month (48 of 52)** | **14 216 ms** |
+| First ever run, 5 of 52 present | 8 996 ms |
+
+**Short by four Sundays is SLOWER than empty.** The cause is that `ensureHorizonGenerated()` calls
+`generateSundayRange(from, to)` for the **whole 12-month range** whenever the count falls short.
+The insert itself is cheap — `ignoreDuplicates` means only the 4 missing rows land — but the three
+passes that follow are not: `resolveMonth()` runs once per month **for all twelve**, and
+`populateConducting()` / `populateOrgConducting()` sweep the entire year, now against a fuller
+table than the first run had.
+
+**So the cost is monthly, not one-off:** the first person holding `calendar.manage` to open the
+calendar after the window rolls forward pays ~14 s. Every other visit that month is ~2.7 s.
+
+**The fix is contained and is NOT applied here**, because the user asked to discuss it rather than
+have it changed: generate only the months that are actually missing instead of the whole range.
+`sundaysInRange()` already produces the expected dates and the existing rows are one query away, so
+the gap is computable — and a one-month generation is precisely what `ensureMonthGenerated()`
+already costs on a fresh month. That keeps the no-op path untouched and turns the monthly 14 s into
+roughly the 2.7 s baseline plus one month's work.
+
+Two alternatives, both worse and both recorded so they are not re-proposed as new: moving
+generation behind a button (the plan's named alternative) makes the recurrence manual rather than
+cheap, and shrinking the horizon is the thing the plan explicitly forbids doing quietly.
+
+
+### Checklist corrections made during this walk
+
+1. **The horizon count assertion was WRONG and would have failed a correct build.** It asked for
+   `date > current_date` returning **at least 50**. The horizon runs in **whole months from
+   `monthStart(today)`**, so it deliberately includes the current month's already-past Sundays:
+   observed **52 total, 49 future**. Rewritten to assert the total and the range. The whole-month
+   shape is not incidental — it is what makes the coverage arithmetic exact.
+2. **The `calendar.manage` gate cannot be walked in this scenario**, and the item that claimed it
+   could was ticking for the wrong reason. The gate only means anything for somebody holding
+   `calendar.view` and **not** `calendar.manage`; 072's only non-manager is an `org_president`, who
+   holds **neither**, so `/calendar` refuses them at the *view* gate — "Not permitted — The ward
+   calendar is limited to ward leadership." — and no write was ever attempted. Verified anyway that
+   the count stayed at 52. The check has been **moved to scenario 036**, which seeds a
+   `music_coordinator` (the exact fixture), and it is asserted at the table in
+   `tests/rls/calendar-access.test.ts`.
+3. **Steps reordered.** `/calendar` now runs before the Music jump, because until the horizon
+   exists the seed holds only August 2027 and there is nothing for the jumped-to card to sit
+   *among* — the "in date order" check had no content.
+
+### Not walked
+
+- ~~**The full `npm run test` suite did not finish.**~~ **It finished after the walk ended and is
+  GREEN: 250 files, 3879 tests, exit code 0**, in 3076 s (51 min — slow because the walk was
+  seeding and signing in against the same hosted project throughout, and every RLS suite goes over
+  the network). `npm run lint`, `npm run typecheck` and `npm run build` also pass.
+  **One caveat, stated rather than glossed:** the run started at 10:40 and two later edits to
+  `app/(app)/music/page.tsx` (the empty-state reorder and the `key` on `MusicSundayList`) landed
+  after it began. Neither is covered either way — **no test in this repo imports the music page**,
+  which is the deliberate gap the Testing Strategy names, and is exactly why the walk above is the
+  instrument for them. Both were verified in the browser instead.
+- **The hub's own pill row was not re-read** — it did not change in this slice, and the 2026-09-22
+  walk above covers it. Only the Music href was re-verified, on all four Sundays.
+- **No `music_coordinator` signed in.** That is scenario 036's walk, still outstanding.
+- One console 404 appears in the log for `/api/auth/signout`: **that was the agent probing for a
+  route that does not exist**, not the app. Sign-out was then done through the real control.
+
 
 ## Notes
 

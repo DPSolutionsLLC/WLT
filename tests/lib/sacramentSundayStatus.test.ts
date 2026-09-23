@@ -333,9 +333,10 @@ describe("sundayPills", () => {
 // in the prototype, once here — so each assertion names the mistake it pins rather than the
 // string it expects.
 //
-// WHAT THIS DOES NOT BUY: it catches an href that stops carrying the date. It cannot catch the
+// WHAT THIS DOES NOT BUY: it catches an href that stops carrying the Sunday. It cannot catch the
 // DESTINATION being unable to honour one, which is what 072-D1 actually was — /music read no
-// `?month=` at all. The walk of scenario 072 is what proves that half.
+// date parameter at all. tests/lib/musicSundayWindow.test.ts covers the arithmetic on the other
+// side; the walk of scenario 072 is the only thing that proves the two halves meet.
 describe("sundayPillHrefs", () => {
   const SUNDAY_ID = "2f6d4a1e-0000-4000-8000-000000000001";
 
@@ -352,29 +353,36 @@ describe("sundayPillHrefs", () => {
     expect(hrefs.talks).not.toContain("/talks/topics");
   });
 
-  it("sends Music to that Sunday's MONTH and scrolls to its card", () => {
-    // Both halves matter. The month is what 072-D1 was missing — /music showed a rolling six
-    // Sundays from today, so an August 2027 pill opened an empty page. The anchor is what stops
-    // the reader having to find the Sunday once they are there.
+  it("sends Music to that SUNDAY, names the origin, and scrolls to its card", () => {
+    // Three parts, none redundant. `?sunday=` OPENS the card — /music is a collapsed list, so
+    // without it the reader lands on a closed row. `&from=sacrament` is what makes the back link
+    // read "Back to Sacrament Calendar". The fragment scrolls, with no JavaScript.
     expect(sundayPillHrefs(SUNDAY_ID, "2027-08-15")).toMatchObject({
-      music: `/music?month=2027-08#sunday-${SUNDAY_ID}`,
+      music: `/music?sunday=${SUNDAY_ID}&from=sacrament#sunday-${SUNDAY_ID}`,
     });
   });
 
+  // THE NEGATIVE, because this is what was REVERSED. `06910f8` made /music a month board and put
+  // `?month=` in this href; the user reversed that on 2026-09-23 in favour of the prototype's
+  // rolling list with the jumped-to Sunday inserted. /music no longer reads `?month=` at all, so
+  // an href carrying one would be a parameter the destination silently ignores (roster-b).
+  it("no longer sends Music to a month", () => {
+    expect(sundayPillHrefs(SUNDAY_ID, "2027-08-15").music).not.toContain("month=");
+  });
+
   it("leaves the Prayer href as it was", () => {
+    // /prayers is a month board in the prototype AND here, so it did not move with Music. The two
+    // pills reading differently is the decision rather than an oversight.
     expect(sundayPillHrefs(SUNDAY_ID, "2027-08-15")).toMatchObject({
       prayer: `/prayers?month=2027-08#sunday-${SUNDAY_ID}`,
     });
   });
 
-  it("takes the month from the Sunday's own date and from nothing ambient", () => {
+  it("takes the Prayer month from the Sunday's own date and from nothing ambient", () => {
     // A date that is neither today nor in the month a clock would pick, and the last day of its
     // month besides — so a future clock cannot make this pass by accident, and an off-by-one
     // that rolled into February would fail rather than pass silently.
-    const hrefs = sundayPillHrefs(SUNDAY_ID, "2027-01-31");
-
-    expect(hrefs.music).toContain("month=2027-01");
-    expect(hrefs.prayer).toContain("month=2027-01");
+    expect(sundayPillHrefs(SUNDAY_ID, "2027-01-31").prayer).toContain("month=2027-01");
   });
 
   it("carries the Sunday's id in every href", () => {
