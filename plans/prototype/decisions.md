@@ -28,6 +28,11 @@ that difference — the build-log half of each note stays in the raw file.
 These are the prototype's own standing rules, each one arrived at more than once. They are
 the same species as CLAUDE.md §4's non-negotiables and most of them WLT already follows.
 
+> ⚠️ **THESE ARE PRODUCT RULES. THE NAVIGATION RULES ARE IN
+> [module-map.md](module-map.md) §6**, added 2026-09-23 because this file and the module map
+> between them described *what every module does* and **nothing about how any of it is worked**.
+> §1.17 below is the summary; §6 is the catalogue. Read both before planning a screen.
+
 **1.1 Never destroy what somebody wrote.** Unlinking, unassigning, unmarking and deleting a
 parent all *orphan* the dependent record rather than cascading. Unassigning a todo deletes it
 only if it is untouched (no steps, no log entries); with real progress on it, it is unlinked
@@ -115,6 +120,19 @@ auto-unfinalizes via one shared `unfinalizeIfNeeded()`.
 beside the *workflow* pill (Draft/Pending/Approved), because "do I have work left" and "where
 is this in the process" are different questions — and conflating them let "Approved" show
 while two hymns sat empty.
+
+**1.17 THE INTERACTION IS PART OF THE DESIGN, AND IT IS NOT IN A BUILD NOTE.** The prototype's
+navigation is deliberate and the user built it over a long time; CLAUDE.md §12 already says the
+prototype is authoritative about "how a flow moves". **The harvest did not carry it.** Every
+navigation fact in [module-map.md](module-map.md) §6 — collapsed date lists, single-open versus
+multi-expand, the jump-to-date, the contextual back link — was reachable only by reading
+`prototype/WLT.jsx` itself or by digging through
+[build-notes-raw.md](build-notes-raw.md), which nothing pointed at. So a slice could follow the
+documented process **exactly** and still ship the wrong screen, and one did: `/music` was built
+as a flat list of expanded cards with month navigation while the prototype opens it as a
+collapsed list of dates you click into, and all four of its §2.2 behaviours were honoured.
+**Before planning any screen, open its component in the prototype and read how it is navigated.**
+If the interaction is missing from its module-map row, add it there first.
 
 ---
 

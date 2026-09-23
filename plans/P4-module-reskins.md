@@ -68,6 +68,13 @@ land first.
 > than ~6 weeks out — precisely the horizon a bishopric plans at — so it landed on a page
 > claiming nothing was on the calendar. `sundayPillHrefs()` moved out of the hub page into
 > `lib/sacrament/sundayStatus.ts` so the href rule is testable. **This completes slice `a`.**
+>
+> ⚠️ **THE MONTH BOARD IS BEING REVERSED — 2026-09-23.** The prototype's `/music` is a
+> **collapsed list of 8 rolling Sundays** you click into, and it closes 072-D1 by inserting a
+> jumped-to date rather than by adding month navigation. Recorded in
+> [prototype/module-map.md](prototype/module-map.md) §6.2, which is new: the harvest carried no
+> navigation at all, which is why this was missed. `sundayPillHrefs()` and the anchor survive;
+> `MonthNavigation` on `/music` does not.
 
 The chain is the point: **Topics → References → Talks → Prayers**, each with an explicit
 finalize, each gating the next. Finalizing Talks **generates real to-dos** — which means this

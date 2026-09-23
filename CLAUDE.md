@@ -1412,14 +1412,29 @@ If the module has no row, **add one first**. That is the whole point of the file
 behaviours hide inside rows that read as pure styling, and an unsplit re-skin makes every
 estimate meaningless.
 
+**1b. READ [module-map.md](plans/prototype/module-map.md) §6 — NAVIGATION SHAPE — AND OPEN THE
+COMPONENT ITSELF.** A verdict row says what a module DOES. Until 2026-09-23 nothing in the
+harvest said how it is WORKED, and the two are independent: `/music` shipped as a flat list of
+expanded cards with month navigation — honouring all four of its §2.2 behaviours — where the
+prototype opens it as a **collapsed list of dates you click into**. Following the documented
+process exactly was not enough to catch it.
+
+§6 now catalogues every page's shape: single-open versus multi-expand versus sub-view machine,
+which pages are jump targets, and which carry a contextual back link. **If your module is not in
+§6, open its component in `prototype/WLT.jsx` and add it before planning** — the same rule the
+missing-row paragraph above states, applied to interaction. The user built these flows
+deliberately and they are as authoritative as the visual design.
+
 **2. Check [plans/prototype/decisions.md](plans/prototype/decisions.md) §2 for a conflict.**
 Six places the prototype disagrees with this codebase. The timezone one (§2.1) will silently
 reintroduce a shipped production defect if ported verbatim.
 
 ### What the prototype is authoritative about, and what it is not
 
-**Authoritative:** what a screen shows, how a flow moves, what a module is for, the product
-rules in its 82 build notes, and the design system.
+**Authoritative:** what a screen shows, **how a screen is navigated and worked**, how a flow
+moves, what a module is for, the product rules in its 82 build notes, and the design system.
+The navigation is not a detail to be improved on — see §6 of the module map and `decisions.md`
+§1.17.
 
 **Not authoritative:** anything about storage, security, or correctness under a server. It has
 no database, so its "enforcement" is client state. It has no server, so its date handling is

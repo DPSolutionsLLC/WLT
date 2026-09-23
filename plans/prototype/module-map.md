@@ -4,7 +4,14 @@ Built 2026-09-20 from the prototype's 23 dashboard tiles and its sub-pages, agai
 shipped routes.
 
 **This file is the gate.** Nothing gets built until its module has a row here, because the
-single largest risk in this effort is a "re-skin" quietly becoming a feature build. The
+single largest risk in this effort is a "re-skin" quietly becoming a feature build.
+
+> ⚠️ **READ §6 (NAVIGATION SHAPE) TOO, NOT ONLY YOUR MODULE'S ROW.** §1 and §2 answer *what a
+> module does*. Until 2026-09-23 nothing here answered *how it is worked* — and a row can be
+> complete and correct about the feature while the screen still gets built with the wrong
+> interaction. That is not hypothetical: `/music` shipped as a flat list of expanded cards with
+> month navigation, where the prototype opens it as a **collapsed list of dates you click into**.
+> Every behaviour in §2.2 was honoured. The navigation was not in this file at all. The
 prototype's Visits page carries appointment invites with accept/decline that WLT has no route
 for; its Agendas page carries section sharing, routing rules and meeting instances that WLT's
 Phase 9A does not. Re-skinning either one without naming that first produces an estimate that
@@ -29,9 +36,9 @@ means nothing.
 | Prototype | WLT counterpart | Verdict | Notes |
 |---|---|---|---|
 | Sacrament | `/sacrament` hub over `/assignments`, `/prayers`, `/music`, `/program` | **RESKIN+** | 8 new behaviours — §2.1 |
-| Music | `/music` | **RESKIN+** | 4 new behaviours — §2.2 |
+| Music | `/music` | **RESKIN+** | 4 new behaviours — §2.2. **Navigation — §6.2** |
 | Conducting + Conducting Template | — | **NEW** | The run-of-show sheet — §2.3 |
-| Program + Program Template | `/program`, `/public/[slug]` | **RESKIN+** | 3 new behaviours — §2.4 |
+| Program + Program Template | `/program`, `/public/[slug]` | **RESKIN+** | 3 new behaviours — §2.4. **Navigation — §6.2** |
 | Agendas (Ward Council, Bishopric) | `/agendas` *(Phase 9A, uncommitted)* | **RESKIN+** | 10 new behaviours — §2.5 |
 | Ward Calendar | `/calendar` is a **different thing** | **NEW** | §2.6 — the name collides, the feature does not |
 
@@ -325,3 +332,99 @@ at all", and several youth decisions turn on it. Do not drop it.
 **The honest read:** about a third of this is re-skinning, and two thirds is new product. The
 40 behaviours inside the RESKIN+ rows are the ones most likely to be mistaken for styling work,
 which is exactly why they are enumerated here rather than discovered mid-slice.
+
+
+---
+
+## 6. Navigation shape — how each page is worked
+
+**Added 2026-09-23, after `/music` was built with the wrong one.** §1 and §2 catalogue features.
+This section catalogues **interaction**, because the two are independent: the Music row named four
+new behaviours, all four were respected, and the page still came out wrong because nothing said it
+was a collapsed list.
+
+Read this alongside your module's row. If your module is not in §6.4, open the component in
+`prototype/WLT.jsx` and add it **before planning** — the same rule §1 already applies to a missing
+verdict row.
+
+### 6.1 The shapes, and the one rule that separates them
+
+The prototype uses exactly three list shapes, and which one a page gets is not arbitrary:
+
+| Shape | State | Used by | When |
+|---|---|---|---|
+| **Single-open** | `openX` — one value or `null` | Music, Program, Ward Calendar | The page is a **jump target**: something deep-links you to one item |
+| **Multi-expand** | `expandedIds` — a `Set` | Prayer Roll, Access Control, Ministering | You **browse and compare**; several open at once is the point |
+| **Sub-view machine** | `view` / `tab` / `viewMode` | Sacrament, Youth Support, Visits, Receipts, Ward Import, Tithing, Zoom, Access Control | The module holds several genuinely different screens |
+
+**THE RULE: single-open ⇔ jump target.** All three single-open pages initialise their open item
+from an incoming jump (`openDateKey = jumpToDateKey`, `openEventId = initialOpenEventId`), and no
+multi-expand page takes one. A page you can be deep-linked into opens **exactly one** thing and
+the link chooses which; a page you browse opens as many as you like. Do not mix them: a `Set` on a
+jump target loses the answer to "which one did I come here for", and a single value on a browse
+list makes comparison impossible.
+
+### 6.2 The per-date working module — Music and Program
+
+The shape `/music` should have had, and the one `/program` will need. Verified in
+`prototype/WLT.jsx` §`MusicPage` (~16851) and §`ProgramPage` (~17243); the build notes say the
+pattern was **deliberately replicated** from Music into Program, so it is a convention and not a
+one-off.
+
+1. **A rolling list of the next 8 Sundays** from `nearestSunday(TODAY)`. **No month navigation.**
+2. **One collapsed card per date**, the whole card clickable, carrying the date plus its status
+   pills — for Music, `n/m picked` and `Draft` / `Pending approval` / `Approved`.
+3. **One open at a time**, with an explicit **Collapse** button while open.
+4. **A blocked prerequisite dims the card** (`opacity: 0.7`) and replaces both pills with a single
+   `Topics pending`. The card stays clickable; it is dimmed, never disabled.
+5. **A jump opens that date already expanded** — you never land on a list to search through.
+6. **A jumped-to date outside the 8 weeks is INSERTED into the list in date order.**
+
+**⚠6 IS THE PROTOTYPE'S OWN FIX FOR WLT DEFECT 072-D1** — a hub pill that could not reach a Sunday
+beyond the horizon. WLT solved the same defect differently in `06910f8`, by replacing the horizon
+with a month board and `MonthNavigation`. **The user reversed that on 2026-09-23** in favour of
+this. The 8 is an arbitrary client-side constant and WLT is free to change it; keep it unless
+there is a reason, since a jumped-to date is reachable either way.
+
+### 6.3 The contextual back link — ~17 pages, and WLT has sanctioned it but built none
+
+Nearly every prototype page captures where you came from **once at mount** via
+`useRef(previousPage)` and renders *"Back to {that page}"*, falling back to *"Back to Dashboard"*.
+Music and Program show *"Back to Sacrament Calendar"* when reached from the hub.
+
+**This is not a conflict with WLT's chrome bar, and the reasoning is already written down.**
+`components/layout/ChromeBar.tsx` keeps its own back link **unconditionally `/dashboard`** because
+the prototype's *global* dynamic one was genuinely broken — it tracked one step, overwrote it on
+every navigation, and after a couple of hops lost the path home (build note
+§`dashboard-back-link-regression-fix`, "a real design flaw, not an edge case"). That header then
+says, in as many words, that **per-page contextual back links are safe precisely because the
+chrome bar's is not**, captured once at mount so they cannot cycle — and that P3 built none of
+them. So this is an unbuilt sanctioned behaviour, not a decision to revisit.
+
+### 6.4 The catalogue
+
+| Prototype page | Shape | Jump target? | Contextual back link |
+|---|---|---|---|
+| Sacrament | Month calendar (`HomeCalendar`, `visibleMonths`) + sub-view machine | — | — |
+| Music | Single-open date list (8 Sundays) | ✓ `jumpToDateKey` | ✓ |
+| Program | Single-open date list (8 Sundays) | ✓ `jumpToDateKey` | ✓ |
+| Conducting | **Week offset**, not a list — a jump sets the offset | ✓ `jumpToDateKey` | ✓ |
+| Ward Calendar | `viewMode` month/other + single-open event | ✓ `initialOpenEventId` | ✓ |
+| Prayer Roll | Multi-expand `Set` | — | ✓ |
+| Prayer Focus | Flat list | — | ✓ |
+| Youth Support | Sub-view machine — **8 sub-views** | — | ✓ |
+| Visits | Sub-view machine + form toggles | — | ✓ |
+| To Do | Flat list + filters | — | ✓ |
+| My Appointments | Flat list + `showPast` | — | ✓ |
+| Receipts | Tabs (`submit`…) + `viewAs` | — | ✓ |
+| Access Control | Tabs + multi-expand `Set` | — | — |
+| Ministering | `viewMode` + multi-expand `Set` | — | ✓ |
+| Ward Import | `viewMode` history/roster/corrections + selection `Set`s | — | — |
+| Tithing Calc | Tabs (`entry`…) | — | ✓ |
+| Zoom | Tabs (`recipients`…) | — | ✓ |
+| Hymn Database | Flat list + search | — | — |
+| Message, Account | Flat | — | ✓ |
+
+**⚠ `Conducting` is the shape most likely to be mis-built**, because it is a jump target that is
+**not** a collapsed list — the jump sets a week offset instead. Do not assume jump target implies
+date list; §6.1's rule is about single-open, not about layout.

@@ -19,6 +19,14 @@ related:
 fixes: p4-sacrament-a-hub-and-reskin
 ---
 
+> ⚠️ **THE FIX IN THIS RETRO IS BEING REVERSED — 2026-09-23.** The defect was real and the
+> diagnosis holds; the *mechanism* was wrong. The prototype solves 072-D1 by keeping a rolling
+> list and **inserting the jumped-to date into it**, not by replacing the horizon with a month
+> board. The user reversed the month decision after seeing `/music` deployed. See
+> `plans/prototype/module-map.md` §6.2 for the shape it becomes. Kept as written because the
+> "Pattern" section below is still the useful part — and because it turns out to have been
+> pointing at its own cause.
+
 ## What was broken
 
 Defect **072-D1**. The Sacrament hub deep-links a `Music n/3` pill into `/music`, but `/music`
