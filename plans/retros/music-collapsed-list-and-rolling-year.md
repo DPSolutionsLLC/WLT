@@ -2,7 +2,7 @@
 id: music-collapsed-list-and-rolling-year
 type: feature
 iter: null
-commits: ["5e9ff0c", "f8c8153"]
+commits: ["5e9ff0c", "a5d1e72"]
 date: 2026-09-23
 files:
   - lib/calendar/queries.ts
