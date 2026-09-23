@@ -97,7 +97,9 @@ export function SundayMusicCard({
   }).length;
 
   return (
-    <Card>
+    // The anchor the Sacrament hub's Music pill lands on: /music?month=...#sunday-<id>.
+    // PrayerBoard carries the identical spelling on its own Sunday cards (p4-sacrament-a).
+    <Card id={`sunday-${sunday.id}`}>
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-base font-semibold text-foreground">
           {formatSundayLabelWithYear(sunday.date)}

@@ -4,6 +4,7 @@ import {
   PRAYERS_PER_SUNDAY,
   pillStatus,
   sundayHasPills,
+  sundayPillHrefs,
   sundayPills,
   type SundayPill,
   type SundayPillKey,
@@ -325,6 +326,74 @@ describe("sundayPills", () => {
     });
 
     expect(sundayPills(given)).toEqual(sundayPills(given));
+  });
+});
+
+// WHERE EACH PILL GOES. Every case below is a rule that has already been got wrong once — twice
+// in the prototype, once here — so each assertion names the mistake it pins rather than the
+// string it expects.
+//
+// WHAT THIS DOES NOT BUY: it catches an href that stops carrying the date. It cannot catch the
+// DESTINATION being unable to honour one, which is what 072-D1 actually was — /music read no
+// `?month=` at all. The walk of scenario 072 is what proves that half.
+describe("sundayPillHrefs", () => {
+  const SUNDAY_ID = "2f6d4a1e-0000-4000-8000-000000000001";
+
+  it("sends Topics and Talks to the per-date editor, never to the topic library", () => {
+    const hrefs = sundayPillHrefs(SUNDAY_ID, "2027-08-15");
+
+    expect(hrefs.topics).toBe(`/assignments/${SUNDAY_ID}`);
+    expect(hrefs.talks).toBe(`/assignments/${SUNDAY_ID}`);
+
+    // The negative, asserted explicitly. /talks/topics is the ward-level topic LIBRARY a slot's
+    // topic is chosen FROM; the two names are one word apart and module-map.md §2.1 calls this
+    // the single most likely thing to get backwards.
+    expect(hrefs.topics).not.toContain("/talks/topics");
+    expect(hrefs.talks).not.toContain("/talks/topics");
+  });
+
+  it("sends Music to that Sunday's MONTH and scrolls to its card", () => {
+    // Both halves matter. The month is what 072-D1 was missing — /music showed a rolling six
+    // Sundays from today, so an August 2027 pill opened an empty page. The anchor is what stops
+    // the reader having to find the Sunday once they are there.
+    expect(sundayPillHrefs(SUNDAY_ID, "2027-08-15")).toMatchObject({
+      music: `/music?month=2027-08#sunday-${SUNDAY_ID}`,
+    });
+  });
+
+  it("leaves the Prayer href as it was", () => {
+    expect(sundayPillHrefs(SUNDAY_ID, "2027-08-15")).toMatchObject({
+      prayer: `/prayers?month=2027-08#sunday-${SUNDAY_ID}`,
+    });
+  });
+
+  it("takes the month from the Sunday's own date and from nothing ambient", () => {
+    // A date that is neither today nor in the month a clock would pick, and the last day of its
+    // month besides — so a future clock cannot make this pass by accident, and an off-by-one
+    // that rolled into February would fail rather than pass silently.
+    const hrefs = sundayPillHrefs(SUNDAY_ID, "2027-01-31");
+
+    expect(hrefs.music).toContain("month=2027-01");
+    expect(hrefs.prayer).toContain("month=2027-01");
+  });
+
+  it("carries the Sunday's id in every href", () => {
+    // The prototype's `openProgram(key)` bug as an assertion: it ignored its key and always
+    // opened whichever Sunday was closest to today
+    // (build-notes-raw.md §sacrament-to-program-navigation).
+    const hrefs = sundayPillHrefs(SUNDAY_ID, "2027-08-15");
+
+    for (const href of Object.values(hrefs)) {
+      expect(href).toContain(SUNDAY_ID);
+    }
+  });
+
+  it("answers for every pill key, so a key added later cannot arrive without a destination", () => {
+    const keys: SundayPillKey[] = ["topics", "talks", "prayer", "music"];
+
+    expect(Object.keys(sundayPillHrefs(SUNDAY_ID, "2027-08-15")).sort()).toEqual(
+      [...keys].sort(),
+    );
   });
 });
 

@@ -97,11 +97,12 @@ page out of `app/(youth)/`, and changes what the dashboard offers. Every one of 
       including on 08-08, where it reads `open`
 - [ ] **There is no Program pill and no Conducting pill.** Four pills per Sunday, not six
 - [ ] **Every pill on 08-15 opens THAT Sunday**, not the nearest one — check the date on each
-      landing page. The prototype shipped this exact bug (`openProgram(key)` ignored its key).
-      ⚠️ **The Music pill FAILS this — defect 072-D1, found 2026-09-22, STILL OPEN.** `/music` is
-      a rolling six-Sunday horizon with no date parameter, so a Sunday further out than that
-      cannot be shown at all. Re-check this one explicitly after the fix
+      landing page. The prototype shipped this exact bug (`openProgram(key)` ignored its key)
 - [ ] The Prayer pill lands on `/prayers` **scrolled to 08-15**, not at the top of the month
+- [ ] The Music pill on 08-15 lands on **`/music` showing August 2027**, scrolled to the 08-15
+      card — not the current month, and not an empty page. **This is 072-D1 re-armed**; the
+      destination now reads `?month=` and the href now carries one
+- [ ] `/music` opened from the **nav**, with no month, shows the **current** month
 - [ ] Each of the six pills is a **link** — focusable, reachable by Tab, no dimming
 - [ ] 08-08 reads `Conducting: open`; 08-15 names the **counselor**, 08-22 the **bishop**
 - [ ] `/talks/topics` is titled **"Topic library"** and is a different page from the Topics pill
@@ -147,6 +148,13 @@ page out of `app/(youth)/`, and changes what the dashboard offers. Every one of 
       `tests/lib/navigationRoutesExist.test.ts` fails if `/sacrament` loses its page
 
 ## Walkthrough record
+
+> **THE 072-D1 FIX IS NOT YET WALKED — 2026-09-23.** `/music` became a month board
+> (`plans/p4-sacrament-music-month.md`) and the walk was deliberately SKIPPED at the user's
+> instruction. The two Music checklist items below are therefore **unverified in a browser**:
+> lint, typecheck, 3856 unit tests and a production build are green, and none of them can prove
+> the destination honours the `?month=` the pill now sends — which is exactly what 072-D1 was.
+> Re-walk before trusting the Music pill.
 
 **2026-09-22 — driven by Claude (agent) in a real browser; screenshots for the user to review.**
 That distinction matters: this is agent-driven evidence, not a person using the app, and the
@@ -205,7 +213,13 @@ the broken-link bug P3 closed.
 
 ### Defects found
 
-**072-D1 — THE MUSIC PILL CANNOT REACH ITS OWN SUNDAY.** `Music 2/3` on Aug 15 links to
+**072-D1 — THE MUSIC PILL CANNOT REACH ITS OWN SUNDAY. FIXED 2026-09-22**, by
+`plans/p4-sacrament-music-month.md` (`78f1505`). `/music` is now a month board — `?month=YYYY-MM`,
+`MonthNavigation`, two empty states — and `sundayPillHrefs()` sends it the Sunday's own month
+plus an anchor, exactly as the Prayer pill already did. The original finding, kept because the
+reasoning is what the next reader needs:
+
+`Music 2/3` on Aug 15 links to
 `/music`, which is a rolling **six-Sunday horizon from today** with no date parameter
 (`HORIZON_SUNDAYS` in `app/(app)/music/page.tsx`). Aug 2027 is outside it, so the destination
 renders *"The next 0 Sundays that hold a sacrament meeting"* and *"There are no sacrament

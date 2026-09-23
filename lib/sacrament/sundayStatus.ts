@@ -1,3 +1,4 @@
+import { monthOf, type DateOnly } from "@/lib/calendar/dates";
 import {
   holdsSacramentMeeting,
   type PipelineStage,
@@ -14,12 +15,14 @@ import {
 // So this module returns the counts it displayed. Nothing downstream re-derives them.
 //
 // ---------------------------------------------------------------------------
-// NOTHING OUTSIDE `@/types/domain` MAY BE IMPORTED HERE
+// NOTHING BUT `@/types/domain` AND THE PURE DATE HELPERS MAY BE IMPORTED HERE
 // ---------------------------------------------------------------------------
 // A single VALUE import of any `queries.ts` pulls in `next/headers`, which `npm run lint` and
 // `npm run typecheck` both pass and only `npm run build` catches
 // (plans/retros/roster-b-picker-and-orgs.md). lib/assignments/pipeline.ts carries this same rule
-// in its header for the same reason.
+// in its header for the same reason. `@/lib/calendar/dates` is admitted because it is pure string
+// arithmetic with no imports of its own — see NO CLOCK below for why `monthOf` in particular does
+// not breach the second rule either.
 //
 // ⚠️ NOTHING RENDERS THIS FROM A CLIENT COMPONENT TODAY, and the rule is here anyway. The hub is
 // a Server Component and components/sacrament/{SundayCard,StatusPill}.tsx have no "use client" —
@@ -35,6 +38,11 @@ import {
 // No `Date`, no `now`, no `asOf`. A pill says how much of a Sunday has been filled in, which is
 // not a question the clock answers — an untouched Sunday three weeks out and an untouched Sunday
 // three weeks past are both `0/3`. Anything time-dependent belongs to the caller.
+//
+// `monthOf` does not breach this: it takes a `DateOnly` the caller already holds and slices it.
+// It calls no `new Date()`, so an href built here is a function of the Sunday's own date and of
+// nothing ambient — which is what tests/lib/sacramentSundayStatus.test.ts pins, so that a future
+// clock cannot make the month assertion pass by accident.
 
 export type PillStatus = "empty" | "partial" | "complete";
 
@@ -200,4 +208,38 @@ function pill(key: SundayPillKey, filled: number, total: number): SundayPill {
 // sentence instead (components/sacrament/SundayCard.tsx).
 export function sundayHasPills(type: SundayType): boolean {
   return holdsSacramentMeeting(type);
+}
+
+// EVERY PILL LANDS ON THIS SUNDAY, NOT ON THE NEAREST ONE. The prototype shipped that bug and
+// wrote it down: `openProgram(key)` ignored its key and always opened whichever Sunday was
+// closest to today (build-notes-raw.md §sacrament-to-program-navigation). The id is in every
+// href below precisely so the same mistake cannot be made here silently.
+//
+// TOPICS AND TALKS BOTH GO TO /assignments/[id], AND THAT IS CORRECT. The prototype's "Topics"
+// pill is the PER-DATE editor — the speaker-count stepper, the day category, every talk slot —
+// which is the page WLT already has. It is NOT /talks/topics, which is the ward-level topic
+// LIBRARY a slot's topic is chosen FROM (module-map.md §2.1, correction 2). The near-collision
+// in the two names is the single most likely thing to get backwards here.
+//
+// `/music` IS A MONTH BOARD, so the Music pill carries the month and the Sunday anchor exactly
+// as Prayer does. It used to carry neither: /music was a rolling six-Sunday horizon from today
+// with no date parameter, so a pill reporting real work on a Sunday more than six weeks out
+// opened a page saying there were no sacrament meetings on the calendar at all. That is 072-D1,
+// found by walking scenario 072, and this href plus app/(app)/music/page.tsx's month parameter
+// are the two halves of the fix.
+export function sundayPillHrefs(
+  sundayId: string,
+  date: DateOnly,
+): Record<SundayPillKey, string> {
+  const assignment = `/assignments/${sundayId}`;
+
+  return {
+    topics: assignment,
+    talks: assignment,
+    // /prayers and /music are MONTH boards with no per-Sunday page, so the pill lands on the
+    // month and scrolls to the card. PrayerBoard and SundayMusicCard each carry the matching
+    // `id` on that Sunday's Card.
+    prayer: `/prayers?month=${monthOf(date)}#sunday-${sundayId}`,
+    music: `/music?month=${monthOf(date)}#sunday-${sundayId}`,
+  };
 }

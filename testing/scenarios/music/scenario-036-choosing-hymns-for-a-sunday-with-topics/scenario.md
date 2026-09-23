@@ -62,14 +62,17 @@ one-and-none side of the same check.
 1. `npm run seed -- music/scenario-036-choosing-hymns-for-a-sunday-with-topics`
 2. `npm run dev`, then open http://localhost:3000
 3. Sign in as the music coordinator.
-4. Open **Music** from the sidebar.
+4. Open **Music** from the sidebar, then use **Next** until the heading reads
+   **Music — November 2026**. `/music` is a MONTH board and lands on the current month
+   (p4-sacrament-music-month, closing 072-D1); the two seeded Sundays are in November.
 5. On **Sunday, November 1**, read the topics listed under "Talks that Sunday".
 6. Press **Suggest hymns**. Wait for the shortlist.
 7. **Open a physical hymnbook** and look up three of the suggested numbers.
 8. Accept one suggestion into a slot — press "Use as sacrament", say.
 9. Fill the remaining slot with **Choose** → search by title or subject.
 10. Search for `43` in the picker and look at what comes back.
-11. Navigate to **Calendar** and back to **Music** without accepting the rest of the shortlist.
+11. Navigate to **Calendar** and back to **Music** without accepting the rest of the shortlist
+    (you will land on the current month again — return to November 2026).
 12. Scroll to **Sunday, November 8** — the one with no topics — and choose a hymn there by search.
 
 ## Verification Checklist
@@ -77,7 +80,8 @@ one-and-none side of the same check.
 ### Machine-checkable
 
 - [ ] The Music link appears in the sidebar for the music coordinator
-- [ ] Six Sundays or fewer are listed, and every one of them holds a sacrament meeting
+- [ ] The heading names a month — **Music — November 2026** — and every Sunday listed holds a
+      sacrament meeting
 - [ ] Sunday A's card shows the opening hymn as `19 — We Thank Thee, O God, for a Prophet` and the other two slots as "Not chosen yet"
 - [ ] Sunday A's card counts only the EMPTY slots — two, not three. With two empty it reads
   "2 hymns still to choose"; with one empty, "One hymn still to choose"; with none,
@@ -118,6 +122,11 @@ one-and-none side of the same check.
 - [ ] A search that matches nothing says the hymnbook has not all been loaded and suggests trying the number — it must NEVER say a hymn does not exist
 
 ## Walkthrough record
+
+> **NOT RE-WALKED SINCE `/music` BECAME A MONTH BOARD — 2026-09-23.** Steps 4 and 11 and the
+> first machine-checkable item changed with it (`plans/p4-sacrament-music-month.md`); the walk
+> below predates that and its "Six Sundays or fewer" observation no longer describes the app.
+> Everything it records about hymns, topics, the AI shortlist and the leak checks is unaffected.
 
 **Walked 2026-08-25 by Claude, driven through a real browser (Playwright MCP) against the hosted
 project, with every write read back through the service-role client. The five judgement items were

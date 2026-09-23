@@ -1,7 +1,8 @@
 # P4 — Module Re-skins
 
 **Depends on:** P3. **Size:** Large — nine modules, one slice each.
-**Status:** In progress — module 1 slice `a` shipped (`c39e70f`, 2026-09-22). See the
+**Status:** In progress — module 1 slice `a` shipped (`c39e70f`, 2026-09-22) and completed by
+its `/music` month follow-up the same day. See the
 per-module progress column below.
 
 Bring every module that already exists into the prototype's design, and build the new behaviours
@@ -61,8 +62,12 @@ land first.
 > itself opens the programme. No new behaviour from the list below. Remaining: `b` Topics
 > finalize, `c` References over pgvector, `d` day categories, `e` musical numbers by
 > `afterTalkIndex`, `f` Talks finalize → to-dos (**P5**), `g` Prayers finalize (**P5**, `f`).
-> Plus one the walk of scenario 072 found and the roadmap did not anticipate: **`/music` needs a
-> month parameter**, because the Music pill cannot reach a Sunday more than ~6 weeks out.
+> Plus one the walk of scenario 072 found and the roadmap did not anticipate, now **SHIPPED
+> 2026-09-22** (`78f1505`, `plans/p4-sacrament-music-month.md`, closing defect 072-D1): **`/music` is a
+> month board**, not a rolling six-Sunday horizon. The Music pill could not reach a Sunday more
+> than ~6 weeks out — precisely the horizon a bishopric plans at — so it landed on a page
+> claiming nothing was on the calendar. `sundayPillHrefs()` moved out of the hub page into
+> `lib/sacrament/sundayStatus.ts` so the href rule is testable. **This completes slice `a`.**
 
 The chain is the point: **Topics → References → Talks → Prayers**, each with an explicit
 finalize, each gating the next. Finalizing Talks **generates real to-dos** — which means this

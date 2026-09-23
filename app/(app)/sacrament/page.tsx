@@ -10,7 +10,6 @@ import {
   formatDateOnly,
   lastDayOfMonth,
   monthLabel,
-  monthOf,
   monthStart,
   parseMonthParam,
 } from "@/lib/calendar/dates";
@@ -18,8 +17,8 @@ import { conductingNameMap, listBishopricUsers, listSundays } from "@/lib/calend
 import { listSelections } from "@/lib/music/queries";
 import { listPrayers } from "@/lib/prayers/queries";
 import {
+  sundayPillHrefs,
   sundayPills,
-  type SundayPillKey,
   type SundayStatusAssignment,
   type SundayStatusPrayer,
 } from "@/lib/sacrament/sundayStatus";
@@ -143,7 +142,7 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
       prayers: prayersBySunday.get(sunday.id) ?? [],
       hymnSelectionCount: (selectionsBySunday.get(sunday.id) ?? []).length,
     }),
-    hrefs: hrefsFor(sunday.id, sunday.date),
+    hrefs: sundayPillHrefs(sunday.id, sunday.date),
     // The whole card opens this Sunday's programme — there is no programme PILL any more
     // (components/sacrament/SundayCard.tsx records why).
     programHref: `/program/${sunday.id}`,
@@ -185,33 +184,6 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
       )}
     </div>
   );
-}
-
-// EVERY PILL LANDS ON THIS SUNDAY, NOT ON THE NEAREST ONE. The prototype shipped that bug and
-// wrote it down: `openProgram(key)` ignored its key and always opened whichever Sunday was
-// closest to today (build-notes-raw.md §sacrament-to-program-navigation). The id is in every
-// href below precisely so the same mistake cannot be made here silently.
-//
-// TOPICS AND TALKS BOTH GO TO /assignments/[id], AND THAT IS CORRECT. The prototype's "Topics"
-// pill is the PER-DATE editor — the speaker-count stepper, the day category, every talk slot —
-// which is the page WLT already has. It is NOT /talks/topics, which is the ward-level topic
-// LIBRARY a slot's topic is chosen FROM (module-map.md §2.1, correction 2). The near-collision
-// in the two names is the single most likely thing to get backwards here.
-//
-// `/music` takes no date: it is a rolling six-Sunday horizon, not a month
-// (app/(app)/music/page.tsx §HORIZON_SUNDAYS). Sending it a `?month=` it does not read would be
-// silently IGNORED rather than refused, which is roster-b's lesson, so nothing is sent.
-function hrefsFor(sundayId: string, date: string): Record<SundayPillKey, string> {
-  const assignment = `/assignments/${sundayId}`;
-
-  return {
-    topics: assignment,
-    talks: assignment,
-    // /prayers is a MONTH board with no per-Sunday page, so the pill lands on the month and
-    // scrolls to the card. PrayerBoard carries the matching `id` on each Sunday's Card.
-    prayer: `/prayers?month=${monthOf(date)}#sunday-${sundayId}`,
-    music: "/music",
-  };
 }
 
 // A row whose `sunday_id` is null is SKIPPED rather than bucketed under a sentinel. Every one of
