@@ -18,10 +18,16 @@ import { NAVIGATION_ITEMS } from "@/lib/auth/navigation";
 // for the same class of reason. It is the highest-value test in P3.
 //
 // ROUTE GROUPS ARE INVISIBLE IN A URL. `app/(app)/roster/page.tsx` serves `/roster`, so the
-// `(app)` segment is dropped when a path is turned into a route. That also means /sacrament
-// RESOLVES — its page is at app/(youth)/sacrament/page.tsx — which is exactly why that item is
-// `built: false` on a different ground (the youth layout redirects an adult straight back out)
-// and why the anchor below is /admin/audit-log, which has no page anywhere.
+// `(app)` segment is dropped when a path is turned into a route. That is also why a URL belongs
+// to exactly ONE group: app/(app)/sacrament/page.tsx and app/(youth)/sacrament/page.tsx would be
+// the same route and Next.js would refuse to build. p4-sacrament-a settled that collision by
+// giving `/sacrament` to the meeting hub in the app shell and moving the youth ordinance screen
+// to `/ordinances`.
+//
+// This test used to note that /sacrament RESOLVED from the youth shell, which made it
+// `built: false` on a subtler ground than "no page exists". That is no longer the case: the
+// ordinance row is `/sacrament/ordinances` and has no page anywhere, so it is now a SECOND
+// genuine unbuilt href beside the anchor below.
 
 const APP_DIRECTORY = join(process.cwd(), "app");
 

@@ -188,8 +188,13 @@ export function PrayerBoard({
     <div className="flex flex-col gap-3">
       <FormError message={errorMessage ?? queryError} />
 
+      {/* The `id` is the Sacrament hub's landing target: its Prayer pill links to
+          /prayers?month=YYYY-MM#sunday-<id>, because /prayers is a month board with no
+          per-Sunday page of its own. The prototype shipped the bug this avoids — openProgram(key)
+          ignored its key and always opened the nearest Sunday
+          (build-notes-raw.md §sacrament-to-program-navigation). */}
       {sundays.map((sunday) => (
-        <Card key={sunday.id}>
+        <Card key={sunday.id} id={`sunday-${sunday.id}`}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-base font-semibold text-foreground">
               {formatSundayLabel(sunday.date)}

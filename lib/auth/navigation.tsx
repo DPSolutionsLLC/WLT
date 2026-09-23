@@ -6,7 +6,6 @@ import {
   Church,
   ClipboardList,
   FileText,
-  HandHeart,
   Home,
   Lightbulb,
   Mic,
@@ -48,8 +47,8 @@ import type { SessionUser } from "@/types/domain";
 // ---------------------------------------------------------------------------
 // This file used to carry rows for routes with no page, on the reasoning that "a link to an
 // unbuilt route 404s, which is the right answer for an unbuilt module". It is not: a bishop was
-// offered /admin/audit-log and /sacrament on every page, Next.js prefetched them, and the console
-// carried two errors on every page a bishop opened (CLAUDE.md §9). `built: false` keeps the
+// offered /admin/audit-log and the ordinance screen on every page, Next.js prefetched them, and
+// the console carried two errors on every page a bishop opened (CLAUDE.md §9). `built: false` keeps the
 // forward map — where a module belongs, what colour it is, what it is for — while
 // visibleNavigationItems() withholds it, so a later phase flips one boolean rather than
 // re-deriving all of that.
@@ -98,28 +97,28 @@ export const NAVIGATION_SECTIONS: readonly {
 ] as const;
 
 export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
-  // Points at the month PLANNER, not at SPEC.md's /talks/pipeline kanban. talks-b built the
-  // planner as the primary surface deliberately — the pipeline is nine stages, not nine screens
-  // (04-talks-pipeline.md) — so the one Talks link goes where the work happens.
+  // ---------------------------------------------------------------------------
+  // ONE TILE FOR THE MEETING, WHERE THERE WERE THREE — p4-sacrament-a
+  // ---------------------------------------------------------------------------
+  // This row REPLACED separate Talks (/assignments) and Prayers (/prayers) tiles. Both routes
+  // are untouched and still work; they are reached through the hub's per-Sunday pills instead of
+  // from the dashboard, so anybody with one bookmarked keeps working. Leaving their tiles here
+  // would put three tiles on the dashboard for one module, which is the thing the hub exists to
+  // undo.
+  //
+  // `talks.view`, which is what both of those pages already gate on. Prayers ride on it rather
+  // than a permission of their own: a prayer is part of planning the meeting, and there is
+  // deliberately no `prayers.*` in PERMISSIONS (talks-c).
+  //
+  // THE BLURB NAMES THE MEETING, NOT THE ORDINANCE. The `Sacrament Ordinances` row further down
+  // is the other sense of the word and the two must be tellable apart at a glance.
   {
-    label: "Talks",
-    href: "/assignments",
+    label: "Sacrament",
+    href: "/sacrament",
     permission: "talks.view",
     section: "meetings",
-    blurb: "Who is speaking, and how far along each talk is.",
+    blurb: "Every Sunday's meeting — topics, speakers, prayers, music and the programme.",
     icon: <Mic />,
-    accent: "pine",
-    built: true,
-  },
-  // Prayers ride on `talks.view`, not a permission of their own: a prayer is part of planning
-  // the meeting, and there is deliberately no `prayers.*` in PERMISSIONS (talks-c).
-  {
-    label: "Prayers",
-    href: "/prayers",
-    permission: "talks.view",
-    section: "meetings",
-    blurb: "Who is offering the invocation and the benediction.",
-    icon: <HandHeart />,
     accent: "pine",
     built: true,
   },
@@ -174,16 +173,22 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
     built: true,
   },
   // ---------------------------------------------------------------------------
-  // `built: false`, AND THAT IS NOT THE SAME AS "THERE IS NO PAGE"
+  // THE OTHER SENSE OF THE WORD — P11's, AND STILL UNBUILT
   // ---------------------------------------------------------------------------
-  // app/(youth)/sacrament/page.tsx exists — inside the YOUTH shell, whose layout redirects
-  // anybody who is not a sacrament_manager back to /dashboard. So a bishop's click here did not
-  // 404; it silently did nothing, which is harder to report than a 404. This list feeds the app
-  // shell only, and from the app shell there is no such page. P11 owns the adult
-  // sacrament-administration screen and re-points this href when it exists.
+  // `Sacrament Ordinances`, not `Sacrament`: who PASSES, BLESSES and PREPARES the ordinance,
+  // which is a different feature from the Sacrament row above (the meeting being planned). Two
+  // rows both labelled "Sacrament" would be indistinguishable on a grid of tiles, so this one
+  // says which it is.
+  //
+  // It moved from `/sacrament` to `/sacrament/ordinances` in p4-sacrament-a, when the meeting hub
+  // took the shorter path. The youth PIN screen that used to answer `/sacrament` is now at
+  // `/ordinances` (app/(youth)/ordinances/page.tsx); this href has no page ANYWHERE until P11
+  // builds the adult view, which is a plainer kind of `built: false` than the one that used to
+  // be recorded here — a click no longer bounces silently off a foreign shell, because there is
+  // nothing at the path at all.
   {
-    label: "Sacrament",
-    href: "/sacrament",
+    label: "Sacrament Ordinances",
+    href: "/sacrament/ordinances",
     permission: "sacrament.view_assignments",
     section: "meetings",
     blurb: "Who is passing, blessing and preparing the sacrament.",

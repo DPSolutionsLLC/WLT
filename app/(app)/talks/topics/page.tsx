@@ -36,9 +36,10 @@ export default async function TopicsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Topics</h1>
+        <h1 className="font-display text-xl font-semibold text-foreground">Topic library</h1>
         <p className="mt-1 text-sm text-muted">
-          Topics nobody has used yet appear first, so the ones worth considering are at the top.
+          The pool every Sunday&rsquo;s topics are chosen from. Topics nobody has used yet appear
+          first, so the ones worth considering are at the top.
         </p>
       </div>
 

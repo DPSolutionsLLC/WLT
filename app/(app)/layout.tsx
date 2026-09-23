@@ -24,7 +24,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // The mirror of the check in app/(youth)/layout.tsx. Together the two make the shells
   // mutually exclusive by construction: a youth account cannot render this layout at all, so
   // no page beneath it can leak through a nav filter that was got wrong.
-  if (user.role === "sacrament_manager") redirect("/sacrament");
+  //
+  // `/ordinances`, not `/sacrament`: P4 gave `/sacrament` to the sacrament MEETING hub, and the
+  // youth ordinance screen moved out of its way (app/(youth)/ordinances/page.tsx).
+  if (user.role === "sacrament_manager") redirect("/ordinances");
 
   const supabase = await createServerSupabaseClient();
 

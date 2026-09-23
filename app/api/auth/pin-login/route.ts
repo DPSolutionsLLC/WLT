@@ -150,7 +150,9 @@ export async function POST(request: Request) {
       supabase,
     );
 
-    return NextResponse.json({ redirectTo: "/sacrament" });
+    // `/ordinances`, not `/sacrament`: P4 gave `/sacrament` to the sacrament MEETING hub and
+    // the youth ordinance screen moved (app/(youth)/ordinances/page.tsx).
+    return NextResponse.json({ redirectTo: "/ordinances" });
   } catch (error) {
     return respondToRouteError(error, {
       route: "POST /api/auth/pin-login",

@@ -59,7 +59,9 @@ export function PinSignInForm() {
       }
 
       setPin("");
-      router.replace(body.redirectTo ?? "/sacrament");
+      // `/ordinances`, not `/sacrament`: P4 gave `/sacrament` to the sacrament MEETING hub
+      // and the youth ordinance screen moved (app/(youth)/ordinances/page.tsx).
+      router.replace(body.redirectTo ?? "/ordinances");
       router.refresh();
     } catch (error) {
       // The PIN is not in this log line and must never be added to it.

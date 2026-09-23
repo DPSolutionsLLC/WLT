@@ -1,0 +1,319 @@
+// @vitest-environment jsdom
+
+import { render, screen, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { SundayCard, type SundayCardProps } from "@/components/sacrament/SundayCard";
+import {
+  sundayPills,
+  type SundayPillKey,
+  type SundayStatusInput,
+} from "@/lib/sacrament/sundayStatus";
+
+// ---------------------------------------------------------------------------
+// ASSERTED ON WHAT A LEADER MUST BE ABLE TO DO, NOT ON WHAT THE CARD CURRENTLY RENDERS
+// ---------------------------------------------------------------------------
+// P3's ChromeBar.test.tsx asserted `toBeEmptyDOMElement()` and passed happily while the page had
+// no sign-out anywhere — the test had pinned the bug as the specification. So every assertion
+// below is a capability: a pill can be pressed, a zero is visible, a no-meeting Sunday says so,
+// an unfilled conductor reads as open.
+//
+// The pills come from the real sundayPills() rather than from hand-built literals, so the card
+// and the function cannot drift apart in the fixture and agree nowhere else (ITER-022, where a
+// summary carried the state and the date but not the COUNT).
+//
+// jsdom, although SundayCard is a SERVER component — it holds no state and no handlers, so it
+// renders in either place, which is the rule Pill, SectionHeader and UnverifiedHymnBadge all
+// record in their own headers. Rendering it here is what lets the shape assertions below run at
+// all.
+
+const HREFS: Record<SundayPillKey, string> = {
+  topics: "/assignments/sunday-1",
+  talks: "/assignments/sunday-1",
+  prayer: "/prayers?month=2027-03#sunday-sunday-1",
+  music: "/music",
+};
+
+const PROGRAM_HREF = "/program/sunday-1";
+const CONDUCTING_HREF = "/calendar/sunday/sunday-1";
+
+function statusInput(overrides: Partial<SundayStatusInput> = {}): SundayStatusInput {
+  return {
+    speakingSlots: 3,
+    assignments: [],
+    prayers: [],
+    hymnSelectionCount: 0,
+    ...overrides,
+  };
+}
+
+function props(overrides: Partial<SundayCardProps> = {}): SundayCardProps {
+  return {
+    sundayId: "sunday-1",
+    // A Sunday. 2027-03-07 is one, and it is a `date` string — never a Date — because that is
+    // what lib/calendar/dates.ts takes (CLAUDE.md rule 12).
+    date: "2027-03-07",
+    type: "standard",
+    conductingName: null,
+    pills: sundayPills(statusInput()),
+    hrefs: HREFS,
+    programHref: PROGRAM_HREF,
+    conductingHref: CONDUCTING_HREF,
+    ...overrides,
+  };
+}
+
+describe("SundayCard", () => {
+  it("names the Sunday", () => {
+    render(<SundayCard {...props()} />);
+
+    // UTC, via formatSundayLabel. A bare toLocaleDateString would render March 6 for any reader
+    // west of UTC — the defect rule 12 exists to stop.
+    expect(screen.getByText("Sunday, March 7")).toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // EVERY PILL IS SOMETHING A LEADER CAN PRESS
+  // ---------------------------------------------------------------------------
+  // P3's inverse guarantee, asserted on shape. A disabled anchor is not a thing the platform
+  // has: an <a href> at 50% opacity is still focusable, still activates on Enter and still
+  // navigates — so a pill that should not be pressed must not be rendered at all.
+  it("renders every pill as a link with an href", () => {
+    render(<SundayCard {...props()} />);
+
+    const links = screen.getAllByRole("link");
+
+    // Four pills, plus the heading (the programme) and the conducting name.
+    expect(links).toHaveLength(6);
+    for (const link of links) {
+      expect(link).toHaveAttribute("href");
+      expect(link.getAttribute("href")).not.toBe("");
+    }
+  });
+
+  it("carries no opacity dimming on any pill", () => {
+    const { container } = render(<SundayCard {...props()} />);
+
+    for (const element of container.querySelectorAll("a, a *")) {
+      expect(element.className).not.toContain("opacity-");
+    }
+  });
+
+  it("puts no pill out of the keyboard's reach", () => {
+    render(<SundayCard {...props()} />);
+
+    for (const link of screen.getAllByRole("link")) {
+      expect(link).not.toHaveAttribute("tabindex", "-1");
+    }
+  });
+
+  it("sends each pill to the module that owns it for THIS Sunday", () => {
+    render(<SundayCard {...props()} />);
+
+    // The prototype's own bug: openProgram(key) ignored its key and always opened the nearest
+    // Sunday (build-notes-raw.md §sacrament-to-program-navigation). Every href carries the id.
+    expect(screen.getByRole("link", { name: /^Topics/ })).toHaveAttribute(
+      "href",
+      "/assignments/sunday-1",
+    );
+    expect(screen.getByRole("link", { name: /^Prayer/ })).toHaveAttribute(
+      "href",
+      "/prayers?month=2027-03#sunday-sunday-1",
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // THE CARD IS THE PROGRAMME LINK, AND THE PILLS STILL WORK
+  // ---------------------------------------------------------------------------
+  // The failure this pins is NESTING: wrapping the card in an <a> would put the pill anchors
+  // inside it, which is invalid HTML and leaves a screen reader unable to reach them. A stretched
+  // pseudo-element keeps one anchor per destination, so counting them is what proves the shape.
+  it("opens this Sunday's programme from the card heading", () => {
+    render(<SundayCard {...props()} />);
+
+    expect(screen.getByRole("link", { name: /programme/i })).toHaveAttribute(
+      "href",
+      "/program/sunday-1",
+    );
+  });
+
+  it("nests no link inside another link", () => {
+    const { container } = render(<SundayCard {...props()} />);
+
+    expect(container.querySelectorAll("a a")).toHaveLength(0);
+  });
+
+  it("emits no programme pill and no conducting pill", () => {
+    render(<SundayCard {...props()} />);
+
+    expect(screen.queryByText(/^Program \d/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Conducting \d/)).not.toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // THE CONDUCTOR CAN BE CHANGED FOR THIS SUNDAY
+  // ---------------------------------------------------------------------------
+  // Asserted as a CAPABILITY, not as a rendering: with the conducting pill gone, the name is the
+  // only route to the Sunday editor where the override lives, so a leader who cannot press it
+  // cannot switch who conducts.
+  it("links the conductor's name to the Sunday editor", () => {
+    render(<SundayCard {...props({ conductingName: "Bishop Alvarez" })} />);
+
+    expect(screen.getByRole("link", { name: "Bishop Alvarez" })).toHaveAttribute(
+      "href",
+      "/calendar/sunday/sunday-1",
+    );
+  });
+
+  it("links an unassigned conductor too, so somebody can be chosen", () => {
+    render(<SundayCard {...props()} />);
+
+    expect(screen.getByRole("link", { name: "open" })).toHaveAttribute(
+      "href",
+      "/calendar/sunday/sunday-1",
+    );
+  });
+
+  // The mirror of youth-a-D1: the UI declining what the API would allow is quiet and
+  // recoverable; offering a link that refuses on arrival is not. The hub gates on `talks.view`
+  // and the Sunday editor on `calendar.view`, which are genuinely separate grants.
+  it("renders the conductor as plain text when the editor is out of reach", () => {
+    render(<SundayCard {...props({ conductingName: "Bishop Alvarez", conductingHref: null })} />);
+
+    expect(screen.getByText("Bishop Alvarez")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Bishop Alvarez" })).not.toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // A SUNDAY WITH NO SPEAKING SLOTS CARRIES NO TALK PILLS
+  // ---------------------------------------------------------------------------
+  // `Topics 0/0` read as a card that had failed to load (scenario 072 walk). Prayer and music
+  // survive, because a fast Sunday still has both prayers and three hymns.
+  it("shows prayer and music but no talk pills on a fast Sunday", () => {
+    render(
+      <SundayCard
+        {...props({
+          type: "fast_sunday",
+          pills: sundayPills(statusInput({ speakingSlots: 0 })),
+        })}
+      />,
+    );
+
+    expect(screen.queryByText(/^Topics/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Talks/)).not.toBeInTheDocument();
+    expect(screen.getByText("Prayer 0/2")).toBeInTheDocument();
+    expect(screen.getByText("Music 0/3")).toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // A ZERO IS RENDERED, NOT OMITTED
+  // ---------------------------------------------------------------------------
+  // program-c made this reversal once already and the reason holds: a slot that disappears looks
+  // correct, so nobody fixes it, where `Topics 0/3` is a Sunday asking to be worked on.
+  it("renders a 0/3 pill rather than leaving it out", () => {
+    render(<SundayCard {...props()} />);
+
+    expect(screen.getByText("Topics 0/3")).toBeInTheDocument();
+    expect(screen.getByText("Talks 0/3")).toBeInTheDocument();
+  });
+
+  it("shows topics and talks disagreeing when a topic has no speaker yet", () => {
+    render(
+      <SundayCard
+        {...props({
+          pills: sundayPills(
+            statusInput({
+              assignments: [
+                { topicId: "t1", memberId: "m1", externalSpeakerName: null, stage: "plan" },
+                { topicId: "t2", memberId: null, externalSpeakerName: null, stage: "plan" },
+              ],
+            }),
+          ),
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Topics 2/3")).toBeInTheDocument();
+    expect(screen.getByText("Talks 1/3")).toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // THE CONDUCTOR IS NEVER FABRICATED AND NEVER BLANK
+  // ---------------------------------------------------------------------------
+  it("reads an unassigned conductor as open", () => {
+    render(<SundayCard {...props()} />);
+
+    const line = screen.getByText(/^Conducting:/);
+
+    expect(within(line).getByText("open")).toBeInTheDocument();
+  });
+
+  it("names the conductor when there is one", () => {
+    render(<SundayCard {...props({ conductingName: "Bishop Alvarez" })} />);
+
+    const line = screen.getByText(/^Conducting:/);
+
+    expect(within(line).getByText("Bishop Alvarez")).toBeInTheDocument();
+    expect(within(line).queryByText("open")).not.toBeInTheDocument();
+  });
+
+  // The complete tone is the one state rendered as a FILL rather than an outline (StatusPill's
+  // header records the contrast measurement). `text-background` is what makes one static class
+  // pair correct in both themes; a literal would pass in light and fail in dark.
+  it("fills a completed pill rather than outlining it", () => {
+    render(
+      <SundayCard {...props({ pills: sundayPills(statusInput({ hymnSelectionCount: 3 })) })} />,
+    );
+
+    // The tone lands on `Pill`'s own span, which is the PARENT of the aria-hidden span holding
+    // the text — StageBadge.test.tsx asserts on the same element for the same reason.
+    const music = screen.getByText("Music 3/3").parentElement;
+
+    expect(music).toHaveClass("bg-stage-complete");
+    expect(music).toHaveClass("text-background");
+  });
+
+  // ---------------------------------------------------------------------------
+  // A SUNDAY WITH NO MEETING SAYS SO, AND OFFERS NOTHING TO PLAN
+  // ---------------------------------------------------------------------------
+  it("renders a sentence and no pill row on a no-meeting Sunday", () => {
+    render(<SundayCard {...props({ type: "stake_conference" })} />);
+
+    expect(screen.getByText(/No sacrament meeting/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Conducting:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Topics/)).not.toBeInTheDocument();
+    // The heading is still the programme link — a stake-conference Sunday has no meeting to plan
+    // but the page behind it is what says so.
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+
+  it("keeps the pill row on a holiday, which still holds a meeting", () => {
+    render(<SundayCard {...props({ type: "holiday" })} />);
+
+    expect(screen.queryByText(/No sacrament meeting/)).not.toBeInTheDocument();
+    expect(screen.getByText("Topics 0/3")).toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // THE ANCHOR TARGET
+  // ---------------------------------------------------------------------------
+  it("carries an id so a deep link can land on one Sunday", () => {
+    const { container } = render(<SundayCard {...props()} />);
+
+    expect(container.querySelector("#sunday-sunday-1")).not.toBeNull();
+  });
+
+  // The visible text repeats six labels per card and up to thirty per month, so a screen reader
+  // moving link to link needs the date on each one.
+  it("names the Sunday in every pill's accessible name", () => {
+    const { container } = render(<SundayCard {...props()} />);
+
+    // Scoped to the pill row. The conducting link is deliberately NOT given an aria-label — its
+    // text is a person's name, which is what a screen reader should read.
+    const pillLinks = [...container.querySelectorAll("li a")];
+
+    expect(pillLinks).toHaveLength(4);
+    for (const link of pillLinks) {
+      expect(link.getAttribute("aria-label")).toContain("Sunday, March 7");
+    }
+  });
+});

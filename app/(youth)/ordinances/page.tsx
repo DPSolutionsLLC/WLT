@@ -4,16 +4,25 @@ import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 // Deliberately thin, not unfinished. The real assignment grid, the rotation view, and the
-// send-message flow are Phase 10 (plans/10-sacrament-admin.md). This exists so a youth
-// sign-in has somewhere to land and so the shell isolation can be walked through.
+// send-message flow are P11 (plans/P11-sacrament-admin.md). This exists so a youth sign-in has
+// somewhere to land and so the shell isolation can be walked through.
 //
-// Route-group note for Phase 10: `/sacrament` resolves from app/(youth)/ because (app) and
-// (youth) are both groups and contribute nothing to the URL. SPEC.md §Component Structure puts
-// the bishopric's `/sacrament/admin` page under the authenticated shell, which cannot coexist
-// with this file — a URL belongs to exactly one route group. Phase 10 has to resolve that,
-// most likely by addressing the bishopric view as `/admin/sacrament`, which is also how every
-// other bishopric-only screen in this app is addressed.
-export default async function YouthSacramentPage() {
+// ---------------------------------------------------------------------------
+// THIS IS `/ordinances`, NOT `/sacrament`, AND THAT IS DELIBERATE — p4-sacrament-a
+// ---------------------------------------------------------------------------
+// Route groups contribute nothing to the URL, so app/(app)/… and app/(youth)/… share one URL
+// space and a path belongs to exactly one of them. This file held `/sacrament` until P4, whose
+// Sacrament MEETING hub — topics, talks, prayers, music, programme — is the prototype's own
+// name for that word and the label on the dashboard tile. The two meanings are different
+// features for different accounts:
+//
+//   /sacrament             the meeting being planned          (P4, app shell, talks.view)
+//   /ordinances            who passes, blesses and prepares   (this page, youth shell)
+//   /sacrament/ordinances  the ADULT view of the same thing   (P11, app shell, not built)
+//
+// Do not move this back. The redirects in app/(app)/layout.tsx, app/(auth)/pin/PinSignInForm.tsx
+// and app/api/auth/pin-login/route.ts all name `/ordinances` and carry the same note.
+export default async function YouthOrdinancesPage() {
   const user = await requireSessionUser();
 
   // assertCan, not can() + NotPermitted. Every page under app/(app)/ uses can() because a

@@ -125,17 +125,35 @@ describe("role-filtered navigation", () => {
   });
 
   // FEATURES.md §Module 17: a youth account reaches exactly one module. Asserted against the
-  // UNFILTERED list, because /sacrament is `built: false` FOR THE APP SHELL — the page lives in
-  // app/(youth)/, whose layout is where a sacrament_manager actually lands. They never render the
-  // app shell at all (app/(app)/layout.tsx redirects them), so an empty app-shell list for that
-  // role is correct rather than a regression, and the invariant worth pinning is the one below.
-  it("gives a sacrament_manager exactly one item, under /sacrament", () => {
+  // UNFILTERED list, because the ordinance row is `built: false` — P11 has not built the adult
+  // screen, and the youth account's own page lives at app/(youth)/ordinances/, whose layout is
+  // where a sacrament_manager actually lands. They never render the app shell at all
+  // (app/(app)/layout.tsx redirects them), so an empty app-shell list for that role is correct
+  // rather than a regression, and the invariant worth pinning is the one below.
+  //
+  // THE HREF IS ASSERTED EXACTLY, NOT BY PREFIX. `startsWith("/sacrament")` passed both before
+  // and after p4-sacrament-a moved this row from /sacrament to /sacrament/ordinances — and the
+  // hub that took the old path is a DIFFERENT module on a DIFFERENT permission. A prefix that
+  // cannot tell those apart is not pinning anything.
+  it("gives a sacrament_manager exactly one item — P11's ordinance screen", () => {
     const permitted = NAVIGATION_ITEMS.filter((item) =>
       can(sessionUser("sacrament_manager"), item.permission, ROLE_PERMISSIONS),
     );
 
     expect(permitted).toHaveLength(1);
-    expect(permitted[0].href.startsWith("/sacrament")).toBe(true);
+    expect(permitted[0].href).toBe("/sacrament/ordinances");
+    expect(permitted[0].permission).toBe("sacrament.view_assignments");
+  });
+
+  // The other side of the collision p4-sacrament-a settled: /sacrament is now the sacrament
+  // MEETING hub, gated on talks.view, and a youth account must not be able to reach it. The two
+  // rows are one path segment apart, so this is asserted rather than assumed.
+  it("keeps a sacrament_manager out of the sacrament MEETING hub", () => {
+    const hub = NAVIGATION_ITEMS.find((item) => item.href === "/sacrament");
+
+    expect(hub, "/sacrament has left NAVIGATION_ITEMS").toBeDefined();
+    expect(hub?.permission).toBe("talks.view");
+    expect(can(sessionUser("sacrament_manager"), "talks.view", ROLE_PERMISSIONS)).toBe(false);
   });
 
   it("renders no app-shell navigation for a sacrament_manager", () => {
@@ -180,24 +198,50 @@ describe("role-filtered navigation", () => {
     expect(hrefsFor("ward_council_member")).toContain("/roster");
   });
 
-  // talks-b pointed the Talks entry at /assignments rather than SPEC.md's /talks/pipeline
-  // kanban, which was never built. A sidebar link to an unbuilt route 404s, and the one link
-  // every planner uses is the wrong one to leave pointing at a guess.
-  it("points Talks at the month planner, gated on talks.view", () => {
-    const talks = NAVIGATION_ITEMS.find((item) => item.label === "Talks");
+  // ---------------------------------------------------------------------------
+  // ONE TILE FOR THE MEETING — p4-sacrament-a
+  // ---------------------------------------------------------------------------
+  // These two used to assert a `Talks` row pointing at /assignments, added by talks-b so the one
+  // link every planner uses did not point at SPEC.md's never-built /talks/pipeline kanban. The
+  // route is untouched and still works; what changed is that it is no longer a DASHBOARD ENTRY
+  // POINT. /sacrament is, and a Sunday's Topics and Talks pills are how /assignments is reached.
+  // Three tiles for one module is what the hub exists to undo.
+  it("points the Sacrament hub at /sacrament, gated on talks.view", () => {
+    const hub = NAVIGATION_ITEMS.find((item) => item.href === "/sacrament");
 
-    expect(talks).toBeDefined();
-    expect(talks?.href).toBe("/assignments");
-    expect(talks?.permission).toBe("talks.view");
+    expect(hub).toBeDefined();
+    expect(hub?.label).toBe("Sacrament");
+    expect(hub?.permission).toBe("talks.view");
+    expect(hub?.built).toBe(true);
   });
 
-  it("shows the planner to every role that holds talks.view and to no other", () => {
+  it("shows the hub to every role that holds talks.view and to no other", () => {
     for (const role of ROLES) {
-      const canSeePlanner = hrefsFor(role).includes("/assignments");
+      const canSeeHub = hrefsFor(role).includes("/sacrament");
       const expected = can(sessionUser(role), "talks.view", ROLE_PERMISSIONS);
 
-      expect(canSeePlanner, `role "${role}" disagrees on /assignments`).toBe(expected);
+      expect(canSeeHub, `role "${role}" disagrees on /sacrament`).toBe(expected);
     }
+  });
+
+  // The other half of the same change, asserted so the absorbed tiles cannot quietly return. A
+  // second dashboard route into a module the hub already owns is the drift this pins.
+  it("offers no separate Talks or Prayers tile", () => {
+    const hrefs = NAVIGATION_ITEMS.map((item) => item.href);
+
+    expect(hrefs).not.toContain("/assignments");
+    expect(hrefs).not.toContain("/prayers");
+  });
+
+  // KEPT, and deliberately so. /talks/topics is the ward-level topic LIBRARY a slot's topic is
+  // chosen FROM — not a per-Sunday view — so the hub links to it rather than absorbing it
+  // (plans/prototype/module-map.md §2.1, correction b).
+  it("keeps the topic library as its own tile", () => {
+    const topics = NAVIGATION_ITEMS.find((item) => item.href === "/talks/topics");
+
+    expect(topics).toBeDefined();
+    expect(topics?.permission).toBe("topics.view");
+    expect(topics?.built).toBe(true);
   });
 
   // The bishopric, and the super admin — who reaches it for the ordinary reason that they hold

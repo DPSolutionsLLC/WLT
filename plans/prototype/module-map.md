@@ -28,7 +28,7 @@ means nothing.
 
 | Prototype | WLT counterpart | Verdict | Notes |
 |---|---|---|---|
-| Sacrament | `/assignments`, `/prayers`, `/talks/topics` | **RESKIN+** | 9 new behaviours — §2.1 |
+| Sacrament | `/sacrament` hub over `/assignments`, `/prayers`, `/music`, `/program` | **RESKIN+** | 8 new behaviours — §2.1 |
 | Music | `/music` | **RESKIN+** | 4 new behaviours — §2.2 |
 | Conducting + Conducting Template | — | **NEW** | The run-of-show sheet — §2.3 |
 | Program + Program Template | `/program`, `/public/[slug]` | **RESKIN+** | 3 new behaviours — §2.4 |
@@ -80,7 +80,36 @@ means nothing.
 
 Each numbered item below is a candidate slice. "New" means no WLT route, table or logic exists.
 
-### 2.1 Sacrament — RESKIN+ (9 new)
+### 2.1 Sacrament — RESKIN+ (8 new)
+
+> **Corrected 2026-09-22 while planning `p4-sacrament-a`, all three verified against the code.**
+>
+> **(a) It was nine; it is eight.** Behaviour 9 — conducting rotation with weekly *and* monthly
+> cadence and separate anchor shapes — **is already built**.
+> `supabase/migrations/024_rotation_cadence.sql` Part 1 adds `conducting_rotation.cadence text not
+> null default 'weekly' check (cadence in ('weekly', 'monthly'))`, and its header explains the
+> anchor difference in the same terms the prototype does. Shipped in `calendar-c-rotation-cadence`.
+> It is struck through below rather than deleted, so the count cannot quietly drift back.
+>
+> **(b) `/talks/topics` IS NOT A PER-SUNDAY SUB-VIEW and has been removed from the counterpart
+> column.** The row used to list it beside `/assignments` and `/prayers` as though the three were
+> peers. They are not: `/talks/topics` is the ward-level TOPIC LIBRARY, and a slot's topic is
+> chosen *on the assignment*, *from* that library. The prototype has **no topic library at all** —
+> its topic field offers prefix-matched hints from past entries
+> (`build-notes-raw.md` §`sacrament`). So it is a WLT-only supporting surface the hub **links to**
+> and does not absorb. Re-skinning it is in scope; folding it into a Sunday card is not. Its page
+> heading now reads *"Topic library"* for exactly this reason.
+>
+> **(c) THE PROTOTYPE'S "Topics" PILL MAPS TO `/assignments/[sunday_id]`, NOT TO
+> `/talks/topics`.** In the prototype, *Topics* is the per-date editor holding the speaker-count
+> stepper, the day-category selector and every talk slot — which is the page WLT already has.
+> **This is the single most likely thing for an executing agent to get backwards**, because the
+> two names are one word apart.
+>
+> **Built so far:** the hub itself (`p4-sacrament-a`, 2026-09-22) — `/sacrament`, a month of
+> Sundays each carrying a pill row, every pill deep-linking to the module that owns it for that
+> date. No new behaviour from the list below; those are slices `b`–`g`.
+
 1. **References pill + modal** — ranked keyword search over the conference-talk corpus and
    scripture volumes, with manual entry alongside. *WLT has real retrieval already* (pgvector,
    `retrieveChunks`), so this is a UI for something WLT can do better.
@@ -98,7 +127,9 @@ Each numbered item below is a candidate slice. "New" means no WLT route, table o
    from Topics, filled from Music.
 8. **Day categories** — a growable ward-wide list, per-day with per-slot override, driving
    which roster list the speaker picker shows.
-9. **Conducting rotation** with weekly **and monthly** cadence and separate anchor shapes.
+9. ~~**Conducting rotation** with weekly **and monthly** cadence and separate anchor shapes.~~
+   **ALREADY BUILT — migration 024, `calendar-c-rotation-cadence`.** Not a new behaviour and not
+   part of any P4 slice. See correction (a) above.
 
 *Also:* household rotation with an anomaly badge and a defer snooze — WLT has speaker history
 but not this rotation view.

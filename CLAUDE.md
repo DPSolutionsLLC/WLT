@@ -1305,9 +1305,21 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   Next.js prefetched the two 404s. **That cost is gone.**
   `NavigationItem` now carries `built`, `visibleNavigationItems()` filters on **built AND
   permitted in that order**, and both rows survive with `built: false` so a later phase flips one
-  boolean rather than re-deriving where a module belongs. `/sacrament` is the subtle one: the page
-  exists, so it is `built: false` **for the app shell** and P11 re-points the href when the adult
-  screen lands.
+  boolean rather than re-deriving where a module belongs. `/sacrament` was the subtle one: the page
+  existed, so it was `built: false` **for the app shell** while resolving perfectly well for a
+  youth account.
+  **⚠️ THAT SUBTLETY IS GONE, AND `/sacrament` NOW MEANS THE MEETING — p4-sacrament-a,
+  2026-09-22.** P4 arrived before P11 and claimed the name, because the prototype's `Sacrament` is
+  the sacrament **meeting** being planned — topics, talks, prayers, music, programme — and that is
+  what the dashboard tile says. The youth PIN ordinance screen moved to **`/ordinances`** inside
+  the youth shell (`app/(youth)/ordinances/page.tsx`, which carries the note, as do the three
+  redirects in `app/(app)/layout.tsx`, `app/(auth)/pin/PinSignInForm.tsx` and
+  `app/api/auth/pin-login/route.ts`). **P11's ADULT ordinance screen is
+  `/sacrament/ordinances`**, labelled `Sacrament Ordinances` so the two tiles are tellable apart,
+  and it is now `built: false` in the plainest sense: there is no page at that path anywhere, so a
+  click cannot bounce silently off a foreign shell. The hub also **replaced** the separate `Talks`
+  (`/assignments`) and `Prayers` (`/prayers`) tiles — both routes are untouched and are now reached
+  through a Sunday's pills, so a bookmark still works.
   **It is enforced MECHANICALLY, not by care.** `tests/lib/navigationRoutesExist.test.ts` reads
   `app/` from disk and fails if any `built: true` href has no `page.tsx`, resolving route groups
   the way a URL does. No assertion about a rendered component can catch a dead route — the failure

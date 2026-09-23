@@ -40,6 +40,15 @@ import type { ReactNode } from "react";
 //    in app/globals.css was measured against --background, --surface and --surface-raised. A
 //    solid fill would owe a second measurement per state per theme, and nobody would take it.
 //
+//    ⚠️ ONE CALLER NOW FILLS, AND IT TOOK THE MEASUREMENT: components/sacrament/StatusPill.tsx
+//    fills its `complete` state only, by the user's decision while walking scenario 072 — a
+//    filled pill differs in WEIGHT rather than in hue, which is what a month of Sundays needed
+//    to be scannable. The rule above is intact, not weakened: what makes it safe there is
+//    `text-background`, a TOKEN that inverts in lockstep with the fill, so one static class pair
+//    is correct in both themes. A literal `text-white` is the failure this rule exists to
+//    prevent — it passes in light and fails badly in dark. Any future fill owes the same
+//    measurement and must state it in its own header, as that file does.
+//
 // `toneClassName` WINS OVER `tone` when both are given, and the type comment says to pass one.
 // Deliberately not a throw: a runtime throw in a presentational component turns a styling slip
 // into a blank page, which is worse than a defined precedence a reader can look up.

@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 70,
+  "scenarioCount": 71,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -1336,10 +1336,10 @@
       "prerequisites": "none",
       "purpose": "P3 deletes the sidebar and makes the dashboard the navigation, so every mistake about who may\nreach what is now a mistake somebody can SEE — a tile that 404s, a heading with nothing under it,\na page that silently bounces back to `/dashboard`.\n\nThis needs a walk rather than a test for a reason `p2-admin-and-access` recorded in terms: **two\nof that phase's three walk defects lived in the seam between a Server Component gate and a route\ngate, and 3700 passing tests said nothing about either, because route tests call handlers\ndirectly and never render a layout.** P3 is almost entirely layouts. `navigationRoutesExist.test.ts`\nproves every `built: true` href has a `page.tsx` on disk; it cannot prove that opening one as a\nmusic coordinator does not redirect.",
       "checklist": [
-        "The bishop's grid contains **no Audit Log tile and no Sacrament tile** — both are",
+        "The bishop's grid contains **no Audit Log tile and no Sacrament Ordinances tile** — both",
         "Every unlocked tile, for every one of the six, opens a real page: no 404, and no silent",
         "**\"Tasks & Communication\" does not render at all** — not as an empty heading. It is empty",
-        "The music coordinator sees Music, Talks, Prayers and Calendar and **nothing else** — no",
+        "The music coordinator sees **Sacrament, Music and Calendar** and **nothing else** — no",
         "**There is no un-clickable card anywhere on any grid.** Every tile rendered is a link the",
         "A section with nothing that person can reach **renders no heading** — the music coordinator",
         "`resource_center_specialist` sees **exactly one tile — Program** — and nothing else.",
@@ -1728,6 +1728,51 @@
         "No raw uuid appears anywhere on the board or the calendar"
       ],
       "seedCommand": "npm run seed -- talks/scenario-019-goals-on-the-calendar"
+    },
+    {
+      "id": "talks:scenario-072-one-sunday-six-pills",
+      "path": "talks/scenario-072-one-sunday-six-pills",
+      "name": "One Sunday, six pills, and the page each one opens",
+      "scope": "P4",
+      "part": 1,
+      "tags": [
+        "talks",
+        "sacrament",
+        "full",
+        "p4"
+      ],
+      "prerequisites": "none",
+      "purpose": "The Sacrament hub's whole value is that **a pill's count matches the page behind it**. That needs\na month of Sundays in deliberately different states of completeness, which is tedious to build by\nhand and is exactly the mismatch a green suite cannot see: ITER-022 shipped a summary reading\n`Covered · 0` directly above an event card reading `Covered · 1`, because the summary type carried\nthe state and the date but not the **count**. Both numbers were correct; they only disagreed once\nthey were on screen together.\n\n`p3-shell-and-tile-dashboard` is the second reason. **All four of its walk defects lived in the\nseam between a layout and a page, and 3798 passing tests saw none of them** — route tests call\nhandlers directly and never render a layout. This slice adds a page under `app/(app)/`, moves a\npage out of `app/(youth)/`, and changes what the dashboard offers. Every one of those is a seam.",
+      "checklist": [
+        "The dashboard shows **one Sacrament tile, not three** — the separate Talks and Prayers",
+        "`/assignments` and `/prayers` typed directly **still work** — the routes were not touched,",
+        "**08-08 renders `Topics 0/3` and `Talks 0/3` — visible, not omitted.** An omitted empty",
+        "**08-15 reads `Topics 2/3` above `Talks 1/3`** — the two counts differ, and the page behind",
+        "08-15 reads `Prayer 1/2`, `Music 2/3`, `Program 0/2`",
+        "**08-01 (`speaking_slots = 0`) reads its talk pills as complete, not empty**, and still",
+        "**08-29 shows a sentence naming the conference and NO pill row at all**",
+        "08-22 reads every pill full, including `Talks 3/3` — **the third speaker is external**",
+        "**Every pill on 08-15 opens THAT Sunday**, not the nearest one — check the date on each",
+        "The Prayer pill lands on `/prayers` **scrolled to 08-15**, not at the top of the month",
+        "Each of the six pills is a **link** — focusable, reachable by Tab, no dimming",
+        "08-08 reads `Conducting: open`; 08-15 names the **counselor**, 08-22 the **bishop**",
+        "`/talks/topics` is titled **\"Topic library\"** and is a different page from the Topics pill",
+        "`/sacrament` as the Relief Society president gives the **\"Not permitted\" sentence** — not a",
+        "**Zero console errors** on `/sacrament` and on `/dashboard`",
+        "At 375px there is **no horizontal page scroll** and the month controls do not overflow",
+        "The month controls move between July, August and September and the pills re-read correctly",
+        "**`/ordinances` is the youth ordinance screen.** A `sacrament_manager` signing in by PIN",
+        "**`/sacrament` is the meeting hub** and an adult opening it is NOT bounced to `/dashboard`",
+        "`/sacrament/ordinances` is a **404** — P11 has not built it, and the dashboard does not",
+        "Reading one card answers \"how ready is this Sunday\" **without opening anything**",
+        "`Topics` and `Talks` sitting side by side read as **two different questions**, not as one",
+        "The empty, partial and complete tones are distinguishable **in both themes**, and no pill is",
+        "08-01 does not read as **broken** — a Sunday with nothing to plan should look settled, not",
+        "08-29's sentence reads as a fact about the Sunday, not as an error",
+        "The month of five cards at 375px is **scannable** — a leader should not have to zoom",
+        "The Sacrament tile's blurb makes it clear this is the **meeting**, not the ordinance"
+      ],
+      "seedCommand": "npm run seed -- talks/scenario-072-one-sunday-six-pills"
     },
     {
       "id": "visits:scenario-038-the-shared-and-private-note-split",

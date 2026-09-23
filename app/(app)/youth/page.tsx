@@ -28,7 +28,7 @@ import { listParticipationForEvents } from "@/lib/youth/rosterQueries";
 // THIS IS NOT app/(youth)/ — AND THE TWO ARE UNRELATED
 // ---------------------------------------------------------------------------
 // `app/(youth)/` already exists and is the SACRAMENT MANAGER'S PIN-ONLY SHELL: a different
-// feature, for a different kind of account, reachable at /sacrament. This page lives at
+// feature, for a different kind of account, reachable at /ordinances. This page lives at
 // `app/(app)/youth/` inside the ordinary authenticated shell. The URLs do not collide, but the
 // directory names read as though they should, and a future reader will assume a connection that
 // is not there.

@@ -53,14 +53,20 @@ Six roles, each answering a different question:
 
 ### Machine-checkable
 
-- [ ] The bishop's grid contains **no Audit Log tile and no Sacrament tile** — both are
-      `built: false`, and both were the standing broken links CLAUDE.md §9 recorded
+- [ ] The bishop's grid contains **no Audit Log tile and no Sacrament Ordinances tile** — both
+      are `built: false`, and both were the standing broken links CLAUDE.md §9 recorded.
+      ⚠️ **It DOES contain a `Sacrament` tile**, and that is a different module: p4-sacrament-a
+      gave `/sacrament` to the sacrament MEETING hub and moved P11's ordinance row to
+      `/sacrament/ordinances`
 - [ ] Every unlocked tile, for every one of the six, opens a real page: no 404, and no silent
       bounce back to `/dashboard`
 - [ ] **"Tasks & Communication" does not render at all** — not as an empty heading. It is empty
       until P5 builds To Do
-- [ ] The music coordinator sees Music, Talks, Prayers and Calendar and **nothing else** — no
-      Visits, Tithing or Admin tile at all, not even an un-clickable one
+- [ ] The music coordinator sees **Sacrament, Music and Calendar** and **nothing else** — no
+      Visits, Tithing or Admin tile at all, not even an un-clickable one.
+      ⚠️ **This used to read "Music, Talks, Prayers and Calendar" — four tiles.**
+      p4-sacrament-a replaced the Talks and Prayers tiles with the one Sacrament hub, which rides
+      on the same `talks.view` both of them did, so the count drops from 4 to 3
 - [ ] **There is no un-clickable card anywhere on any grid.** Every tile rendered is a link the
       person can open; a module they lack is ABSENT (user decision, 2026-09-22)
 - [ ] A section with nothing that person can reach **renders no heading** — the music coordinator
@@ -96,8 +102,12 @@ Six roles, each answering a different question:
 - [ ] Typing a URL the role cannot reach (e.g. `/tithing` as the music coordinator) is refused by
       the page itself, with a sentence — the grid hiding the tile is cosmetic, never the boundary
 - [ ] `/admin/audit-log` typed directly is a 404, which is honest: there is no page yet
-- [ ] `/sacrament` typed directly as the bishop redirects to `/dashboard` — the page exists but
-      lives in the youth shell. This is the reason it is `built: false` rather than built
+- [ ] ⚠️ **NO LONGER TRUE — CHANGED BY p4-sacrament-a, 2026-09-22.** This check used to read
+      "`/sacrament` typed directly as the bishop redirects to `/dashboard` — the page exists but
+      lives in the youth shell". `/sacrament` is now the sacrament MEETING hub in the app shell
+      and opens normally for a bishop. What to check instead: **`/sacrament/ordinances` is a
+      404** (P11 has not built it), and **`/ordinances` is the youth screen** that redirects an
+      adult to `/dashboard`
 - [ ] Automated: `tests/lib/navigationRoutesExist.test.ts` fails if any `built: true` href loses
       its page, and `tests/lib/navigation.test.ts` fails if a role's list changes
 
@@ -124,6 +134,9 @@ Screenshots: `.walk/scenario-069/` (excluded from git via `.git/info/exclude`, d
 - All 15 of the bishop's tiles: HTTP `200`, `redirected: false`, final path identical to the href.
 - `/admin/audit-log` → **404**. `/sacrament` → **redirects to `/dashboard`**. Both absent from every
   grid.
+  *(Historical: the second half stopped being true on 2026-09-22 when p4-sacrament-a gave
+  `/sacrament` to the meeting hub. The tile counts in the table above are from before that change
+  — the bishop's 15 becomes 14, since two tiles were replaced by one.)*
 - **Zero console errors on `/dashboard` for all six roles** — the two-per-page cost CLAUDE.md §9
   recorded is gone.
 - Locked tiles: `<div>`, zero focusable descendants, reason rendered as text.
