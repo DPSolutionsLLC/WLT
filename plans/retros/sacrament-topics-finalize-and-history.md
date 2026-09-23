@@ -2,7 +2,7 @@
 id: sacrament-topics-finalize-and-history
 type: feature
 iter: null
-commits: ["ff020e2", "9be5a44", "d0de806"]
+commits: ["ff020e2", "9be5a44", "c1da3b2"]
 date: 2026-09-23
 files:
   - lib/auth/navigation.tsx
