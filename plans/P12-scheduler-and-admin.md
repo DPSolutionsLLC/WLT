@@ -14,7 +14,7 @@ scheduler**, which is the reason this phase matters more than it looks.
 ## The scheduler — one mechanism, for everything
 
 **Nothing in this project fires from a clock.** `pg_cron` is not enabled,
-`supabase/functions/` does not exist, and `vercel.json` declares no crons. Eight separate things
+`supabase/functions/` does not exist, and `vercel.json` declares no crons. Nine separate things
 have been deferred to "whatever Phase 11 decides", each one computable and firing from nothing:
 
 | Thing | Deferred from |
@@ -27,8 +27,17 @@ have been deferred to "whatever Phase 11 decides", each one computable and firin
 | The scheduled agenda email | Phase 9 §A4 |
 | **The Sunday tithing clear** | CLAUDE.md rule 11, changed 2026-09-20 |
 | Auto-expiry of past calendar-linked items | the prototype |
+| **Rolling the 12-month Sunday horizon forward** | `music-collapsed-list-and-rolling-year`, 2026-09-23 |
 
 ~~`refresh_goal_status()`~~ left the list when `goals` was retired in P4.
+
+The ninth is the mildest of them and is named rather than left implicit. `ensureHorizonGenerated()`
+keeps a rolling 12 months of Sundays in place, but **it rolls forward only when somebody holding
+`calendar.manage` opens `/calendar`**. If only a music coordinator uses the app for three months
+the year quietly becomes nine, and it self-heals on the next calendar visit — so unlike the other
+eight, nothing is lost and nobody is un-notified, the horizon just shrinks. It belongs here anyway
+because the fix is the same fix, and inventing a tenth mechanism for it inside P4 would have
+pre-empted the decision this phase owns.
 
 **Settle the mechanism once, for all of them.** Options are a Supabase Edge Function on a
 schedule, Vercel cron, or `pg_cron` if it can be enabled. Whichever wins, **CLAUDE.md rule 3

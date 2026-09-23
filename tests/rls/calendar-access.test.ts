@@ -15,10 +15,20 @@
 // would be worse than naming the gap.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { asRole } from "@/tests/helpers/asRole";
+import { actAs } from "@/tests/helpers/routeClient";
 import { seedFixtures, type Fixtures } from "@/tests/helpers/seed";
 import type { Database } from "@/types/database";
+
+// The calendar PAGE is exercised at the bottom of this suite, so the one module that reads
+// next/headers is mocked exactly as a route suite mocks it — and nothing else is. Every query the
+// page runs still goes to the hosted project as a genuinely authenticated user
+// (tests/helpers/routeClient.ts explains the hoisting trap this shape avoids).
+vi.mock("@/lib/supabase/server", async () => {
+  const { serverClientMock } = await import("@/tests/helpers/routeClient");
+  return serverClientMock();
+});
 
 describe("calendar access", () => {
   let fixtures: Fixtures;
@@ -183,5 +193,34 @@ describe("calendar access", () => {
       .from("sundays")
       .update({ notes: null })
       .eq("id", wardASundayId);
+  });
+
+  // GENERATION IS A WRITE, AND THE GATE IS A PERMISSION CHECK RATHER THAN A POLICY — so it is
+  // asserted at the boundary rather than trusted. The test above documents that ward-level RLS
+  // alone does NOT stop a non-manager writing a Sunday; `can(user, "calendar.manage")` in
+  // app/(app)/calendar/page.tsx is what does, and slice 1 put a 12-month horizon behind that same
+  // gate. A music_coordinator holds calendar.view and not calendar.manage, which is exactly the
+  // person this protects: without the check, opening a read-only page would silently create a
+  // year of Sundays.
+  //
+  // The page is called as an ordinary async function. Its JSX is never rendered — the return
+  // value is a plain object — so this exercises the gate and the reads, which is all it claims to.
+  it("writes no Sundays when somebody without calendar.manage opens the calendar", async () => {
+    const countSundays = async () => {
+      const { count, error } = await fixtures.service
+        .from("sundays")
+        .select("id", { head: true, count: "exact" })
+        .eq("ward_id", fixtures.wardAId);
+      if (error) throw new Error(error.message);
+      return count ?? 0;
+    };
+
+    const before = await countSundays();
+
+    await actAs(fixtures, "musicCoordinator");
+    const { default: CalendarPage } = await import("@/app/(app)/calendar/page");
+    await CalendarPage({ searchParams: Promise.resolve({}) });
+
+    expect(await countSundays()).toBe(before);
   });
 });

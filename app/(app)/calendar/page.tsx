@@ -24,6 +24,7 @@ import {
 import { manageableOrgIds } from "@/lib/calendar/orgRotationScope";
 import {
   conductingNameMap,
+  ensureHorizonGenerated,
   ensureMonthGenerated,
   listBishopricUsers,
   listConductingRotation,
@@ -79,8 +80,33 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   // 019 grants UPDATE and INSERT on `sundays` to every authenticated member of the ward, so RLS
   // would happily let a music coordinator generate a month by opening it — and a read-only page
   // that quietly writes is a surprise nobody asked for. They see an empty month and who to ask.
+  //
+  // THE HORIZON RUNS UNDER THE SAME GATE AND FOR THE SAME REASON. ensureHorizonGenerated() keeps
+  // a rolling 12 months of Sundays in place so every Sunday-keyed module can reach a date a year
+  // out without anybody first navigating to its month here.
+  //
+  // ORDER MATTERS AND BOTH CALLS ARE NEEDED. The horizon creates the rows across the year and
+  // never repairs; the month call then finds the viewed month already present, skips generation,
+  // and does its REPAIR checks on it. Drop either and you lose the year or you lose the repair —
+  // ensureHorizonGenerated()'s header explains why the repair cannot simply be widened.
+  //
+  // ⚠️ KNOWN COST, MEASURED AND OPEN — defect 072-D3, walked 2026-09-23. The roll-forward is NOT
+  // cheap: `ensureHorizonGenerated()` regenerates the WHOLE range whenever the count falls short,
+  // so the first visit of each month pays ~14s (measured) rather than the ~2.7s baseline — worse
+  // than the ~9s first-ever run, because the three resolution passes sweep all twelve months
+  // against a fuller table. The fix is to generate only the MISSING months; it is not applied yet
+  // because the user asked to settle it as a decision. Do not "fix" it by shrinking the horizon.
+  //
+  // ⚠️ NAMED LIMITATION: the horizon rolls forward only when somebody holding `calendar.manage`
+  // opens this page. If only a music coordinator uses the app for three months, the year quietly
+  // becomes nine and self-heals on the next calendar visit. Making it self-maintaining needs a
+  // scheduler, which this project does not have — this joins P12's list, which already holds
+  // seven clock-driven items and should settle the mechanism once for all of them. Do not invent
+  // an eighth here.
   const sundays = canManage
-    ? await ensureMonthGenerated(user.wardId, month, supabase)
+    ? await ensureHorizonGenerated(user.wardId, today, supabase).then(() =>
+        ensureMonthGenerated(user.wardId, month, supabase),
+      )
     : await listSundays(user.wardId, range, supabase);
 
   const [rotation, bishopricUsers, organizations, orgLeadershipUsers, defaultSpeakingSlots] =

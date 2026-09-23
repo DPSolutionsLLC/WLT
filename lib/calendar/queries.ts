@@ -3,10 +3,12 @@ import { InvalidInputError } from "@/lib/auth/errors";
 import { BISHOPRIC_ROLES } from "@/lib/auth/permissions";
 import { findUsersOutsideWard } from "@/lib/callings/queries";
 import {
+  addMonths,
   formatDateOnly,
   lastDayOfMonth,
   monthOf,
   monthStart,
+  sundaysInRange,
   type DateOnly,
 } from "@/lib/calendar/dates";
 import {
@@ -954,6 +956,84 @@ export async function generateSundayRange(
   await populateOrgConducting(supabase, wardId, { from, to });
 
   return { created, monthsResolved: months.length };
+}
+
+export const CALENDAR_HORIZON_MONTHS = 12;
+
+// Keeps a ROLLING YEAR of Sundays generated, so every Sunday-keyed module — /music, /prayers,
+// /assignments, /sacrament and /program — can reach a date a year out with no round trip through
+// the calendar. Before this, reaching a distant Sunday meant: open the module, see nothing, go to
+// /calendar, navigate there, come back. Generation already accepted arbitrary ranges — its own
+// validation guard reads "Generate 24 months or fewer at a time" — so this is the codebase being
+// used the way it was written to be used.
+//
+// ---------------------------------------------------------------------------
+// IT GENERATES AND IT NEVER REPAIRS. THAT SPLIT IS THE WHOLE DESIGN.
+// ---------------------------------------------------------------------------
+// ensureMonthGenerated() does two jobs — generate, then REPAIR a half-generated month — and its
+// repair passes are month-scoped for reasons that do not survive a wider range. `needsFastSunday`
+// asks "does THIS MONTH have no Fast Sunday at all?". Over a year that question is meaningless: a
+// year always has some Fast Sunday, so a genuinely half-generated month inside the range would
+// test false and never be repaired. Widening the range silently DISABLES the repair.
+//
+// So the calendar page calls both, horizon first: this fills the year, and ensureMonthGenerated()
+// then finds the viewed month already present, skips generation, and runs its repair checks on
+// it. Two functions, two jobs — do not merge them, and do not "finish the job" here by adding
+// resolveMonth(), populateConducting() or populateOrgConducting(). They belong to the month.
+//
+// Returns void DELIBERATELY. It is a side effect, not a read; handing back a year of Sundays
+// would invite a page to render off it. The caller re-reads what it actually needs.
+//
+// NO AUDIT ROW, matching ensureMonthGenerated(). Generation triggered by a page VIEW writes none;
+// only the explicit POST /api/sundays `mode: "generate"` does. Keep that split — an audit row per
+// calendar visit is noise, and this call is idempotent.
+export async function ensureHorizonGenerated(
+  wardId: string,
+  today: DateOnly,
+  client?: SupabaseClient<Database>,
+): Promise<void> {
+  const supabase = await resolveClient(client);
+
+  // WHOLE MONTHS, because generateSundays() widens to whole months anyway (its own comment says
+  // so). Matching that here is what keeps the coverage arithmetic below EXACT: a range ending
+  // mid-month would expect fewer Sundays than generation actually creates, the count would never
+  // match, and this would generate on every single page view.
+  const from = monthStart(today);
+  const to = lastDayOfMonth(addMonths(from, CALENDAR_HORIZON_MONTHS - 1));
+
+  const expected = sundaysInRange(from, to).length;
+
+  // THE COVERAGE CHECK COMES FIRST AND FETCHES NO ROWS — `head: true` makes this count-only.
+  // Equal means return immediately, doing nothing, and that is what stops a read becoming a
+  // ~52-row upsert on every calendar page load. plans/retros/calendar-c-rotation-cadence.md is
+  // about exactly that class of bug.
+  //
+  // The comparison is exact and safe: EVERY Sunday date gets a row whatever its type — a
+  // cancelled Sunday and a stake conference both have one — and (ward_id, date) is unique, so the
+  // count can never exceed the expected number.
+  const { count, error } = await supabase
+    .from("sundays")
+    .select("id", { head: true, count: "exact" })
+    .eq("ward_id", wardId)
+    .gte("date", from)
+    .lte("date", to);
+
+  if (error) {
+    console.error(`Could not measure the calendar horizon — ${error.message}`, {
+      wardId,
+      from,
+      to,
+    });
+    throw new Error(`Could not read the calendar: ${error.message}`);
+  }
+
+  if ((count ?? 0) >= expected) return;
+
+  // ONE call for the whole range. generateSundayRange() is INSERT ... ON CONFLICT DO NOTHING
+  // (`ignoreDuplicates: true`), so it fills only the gaps and cannot overwrite a bishopric edit.
+  // That line is described in its own comment as the most dangerous in the phase; this call
+  // depends on it and does not touch it.
+  await generateSundayRange(wardId, from, to, supabase);
 }
 
 // Generates the whole month when it has no rows, so nobody can view a month whose Sundays do not
