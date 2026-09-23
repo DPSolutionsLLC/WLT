@@ -1,5 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { addMonths, type DateOnly } from "@/lib/calendar/dates";
+import { listSundays } from "@/lib/calendar/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { RECENT_MONTHS } from "@/lib/topics/topicRotation";
 import type {
   CreateTopicInput,
   ListTopicsQuery,
@@ -620,4 +623,223 @@ export async function rejectCandidate(
   }
 
   return data ? mapCandidateRow(data) : null;
+}
+
+// ---------------------------------------------------------------------------
+// WHAT HAS BEEN USED RECENTLY, AND WHO GAVE IT — p4-sacrament-b3
+// ---------------------------------------------------------------------------
+// The user's ask, in their own words: "as a user trying to put a sacrament together for the month
+// that you're conducting, just be able to see a quick overview of topics that have been used
+// recently — make sure that you're [not] duplicating something that's been used recently."
+//
+// The topic LIBRARY already sorts by staleness and badges each row "Used recently". That answers
+// "which topics are stale"; it does not answer "what did we actually do in March, and who gave
+// it". This does, and it is READ-ONLY — nothing here writes, and nothing here decides.
+//
+// ---------------------------------------------------------------------------
+// ⚠️ IT READS `assignments` DIRECTLY, WHICH TWO OTHER MODULES DELIBERATELY REFUSE TO DO
+// ---------------------------------------------------------------------------
+// lib/music/sundayTopics.ts and lib/program/gather.ts both state, in their headers, that every
+// read goes through an existing query module and that `.from("assignments")` is what they are
+// avoiding. This departs from that, narrowly, for two reasons — and the FIRST one is why the
+// composed path is not merely more verbose but WRONG here.
+//
+// AN ARCHIVED TOPIC IS STILL A TOPIC THAT WAS USED. listTopics() reads one status at a time and
+// defaults to active, so composing would silently drop every archived topic from this list —
+// sundayTopics.ts records exactly that hole as a cost it accepts, and this is the one screen
+// where it cannot be. "Do not repeat what you did in March" has to include the subject somebody
+// archived in April. The embed below resolves the title whatever its status.
+//
+// AND THE PRIVACY REASON DOES NOT APPLY. sundayTopics.ts refuses the assignments table because a
+// MUSIC COORDINATOR must never see a speaker or a pipeline stage, and its return type is the
+// boundary that guarantees it. This function is read by /talks/topics, which is bishopric-only on
+// `topics.view`, and its own return type carries no stage, no contact state and no approval — a
+// date, a title, and who spoke.
+//
+// The ward scope is still applied here explicitly, and the Sunday range is still resolved by the
+// module that owns `sundays`. What is NOT duplicated is any rule about the pipeline, because this
+// reads none of it.
+
+export type TopicUsage = {
+  topicId: string;
+  topicTitle: string;
+  sundayId: string;
+  date: DateOnly;
+  // Null is a slot with a topic and NOBODY IN IT YET — a real and common state, because this
+  // ward's workflow is to lay out a month of topics before finding speakers. It renders as an
+  // absence, never as the word "None", which would read as a decision somebody made (talks-c).
+  speakerName: string | null;
+  // Already on the calendar ahead of `today`. See the header on listRecentTopicUsage().
+  isUpcoming: boolean;
+};
+
+// ONE STRING LITERAL ON ONE LINE, never a `+` concatenation — that widens the type to `string`
+// and defeats supabase-js's literal parsing of the select list, degrading every row to something
+// untyped (plans/retros/calendar-a-rules-and-api.md).
+//
+// BOTH EMBEDS ARE NAMED BY THEIR FOREIGN KEY, which is required rather than tidy here: these are
+// COMPOSITE keys — `(topic_id, ward_id)` and `(member_id, ward_id)` from migration 005 — and an
+// inferred embed on a composite key is ambiguous. visits-d and youth-b both recorded the same
+// trap on `users`.
+//
+// ONLY THE NAME COMES BACK FROM `members`. Not a phone, not an address, not a birth date. This is
+// a display of who spoke; every other column on that table has its own read path and its own
+// permission behind it (lib/youth/attendees.ts states the same rule about `users`).
+const TOPIC_USAGE_COLUMNS =
+  "topic_id, sunday_id, slot_number, external_speaker_name, topic:topics!assignments_topic_id_ward_id_fkey (id, title), speaker:members!assignments_member_id_ward_id_fkey (first_name, last_name)";
+
+export type TopicUsageRow = {
+  topic_id: string | null;
+  sunday_id: string | null;
+  slot_number: number | null;
+  external_speaker_name: string | null;
+  topic: { id: string; title: string } | null;
+  speaker: { first_name: string | null; last_name: string | null } | null;
+};
+
+export type ListRecentTopicUsageOptions = {
+  // NO CLOCK IN HERE. The caller passes the day, exactly as lib/sacrament/sundayStatus.ts and
+  // lib/youth/coverage.ts do — a function that reads `new Date()` cannot be tested at a boundary
+  // and answers differently on a server than in a browser.
+  today: DateOnly;
+  monthsBack?: number;
+};
+
+// ---------------------------------------------------------------------------
+// THE WINDOW IS `RECENT_MONTHS`, IMPORTED AND NOT RESTATED
+// ---------------------------------------------------------------------------
+// lib/topics/topicRotation.ts already decides that six months is what "used recently" means, and
+// the badge that says so renders on the SAME PAGE as this list. Two definitions of one word,
+// three inches apart, is a disagreement that gets noticed by a user rather than by a test.
+//
+// ---------------------------------------------------------------------------
+// ⚠️ IT ALSO LOOKS FORWARD, AND THAT IS A DELIBERATE WIDENING OF THE ASK
+// ---------------------------------------------------------------------------
+// The user said "has been used". This list also includes topics already on the calendar for a
+// FUTURE Sunday, marked `isUpcoming`. Somebody planning next month needs to avoid repeating what
+// is coming up at least as much as what has gone — an unmarked repeat two weeks out is the same
+// congregation hearing the same subject twice.
+//
+// It is MARKED IN THE UI rather than folded in quietly, because it is more than was asked for.
+//
+// The forward span is the SAME `RECENT_MONTHS`, not a second number. There is no definition of
+// "soon" anywhere in this codebase, and inventing one here would be a third constant to keep in
+// step with the badge and the sort.
+export async function listRecentTopicUsage(
+  wardId: string,
+  options: ListRecentTopicUsageOptions,
+  client?: SupabaseClient<Database>,
+): Promise<TopicUsage[]> {
+  const supabase = await resolveClient(client);
+  const months = options.monthsBack ?? RECENT_MONTHS;
+
+  // Resolved through the module that owns `sundays`, so the ward scope on that table is applied
+  // where it belongs — and it hands back the DATES, which is what lets the sort below happen in
+  // TypeScript. PostgREST cannot order parent rows by an embedded column, which is the same
+  // constraint the youth report feed records (CLAUDE.md §9).
+  const sundays = await listSundays(
+    wardId,
+    topicUsageWindow(options.today, months),
+    supabase,
+  );
+
+  if (sundays.length === 0) return [];
+
+  const dateById = new Map(sundays.map((sunday) => [sunday.id, sunday.date]));
+
+  const { data, error } = await supabase
+    .from("assignments")
+    .select(TOPIC_USAGE_COLUMNS)
+    .eq("ward_id", wardId)
+    .in("sunday_id", [...dateById.keys()])
+    // A slot with no topic is not a usage. This is the filter the whole list is about.
+    .not("topic_id", "is", null);
+
+  if (error) {
+    console.error(`Could not read recent topic usage — ${error.message}`, { wardId });
+    throw new Error(`Could not read which topics have been used: ${error.message}`);
+  }
+
+  return mapTopicUsageRows(
+    (data ?? []) as unknown as TopicUsageRow[],
+    dateById,
+    options.today,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// THE HALF THAT IS WORTH TESTING, SPLIT OUT SO IT CAN BE
+// ---------------------------------------------------------------------------
+// Every decision in this list lives here — the ordering, the external-speaker fallback, and what
+// counts as upcoming — and none of it needs a database. Left inside the async function above, the
+// only way to assert any of it would be to seed a hosted project and read it back over the
+// network, which is a slow test of a pure rule. tests/lib/recentTopicUsage.test.ts hands it rows.
+//
+// NO CLOCK. `today` is a parameter for the same reason lib/sacrament/sundayStatus.ts has none at
+// all: a function that reads `new Date()` answers differently on a server than in a browser.
+export function mapTopicUsageRows(
+  rows: readonly TopicUsageRow[],
+  dateById: ReadonlyMap<string, DateOnly>,
+  today: DateOnly,
+): TopicUsage[] {
+  return rows
+    .flatMap((row) => {
+      const date = row.sunday_id === null ? undefined : dateById.get(row.sunday_id);
+
+      // A row whose topic embed came back empty is one whose topic was deleted out from under it.
+      // There is no delete path for topics (this module's header says so), so this is defensive —
+      // and dropping the row is right, because a usage with no subject says nothing.
+      if (row.topic === null || row.sunday_id === null || date === undefined) return [];
+
+      return [
+        {
+          topicId: row.topic.id,
+          topicTitle: row.topic.title,
+          sundayId: row.sunday_id,
+          date,
+          speakerName: speakerNameOf(row),
+          // STRICTLY AFTER TODAY. A talk being given THIS Sunday is not "coming up" in the sense
+          // that matters here — it is decided, the congregation is about to hear it, and it is
+          // exactly as much of a repeat risk as last week's.
+          isUpcoming: date > today,
+          slotNumber: row.slot_number ?? 0,
+        },
+      ];
+    })
+    // MOST RECENT FIRST, and an upcoming Sunday sorts above a past one for free because its date
+    // is larger. The slot number is a STABLE tie-break: three talks on one Sunday must not
+    // reshuffle between two renders of the same data (compareTopicsByStaleness's rule).
+    .sort((left, right) =>
+      left.date === right.date
+        ? left.slotNumber - right.slotNumber
+        : left.date < right.date
+          ? 1
+          : -1,
+    )
+    .map(({ slotNumber: _slotNumber, ...usage }) => usage);
+}
+
+// The window, named so a test can assert the boundary without a database. Symmetric — see the
+// header on listRecentTopicUsage() for why the forward half is the same constant.
+export function topicUsageWindow(
+  today: DateOnly,
+  monthsBack: number = RECENT_MONTHS,
+): { from: DateOnly; to: DateOnly } {
+  return { from: addMonths(today, -monthsBack), to: addMonths(today, monthsBack) };
+}
+
+// A VISITING SPEAKER IS A REAL SPEAKER. An ITER-004 external name fills the slot exactly as a
+// roster member does, and reading `member_id` alone would show a planned stake-visit Sunday as
+// having nobody on it — which is lib/sacrament/sundayStatus.ts's `hasSpeaker()` rule, here in a
+// second place.
+//
+// The member wins when both are somehow present; the database's own
+// assignments_speaker_exactly_one CHECK makes that unreachable, so the precedence is a defined
+// answer rather than a rule anybody relies on.
+function speakerNameOf(row: TopicUsageRow): string | null {
+  const memberName = `${row.speaker?.first_name ?? ""} ${row.speaker?.last_name ?? ""}`.trim();
+  if (memberName !== "") return memberName;
+
+  const external = row.external_speaker_name?.trim();
+  return external === undefined || external === "" ? null : external;
 }

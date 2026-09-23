@@ -1,9 +1,8 @@
 # P4 — Module Re-skins
 
 **Depends on:** P3. **Size:** Large — nine modules, one slice each.
-**Status:** In progress — module 1 slice `a` shipped (`c39e70f`, 2026-09-22) and completed by
-its `/music` month follow-up the same day. See the
-per-module progress column below.
+**Status:** In progress — module 1 slices `a` and `b` shipped (2026-09-22 and 2026-09-23). See
+the per-module progress column below.
 
 Bring every module that already exists into the prototype's design, and build the new behaviours
 the prototype added to them.
@@ -31,7 +30,7 @@ Design delta × how often it is used:
 
 | # | Module | Verdict | New behaviours |
 |---|---|---|---|
-| 1 | **Sacrament** (`/sacrament` hub over `/assignments`, `/prayers`, `/music`, `/program`) | RESKIN+ | 8 — **`a` shipped, `b`–`g` open** |
+| 1 | **Sacrament** (`/sacrament` hub over `/assignments`, `/prayers`, `/music`, `/program`) | RESKIN+ | 8 — **`a`, `b` shipped; `c`–`e` open, `f`/`g` on P5** |
 | 2 | **Visits** (`/visits`) | RESKIN+ | 3 — **and retires `goals`** |
 | 3 | **Youth** (`/youth`) | RESKIN | 2 adoptions |
 | 4 | **Agendas** (`/agendas`) | RESKIN+ | 10 |
@@ -90,6 +89,39 @@ land first.
 > `Topics pending` dimmed card and the `Draft`/`Pending approval`/`Approved` workflow pill.
 > Neither concept exists in WLT — there is no `topics_finalized` anywhere — and inferring one
 > from "this Sunday has topics assigned" is exactly what decisions.md §1.15 forbids.
+>
+> **SLICE `b` SHIPPED 2026-09-23** (`plans/sacrament-topics-finalize-and-history.md`), in three
+> commits as the RESKIN+ rule requires.
+>
+> **`b1` — Topics leaves the dashboard** and becomes a shortcut on the hub. The user's decision on
+> seeing it deployed: *"I don't think that's really necessary. If anything I'd probably rather just
+> have that accessible from within the Sacrament module."* `NavigationItem` gained
+> `onDashboard?: boolean` and `components/layout/ModuleShortcutRow.tsx` is the prototype's
+> `.sac-nav` as a shared component — module-map.md §6.4, which the original harvest missed
+> entirely. **The row is driven from `NAVIGATION_ITEMS`, not hardcoded**, so the Topics entry
+> survives with its label, icon, permission and `built` flag intact, and `/talks/topics` keeps its
+> home for the AI candidate queue (CLAUDE.md rule 3).
+>
+> **`b2` — Topics finalize.** Migration 078 adds `sundays.topics_finalized_at` — a TIMESTAMP, never
+> a boolean, and **no `topics_finalized_by`**, because migration 069 narrowed 48 composite
+> `(user, ward_id)` keys and the audit row is where "who" lives. It closes **§6.2 item 4**: an
+> un-finalized Sunday on `/music` is dimmed with its completion pill REPLACED by `Topics pending`,
+> and still clickable. **The rule is about WHAT changed, never about WHO moved** —
+> `lib/topics/finalize.ts` is the one helper, called from three write paths, and a test reads their
+> source because no behavioural assertion can see a fourth that forgot.
+>
+> **`b3` — what has been used recently.** The user's ask: *"just be able to see a quick overview of
+> topics that have been used recently — make sure that you're [not] duplicating something that's
+> been used recently."* A read-only list at the top of `/talks/topics`: date, topic, speaker,
+> visiting speakers included. It widens the ask deliberately by also showing topics already on the
+> calendar ahead, **marked** rather than folded in quietly.
+>
+> **§6.2's workflow pill is NOT slice `b`'s and was not built.** `Draft`/`Pending approval`/
+> `Approved` reports the PROGRAMME's state, so it belongs with the programme — module 6, or
+> whichever slice next touches `/program`.
+>
+> **Module 1 now has `c`, `d`, `e` left**, and `f`/`g` wait on **P5**. The INDEX argues P5 should
+> come early for exactly that reason.
 
 The chain is the point: **Topics → References → Talks → Prayers**, each with an explicit
 finalize, each gating the next. Finalizing Talks **generates real to-dos** — which means this

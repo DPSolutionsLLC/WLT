@@ -1,8 +1,10 @@
+import { RecentTopicUsage } from "@/app/(app)/talks/topics/RecentTopicUsage";
 import { TopicList } from "@/app/(app)/talks/topics/TopicList";
 import { NotPermitted } from "@/components/ui/NotPermitted";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
-import { listCandidates, listTopics } from "@/lib/topics/queries";
+import { formatDateOnly } from "@/lib/calendar/dates";
+import { listCandidates, listRecentTopicUsage, listTopics } from "@/lib/topics/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 // The topic library, at /talks/topics rather than the plan's /topics — that is what SPEC.md
@@ -26,11 +28,16 @@ export default async function TopicsPage() {
 
   const canManage = can(user, "topics.manage", roleAccess);
 
-  const [topics, candidates] = await Promise.all([
+  // Read ONCE here and handed down, so the usage window and anything else dated on this page
+  // cannot disagree about which day it is (lib/topics/queries.ts takes no clock of its own).
+  const today = formatDateOnly(new Date());
+
+  const [topics, candidates, recentUsage] = await Promise.all([
     // The DEFAULT filter — active topics, every category. TopicList seeds its cache from this
     // and refetches for any other combination.
     listTopics(user.wardId, { status: "active" }, supabase),
     listCandidates(user.wardId, "pending", supabase),
+    listRecentTopicUsage(user.wardId, { today }, supabase),
   ]);
 
   return (
@@ -42,6 +49,11 @@ export default async function TopicsPage() {
           first, so the ones worth considering are at the top.
         </p>
       </div>
+
+      {/* ABOVE THE LIBRARY, because it is what a conductor consults BEFORE choosing — the whole
+          point is not to repeat what has just been given. Below it, it would be a footnote to a
+          decision already made. */}
+      <RecentTopicUsage usage={recentUsage} />
 
       <TopicList
         initialTopics={topics}
