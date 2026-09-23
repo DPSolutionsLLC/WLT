@@ -1,7 +1,8 @@
 # P4 — Module Re-skins
 
 **Depends on:** P3. **Size:** Large — nine modules, one slice each.
-**Status:** Not started.
+**Status:** In progress — module 1 slice `a` shipped (`c39e70f`, 2026-09-22). See the
+per-module progress column below.
 
 Bring every module that already exists into the prototype's design, and build the new behaviours
 the prototype added to them.
@@ -13,7 +14,7 @@ the prototype added to them.
 
 ## The rule this phase exists to enforce
 
-Nine of these modules are **RESKIN+**, not RESKIN. Between them they carry **~40 named new
+Nine of these modules are **RESKIN+**, not RESKIN. Between them they carry **~39 named new
 behaviours** — appointment invites, finalize gates, section sharing, completion gates, a
 corrections log. A slice that treats its module as pure styling will discover these one at a
 time, mid-build, and every estimate after that is fiction.
@@ -29,7 +30,7 @@ Design delta × how often it is used:
 
 | # | Module | Verdict | New behaviours |
 |---|---|---|---|
-| 1 | **Sacrament** (`/assignments`, `/prayers`, `/talks/topics`) | RESKIN+ | 9 |
+| 1 | **Sacrament** (`/sacrament` hub over `/assignments`, `/prayers`, `/music`, `/program`) | RESKIN+ | 8 — **`a` shipped, `b`–`g` open** |
 | 2 | **Visits** (`/visits`) | RESKIN+ | 3 — **and retires `goals`** |
 | 3 | **Youth** (`/youth`) | RESKIN | 2 adoptions |
 | 4 | **Agendas** (`/agendas`) | RESKIN+ | 10 |
@@ -47,7 +48,22 @@ land first.
 
 ## Slice notes
 
-### 1. Sacrament — 9 new behaviours
+### 1. Sacrament — 8 new behaviours
+
+> **NINE WAS WRONG, AND THE CORRECTION IS THE MODULE MAP'S.** Behaviour 9 — conducting rotation
+> with weekly *and* monthly cadence and separate anchor shapes — **was already built** in
+> `supabase/migrations/024_rotation_cadence.sql` (`calendar-c-rotation-cadence`). Verified while
+> planning slice `a`; see `prototype/module-map.md` §2.1 correction (a). The count above and the
+> ~39 in the header move with it.
+>
+> **Slice `a` — the hub — SHIPPED 2026-09-22 (`c39e70f`).** `/sacrament` is a month of Sundays,
+> each card a pill row deep-linking into the module owning that work for that date; the card
+> itself opens the programme. No new behaviour from the list below. Remaining: `b` Topics
+> finalize, `c` References over pgvector, `d` day categories, `e` musical numbers by
+> `afterTalkIndex`, `f` Talks finalize → to-dos (**P5**), `g` Prayers finalize (**P5**, `f`).
+> Plus one the walk of scenario 072 found and the roadmap did not anticipate: **`/music` needs a
+> month parameter**, because the Music pill cannot reach a Sunday more than ~6 weeks out.
+
 The chain is the point: **Topics → References → Talks → Prayers**, each with an explicit
 finalize, each gating the next. Finalizing Talks **generates real to-dos** — which means this
 slice either waits for **P5** or ships the finalize without the to-do half. Prefer waiting;
