@@ -116,6 +116,30 @@ Each numbered item below is a candidate slice. "New" means no WLT route, table o
 > **Built so far:** the hub itself (`p4-sacrament-a`, 2026-09-22) — `/sacrament`, a month of
 > Sundays each carrying a pill row, every pill deep-linking to the module that owns it for that
 > date. No new behaviour from the list below; those are slices `b`–`g`.
+>
+> **Slice `c` — References over pgvector (2026-09-23), migration 079.** Behaviour 1 in full, and
+> behaviour 2's References link: a `Refs` pill directly after Topics opens a modal on the hub (the
+> prototype's own navigation), one section per talk with a topic, semantic search through
+> `retrieveChunks` under the ward's saved conference scope, manual entry beside it, and three
+> recorded states — open, finalized, **skipped** — in two timestamp columns on `sundays`.
+> References attach to the talk (`assignments` row), never a slot. **Two user decisions:** the
+> editor is a modal on `/sacrament`, and a topic change un-finalizes References while leaving a
+> skip standing. **One deliberate deviation:** adding a reference clears a skip, where the
+> prototype leaves `Refs: skipped` over references that exist. Slice `f` reads
+> `referencesDecisionOf(sunday) !== null` as its gate and `listReferencesForAssignments` for the
+> to-do; nothing reads either yet.
+>
+> **Reworked the same day after walking scenario 074 (user decisions):** references are
+> **bishopric-only** — the pill is absent for everybody else and migration 080 narrows the read;
+> **skipping is refused while references exist**; the modal shows only the chosen references, with
+> **Search** and **Add manually** buttons on each talk's title row opening their own windows (search
+> runs the topic on open, words editable, pick several at once); the topic's
+> `suggested_scriptures` appear as one-tap picks in the search window; manual entry is **Scripture
+> or General conference talk** only; Remove is a small icon. A **Search any topic** button above
+> the talks opens the same window empty, with an "Add to" talk picker. The shared `Modal` now
+> **fits its content** (a bottom sheet on phones) — every modal in the app changed with it. **Raised and NOT built:** the user
+> wants scriptures and conference talks loaded once by an admin and shared by every ward — a
+> change to rule 1 and to the per-ward corpus, needing its own plan.
 
 1. **References pill + modal** — ranked keyword search over the conference-talk corpus and
    scripture volumes, with manual entry alongside. *WLT has real retrieval already* (pgvector,

@@ -214,8 +214,15 @@ conducting_user_id  uuid REFERENCES users(id)
 speaking_slots  integer DEFAULT 3
 slot_config     jsonb  -- array of {slot_number, length_minutes, type}
 presiding_override  text  -- if not the bishop, free text name/title
+references_finalized_at  timestamptz  -- migration 079. "These references are ready"
+references_skipped_at    timestamptz  -- migration 079. "Not giving references this round"
 created_at      timestamptz DEFAULT now()
 ```
+`references_finalized_at` and `references_skipped_at` are never both set (CHECK
+`sundays_references_one_decision`). Both null means open. `skipped` is a recorded decision, never
+an empty list. A topic change clears `references_finalized_at` and leaves a skip standing
+(`lib/topics/finalize.ts`); adding a reference clears either, removing one clears only a finalize
+(`lib/references/finalize.ts`).
 
 ### `conducting_rotation`
 ```sql
@@ -342,6 +349,24 @@ approved        boolean
 comment         text
 created_at      timestamptz DEFAULT now()
 ```
+
+### `talk_references`
+Migration 079. The scriptures and talks a member of the bishopric chose for ONE talk — from a
+search of the ward's own library, or typed by hand. Nothing here is generated.
+```sql
+id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
+assignment_id   uuid NOT NULL  -- (assignment_id, ward_id) -> assignments, ON DELETE CASCADE
+kind            text NOT NULL  -- 'scripture' | 'talk' | 'other' (other arrives from search only)
+citation        text NOT NULL  -- 1–300 characters after trimming
+document_id     uuid           -- (document_id, ward_id) -> knowledge_documents, ON DELETE SET NULL (document_id)
+source          text NOT NULL  -- 'search' | 'manual'; a manual row never carries a document_id
+created_at      timestamptz DEFAULT now()
+```
+Attached to the TALK, never to a slot number, and with no `sunday_id` copy. No `created_by`
+(migration 069; the audit row records who). SELECT, INSERT and DELETE all on `is_bishopric()` —
+migration 080 narrowed the read from `can_view_talks()`, because references are the bishopric's
+planning material and nobody else reads them. No UPDATE policy — a reference is removed and re-added.
 
 ### `assignment_comments`
 ```sql
@@ -1169,7 +1194,17 @@ history that reads as "this member has never spoken".
 GET    /api/sundays              List Sundays
 POST   /api/sundays              Create Sunday record
 PATCH  /api/sundays/[id]         Update Sunday
+PATCH  /api/sundays/[id]/topics-finalized       Finalize / un-finalize a Sunday's topics (topics.manage)
+GET    /api/sundays/[id]/references             The References modal's data (talks.plan)
+POST   /api/sundays/[id]/references             Add a reference to one of this Sunday's talks (talks.plan)
+DELETE /api/sundays/[id]/references/[referenceId]  Remove one (talks.plan)
+POST   /api/sundays/[id]/references/search      Semantic search of the ward's library; writes nothing (talks.plan)
+PATCH  /api/sundays/[id]/references-decision    { decision: 'finalized' | 'skipped' | null } (talks.plan)
 ```
+The References routes check that the talk is on THE SUNDAY IN THE URL, not merely in the ward —
+the composite key proves only the second. Finalizing with no references is a 409 naming the
+alternative (skip), and skipping while references exist is a 409 naming the alternative (remove
+them first). The search passes no `filters`, so the ward's saved conference scope applies.
 
 ### Assignments
 ```

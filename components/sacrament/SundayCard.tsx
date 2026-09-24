@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { SundayTypeBadge } from "@/components/calendar/SundayTypeBadge";
+import { ReferencesPill } from "@/components/sacrament/ReferencesPill";
 import { StatusPill } from "@/components/sacrament/StatusPill";
 import { Card } from "@/components/ui/Card";
 import { formatSundayLabel, type DateOnly } from "@/lib/calendar/dates";
 import {
   sundayHasPills,
   type SundayPill,
-  type SundayPillKey,
+  type SundayPillLinkKey,
 } from "@/lib/sacrament/sundayStatus";
 import { SUNDAY_TYPE_LABELS, type SundayType } from "@/types/domain";
 
@@ -50,7 +51,8 @@ export type SundayCardProps = {
   // rotation can SUGGEST who is next, but the card reports what is stored.
   conductingName: string | null;
   pills: readonly SundayPill[];
-  hrefs: Record<SundayPillKey, string>;
+  // Every pill but References, which opens a modal and has no destination of its own.
+  hrefs: Record<SundayPillLinkKey, string>;
   // The whole card's destination — this Sunday's programme.
   programHref: string;
   // The Sunday editor, which is where the conducting override already lives. Null withholds the
@@ -62,6 +64,9 @@ export type SundayCardProps = {
   // finalize checkmark from the Topics pill entirely — absent, never disabled, the same rule the
   // conducting link above follows and the one StatusPill's header states for the pills.
   canFinalizeTopics: boolean;
+  // `talks.plan` — the bishopric. False withholds the References pill ENTIRELY: references are the
+  // bishopric's planning material and nobody else reads them (migration 080, defect 074-D2).
+  canPlanTalks: boolean;
 };
 
 export function SundayCard({
@@ -74,6 +79,7 @@ export function SundayCard({
   programHref,
   conductingHref,
   canFinalizeTopics,
+  canPlanTalks,
 }: SundayCardProps) {
   const sundayLabel = formatSundayLabel(date);
   const holdsMeeting = sundayHasPills(type);
@@ -124,15 +130,27 @@ export function SundayCard({
               carries no talk pills, because there is no work there to count. That decision lives
               in sundayPills(), not here; this component renders what it is given. */}
           <ul className="relative z-10 flex flex-wrap items-center gap-1.5">
-            {pills.map((pill) => (
+            {pills
+              .filter((pill) => pill.key !== "references" || canPlanTalks)
+              .map((pill) => (
               <li key={pill.key}>
-                <StatusPill
-                  pill={pill}
-                  href={hrefs[pill.key]}
-                  sundayLabel={sundayLabel}
-                  sundayId={sundayId}
-                  canFinalizeTopics={canFinalizeTopics}
-                />
+                {/* INSIDE the same `relative z-10` list as every other pill, or a press lands on
+                    the stretched programme link instead (p4-sacrament-a). */}
+                {pill.key === "references" ? (
+                  <ReferencesPill
+                    pill={pill}
+                    sundayLabel={sundayLabel}
+                    sundayId={sundayId}
+                  />
+                ) : (
+                  <StatusPill
+                    pill={pill}
+                    href={hrefs[pill.key]}
+                    sundayLabel={sundayLabel}
+                    sundayId={sundayId}
+                    canFinalizeTopics={canFinalizeTopics}
+                  />
+                )}
               </li>
             ))}
           </ul>

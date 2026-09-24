@@ -47,7 +47,9 @@ import type { PillStatus, SundayPill } from "@/lib/sacrament/sundayStatus";
 //
 // COLOUR IS NEVER THE ONLY SIGNAL: the pill always reads `Topics 2/3`, so the state is in the
 // numbers for anybody who cannot tell three treatments apart.
-const STATUS_TONES: Record<PillStatus, string> = {
+// EXPORTED FOR components/sacrament/ReferencesPill.tsx, which wraps the same Pill in a button
+// rather than a link. One Record, so the two cannot drift apart.
+export const STATUS_TONES: Record<PillStatus, string> = {
   empty: "border-stage-plan text-stage-plan",
   partial: "border-warning text-warning",
   complete: "border-stage-complete bg-stage-complete text-background",
@@ -96,7 +98,7 @@ export function StatusPill({
     <span className="inline-flex items-center">
     <Link
       href={href}
-      aria-label={`${pill.label}, ${pill.filled} of ${pill.total} — ${sundayLabel}`}
+      aria-label={`${pill.label}, ${pill.spokenCount} — ${sundayLabel}`}
       // min-h-11 IS 44px, AND IT IS THE POINT OF THE WRAPPER BEING A FLEX BOX.
       // Walking scenario 072 found every pill 19px high: `Pill` is `px-2 py-0.5 text-xs`, which
       // was right for all ten of its previous callers because every one of them was a BADGE.
@@ -116,7 +118,7 @@ export function StatusPill({
         {/* aria-hidden on the visible text, because the anchor's own aria-label already says all
             of it and more. Without this a screen reader reads the pill twice. */}
         <span aria-hidden="true">
-          {pill.label} {pill.filled}/{pill.total}
+          {pill.label} {pill.countText}
         </span>
       </Pill>
     </Link>

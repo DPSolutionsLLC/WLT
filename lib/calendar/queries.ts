@@ -46,6 +46,7 @@ import {
   SUNDAY_TYPES,
   type AssignmentType,
   type OrganizationType,
+  type ReferencesDecision,
   type RotationCadence,
   type RotationPosition,
   type SundayType,
@@ -83,8 +84,22 @@ export type Sunday = {
   // this is "a conductor's deliberate click", and a conductor filling slots in one at a time
   // while still deciding must not read as done.
   topicsFinalizedAt: string | null;
+  // At most one of these two is set (migration 079's CHECK). Read them through
+  // referencesDecisionOf() below rather than testing either column directly.
+  referencesFinalizedAt: string | null;
+  referencesSkippedAt: string | null;
   createdAt: string;
 };
+
+// THE ONLY PLACE THE TWO COLUMNS BECOME ONE VALUE. Slice `f`'s Talks-finalize gate reads
+// `referencesDecisionOf(sunday) !== null`, and the hub's pill reads the same answer.
+export function referencesDecisionOf(
+  sunday: Pick<Sunday, "referencesFinalizedAt" | "referencesSkippedAt">,
+): ReferencesDecision {
+  if (sunday.referencesFinalizedAt !== null) return "finalized";
+  if (sunday.referencesSkippedAt !== null) return "skipped";
+  return null;
+}
 
 export type ConductingRotationRow = {
   id: string;
@@ -207,6 +222,8 @@ type SundayRow = {
   presiding_override: string | null;
   fast_sunday_pinned: boolean;
   topics_finalized_at: string | null;
+  references_finalized_at: string | null;
+  references_skipped_at: string | null;
   created_at: string;
 };
 
@@ -224,7 +241,7 @@ type RotationRow = {
 // mapped row into GenericStringError. lib/roster/queries.ts keeps its column lists on one line
 // for the same reason.
 const SUNDAY_COLUMNS =
-  "id, date, type, notes, conducting_user_id, speaking_slots, slot_config, presiding_override, fast_sunday_pinned, topics_finalized_at, created_at";
+  "id, date, type, notes, conducting_user_id, speaking_slots, slot_config, presiding_override, fast_sunday_pinned, topics_finalized_at, references_finalized_at, references_skipped_at, created_at";
 
 // One string literal on ONE line, however long it gets, and never a `+` concatenation.
 // Concatenation widens the type to `string`, which defeats supabase-js's literal-type parsing of
@@ -341,6 +358,8 @@ export function mapSundayRow(row: SundayRow): Sunday {
     presidingOverride: row.presiding_override,
     fastSundayPinned: row.fast_sunday_pinned,
     topicsFinalizedAt: row.topics_finalized_at,
+    referencesFinalizedAt: row.references_finalized_at,
+    referencesSkippedAt: row.references_skipped_at,
     createdAt: row.created_at,
   };
 }
@@ -491,6 +510,99 @@ export async function setTopicsFinalized(
 
   // A denied UPDATE is a ZERO-ROW SUCCESS, not an error (plans/retros/foundation-c-services.md),
   // so the absence of a row is the real signal rather than `error`.
+  return data ? mapSundayRow(data) : null;
+}
+
+// ---------------------------------------------------------------------------
+// "THIS SUNDAY'S REFERENCES ARE READY", OR "NOT GIVING ANY THIS ROUND" — p4-sacrament-c
+// ---------------------------------------------------------------------------
+// setTopicsFinalized()'s rules, for the same reasons: idempotent so the stamp stays the instant
+// somebody decided, the server picks the instant, and null covers "not yours" and "refused".
+//
+// BOTH COLUMNS IN ONE UPDATE. Migration 079's CHECK forbids both being set, so moving from skipped
+// to finalized must clear the one while setting the other — two writes would pass through a state
+// the database refuses.
+export async function setReferencesDecision(
+  wardId: string,
+  sundayId: string,
+  decision: ReferencesDecision,
+  client?: SupabaseClient<Database>,
+): Promise<Sunday | null> {
+  const supabase = await resolveClient(client);
+
+  const before = await getSunday(wardId, sundayId, supabase);
+  if (!before) return null;
+
+  if (referencesDecisionOf(before) === decision) return before;
+
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from("sundays")
+    .update({
+      references_finalized_at: decision === "finalized" ? now : null,
+      references_skipped_at: decision === "skipped" ? now : null,
+    })
+    .eq("ward_id", wardId)
+    .eq("id", sundayId)
+    .select(SUNDAY_COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`Could not set a Sunday's references decision — ${error.message}`, {
+      wardId,
+      sundayId,
+      decision,
+    });
+    throw new Error(`Could not update that Sunday: ${error.message}`);
+  }
+
+  return data ? mapSundayRow(data) : null;
+}
+
+// ---------------------------------------------------------------------------
+// EVERY STAMP THAT SAYS THE DAY'S TALKS ARE SETTLED, CLEARED TOGETHER
+// ---------------------------------------------------------------------------
+// Called by lib/topics/finalize.ts when a topic, a slot count or a new talk changes what the day
+// is about. A reference was chosen FOR a topic, so once the topic moves "these references are
+// ready" is no longer true either (decided with the user, 2026-09-23).
+//
+// ⚠️ `references_skipped_at` IS NEVER TOUCHED HERE. "Not giving references this round" is not a
+// claim about what the topics are, so a topic change leaves it standing.
+//
+// One UPDATE, so PATCH /api/sundays/[id] gets one honest returned row rather than two helpers'
+// answers to choose between. When neither stamp is set it writes nothing, which keeps
+// unfinalizeTopicsIfNeeded()'s "one SELECT in the ordinary case" promise.
+export async function clearTalkShapeStamps(
+  wardId: string,
+  sundayId: string,
+  client?: SupabaseClient<Database>,
+): Promise<Sunday | null> {
+  const supabase = await resolveClient(client);
+
+  const before = await getSunday(wardId, sundayId, supabase);
+  if (!before) return null;
+
+  if (before.topicsFinalizedAt === null && before.referencesFinalizedAt === null) {
+    return before;
+  }
+
+  const { data, error } = await supabase
+    .from("sundays")
+    .update({ topics_finalized_at: null, references_finalized_at: null })
+    .eq("ward_id", wardId)
+    .eq("id", sundayId)
+    .select(SUNDAY_COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`Could not clear a Sunday's finalized stamps — ${error.message}`, {
+      wardId,
+      sundayId,
+    });
+    throw new Error(`Could not update that Sunday: ${error.message}`);
+  }
+
   return data ? mapSundayRow(data) : null;
 }
 

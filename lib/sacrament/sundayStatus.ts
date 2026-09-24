@@ -3,6 +3,7 @@ import {
   holdsSacramentMeeting,
   type PipelineStage,
   type PrayerType,
+  type ReferencesDecision,
   type SundayType,
 } from "@/types/domain";
 
@@ -24,13 +25,10 @@ import {
 // arithmetic with no imports of its own — see NO CLOCK below for why `monthOf` in particular does
 // not breach the second rule either.
 //
-// ⚠️ NOTHING RENDERS THIS FROM A CLIENT COMPONENT TODAY, and the rule is here anyway. The hub is
-// a Server Component and components/sacrament/{SundayCard,StatusPill}.tsx have no "use client" —
-// month navigation is a URL change, handled by the client component /calendar already owns. But
-// p4-sacrament-f turns the Talks pill four-state on an interaction, which is the slice most
-// likely to put this module in the browser bundle, and the import that breaks it is invisible to
-// every check except the production build. Keeping the constraint while it costs nothing is what
-// stops that slice discovering it.
+// ⚠️ A CLIENT COMPONENT NOW RECEIVES THIS MODULE'S TYPES. Since p4-sacrament-c,
+// components/sacrament/ReferencesPill.tsx is "use client" and takes a `SundayPill`, so this file
+// sits one import away from the browser bundle — and the import that breaks it is invisible to
+// every check except the production build.
 //
 // ---------------------------------------------------------------------------
 // NO CLOCK
@@ -62,27 +60,38 @@ export type PillStatus = "empty" | "partial" | "complete";
 // ABSENT until P11 builds the adult ordinance screen. A pill pointing at a route with no page is
 // the standing broken-link bug P3 closed (lib/auth/navigation.tsx's `built` gate); add the key
 // here in the same change that adds the page, never before.
-export type SundayPillKey = "topics" | "talks" | "prayer" | "music";
+//
+// `references` JOINED IN p4-sacrament-c, and it is the one pill with NO HREF: it opens a modal on
+// the hub (the prototype's `HomeCalendar` → `ReferencesModal`). sundayPillHrefs() below returns
+// every key BUT this one, so a fake href cannot be invented for it.
+export type SundayPillKey = "topics" | "references" | "talks" | "prayer" | "music";
+
+export type SundayPillLinkKey = Exclude<SundayPillKey, "references">;
 
 export type SundayPill = {
   key: SundayPillKey;
   label: string;
   filled: number;
   total: number;
+  // WHAT THE PILL SAYS, visible and spoken. Every counted pill reads `2/3` and "2 of 3"; the
+  // References pill is not a fraction — nobody owes a Sunday a number of references — so it reads
+  // `3` / "3 chosen", or `skipped`. Computed here so no component re-derives it.
+  countText: string;
+  spokenCount: string;
   status: PillStatus;
   // ---------------------------------------------------------------------------
   // `null` MEANS "THIS PILL HAS NO FINALIZE CONCEPT", AND IT IS NOT A DEFAULTED false
   // ---------------------------------------------------------------------------
-  // Only `topics` is finalizable today, so the other three carry null — the same absent-means-no
+  // `topics` and `references` are finalizable today, so the other three carry null — the same absent-means-no
   // idiom `activity_events.youth_attended` uses, and for the same reason: `false` on the Music
   // pill would assert that somebody has not finalized the music, which is not a thing anybody can
   // do. components/sacrament/StatusPill.tsx renders a checkmark on exactly the pills where this
   // is a boolean, so a null pill cannot grow a control by accident.
   //
-  // THE PROTOTYPE ADDS THREE MORE LATER — References, Talks and Prayers each gain their own
-  // finalize on the same `FinalizablePill` (build notes §references-pill-and-modal,
-  // §talks-finalize-todo-accept-decline, §prayers-finalize-todo-accept-decline). This is the
-  // shape they arrive into; none of them is built, and none should be inferred.
+  // THE PROTOTYPE ADDS TWO MORE LATER — Talks and Prayers each gain their own finalize on the
+  // same `FinalizablePill` (build notes §talks-finalize-todo-accept-decline,
+  // §prayers-finalize-todo-accept-decline). References arrived in p4-sacrament-c; the other two
+  // are not built and should not be inferred.
   finalized: boolean | null;
 };
 
@@ -126,6 +135,10 @@ export type SundayStatusInput = {
   // and a derived one would tell a music coordinator the topics were settled when nobody had said
   // so.
   topicsFinalized: boolean;
+  // REQUIRED FOR THE SAME REASON. `count` is references on this Sunday's talks with a topic;
+  // `decision` is referencesDecisionOf(sunday), never inferred from the count — `skipped` is a
+  // recorded decision and not an empty list (module-map §2.1 item 2).
+  references: { count: number; decision: ReferencesDecision };
 };
 
 // Three hymns — opening, sacrament, closing (HYMN_TYPES). Musical numbers are extra and
@@ -140,6 +153,7 @@ export const PRAYERS_PER_SUNDAY = 2;
 
 const PILL_LABELS: Record<SundayPillKey, string> = {
   topics: "Topics",
+  references: "Refs",
   talks: "Talks",
   prayer: "Prayer",
   music: "Music",
@@ -222,6 +236,7 @@ export function sundayPills(input: SundayStatusInput): readonly SundayPill[] {
             slots,
             input.topicsFinalized,
           ),
+          referencesPill(input.references),
           pill("talks", Math.min(countTalks(input), slots), slots),
         ];
 
@@ -247,8 +262,32 @@ function pill(
     label: PILL_LABELS[key],
     filled,
     total,
+    countText: `${filled}/${total}`,
+    spokenCount: `${filled} of ${total}`,
     status: pillStatus(filled, total),
     finalized,
+  };
+}
+
+// NOT A FRACTION. `filled` and `total` are both the count so nothing that reads them misreads a
+// ratio. COMPLETE MEANS SOMEBODY DECIDED — finalized or skipped — never "has references": a
+// Sunday with three references nobody has called ready is `partial`.
+function referencesPill(references: SundayStatusInput["references"]): SundayPill {
+  const count = Math.max(0, references.count);
+  const skipped = references.decision === "skipped";
+
+  const status: PillStatus =
+    references.decision !== null ? "complete" : count > 0 ? "partial" : "empty";
+
+  return {
+    key: "references",
+    label: PILL_LABELS.references,
+    filled: count,
+    total: count,
+    countText: skipped ? "skipped" : String(count),
+    spokenCount: skipped ? "skipped" : `${count} chosen`,
+    status,
+    finalized: references.decision !== null,
   };
 }
 
@@ -291,10 +330,13 @@ export function sundayHasPills(type: SundayType): boolean {
 //
 // PRAYER DID NOT CHANGE. /prayers is a month board in the prototype AND here, so its pill still
 // carries a month. The two pills reading differently is the decision, not an oversight.
+//
+// THE REFERENCES PILL HAS NO HREF. It opens a modal, and a fake href would be the broken-link bug
+// P3 closed — which is why the return type excludes the key rather than mapping it to anything.
 export function sundayPillHrefs(
   sundayId: string,
   date: DateOnly,
-): Record<SundayPillKey, string> {
+): Record<SundayPillLinkKey, string> {
   const assignment = `/assignments/${sundayId}`;
 
   return {

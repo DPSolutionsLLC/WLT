@@ -250,6 +250,48 @@ export async function listDocuments(
   return rows.map((row, index) => mapDocumentRow(row, counts[index], names));
 }
 
+// JUST ENOUGH TO CITE A DOCUMENT — p4-sacrament-c's reference search. No chunk counts and no
+// uploader names, which listDocuments() pays for and a citation does not need.
+export type DocumentCitationMetadata = {
+  id: string;
+  title: string;
+  typeTag: KnowledgeTypeTag | null;
+  speaker: string | null;
+  conferenceDate: string | null;
+};
+
+export async function listDocumentMetadata(
+  wardId: string,
+  ids: readonly string[],
+  client?: SupabaseClient<Database>,
+): Promise<DocumentCitationMetadata[]> {
+  if (ids.length === 0) return [];
+
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("knowledge_documents")
+    .select("id, title, type_tag, speaker, conference_date")
+    .eq("ward_id", wardId)
+    .in("id", [...ids]);
+
+  if (error) {
+    console.error(`Could not read knowledge document metadata — ${error.message}`, {
+      wardId,
+      documentCount: ids.length,
+    });
+    throw new Error(`Could not read those documents: ${error.message}`);
+  }
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    typeTag: toTypeTag(row.type_tag),
+    speaker: row.speaker,
+    conferenceDate: row.conference_date,
+  }));
+}
+
 export async function getDocument(
   wardId: string,
   id: string,

@@ -137,6 +137,9 @@ describe("topicShapeChanged — what does NOT un-finalize a Sunday", () => {
 // It is deliberately NOT a search for "every route that writes assignments" — that would be a
 // second definition of the rule, kept here, drifting from the one in lib/topics/finalize.ts. It
 // is a named list, and adding a write path means adding a line to it on purpose.
+//
+// Since p4-sacrament-c the helper also clears `references_finalized_at` (decision 2), so these
+// three call sites un-finalize References too. tests/routes/talk-references.test.ts asserts that.
 describe("the three write paths all clear the stamp", () => {
   const CALL_SITES = [
     "app/api/assignments/route.ts",

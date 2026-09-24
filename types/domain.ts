@@ -1467,3 +1467,65 @@ export const HELP_NOT_WRITTEN_YET =
   "There is no written help for this page yet. If something here is confusing or looks wrong, " +
   "use Report an issue — it records which page you were on and what calling you are acting " +
   "under, so you do not have to explain any of that.";
+
+// ---------------------------------------------------------------------------
+// THE REFERENCES A TALK IS GIVEN (migration 079)
+// ---------------------------------------------------------------------------
+//
+// `other` arrives from SEARCH alone — a ward-uploaded letter or handbook excerpt. The manual
+// entry offers Scripture and Talk only, which is the prototype's own `<select>`.
+export const REFERENCE_KINDS = ["scripture", "talk", "other"] as const;
+export type ReferenceKind = (typeof REFERENCE_KINDS)[number];
+
+// A `talk` is always a GENERAL CONFERENCE talk — the only talks the corpus holds and the only
+// ones a bishop may type in by hand (decided with the user, 2026-09-23).
+export const REFERENCE_KIND_LABELS: Record<ReferenceKind, string> = {
+  scripture: "Scripture",
+  talk: "Conference talk",
+  other: "Document",
+};
+
+export const MANUAL_REFERENCE_KINDS = ["scripture", "talk"] as const;
+export type ManualReferenceKind = (typeof MANUAL_REFERENCE_KINDS)[number];
+
+// The words in the manual-entry picker, where there is room to say it in full.
+export const MANUAL_REFERENCE_KIND_LABELS: Record<ManualReferenceKind, string> = {
+  scripture: "Scripture",
+  talk: "General conference talk",
+};
+
+export const REFERENCE_SOURCES = ["search", "manual"] as const;
+export type ReferenceSource = (typeof REFERENCE_SOURCES)[number];
+
+// Two timestamp columns on `sundays` collapse to this one value in referencesDecisionOf()
+// (lib/calendar/queries.ts) and nowhere else. `null` is OPEN — nobody has decided.
+export type ReferencesDecision = "finalized" | "skipped" | null;
+
+export type TalkReference = {
+  id: string;
+  assignmentId: string;
+  kind: ReferenceKind;
+  citation: string;
+  documentId: string | null;
+  source: ReferenceSource;
+  createdAt: string;
+};
+
+// One talk as the References modal lists it: only talks WITH a topic, ordered by slot.
+export type ReferencesTalk = {
+  assignmentId: string;
+  slotNumber: number | null;
+  topicTitle: string;
+  speakerName: string | null;
+  // The topic's own `suggested_scriptures`, offered as one-tap picks in the search window. Never
+  // null — a topic with none is an empty list.
+  suggestedScriptures: string[];
+};
+
+// GET /api/sundays/[id]/references. Bishopric-only (migration 080), so there is no read-only
+// mode: whoever can load this can edit it.
+export type SundayReferences = {
+  decision: ReferencesDecision;
+  talks: ReferencesTalk[];
+  references: TalkReference[];
+};

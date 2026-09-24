@@ -822,6 +822,10 @@ export async function createSunday(options: {
   // A TIMESTAMP, never a boolean — a seed that wrote `true` could not express "finalized in
   // January and then edited in March", which is the case the auto-unfinalize rule turns on.
   topicsFinalizedAt?: string;
+  // Migration 079. At most ONE of these two — the database's CHECK refuses both, so a seed that
+  // sets both fails loudly rather than seeding a state the app cannot reach.
+  referencesFinalizedAt?: string;
+  referencesSkippedAt?: string;
 }): Promise<string> {
   return insertRow("sundays", {
     id: options.id ?? testUuid(`sunday:${options.date}`),
@@ -833,6 +837,8 @@ export async function createSunday(options: {
     notes: options.notes ?? null,
     fast_sunday_pinned: options.fastSundayPinned ?? false,
     topics_finalized_at: options.topicsFinalizedAt ?? null,
+    references_finalized_at: options.referencesFinalizedAt ?? null,
+    references_skipped_at: options.referencesSkippedAt ?? null,
   });
 }
 
@@ -1053,6 +1059,29 @@ export async function createAssignmentComment(options: {
     user_id: options.userId,
     comment: options.comment,
     level: options.level,
+  });
+}
+
+// A reference attached to one TALK (migration 079). Defaults to `manual`, the only source that
+// needs no knowledge document — a `search` row must name a real one, and the harness's hand-made
+// vectors match no real query, so a scenario that wants search results uploads a document for
+// real instead (plans/retros/ai-b-knowledge-and-retrieval.md).
+export async function createTalkReference(options: {
+  id?: string;
+  assignmentId: string;
+  kind: "scripture" | "talk" | "other";
+  citation: string;
+  source?: "search" | "manual";
+  documentId?: string;
+}): Promise<string> {
+  return insertRow("talk_references", {
+    id: options.id ?? testUuid(`talk-reference:${options.assignmentId}:${options.citation}`),
+    ward_id: TEST_WARD_ID,
+    assignment_id: options.assignmentId,
+    kind: options.kind,
+    citation: options.citation,
+    source: options.source ?? "manual",
+    document_id: options.documentId ?? null,
   });
 }
 

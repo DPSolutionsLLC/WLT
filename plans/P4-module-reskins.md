@@ -1,7 +1,7 @@
 # P4 — Module Re-skins
 
 **Depends on:** P3. **Size:** Large — nine modules, one slice each.
-**Status:** In progress — module 1 slices `a` and `b` shipped (2026-09-22 and 2026-09-23). See
+**Status:** In progress — module 1 slices `a`, `b` and `c` shipped (2026-09-22 to 2026-09-23). See
 the per-module progress column below.
 
 Bring every module that already exists into the prototype's design, and build the new behaviours
@@ -30,7 +30,7 @@ Design delta × how often it is used:
 
 | # | Module | Verdict | New behaviours |
 |---|---|---|---|
-| 1 | **Sacrament** (`/sacrament` hub over `/assignments`, `/prayers`, `/music`, `/program`) | RESKIN+ | 8 — **`a`, `b` shipped; `c`–`e` open, `f`/`g` on P5** |
+| 1 | **Sacrament** (`/sacrament` hub over `/assignments`, `/prayers`, `/music`, `/program`) | RESKIN+ | 8 — **`a`, `b`, `c` shipped; `d`, `e` open, `f`/`g` on P5** |
 | 2 | **Visits** (`/visits`) | RESKIN+ | 3 — **and retires `goals`** |
 | 3 | **Youth** (`/youth`) | RESKIN | 2 adoptions |
 | 4 | **Agendas** (`/agendas`) | RESKIN+ | 10 |
@@ -120,7 +120,20 @@ land first.
 > `Approved` reports the PROGRAMME's state, so it belongs with the programme — module 6, or
 > whichever slice next touches `/program`.
 >
-> **Module 1 now has `c`, `d`, `e` left**, and `f`/`g` wait on **P5**. The INDEX argues P5 should
+> **`c` — References over pgvector (2026-09-23).** Migration 079: `talk_references` attached to
+> the ASSIGNMENT, plus `sundays.references_finalized_at` / `references_skipped_at` under a CHECK
+> that forbids both. A `Refs` pill (a BUTTON — it opens a modal, so it has no href) with the same
+> attached checkmark as Topics, now shared as `components/sacrament/FinalizeToggle.tsx`. Search is
+> `retrieveChunks` with no `filters`, so the ward's conference scope applies and no setting was
+> added. `unfinalizeTopicsIfNeeded()` now clears **both** finalized stamps through
+> `clearTalkShapeStamps()`, and a skip survives it. **For slice `f`:** the gate is
+> `referencesDecisionOf(sunday) !== null` and the to-do's references come from
+> `listReferencesForAssignments` — do not re-derive either. **Walking scenario 074 reworked it**
+> (migration 080, bishopric-only reads; skip refused while references exist; per-talk Search and
+> Add-manually windows; suggested scriptures as picks) — module-map §2.1 has the list. **A shared,
+> admin-loaded corpus for every ward was raised and is NOT built**; it needs its own plan.
+>
+> **Module 1 now has `d`, `e` left**, and `f`/`g` wait on **P5**. The INDEX argues P5 should
 > come early for exactly that reason.
 
 The chain is the point: **Topics → References → Talks → Prayers**, each with an explicit

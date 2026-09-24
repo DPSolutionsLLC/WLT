@@ -34,6 +34,8 @@ function sunday(overrides: Partial<Sunday> = {}): Sunday {
     presidingOverride: null,
     fastSundayPinned: false,
     topicsFinalizedAt: null,
+    referencesFinalizedAt: null,
+    referencesSkippedAt: null,
     createdAt: "2026-08-01T00:00:00.000Z",
     ...overrides,
   };

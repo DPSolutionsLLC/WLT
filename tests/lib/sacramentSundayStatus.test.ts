@@ -8,6 +8,7 @@ import {
   sundayPills,
   type SundayPill,
   type SundayPillKey,
+  type SundayPillLinkKey,
   type SundayStatusAssignment,
   type SundayStatusInput,
 } from "@/lib/sacrament/sundayStatus";
@@ -24,6 +25,7 @@ function input(overrides: Partial<SundayStatusInput> = {}): SundayStatusInput {
     prayers: [],
     hymnSelectionCount: 0,
     topicsFinalized: false,
+    references: { count: 0, decision: null },
     ...overrides,
   };
 }
@@ -69,9 +71,11 @@ describe("pillStatus", () => {
 });
 
 describe("sundayPills", () => {
-  it("emits the four pills in a fixed order", () => {
+  // The prototype's order: References sits directly after Topics (p4-sacrament-c).
+  it("emits the five pills in a fixed order", () => {
     expect(sundayPills(input()).map((pill) => pill.key)).toEqual([
       "topics",
+      "references",
       "talks",
       "prayer",
       "music",
@@ -83,7 +87,7 @@ describe("sundayPills", () => {
   it("emits an untouched Sunday's pills as zeroes rather than omitting them", () => {
     const pills = sundayPills(input());
 
-    expect(pills).toHaveLength(4);
+    expect(pills).toHaveLength(5);
     expect(pillFor(pills, "topics")).toMatchObject({ filled: 0, total: 3, status: "empty" });
     expect(pillFor(pills, "talks")).toMatchObject({ filled: 0, total: 3, status: "empty" });
   });
@@ -397,12 +401,83 @@ describe("sundayPillHrefs", () => {
     }
   });
 
-  it("answers for every pill key, so a key added later cannot arrive without a destination", () => {
-    const keys: SundayPillKey[] = ["topics", "talks", "prayer", "music"];
+  // EVERY KEY BUT `references`, which opens a modal and must not be given a fake destination.
+  it("answers for every linked pill key, so a key added later cannot arrive without a destination", () => {
+    const keys: SundayPillLinkKey[] = ["topics", "talks", "prayer", "music"];
 
     expect(Object.keys(sundayPillHrefs(SUNDAY_ID, "2027-08-15")).sort()).toEqual(
       [...keys].sort(),
     );
+  });
+});
+
+describe("the References pill — p4-sacrament-c", () => {
+  const SUNDAY_ID = "2f6d4a1e-0000-4000-8000-000000000001";
+
+  it("is not emitted on a Sunday with no speaking slots", () => {
+    const keys = sundayPills(input({ speakingSlots: 0 })).map((pill) => pill.key);
+
+    expect(keys).not.toContain("references");
+  });
+
+  it("reads empty with nothing chosen and nothing decided", () => {
+    expect(pillFor(sundayPills(input()), "references")).toMatchObject({
+      label: "Refs",
+      status: "empty",
+      countText: "0",
+      spokenCount: "0 chosen",
+      finalized: false,
+    });
+  });
+
+  // A COUNT, NOT A FRACTION — nobody owes a Sunday a number of references.
+  it("reads partial with references nobody has called ready", () => {
+    expect(
+      pillFor(sundayPills(input({ references: { count: 2, decision: null } })), "references"),
+    ).toMatchObject({ status: "partial", countText: "2", finalized: false });
+  });
+
+  it("reads complete and finalized once somebody finalizes", () => {
+    expect(
+      pillFor(
+        sundayPills(input({ references: { count: 2, decision: "finalized" } })),
+        "references",
+      ),
+    ).toMatchObject({ status: "complete", countText: "2", finalized: true });
+  });
+
+  // SKIPPED IS A RECORDED DECISION, NOT AN EMPTY LIST (module-map §2.1 item 2). Zero references
+  // with a skip is complete; zero without one is empty — and a count alone cannot tell them apart.
+  it("reads complete with zero references when skipped", () => {
+    expect(
+      pillFor(
+        sundayPills(input({ references: { count: 0, decision: "skipped" } })),
+        "references",
+      ),
+    ).toMatchObject({
+      status: "complete",
+      countText: "skipped",
+      spokenCount: "skipped",
+      finalized: true,
+    });
+  });
+
+  it("has no href", () => {
+    expect(Object.keys(sundayPillHrefs(SUNDAY_ID, "2027-08-15"))).not.toContain("references");
+  });
+
+  it("leaves every counted pill reading filled/total", () => {
+    const pills = sundayPills(
+      input({
+        assignments: [assignment({ topicId: "t1", memberId: "m1" })],
+        hymnSelectionCount: 2,
+      }),
+    ).filter((pill) => pill.key !== "references");
+
+    for (const pill of pills) {
+      expect(pill.countText).toBe(`${pill.filled}/${pill.total}`);
+      expect(pill.spokenCount).toBe(`${pill.filled} of ${pill.total}`);
+    }
   });
 });
 

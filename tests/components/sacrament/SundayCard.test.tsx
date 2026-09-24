@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { SundayCard, type SundayCardProps } from "@/components/sacrament/SundayCard";
 import {
   sundayPills,
-  type SundayPillKey,
+  type SundayPillLinkKey,
   type SundayStatusInput,
 } from "@/lib/sacrament/sundayStatus";
 
@@ -33,7 +33,7 @@ vi.mock("next/navigation", () => ({
 // record in their own headers. Rendering it here is what lets the shape assertions below run at
 // all.
 
-const HREFS: Record<SundayPillKey, string> = {
+const HREFS: Record<SundayPillLinkKey, string> = {
   topics: "/assignments/sunday-1",
   talks: "/assignments/sunday-1",
   prayer: "/prayers?month=2027-03#sunday-sunday-1",
@@ -52,6 +52,7 @@ function statusInput(overrides: Partial<SundayStatusInput> = {}): SundayStatusIn
     // The starting state. Every finalize assertion overrides it explicitly, so no test below
     // depends on which way this default points.
     topicsFinalized: false,
+    references: { count: 0, decision: null },
     ...overrides,
   };
 }
@@ -71,6 +72,7 @@ function props(overrides: Partial<SundayCardProps> = {}): SundayCardProps {
     // The conservative default: a reader who cannot finalize. The checkmark tests below turn it
     // on explicitly, so the absence assertions cannot pass because somebody forgot to.
     canFinalizeTopics: false,
+    canPlanTalks: false,
     ...overrides,
   };
 }
@@ -95,7 +97,8 @@ describe("SundayCard", () => {
 
     const links = screen.getAllByRole("link");
 
-    // Four pills, plus the heading (the programme) and the conducting name.
+    // Four LINKED pills, plus the heading (the programme) and the conducting name. References is
+    // the fifth pill and is a button — it opens a modal (asserted in its own block below).
     expect(links).toHaveLength(6);
     for (const link of links) {
       expect(link).toHaveAttribute("href");
@@ -367,7 +370,9 @@ describe("SundayCard — the topics finalize checkmark", () => {
     const topicsItem = screen.getByText("Topics 0/3").closest("li");
     expect(topicsItem).not.toBeNull();
     expect(within(topicsItem!).getByRole("button", { name: FINALIZE_NAME })).toBeInTheDocument();
-    expect(container.querySelectorAll("li button")).toHaveLength(1);
+    // Toggle buttons only: the References pill is itself a button, and carries no checkmark here
+    // because this reader holds `topics.manage` but not `talks.plan` in the fixture.
+    expect(container.querySelectorAll("li button[aria-pressed]")).toHaveLength(1);
   });
 
   // ⚠️ A <button> INSIDE AN <a> IS INVALID HTML and leaves a screen reader able to reach neither.
@@ -435,5 +440,106 @@ describe("SundayCard — the topics finalize checkmark", () => {
       "aria-pressed",
       "false",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE REFERENCES PILL — p4-sacrament-c
+// ---------------------------------------------------------------------------
+// The one pill that is a BUTTON: it opens a modal on the hub, and there is no page for it to link
+// to. Every other pill stays an <a> to its href.
+describe("SundayCard — the References pill", () => {
+  const PILL_NAME = /^References,/;
+  const CHECK_NAME = /^References are ready/;
+
+  // The bishopric reads references; the pill is theirs (migration 080).
+  const bishopric = (overrides: Partial<SundayCardProps> = {}) =>
+    props({ canPlanTalks: true, ...overrides });
+
+  it("renders as a button, never a link, and sits directly after Topics", () => {
+    const { container } = render(<SundayCard {...bishopric()} />);
+
+    const pill = screen.getByRole("button", { name: PILL_NAME });
+    expect(pill.closest("a")).toBeNull();
+    expect(pill).toHaveAttribute("aria-haspopup", "dialog");
+
+    const items = [...container.querySelectorAll("ul > li")].map((item) => item.textContent);
+    expect(items[0]).toContain("Topics");
+    expect(items[1]).toContain("Refs 0");
+  });
+
+  it("keeps every other pill a link to its href", () => {
+    render(<SundayCard {...bishopric()} />);
+
+    expect(screen.getByRole("link", { name: /^Topics/ })).toHaveAttribute("href", HREFS.topics);
+    expect(screen.getByRole("link", { name: /^Talks/ })).toHaveAttribute("href", HREFS.talks);
+    expect(screen.getByRole("link", { name: /^Prayer/ })).toHaveAttribute("href", HREFS.prayer);
+    expect(screen.getByRole("link", { name: /^Music/ })).toHaveAttribute("href", HREFS.music);
+  });
+
+  it("reads `Refs: skipped` on a skipped Sunday", () => {
+    render(
+      <SundayCard
+        {...bishopric({
+          pills: sundayPills(statusInput({ references: { count: 0, decision: "skipped" } })),
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Refs: skipped")).toBeInTheDocument();
+  });
+
+  // Defect 074-D2: "there should be no reason a music coordinator sees the references". Absent —
+  // not a read-only pill, not a disabled one.
+  it("is not rendered at all without talks.plan", () => {
+    const { container } = render(<SundayCard {...props({ canPlanTalks: false })} />);
+
+    expect(screen.queryByRole("button", { name: PILL_NAME })).toBeNull();
+    expect(screen.queryByRole("button", { name: CHECK_NAME })).toBeNull();
+    expect(container.textContent).not.toContain("Refs");
+    // Every other pill is untouched.
+    expect(screen.getByRole("link", { name: /^Topics/ })).toBeInTheDocument();
+  });
+
+  it("carries its checkmark for the bishopric", () => {
+    render(<SundayCard {...bishopric()} />);
+
+    expect(screen.getByRole("button", { name: CHECK_NAME })).toBeInTheDocument();
+  });
+
+  // Nothing to finalize yet: disabled WITH its reason, which is present as text, not only a title.
+  it("disables the checkmark at zero references and says why", () => {
+    render(<SundayCard {...bishopric()} />);
+
+    const check = screen.getByRole("button", { name: CHECK_NAME });
+    expect(check).toBeDisabled();
+    expect(screen.getByText("Add a reference or skip first")).toBeInTheDocument();
+  });
+
+  it("presses the checkmark on a finalized or skipped Sunday", () => {
+    render(
+      <SundayCard
+        {...bishopric({
+          pills: sundayPills(statusInput({ references: { count: 2, decision: "finalized" } })),
+        })}
+      />,
+    );
+
+    const check = screen.getByRole("button", { name: CHECK_NAME });
+    expect(check).toHaveAttribute("aria-pressed", "true");
+    expect(check).not.toBeDisabled();
+  });
+
+  it("does not offer a References pill on a Sunday with no speaking slots", () => {
+    render(
+      <SundayCard
+        {...bishopric({
+          type: "fast_sunday",
+          pills: sundayPills(statusInput({ speakingSlots: 0 })),
+        })}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: PILL_NAME })).toBeNull();
   });
 });

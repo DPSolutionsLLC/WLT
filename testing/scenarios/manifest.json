@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 72,
+  "scenarioCount": 73,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -1873,6 +1873,65 @@
         "No raw uuid appears anywhere"
       ],
       "seedCommand": "npm run seed -- talks/scenario-073-topics-finalize-and-unfinalize"
+    },
+    {
+      "id": "talks:scenario-074-references-finalize-and-skip",
+      "path": "talks/scenario-074-references-finalize-and-skip",
+      "name": "References, finalize and skip",
+      "scope": "p4-sacrament-c",
+      "part": 1,
+      "tags": [
+        "talks",
+        "sacrament",
+        "references",
+        "ai",
+        "full",
+        "finalize",
+        "permissions"
+      ],
+      "prerequisites": "none",
+      "purpose": "This slice adds a **References** pill to every Sunday with speaking slots. It opens a modal where\na member of the bishopric searches the ward's own library, taps results onto a talk, types\nreferences by hand, and then **finalizes** or **skips** the day's references. Tests already prove\nthe rules. Three things are left for a person to judge, because no assertion can see them:\n\n- **Does the modal read as a place to choose references**, and not a place where references were\n  chosen for you? Nothing in it is generated, and the page has to make that clear.\n- **Does the References checkmark read as attached to its pill**, the same way the Topics one does?\n- **Do topic changes behave the way the user decided?** A topic change should quietly return a\n  finalized Sunday to open, keep its references, and leave a skip alone.\n\nThe seed saves you from building the three states by hand. It creates one Sunday in each state,\nplus a fast Sunday with no talks.\n\n**What is already automated:** the citation rules (`tests/lib/referenceSuggestions.test.ts`), the\npill model (`tests/lib/sacramentSundayStatus.test.ts`), RLS (`tests/rls/talk-references.test.ts`),\nand every route, including decision 2 and a real search against the database\n(`tests/routes/talk-references.test.ts`). The modal's states and the pill's shape are covered by\n`tests/components/sacrament/`.",
+      "checklist": [
+        "**D** shows **no** Refs pill. A, B and C each show `Refs` directly **after** `Topics`",
+        "**A** reads `Refs 2` with a **filled, attached** checkmark",
+        "**B** reads `Refs: skipped` with a **filled** checkmark",
+        "**C** reads `Refs 1` in the amber (partial) tone with an **empty** checkmark",
+        "The References checkmark sits against its pill the same way the Topics one does, with no gap",
+        "Step 5: pressing C's Refs pill **opens the modal** and does **not** open the programme",
+        "The References modal shows each talk's **title, speaker and chosen references only**, with",
+        "Remove is a **small ✕ beside each citation**, on the same line",
+        "No wording anywhere calls the scriptures or talks \"the ward's\"",
+        "Step 6: the search window has already searched the topic when it opens, and the words can be",
+        "Results name **real citations from the documents you uploaded**, grouped under",
+        "The topic's **suggested scriptures** appear first, as picks",
+        "An uploaded scripture is cited by its **document title** (e.g. `Alma 32`). *Corrected",
+        "A conference talk appears **once**, reading `Title — Speaker, Month Year`",
+        "Each result shows a short italic snippet from the passage",
+        "A search for something nothing matches reads *\"Nothing in your ward's library matched",
+        "Step 7: both ticked items were added with **one press**, the window closed, and the pill",
+        "Closing the search window leaves the References modal open behind it",
+        "Step 8: the manual window offers **only Scripture and General conference talk**, and the new",
+        "Step 9: removing a reference updates the pill behind the modal",
+        "Step 14b: with zero references and no decision, **Finalize references** is disabled, and so",
+        "Step 10: **Finalize references** fills C's checkmark. The modal reads *\"✓ Finalized — N",
+        "The skip checkbox is **disabled while finalized**",
+        "**Step 9b: the skip checkbox is disabled while references exist**, and says *\"Remove the",
+        "Ticking the skip checkbox on a Sunday with **no** references reads *\"Skipped for this Sunday —",
+        "Adding a reference to a **skipped** Sunday clears the skip. This deliberately differs from",
+        "**Step 12: A's Refs checkmark is EMPTY again**, and its **2 references are still listed** in",
+        "**Step 13: B still reads `Refs: skipped`**",
+        "**Step 14: un-finalizing A's Topics by its checkmark does NOT change A's Refs checkmark**",
+        "Nothing asked you to confirm the un-finalize, and no error appeared",
+        "**No Refs pill at all** on any Sunday — references are the bishopric's alone (defect 074-D2,",
+        "At **375px** the modal is full height and scrolls inside itself",
+        "The manual row (kind, reference, Add) **wraps** without horizontal scroll",
+        "Dark mode is legible throughout, including the Added row and the snippets",
+        "`audit_log` shows `talk_reference_added`, `talk_reference_removed`,",
+        "`talk_references` has **no `created_by`** column (migration 069 explains why)",
+        "Does the intro sentence make it clear **nothing was generated**?",
+        "Would a bishop want the topic's own **suggested scriptures** offered as one-tap chips here?"
+      ],
+      "seedCommand": "npm run seed -- talks/scenario-074-references-finalize-and-skip"
     },
     {
       "id": "visits:scenario-038-the-shared-and-private-note-split",

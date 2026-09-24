@@ -55,19 +55,32 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
     <dialog
       ref={dialogRef}
       aria-labelledby={titleId}
-      onClose={onClose}
+      // ONLY THIS DIALOG'S OWN CLOSE. React propagates `close` through the component tree, so a
+      // Modal opened inside another Modal (the References search window) would otherwise close
+      // its parent too. Escape and the backdrop act on the topmost dialog alone.
+      onClose={(event) => {
+        if (event.target === dialogRef.current) onClose();
+      }}
       // The backdrop is part of the dialog element itself, so a click landing on the dialog
       // rather than on its content is a backdrop click.
       onClick={(event) => {
         if (event.target === dialogRef.current) onClose();
       }}
+      // SIZED TO ITS CONTENT, NOT TO THE SCREEN — decided by the user walking scenario 074 ("they
+      // should shrink to fit their content, especially on mobile"). On a phone it is a bottom sheet
+      // (`mt-auto` pins it to the bottom of the viewport) no taller than it needs to be; from md up
+      // it is a centred card. Long content still scrolls inside, capped below the screen height.
+      //
+      // ⚠️ `h-fit`, NEVER `h-auto`. A modal <dialog> is fixed with inset 0, so `height: auto`
+      // STRETCHES it to the cap and the card sits at the top of an invisible full-height box — the
+      // browser's own default is `fit-content`, and overriding it is what broke this once.
       className={
-        "m-0 h-full max-h-none w-full max-w-none border-0 bg-transparent p-0 " +
-        "backdrop:bg-black/50 md:m-auto md:h-auto md:max-h-[85vh] md:w-full md:max-w-lg"
+        "mx-0 mb-0 mt-auto h-fit max-h-[92dvh] w-full max-w-none border-0 bg-transparent p-0 " +
+        "backdrop:bg-black/50 md:m-auto md:max-h-[85vh] md:w-full md:max-w-lg"
       }
     >
-      {/* Full height with its own internal scroll on a phone; a centred card from md up. */}
-      <div className="flex h-full max-h-full flex-col overflow-hidden bg-surface-raised text-foreground md:rounded-lg md:border md:border-border">
+      {/* The bottom padding clears a phone's home indicator; it is 0 everywhere else. */}
+      <div className="flex max-h-[92dvh] flex-col overflow-hidden rounded-t-lg border-t border-border bg-surface-raised pb-[env(safe-area-inset-bottom)] text-foreground md:max-h-[85vh] md:rounded-lg md:border">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
           {/* Fraunces, per P1's type pairing: the display face carries titles, Inter carries
               body. `font-display` resolves through --font-fraunces in globals.css. */}
@@ -83,7 +96,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
+        <div className="min-h-0 shrink overflow-y-auto p-4">{children}</div>
       </div>
     </dialog>
   );

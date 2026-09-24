@@ -15,9 +15,15 @@ import {
   monthStart,
   parseMonthParam,
 } from "@/lib/calendar/dates";
-import { conductingNameMap, listBishopricUsers, listSundays } from "@/lib/calendar/queries";
+import {
+  conductingNameMap,
+  listBishopricUsers,
+  listSundays,
+  referencesDecisionOf,
+} from "@/lib/calendar/queries";
 import { listSelections } from "@/lib/music/queries";
 import { listPrayers } from "@/lib/prayers/queries";
+import { countReferencesByAssignment } from "@/lib/references/queries";
 import {
   sundayPillHrefs,
   sundayPills,
@@ -149,6 +155,31 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
     () => true,
   );
 
+  // `talks.plan`, which every References route asserts. Resolved once, like the two below.
+  // Without it the References pill is not rendered at all (migration 080), so it is not counted.
+  const canPlanTalks = can(user, "talks.plan", roleAccess);
+
+  // AFTER the assignments, because it needs their ids. Only talks WITH a topic are counted — the
+  // References modal lists only those, and the pill must count what the modal shows.
+  const talksWithTopics = assignments.filter((assignment) => assignment.topicId !== null);
+  const referenceCounts = canPlanTalks
+    ? await countReferencesByAssignment(
+        user.wardId,
+        talksWithTopics.map((assignment) => assignment.id),
+        supabase,
+      )
+    : new Map<string, number>();
+
+  const referencesBySunday = new Map<string, number>();
+  for (const assignment of talksWithTopics) {
+    if (assignment.sundayId === null) continue;
+    referencesBySunday.set(
+      assignment.sundayId,
+      (referencesBySunday.get(assignment.sundayId) ?? 0) +
+        (referenceCounts.get(assignment.id) ?? 0),
+    );
+  }
+
   const conductingNames = conductingNameMap(bishopricUsers);
 
   // Resolved ONCE, outside the map, from the roleAccess already in hand (CLAUDE.md rule 10).
@@ -186,6 +217,10 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
       // `countTopics(...) === sunday.speakingSlots` — decisions.md §1.15 forbids deriving it, and
       // lib/sacrament/sundayStatus.ts's own header says so at the field.
       topicsFinalized: sunday.topicsFinalizedAt !== null,
+      references: {
+        count: referencesBySunday.get(sunday.id) ?? 0,
+        decision: referencesDecisionOf(sunday),
+      },
     }),
     hrefs: sundayPillHrefs(sunday.id, sunday.date),
     // The whole card opens this Sunday's programme — there is no programme PILL any more
@@ -197,6 +232,7 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
     // mirror of youth-a-D1, and the conservative direction is to render the name as plain text.
     conductingHref: canOpenSundayEditor ? `/calendar/sunday/${sunday.id}` : null,
     canFinalizeTopics,
+    canPlanTalks,
   }));
 
   return (

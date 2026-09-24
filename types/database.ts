@@ -2741,6 +2741,8 @@ export type Database = {
           id: string
           notes: string | null
           presiding_override: string | null
+          references_finalized_at: string | null
+          references_skipped_at: string | null
           slot_config: Json | null
           speaking_slots: number
           topics_finalized_at: string | null
@@ -2755,6 +2757,8 @@ export type Database = {
           id?: string
           notes?: string | null
           presiding_override?: string | null
+          references_finalized_at?: string | null
+          references_skipped_at?: string | null
           slot_config?: Json | null
           speaking_slots?: number
           topics_finalized_at?: string | null
@@ -2769,6 +2773,8 @@ export type Database = {
           id?: string
           notes?: string | null
           presiding_override?: string | null
+          references_finalized_at?: string | null
+          references_skipped_at?: string | null
           slot_config?: Json | null
           speaking_slots?: number
           topics_finalized_at?: string | null
@@ -2785,6 +2791,61 @@ export type Database = {
           },
           {
             foreignKeyName: "sundays_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      talk_references: {
+        Row: {
+          assignment_id: string
+          citation: string
+          created_at: string
+          document_id: string | null
+          id: string
+          kind: string
+          source: string
+          ward_id: string
+        }
+        Insert: {
+          assignment_id: string
+          citation: string
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          kind: string
+          source: string
+          ward_id: string
+        }
+        Update: {
+          assignment_id?: string
+          citation?: string
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          kind?: string
+          source?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "talk_references_assignment_id_ward_id_fkey"
+            columns: ["assignment_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "assignments"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "talk_references_document_id_ward_id_fkey"
+            columns: ["document_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_documents"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "talk_references_ward_id_fkey"
             columns: ["ward_id"]
             isOneToOne: false
             referencedRelation: "wards"

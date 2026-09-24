@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { setTopicsFinalized, type Sunday } from "@/lib/calendar/queries";
+import { clearTalkShapeStamps, type Sunday } from "@/lib/calendar/queries";
 import type { UpdateAssignmentInput } from "@/lib/validation/assignment";
 import type { Database } from "@/types/database";
 
@@ -37,6 +37,19 @@ import type { Database } from "@/types/database";
 //
 // PATCH /api/assignments/[id] carries BOTH KINDS OF CHANGE, which is why topicShapeChanged()
 // inspects the PATCH rather than the route inspecting itself.
+//
+// ---------------------------------------------------------------------------
+// SINCE p4-sacrament-c IT CLEARS REFERENCES TOO, AND THE NAME NO LONGER SAYS SO
+// ---------------------------------------------------------------------------
+// unfinalizeTopicsIfNeeded() clears EVERY stamp that says the day's talks are settled — topics
+// and `references_finalized_at` — through clearTalkShapeStamps(). A reference was chosen for a
+// topic, so once the topic moves the references are not "ready" either (decided with the user,
+// 2026-09-23). A references SKIP survives: "not giving references this round" says nothing about
+// what the topics are. The name was kept because three routes and a source-reading test depend
+// on it, and a rename is out of that slice's scope.
+//
+// The explicit topics checkmark still goes through setTopicsFinalized(), which touches topics
+// alone — un-finalizing topics BY HAND changes nothing about the references.
 //
 // SERVER-ONLY. It imports lib/calendar/queries.ts, which reaches next/headers. topicShapeChanged()
 // below is pure and is where every rule above is actually tested.
@@ -77,8 +90,8 @@ export function topicShapeChanged(patch: UpdateAssignmentInput): boolean {
 // A null `sundayId` is an ordinary state, not an error: an assignment can outlive the Sunday it
 // was planned for, and such a row belongs to no card anywhere. There is nothing to un-finalize.
 //
-// The read that decides whether to write lives in setTopicsFinalized(), which returns early when
-// the Sunday is already un-finalized — so calling this unconditionally on every assignment write
+// The read that decides whether to write lives in clearTalkShapeStamps(), which returns early when
+// neither stamp is set — so calling this unconditionally on every assignment write
 // costs one SELECT in the ordinary case and no UPDATE at all.
 //
 // ---------------------------------------------------------------------------
@@ -100,9 +113,9 @@ export async function unfinalizeTopicsIfNeeded(
   if (sundayId === null) return null;
 
   try {
-    return await setTopicsFinalized(wardId, sundayId, false, client);
+    return await clearTalkShapeStamps(wardId, sundayId, client);
   } catch (error) {
-    console.error("Could not clear a Sunday's topics-finalized stamp", {
+    console.error("Could not clear a Sunday's finalized stamps", {
       wardId,
       sundayId,
       error,
