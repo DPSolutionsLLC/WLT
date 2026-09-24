@@ -2,7 +2,7 @@
 id: p5-c-schedule-and-my-appointments
 type: feature
 iter: null
-commits: []
+commits: ["6ae159b"]
 date: 2026-09-24
 files:
   - app/(app)/todos/ScheduleDialog.tsx

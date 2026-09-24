@@ -7,7 +7,7 @@
 |---|---|---|
 | p5-a | To Do core — migration 081, owner-only RLS, `personal_tools.use`, `/todos` | ✅ Built 2026-09-24 (9290b9f) |
 | p5-b | Agenda link and two-key completion — migration 082 | ✅ Built 2026-09-24 (303ed3d) |
-| p5-c | Schedule this, and My Appointments — day-grouped, remembered view | ✅ Built 2026-09-24 (pending commit) |
+| p5-c | Schedule this, and My Appointments — day-grouped, remembered view | ✅ Built 2026-09-24 (6ae159b) |
 
 **Load with this:** [prototype/module-map.md](prototype/module-map.md) §2.10, and build-notes-raw.md §`to-do`, §`my-appointments`, §`meeting-invites-role-scoped-appointments`.
 
