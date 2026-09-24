@@ -2,7 +2,7 @@
 id: sacrament-references-over-pgvector
 type: feature
 iter: null
-commits: ["b34a000"]
+commits: ["2b7a57c"]
 date: 2026-09-24
 files:
   - supabase/migrations/079_talk_references.sql
