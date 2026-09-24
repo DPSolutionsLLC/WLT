@@ -56,7 +56,7 @@ modules exist; the detailed sections further down describe each one.
 
 | Module | Status | Detail |
 |---|---|---|
-| To Do | 🔜 P5 | The spine four other modules hang off |
+| To Do | 🟡 P5 (slice a built) | Module 18 — the spine four other modules hang off |
 | My Appointments | 🔜 P5 | [plans/P5](plans/P5-todo-and-appointments.md) |
 | Message | 🔜 P10 | **Newly in scope 2026-09-20** |
 | Zoom | 🔜 P10 | **Newly in scope 2026-09-20**, with a named infrastructure risk |
@@ -855,6 +855,15 @@ own notes interleave by time.
 **Two-key completion with agendas:** the agenda item is removed immediately regardless — never
 waiting on a leader — but a linked todo is *flagged* for review rather than silently deleted.
 Assigning someone an agenda item creates their todo; unassigning deletes it only if untouched.
+
+**Private to its owner.** Nobody but the owner can read a to-do — not the bishopric, and not
+whoever assigned it; an assigner sees only the review flag on their own agenda item. And a leader
+can add to-dos only to their **own** list: someone else's work arrives only through a source that
+owns the assignment (an agenda item, a speaker ask, a Zoom referral), never typed onto their list
+directly.
+
+*Status: slice p5-a (the list, steps, timeline) is built. The agenda link and two-key completion
+are p5-b; see [plans/todo-and-my-appointments.md](plans/todo-and-my-appointments.md).*
 
 ---
 

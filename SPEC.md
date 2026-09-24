@@ -807,6 +807,54 @@ completed_at    timestamptz
 created_at      timestamptz DEFAULT now()
 ```
 
+### `todos`  *(P5, migration 081)*
+A leader's own task or project. **Owner-only** — no policy admits anybody but `user_id`, the
+bishop included (D2) — and **self-created only**: the INSERT policy requires `user_id = auth.uid()`
+and `assigned_by IS NULL`, so another person's to-do can only arrive through a source that owns
+the assignment, written with the service role (D3). Person, not role.
+```sql
+id                       uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id                  uuid NOT NULL REFERENCES wards(id)
+user_id                  uuid NOT NULL REFERENCES users(id)   -- the owner
+assigned_by              uuid REFERENCES users(id)            -- null = the owner added it
+title                    text NOT NULL                        -- 1–300
+notes                    text
+tag                      text                                 -- 1–40
+do_date                  date                                 -- when I mean to work on it
+due_date                 date                                 -- when it must be done
+scheduled_for            timestamptz                          -- "Schedule this" (P5 slice c)
+scheduled_with_member_id uuid  -- (scheduled_with_member_id, ward_id) → members(id, ward_id)
+completed_at             timestamptz
+created_at               timestamptz DEFAULT now()
+updated_at               timestamptz DEFAULT now()
+```
+Progress and "overdue" are **computed**, never stored (`lib/todos/progress.ts`,
+`lib/todos/viewState.ts`).
+
+### `todo_steps`  *(P5, migration 081)*
+The first step is what makes a to-do a project; there is no mode column.
+```sql
+id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
+todo_id         uuid NOT NULL  -- (todo_id, ward_id) → todos(id, ward_id) ON DELETE CASCADE
+label           text NOT NULL  -- 1–200
+position        integer NOT NULL
+done_at         timestamptz
+created_at      timestamptz DEFAULT now()
+```
+
+### `todo_log_entries`  *(P5, migration 081)*
+ONE timeline: written notes and automatic lines in one table, ordered by `created_at`.
+```sql
+id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
+todo_id         uuid NOT NULL  -- (todo_id, ward_id) → todos(id, ward_id) ON DELETE CASCADE
+kind            text NOT NULL  -- 'note' | 'step_done' | 'step_undone' | 'completed' | 'reopened'
+                               -- | 'scheduled' | 'unscheduled' | 'source_completed'
+body            text           -- the note; or the step label SNAPSHOT for step kinds
+created_at      timestamptz DEFAULT now()
+```
+
 ### `notifications`
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
@@ -1070,6 +1118,9 @@ Enable RLS on all tables. Key patterns:
 
 **Private notes** — `visit_private_notes` and `activity_private_notes`: `user_id = auth.uid()` for all operations
 
+**To Do** — `todos`, `todo_steps` and `todo_log_entries` (P5): owner-only on every verb, with no
+bishopric arm; a to-do may be inserted only onto the caller's own list with `assigned_by` null
+
 **Tithing** — `tithing_sessions` and `tithing_entries`: role must be `bishop` or `counselor`
 
 **Org scoping** — visit_logs etc.: non-bishopric users can only read/write records where `org_id = (SELECT org_id FROM users WHERE id = auth.uid())`
@@ -1323,6 +1374,21 @@ POST   /api/agendas              Create agenda
 PATCH  /api/agendas/[id]         Update agenda
 POST   /api/agendas/[id]/publish Generate PDF and trigger email distribution
 ```
+
+### To Do  *(P5 — `personal_tools.use`, non-overridable)*
+```
+GET    /api/todos?status=open|done   The caller's own to-dos, each with its steps
+POST   /api/todos                    Add one to the caller's own list
+GET    /api/todos/[id]               One to-do with its timeline
+PATCH  /api/todos/[id]               Edit, complete / reopen, schedule / unschedule
+DELETE /api/todos/[id]               Remove (steps and timeline cascade)
+POST   /api/todos/[id]/steps         Add a step
+PATCH  /api/todo-steps/[id]          Rename, check off or uncheck (writes a timeline line)
+DELETE /api/todo-steps/[id]          Remove a step
+POST   /api/todos/[id]/notes         Write a note on the timeline
+```
+Audit rows carry ids and field names only — never a title, step label or note (the audit log is
+readable by `audit.view`; a to-do is not).
 
 ### Visit Tracker
 ```

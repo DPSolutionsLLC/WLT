@@ -396,13 +396,19 @@ describe("mergeRoleAccess — deltas", () => {
 });
 
 describe("mergeRoleAccess — non-overridable permissions", () => {
-  it("locks every admin.* and sacrament.* permission", () => {
+  // `personal_tools.use` is the ONE named exception, added deliberately in P5: switching To Do off
+  // for a role would strand every agenda assignment to that role on a list its owner cannot open.
+  // Any other permission appearing here is still a mistake this test should catch.
+  it("locks every admin.* and sacrament.* permission, plus personal_tools.use", () => {
     expect(NON_OVERRIDABLE_PERMISSIONS.length).toBeGreaterThan(0);
+    expect(NON_OVERRIDABLE_PERMISSIONS).toContain("personal_tools.use");
 
     for (const permission of NON_OVERRIDABLE_PERMISSIONS) {
       expect(
-        permission.startsWith("admin.") || permission.startsWith("sacrament."),
-        `"${permission}" is locked but is neither admin.* nor sacrament.*`,
+        permission.startsWith("admin.") ||
+          permission.startsWith("sacrament.") ||
+          permission === "personal_tools.use",
+        `"${permission}" is locked but is neither admin.*, sacrament.* nor personal_tools.use`,
       ).toBe(true);
     }
   });
@@ -1006,5 +1012,66 @@ describe("organization-aware org leadership", () => {
     expect(
       can(inOrg("org_president", "young_women"), "youth_activities.manage", youngWomen),
     ).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TO DO AND MY APPOINTMENTS — P5
+// ---------------------------------------------------------------------------
+// Every adult ward role holds `personal_tools.use`; the roles that reach nothing (stake officers,
+// resource_center_specialist) or exactly one module (sacrament_manager) do not.
+describe("personal_tools.use", () => {
+  const HOLDERS: readonly Role[] = [
+    "bishop",
+    "counselor",
+    "ward_secretary",
+    "executive_secretary",
+    "org_president",
+    "org_counselor",
+    "org_secretary",
+    "music_coordinator",
+    "ward_council_member",
+    "super_admin",
+  ];
+
+  const NON_HOLDERS: readonly Role[] = [
+    "sacrament_manager",
+    "stake_president",
+    "stake_counselor",
+    "stake_secretary",
+    "resource_center_specialist",
+  ];
+
+  it("covers every role between the two lists, so a new role must be placed deliberately", () => {
+    expect([...HOLDERS, ...NON_HOLDERS].sort()).toEqual([...ROLES].sort());
+  });
+
+  it.each(HOLDERS)("is held by %s", (role) => {
+    expect(can(sessionUser(role), "personal_tools.use", ROLE_PERMISSIONS)).toBe(true);
+  });
+
+  it.each(NON_HOLDERS)("is not held by %s", (role) => {
+    expect(can(sessionUser(role), "personal_tools.use", ROLE_PERMISSIONS)).toBe(false);
+  });
+
+  // Organization-aware roles keep it in every organization, including Sunday School, which is
+  // the one whose youth grants are empty.
+  it.each(ORGANIZATION_TYPES)("is held by an org secretary in %s", (orgType) => {
+    const base = basePermissionsFor(orgType);
+    expect(base.org_secretary).toContain("personal_tools.use");
+    expect(base.org_president).toContain("personal_tools.use");
+    expect(base.org_counselor).toContain("personal_tools.use");
+  });
+
+  it("cannot be removed by a ward override", () => {
+    silenceWarnings();
+    const merged = mergeRoleAccess({ org_president: { remove: ["personal_tools.use"] } });
+    expect(can(sessionUser("org_president"), "personal_tools.use", merged)).toBe(true);
+  });
+
+  it("cannot be granted by a ward override", () => {
+    silenceWarnings();
+    const merged = mergeRoleAccess({ sacrament_manager: { add: ["personal_tools.use"] } });
+    expect(can(sessionUser("sacrament_manager"), "personal_tools.use", merged)).toBe(false);
   });
 });

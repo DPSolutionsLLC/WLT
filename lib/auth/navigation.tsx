@@ -2,12 +2,14 @@ import type { ReactNode } from "react";
 import {
   BookOpen,
   Calculator,
+  CalendarClock,
   CalendarDays,
   Church,
   ClipboardList,
   FileText,
   Home,
   Lightbulb,
+  ListTodo,
   Mic,
   Music2,
   ScrollText,
@@ -107,10 +109,10 @@ export const NAVIGATION_SECTIONS: readonly {
 }[] = [
   { id: "meetings", label: "Meetings & Programs", accent: "pine" },
   { id: "people", label: "People & Care", accent: "rust" },
-  // EMPTY TODAY, AND DELIBERATELY SO. To Do, My Appointments, Message and Zoom are P5 and P10.
-  // Adding placeholder items for them is the exact bug the `built` gate closes. The grid renders
-  // nothing at all for a section with no visible tiles, so an empty heading never appears; P5
-  // flips the first item to `built: true` and this section starts rendering in one line.
+  // RENDERS FROM P5, with To Do. My Appointments follows in P5's last slice; Message and Zoom are
+  // P10 and have no rows yet, because a placeholder row is the exact bug the `built` gate closes.
+  // The grid still renders nothing for a role with no visible tile here (stake officers, the
+  // youth account), so an empty heading never appears.
   { id: "tasks", label: "Tasks & Communication", accent: "gold" },
   { id: "finance", label: "Finance & Admin", accent: "pine" },
 ] as const;
@@ -269,6 +271,32 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
     icon: <Target />,
     accent: "rust",
     built: true,
+  },
+  // ---------------------------------------------------------------------------
+  // A LEADER'S OWN TOOLS — P5
+  // ---------------------------------------------------------------------------
+  // `personal_tools.use`, held by every adult ward role and NON-OVERRIDABLE (lib/auth/permissions.ts
+  // says why). Both rows read only the holder's own rows: migration 081 is owner-only.
+  {
+    label: "To Do",
+    href: "/todos",
+    permission: "personal_tools.use",
+    section: "tasks",
+    blurb: "Your own tasks and projects — and what meetings have asked of you.",
+    icon: <ListTodo />,
+    accent: "gold",
+    built: true,
+  },
+  // `built: false` until P5's last slice (p5-c) builds the page.
+  {
+    label: "My Appointments",
+    href: "/appointments",
+    permission: "personal_tools.use",
+    section: "tasks",
+    blurb: "Everything you have said you will be at, in one list.",
+    icon: <CalendarClock />,
+    accent: "gold",
+    built: false,
   },
   {
     label: "Tithing",

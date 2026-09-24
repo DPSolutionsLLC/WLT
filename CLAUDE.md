@@ -1327,6 +1327,22 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   It also asserts the NEGATIVE against a named anchor (`/admin/audit-log`), so it cannot pass
   trivially the day somebody marks everything built.
 
+- **A TO-DO IS PRIVATE TO ITS OWNER AND CREATED ONLY BY ITS OWNER — DECIDED 2026-09-24 (P5,
+  migration 081).** `todos`, `todo_steps` and `todo_log_entries` admit only `user_id =
+  auth.uid()` on every verb, with **no bishopric arm** — rule 5's shape, applied by product
+  decision. The INSERT policy also requires `assigned_by IS NULL`, so no authenticated client can
+  put a to-do on somebody else's list or claim one was assigned: **another person's work arrives
+  only through a SOURCE that owns the assignment** (an agenda action item in p5-b; a speaker ask
+  and a Zoom referral later), written with the service role behind that source's own permission
+  check — `.insert().select()` for another user would raise 42501 under the caller's client.
+  **Person, not role, for everything in P5**; P6's meeting invites are the first role-addressed
+  entity. The Agendas assignee PICKER waits for P4's Agendas slice; P5 builds only the link.
+  **`personal_tools.use`** gates To Do and My Appointments, is held by every adult ward role and is
+  **non-overridable**, because switching it off would strand agenda assignments on a list their
+  owner cannot open. **The audit detail never carries a title, a step label or a note** — and never
+  a key containing "note", which `writeAuditLog()` redacts. Timeline stamps render in the
+  **ward's** zone with the time, a deliberate departure from the date-only UTC stamps elsewhere,
+  because timeline lines sit minutes apart.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

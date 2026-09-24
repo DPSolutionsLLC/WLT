@@ -2976,6 +2976,173 @@ export type Database = {
           },
         ]
       }
+      todo_log_entries: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          kind: string
+          todo_id: string
+          ward_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          todo_id: string
+          ward_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          todo_id?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "todo_log_entries_todo_id_ward_id_fkey"
+            columns: ["todo_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "todos"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "todo_log_entries_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      todo_steps: {
+        Row: {
+          created_at: string
+          done_at: string | null
+          id: string
+          label: string
+          position: number
+          todo_id: string
+          ward_id: string
+        }
+        Insert: {
+          created_at?: string
+          done_at?: string | null
+          id?: string
+          label: string
+          position: number
+          todo_id: string
+          ward_id: string
+        }
+        Update: {
+          created_at?: string
+          done_at?: string | null
+          id?: string
+          label?: string
+          position?: number
+          todo_id?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "todo_steps_todo_id_ward_id_fkey"
+            columns: ["todo_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "todos"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "todo_steps_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      todos: {
+        Row: {
+          assigned_by: string | null
+          completed_at: string | null
+          created_at: string
+          do_date: string | null
+          due_date: string | null
+          id: string
+          notes: string | null
+          scheduled_for: string | null
+          scheduled_with_member_id: string | null
+          tag: string | null
+          title: string
+          updated_at: string
+          user_id: string
+          ward_id: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          do_date?: string | null
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          scheduled_for?: string | null
+          scheduled_with_member_id?: string | null
+          tag?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+          ward_id: string
+        }
+        Update: {
+          assigned_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          do_date?: string | null
+          due_date?: string | null
+          id?: string
+          notes?: string | null
+          scheduled_for?: string | null
+          scheduled_with_member_id?: string | null
+          tag?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "todos_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_scheduled_with_member_id_ward_id_fkey"
+            columns: ["scheduled_with_member_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "todos_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       topic_candidates: {
         Row: {
           accepted_topic_id: string | null

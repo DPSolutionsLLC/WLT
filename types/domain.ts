@@ -1529,3 +1529,86 @@ export type SundayReferences = {
   talks: ReferencesTalk[];
   references: TalkReference[];
 };
+
+// ---------------------------------------------------------------------------
+// TO DO — P5 (migration 081)
+// ---------------------------------------------------------------------------
+// A leader's own list. Owner-only at the table (D2): nothing here is ever rendered to anybody but
+// the person whose list it is.
+
+// MUST STAY IN STEP WITH `todo_log_entries.kind`'s CHECK in migration 081. `source_completed` is
+// written only once slice p5-b links a to-do to an agenda item; it is in the list now so the
+// CHECK and this tuple never disagree.
+export const TODO_LOG_KINDS = [
+  "note",
+  "step_done",
+  "step_undone",
+  "completed",
+  "reopened",
+  "scheduled",
+  "unscheduled",
+  "source_completed",
+] as const;
+export type TodoLogKind = (typeof TODO_LOG_KINDS)[number];
+
+export type Todo = {
+  id: string;
+  title: string;
+  notes: string | null;
+  tag: string | null;
+  // `date` columns — YYYY-MM-DD, a day with no zone.
+  doDate: string | null;
+  dueDate: string | null;
+  // `timestamptz` — "Schedule this" (slice p5-c).
+  scheduledFor: string | null;
+  scheduledWithMemberId: string | null;
+  completedAt: string | null;
+  // Null means the owner put it on their own list.
+  assignedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TodoStep = {
+  id: string;
+  todoId: string;
+  label: string;
+  position: number;
+  doneAt: string | null;
+};
+
+export type TodoLogEntry = {
+  id: string;
+  todoId: string;
+  kind: TodoLogKind;
+  // The note text for a `note`; the step's label, snapshotted, for a step kind; otherwise null.
+  body: string | null;
+  createdAt: string;
+};
+
+// A to-do as the list carries it: with its steps, so a collapsed card can show progress and an
+// expanded one can check them off, and WITHOUT its timeline, which is loaded when a card opens.
+export type TodoSummary = Todo & {
+  steps: TodoStep[];
+};
+
+// COMPUTED, never stored — lib/todos/viewState.ts. "Overdue" is decided by the clock, and nothing
+// in this project refreshes a stored value.
+export const TODO_VIEW_STATES = [
+  "overdue",
+  "due_today",
+  "do_today",
+  "upcoming",
+  "someday",
+  "done",
+] as const;
+export type TodoViewState = (typeof TODO_VIEW_STATES)[number];
+
+export const TODO_VIEW_STATE_LABELS: Record<TodoViewState, string> = {
+  overdue: "Overdue",
+  due_today: "Due today",
+  do_today: "Do today",
+  upcoming: "Upcoming",
+  someday: "Someday",
+  done: "Done",
+};

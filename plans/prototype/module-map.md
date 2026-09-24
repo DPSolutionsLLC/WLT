@@ -256,6 +256,14 @@ time. **Two-key completion with agendas**: the agenda item is removed immediatel
 but a linked todo is *flagged* rather than deleted, and the reverse direction only flags when a
 link exists.
 
+> **BUILDING — P5, 2026-09-24.** Slice p5-a (the list, steps with computed progress, the one
+> timeline) is built; the agenda link and two-key completion are p5-b, "Schedule this" and My
+> Appointments p5-c. Plan: [../todo-and-my-appointments.md](../todo-and-my-appointments.md).
+> **Deferred by decision:** the Agendas assignee picker → P4's Agendas slice (P5 builds the link,
+> not the picker); role-addressed meeting invites and the conflict check → P6; Google Calendar
+> sync → out of scope. **A to-do is owner-only** — the prototype's own "settled" rule, and the
+> bishop is not an exception.
+
 ### 2.11 Tithing Calc — RESKIN, with a deliberate exception
 The prototype **kept its own navy/gold palette** (`--navy #1B3A6B`, `--gold #C8A951`) rather
 than adopting the pine/rust/gold system, because fidelity to an already-approved standalone

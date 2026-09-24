@@ -34,6 +34,7 @@ import type {
   TopicCategory,
   TopicSource,
   TopicStatus,
+  TodoLogKind,
   CadenceUnit,
   VisitTargetType,
   VisitArrangement,
@@ -1839,6 +1840,75 @@ export async function createActionItem(options: {
     assigned_to: options.assignedTo ?? null,
     due_date: options.dueDate ?? null,
     status: options.status ?? "open",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// TO DO (migration 081) — owner-only, so a scenario asserting privacy seeds rows for TWO people
+// and signs in as each. Written with the admin client, which is also the only way to seed a to-do
+// that was ASSIGNED (`assignedBy`): no authenticated client may set that column (D3).
+// ---------------------------------------------------------------------------
+export async function createTodo(options: {
+  id?: string;
+  userId: string;
+  title: string;
+  notes?: string;
+  tag?: string;
+  doDate?: string;
+  dueDate?: string;
+  scheduledFor?: string;
+  completedAt?: string;
+  assignedBy?: string;
+  createdAt?: string;
+}): Promise<string> {
+  return insertRow("todos", {
+    id: options.id ?? testUuid(`todo:${options.userId}:${options.title}`),
+    ward_id: TEST_WARD_ID,
+    user_id: options.userId,
+    assigned_by: options.assignedBy ?? null,
+    title: options.title,
+    notes: options.notes ?? null,
+    tag: options.tag ?? null,
+    do_date: options.doDate ?? null,
+    due_date: options.dueDate ?? null,
+    scheduled_for: options.scheduledFor ?? null,
+    completed_at: options.completedAt ?? null,
+    ...(options.createdAt === undefined ? {} : { created_at: options.createdAt }),
+  });
+}
+
+export async function createTodoStep(options: {
+  id?: string;
+  todoId: string;
+  label: string;
+  position: number;
+  doneAt?: string;
+}): Promise<string> {
+  return insertRow("todo_steps", {
+    id: options.id ?? testUuid(`todo-step:${options.todoId}:${options.position}`),
+    ward_id: TEST_WARD_ID,
+    todo_id: options.todoId,
+    label: options.label,
+    position: options.position,
+    done_at: options.doneAt ?? null,
+  });
+}
+
+// `createdAt` is how a scenario interleaves automatic lines with notes: the timeline orders by it.
+export async function createTodoLogEntry(options: {
+  id?: string;
+  todoId: string;
+  kind: TodoLogKind;
+  body?: string;
+  createdAt: string;
+}): Promise<string> {
+  return insertRow("todo_log_entries", {
+    id: options.id ?? testUuid(`todo-log:${options.todoId}:${options.createdAt}`),
+    ward_id: TEST_WARD_ID,
+    todo_id: options.todoId,
+    kind: options.kind,
+    body: options.body ?? null,
+    created_at: options.createdAt,
   });
 }
 

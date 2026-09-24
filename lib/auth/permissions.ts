@@ -62,6 +62,9 @@ export const PERMISSIONS = [
   "notifications.view",
   "notifications.manage",
 
+  // To Do and My Appointments — a leader's OWN tools (P5). One permission for both tiles.
+  "personal_tools.use",
+
   "sacrament.view_assignments",
   "sacrament.update_assignments",
   "sacrament.mark_sent",
@@ -96,12 +99,19 @@ export const ADMIN_PERMISSIONS = PERMISSIONS.filter(
 // sacrament.* — the whole reach of a youth PIN account. FEATURES.md §Module 17: exactly one
 //            module. Widening that is a product decision, not a checkbox.
 //
+// personal_tools.use — To Do and My Appointments (P5). A ward switching To Do off for a role would
+//            make every agenda action item assigned to that role land on a list its owner cannot
+//            open, and the assigner would have no way to know. Nothing here is a privilege worth
+//            configuring: it reaches only the holder's own rows (migration 081 is owner-only).
+//
 // audit.view is deliberately NOT locked. It is in ADMIN_PERMISSIONS for the bishopric-equivalence
 // loop, but it grants reading rather than writing, and a ward may legitimately want its secretary
 // to see the audit log.
 export const NON_OVERRIDABLE_PERMISSIONS: readonly KnownPermission[] = PERMISSIONS.filter(
   (permission) =>
-    permission.startsWith("admin.") || permission.startsWith("sacrament."),
+    permission.startsWith("admin.") ||
+    permission.startsWith("sacrament.") ||
+    permission === "personal_tools.use",
 );
 
 export const BISHOPRIC_ROLES = ["bishop", "counselor"] as const;
@@ -162,6 +172,7 @@ const WARD_SECRETARY_PERMISSIONS: readonly KnownPermission[] = [
   "tithing.view",
   "tithing.manage",
   "notifications.view",
+  "personal_tools.use",
 ];
 
 // THE EXECUTIVE SECRETARY. Re-derived from `bishopric-secretary`, taken literally alongside the
@@ -187,6 +198,7 @@ const EXECUTIVE_SECRETARY_PERMISSIONS: readonly KnownPermission[] = [
   "agendas.manage",
   "agendas.publish",
   "notifications.view",
+  "personal_tools.use",
 ];
 
 // ---------------------------------------------------------------------------
@@ -220,6 +232,7 @@ const ORG_LEADERSHIP_BASE: readonly KnownPermission[] = [
   "goals.view",
   "goals.manage",
   "notifications.view",
+  "personal_tools.use",
 ];
 
 // A SECRETARY DOES NOT SET GOALS, and that survived the re-derivation deliberately. The
@@ -236,6 +249,7 @@ const ORG_SECRETARY_BASE: readonly KnownPermission[] = [
   "visits.create",
   "goals.view",
   "notifications.view",
+  "personal_tools.use",
 ];
 
 // WHO MAY TOUCH YOUTH ACTIVITIES, BY ORGANIZATION.
@@ -298,6 +312,7 @@ const MUSIC_COORDINATOR_PERMISSIONS: readonly KnownPermission[] = [
   "music.view",
   "music.manage",
   "notifications.view",
+  "personal_tools.use",
 ];
 
 const WARD_COUNCIL_MEMBER_PERMISSIONS: readonly KnownPermission[] = [
@@ -307,6 +322,7 @@ const WARD_COUNCIL_MEMBER_PERMISSIONS: readonly KnownPermission[] = [
   "youth_activities.log",
   "agendas.view",
   "notifications.view",
+  "personal_tools.use",
 ];
 
 // FEATURES.md §Module 17: exactly one module. Not the roster, not the calendar, not even

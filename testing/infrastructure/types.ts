@@ -36,6 +36,7 @@ export type {
   TopicCategory,
   TopicSource,
   TopicStatus,
+  TodoLogKind,
   CadenceUnit,
   VisitArrangement,
   VisitOutcome,

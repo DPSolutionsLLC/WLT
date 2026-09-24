@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 73,
+  "scenarioCount": 74,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -1900,10 +1900,15 @@
         "Step 5: pressing C's Refs pill **opens the modal** and does **not** open the programme",
         "The References modal shows each talk's **title, speaker and chosen references only**, with",
         "Remove is a **small ✕ beside each citation**, on the same line",
+        "Search and Add manually are **small** buttons grouped on the talk's title line, and still",
+        "**Search any topic** sits above all the talks",
+        "Every window is **only as tall as its content**: on a phone it rises from the bottom, on a",
         "No wording anywhere calls the scriptures or talks \"the ward's\"",
         "Step 6: the search window has already searched the topic when it opens, and the words can be",
         "Results name **real citations from the documents you uploaded**, grouped under",
         "The topic's **suggested scriptures** appear first, as picks",
+        "The window says **\"Select one or more, then press Add.\"**",
+        "Step 9c: the free search opens **empty** and searches nothing until asked, shows no topic",
         "An uploaded scripture is cited by its **document title** (e.g. `Alma 32`). *Corrected",
         "A conference talk appears **once**, reading `Title — Speaker, Month Year`",
         "Each result shows a short italic snippet from the passage",
@@ -1932,6 +1937,40 @@
         "Would a bishop want the topic's own **suggested scriptures** offered as one-tap chips here?"
       ],
       "seedCommand": "npm run seed -- talks/scenario-074-references-finalize-and-skip"
+    },
+    {
+      "id": "todos:scenario-075-a-todo-that-became-a-project",
+      "path": "todos/scenario-075-a-todo-that-became-a-project",
+      "name": "A to-do that became a project",
+      "scope": "P5",
+      "part": 1,
+      "tags": [
+        "todos",
+        "full",
+        "P5"
+      ],
+      "prerequisites": "none",
+      "purpose": "The shape of To Do only shows with data in it: overdue against do-today against someday\nordering, a project's computed progress, a plain item turning into a project the moment it gets\nits first step (with no mode switch), and one timeline where an automatic \"Checked off …\" line\nsits **between** two written notes by time. The scenario also proves privacy on screen: the bishop\nhas a to-do of their own, and neither leader can see the other's. Seeding gives all of that at\nonce. The table-level guarantees are already Vitest (`tests/rls/todos.test.ts`,\n`tests/routes/todos.test.ts`); this walk is for the screen.",
+      "checklist": [
+        "The dashboard shows a **Tasks & Communication** section with a **To Do** tile, and no My Appointments tile (not built until p5-c)",
+        "The open list reads, top to bottom: Send the ministering assignments (**Overdue**) → Call Brother Okafor about the move (**Do today**) → Plan the quorum service project (**Upcoming**) → Order new hymnbooks for the quorum (**Someday**)",
+        "**Return the chapel key** is absent from Open and present under **Done**",
+        "The project shows `1/3`; the hymnbooks item shows **no** progress pill at all (not `0/0`)",
+        "After step 7 the project shows `2/3` and a new `Checked off \"Book the Saturday slot\"` line is the **last** line of the timeline",
+        "The seeded `Checked off \"Call the food bank coordinator\"` line sits **between** the two notes, not in a separate list",
+        "After step 8 the hymnbooks item shows `0/1` with no other change — no mode switch, no \"convert\" control",
+        "A `todo_step_added` audit row exists for step 8; no audit row's `detail` contains any title, step label or note text",
+        "The **Service project** filter shows only the project; the tag filter row is absent under **Done** (no done item has a tag)",
+        "Signed in as the bishop, To Do lists only **Draft the tithing declaration schedule** — none of the president's five",
+        "Signed in as the president, the bishop's to-do appears nowhere, under Open or Done",
+        "At 375px: no horizontal overflow; each card's Edit / ✕ group stays on the title line; every control is at least 44×44",
+        "No raw uuid on screen",
+        "Do **Do** and **Due** read as clearly different without explanation, on the card and in the edit window?",
+        "Do the automatic timeline lines read as quieter than the notes, in both light and dark themes?",
+        "Does the ✕ → \"Remove?\" arming read as a deliberate second step rather than a glitch?",
+        "Does the page sentence (\"Nobody else can see it…\") read as reassurance rather than a warning?"
+      ],
+      "seedCommand": "npm run seed -- todos/scenario-075-a-todo-that-became-a-project"
     },
     {
       "id": "visits:scenario-038-the-shared-and-private-note-split",
