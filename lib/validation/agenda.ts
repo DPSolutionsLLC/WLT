@@ -102,6 +102,12 @@ export const updateAgendaSchema = z
 // `pdfUrl` and `emailSentAt` off this schema: they are stamped by the server, never sent by a
 // client.
 
+// THE ACCOUNT an item is assigned to, which creates and links that person's to-do (slice p5-b).
+// Beside the free-text `assignedTo`, never instead of it (decision D1). Shape only here: whether the
+// id holds a calling in this ward is a question for the database, asked by the route with
+// findUsersOutsideWard(). Null unassigns.
+const assignedUserIdSchema = idSchema.nullable().optional();
+
 export const createActionItemSchema = z.object({
   description: z
     .string()
@@ -117,6 +123,7 @@ export const createActionItemSchema = z.object({
     .max(MAX_ASSIGNED_TO, `Keep the name to ${MAX_ASSIGNED_TO} characters.`)
     .nullable()
     .optional(),
+  assignedUserId: assignedUserIdSchema,
   dueDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Give the due date as YYYY-MM-DD.")
@@ -141,6 +148,7 @@ export const updateActionItemSchema = z
       .max(MAX_ASSIGNED_TO, `Keep the name to ${MAX_ASSIGNED_TO} characters.`)
       .nullable()
       .optional(),
+    assignedUserId: assignedUserIdSchema,
     dueDate: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, "Give the due date as YYYY-MM-DD.")

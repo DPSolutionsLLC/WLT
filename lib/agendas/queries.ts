@@ -36,8 +36,8 @@ const AGENDA_COLUMNS =
   "email_sent_at, email_recipient_count, created_at";
 
 const ACTION_ITEM_COLUMNS =
-  "id, agenda_id, description, assigned_to, due_date, status, carried_from_agenda_id, " +
-  "completed_at, created_at";
+  "id, agenda_id, description, assigned_to, assigned_user_id, completion_review_requested_at, " +
+  "due_date, status, carried_from_agenda_id, completed_at, created_at";
 
 // ---------------------------------------------------------------------------
 // READING `sections` DEFENSIVELY, AND WHY THIS IS NOT THE SAME AS VALIDATING IT
@@ -95,6 +95,8 @@ type ActionItemRow = {
   agenda_id: string | null;
   description: string;
   assigned_to: string | null;
+  assigned_user_id: string | null;
+  completion_review_requested_at: string | null;
   due_date: string | null;
   status: string;
   carried_from_agenda_id: string | null;
@@ -108,6 +110,8 @@ function toActionItem(row: ActionItemRow): ActionItem {
     agendaId: row.agenda_id,
     description: row.description,
     assignedTo: row.assigned_to,
+    assignedUserId: row.assigned_user_id,
+    completionReviewRequestedAt: row.completion_review_requested_at,
     dueDate: row.due_date,
     status: row.status === "complete" ? "complete" : "open",
     carriedFromAgendaId: row.carried_from_agenda_id,
@@ -297,12 +301,32 @@ export async function updateAgenda(
   return data === null ? null : toAgenda(data as unknown as AgendaRow);
 }
 
+export async function getActionItem(
+  wardId: string,
+  itemId: string,
+  client?: Client,
+): Promise<ActionItem | null> {
+  const supabase = client ?? (await createServerSupabaseClient());
+
+  const { data, error } = await supabase
+    .from("action_items")
+    .select(ACTION_ITEM_COLUMNS)
+    .eq("ward_id", wardId)
+    .eq("id", itemId)
+    .maybeSingle();
+
+  if (error) throw new Error(`Could not load the action item: ${error.message}`);
+  return data === null ? null : toActionItem(data as unknown as ActionItemRow);
+}
+
 export async function createActionItems(
   wardId: string,
   agendaId: string,
   items: readonly {
     description: string;
     assignedTo?: string | null;
+    assignedUserId?: string | null;
+    completionReviewRequestedAt?: string | null;
     dueDate?: string | null;
     carriedFromAgendaId?: string | null;
   }[],
@@ -320,6 +344,8 @@ export async function createActionItems(
         agenda_id: agendaId,
         description: item.description,
         assigned_to: item.assignedTo ?? null,
+        assigned_user_id: item.assignedUserId ?? null,
+        completion_review_requested_at: item.completionReviewRequestedAt ?? null,
         due_date: item.dueDate ?? null,
         status: "open",
         carried_from_agenda_id: item.carriedFromAgendaId ?? null,
@@ -337,6 +363,7 @@ export async function updateActionItem(
   patch: {
     description?: string;
     assignedTo?: string | null;
+    assignedUserId?: string | null;
     dueDate?: string | null;
     complete?: boolean;
   },
@@ -347,6 +374,7 @@ export async function updateActionItem(
   const row: Database["public"]["Tables"]["action_items"]["Update"] = {};
   if (patch.description !== undefined) row.description = patch.description;
   if (patch.assignedTo !== undefined) row.assigned_to = patch.assignedTo;
+  if (patch.assignedUserId !== undefined) row.assigned_user_id = patch.assignedUserId;
   if (patch.dueDate !== undefined) row.due_date = patch.dueDate;
 
   // THE TIMESTAMP AND THE STATUS MOVE TOGETHER, in one place, because they are one fact. Setting
@@ -355,6 +383,9 @@ export async function updateActionItem(
   if (patch.complete !== undefined) {
     row.status = patch.complete ? "complete" : "open";
     row.completed_at = patch.complete ? new Date().toISOString() : null;
+    // A REVIEW REQUEST IS ANSWERED EITHER WAY. Completing the item is the bishopric agreeing; a
+    // reopen is the meeting saying the work is not done — either way the flag has been read.
+    row.completion_review_requested_at = null;
   }
 
   const { data, error } = await supabase

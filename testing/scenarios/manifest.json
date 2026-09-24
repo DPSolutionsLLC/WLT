@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 74,
+  "scenarioCount": 75,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -1971,6 +1971,38 @@
         "Does the page sentence (\"Nobody else can see it…\") read as reassurance rather than a warning?"
       ],
       "seedCommand": "npm run seed -- todos/scenario-075-a-todo-that-became-a-project"
+    },
+    {
+      "id": "todos:scenario-076-two-keys-one-agenda-item",
+      "path": "todos/scenario-076-two-keys-one-agenda-item",
+      "name": "Two keys, one agenda item",
+      "scope": "P5",
+      "part": 2,
+      "tags": [
+        "todos",
+        "agendas",
+        "full",
+        "P5"
+      ],
+      "prerequisites": "none",
+      "purpose": "The two-key rules cross two people and two modules. When the meeting completes an agenda item,\nthe assignee's to-do is **flagged, never deleted or completed**. When the assignee completes their\nto-do, the agenda item is **flagged for review, never completed**. A to-do linked to an open item\ncannot be deleted. The assignee picker does not exist yet (decision D1), so the only way to reach\nthese states is to seed them.\n\nThe table-level and route-level guarantees are already covered in Vitest\n(`tests/routes/action-item-todo-link.test.ts`: create, reassign, delete, carry-forward, the 409 and\nthe 400). This walk checks that **both flags are visible** on screen, which no test can see.",
+      "checklist": [
+        "Step 3: both cards show **From the Bishopric agenda of <today>**; neither shows \"Marked complete on the agenda\"",
+        "Step 4: removal is refused with \"This came from an agenda item that is still open. Mark it complete instead — that asks the bishopric to review it.\" beside the card, and B's to-do is still in the database",
+        "Step 4: no `todo_deleted` audit row was written for the refusal",
+        "Step 6: item A reads as completed (struck through). In the database, A's to-do **still exists**, `completed_at` is null, `source_completed_at` is set, and it has a `source_completed` timeline line",
+        "Step 7: A's card shows **Marked complete on the agenda** and is still under **Open**; opening it shows the timeline line \"Marked complete on the agenda\"",
+        "Step 8: B moves to **Done**. In the database, item B has `status = 'open'` and `completion_review_requested_at` set",
+        "Step 9: item B shows **Assignee marked done — review** and is **not** struck through; item A shows no review pill",
+        "The bishop sees none of B's steps or its note anywhere: the agenda page text does not contain \"PRIVATE NOTE TEXT\", and `GET /api/todos/<B's to-do>` as the bishop answers **404**",
+        "Audit rows exist for step 6 (`action_item_status_changed`, with `todoLinks.flagged` naming A's to-do) and step 8 (`todo_completed`); no audit row's `detail` contains any to-do title, step label or note text",
+        "At 375px: no horizontal overflow on either page; the review pill and the source line wrap rather than overflow",
+        "No raw uuid on screen",
+        "Does **Assignee marked done — review** read as something the bishop is expected to act on, and does it make clear that \"Mark done\" is how they act?",
+        "Does **Marked complete on the agenda** read as \"the meeting thinks this is finished — you decide\", rather than as an error?",
+        "Is the refusal sentence in step 4 clear about what to do instead?"
+      ],
+      "seedCommand": "npm run seed -- todos/scenario-076-two-keys-one-agenda-item"
     },
     {
       "id": "visits:scenario-038-the-shared-and-private-note-split",

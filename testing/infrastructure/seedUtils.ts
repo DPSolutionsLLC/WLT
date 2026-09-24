@@ -1814,7 +1814,8 @@ export async function createAgenda(options: {
   meetingType: MeetingType;
   meetingDate: string;
   status?: AgendaStatus;
-  sections?: Record<string, unknown>;
+  // jsonb — an ARRAY of sections in practice (lib/agendas/sections.ts's agendaTemplate()).
+  sections?: unknown;
 }): Promise<string> {
   return insertRow("agendas", {
     id: options.id ?? testUuid(`agenda:${options.meetingType}:${options.meetingDate}`),
@@ -1826,18 +1827,27 @@ export async function createAgenda(options: {
   });
 }
 
+// `assignedUserId` is the ACCOUNT an item is assigned to (migration 082). Seeding it does NOT
+// create the linked to-do — that is lib/todos/sourceLinks.ts's job in the app — so a scenario
+// seeds the to-do itself with createTodo({ actionItemId }).
 export async function createActionItem(options: {
+  id?: string;
   agendaId?: string;
   description: string;
   assignedTo?: string;
+  assignedUserId?: string;
+  completionReviewRequestedAt?: string;
   dueDate?: string;
   status?: "open" | "complete";
 }): Promise<string> {
   return insertRow("action_items", {
+    ...(options.id === undefined ? {} : { id: options.id }),
     ward_id: TEST_WARD_ID,
     agenda_id: options.agendaId ?? null,
     description: options.description,
     assigned_to: options.assignedTo ?? null,
+    assigned_user_id: options.assignedUserId ?? null,
+    completion_review_requested_at: options.completionReviewRequestedAt ?? null,
     due_date: options.dueDate ?? null,
     status: options.status ?? "open",
   });
@@ -1859,6 +1869,8 @@ export async function createTodo(options: {
   scheduledFor?: string;
   completedAt?: string;
   assignedBy?: string;
+  actionItemId?: string;
+  sourceCompletedAt?: string;
   createdAt?: string;
 }): Promise<string> {
   return insertRow("todos", {
@@ -1873,6 +1885,8 @@ export async function createTodo(options: {
     due_date: options.dueDate ?? null,
     scheduled_for: options.scheduledFor ?? null,
     completed_at: options.completedAt ?? null,
+    action_item_id: options.actionItemId ?? null,
+    source_completed_at: options.sourceCompletedAt ?? null,
     ...(options.createdAt === undefined ? {} : { created_at: options.createdAt }),
   });
 }

@@ -8,8 +8,11 @@ import type {
 } from "@/lib/validation/todo";
 import type { Database } from "@/types/database";
 import {
+  MEETING_TYPES,
   TODO_LOG_KINDS,
+  type MeetingType,
   type Todo,
+  type TodoAgendaSource,
   type TodoLogEntry,
   type TodoLogKind,
   type TodoStep,
@@ -24,7 +27,9 @@ import {
 // `ward_id`, which is rule 1 and costs nothing.
 //
 // Writing to ANOTHER person's to-do is never done here. That is lib/todos/sourceLinks.ts (slice
-// p5-b), with the service role behind the source's own permission check.
+// p5-b), with the service role behind the source's own permission check. The one cross-table write
+// here is the REVERSE key — completing a linked to-do flags its action item — and it runs through
+// the caller's own client, because `action_items` is ward-wide under migration 019.
 //
 // SERVER-ONLY — it imports createServerSupabaseClient. The client components import the pure
 // halves (progress.ts, viewState.ts, logLines.ts) and only TYPES from here.
@@ -42,8 +47,20 @@ type TodoRow = {
   scheduled_with_member_id: string | null;
   completed_at: string | null;
   assigned_by: string | null;
+  action_item_id: string | null;
+  source_completed_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+type AgendaSourceRow = {
+  status: string;
+  agendas: { meeting_type: string | null; meeting_date: string } | null;
+} | null;
+
+type TodoSummaryRow = TodoRow & {
+  todo_steps: StepRow[] | null;
+  action_items: AgendaSourceRow;
 };
 
 type StepRow = {
@@ -64,10 +81,13 @@ type LogRow = {
 
 // One string literal on ONE line each — concatenation widens the type to `string` and defeats
 // supabase-js's literal parsing of the select list (plans/retros/calendar-a-rules-and-api.md).
+//
+// `action_items` has TWO foreign keys to `agendas` (the agenda it is on, and the one it was carried
+// from), so the embed names its constraint — without the hint PostgREST refuses the ambiguity.
 const TODO_COLUMNS =
-  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, created_at, updated_at";
+  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, created_at, updated_at";
 const TODO_WITH_STEPS_COLUMNS =
-  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at)";
+  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date))";
 const STEP_COLUMNS = "id, todo_id, label, position, done_at";
 const LOG_COLUMNS = "id, todo_id, kind, body, created_at";
 
@@ -82,6 +102,19 @@ export class TodoLogWriteError extends Error {
   constructor(cause: unknown) {
     super("Your change was saved, but its line in the timeline was not. Please refresh.");
     this.name = "TodoLogWriteError";
+    this.cause = cause;
+  }
+}
+
+// The same shape for the reverse key: the to-do was saved, and flagging (or unflagging) its agenda
+// item was not. The to-do row is the truth; the route says so rather than "Please try again",
+// which would suggest the completion itself had failed.
+export class TodoLinkWriteError extends Error {
+  constructor(cause: unknown) {
+    super(
+      "Your to-do was saved, but its agenda item could not be updated. Please refresh and try again.",
+    );
+    this.name = "TodoLinkWriteError";
     this.cause = cause;
   }
 }
@@ -110,6 +143,8 @@ function mapTodoRow(row: TodoRow): Todo {
     scheduledWithMemberId: row.scheduled_with_member_id,
     completedAt: row.completed_at,
     assignedBy: row.assigned_by,
+    actionItemId: row.action_item_id,
+    sourceCompletedAt: row.source_completed_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -139,10 +174,27 @@ function byPosition(a: TodoStep, b: TodoStep): number {
   return a.position - b.position;
 }
 
-function mapTodoWithSteps(row: TodoRow & { todo_steps: StepRow[] | null }): TodoSummary {
+function toMeetingType(value: string | null): MeetingType {
+  // Migration 012's CHECK allows null; lib/agendas/queries.ts defaults it the same way.
+  return value !== null && (MEETING_TYPES as readonly string[]).includes(value)
+    ? (value as MeetingType)
+    : "bishopric";
+}
+
+function mapAgendaSource(row: AgendaSourceRow): TodoAgendaSource | null {
+  if (row === null || row.agendas === null) return null;
+  return {
+    meetingType: toMeetingType(row.agendas.meeting_type),
+    meetingDate: row.agendas.meeting_date,
+    itemStatus: row.status === "complete" ? "complete" : "open",
+  };
+}
+
+function mapTodoWithSteps(row: TodoSummaryRow): TodoSummary {
   return {
     ...mapTodoRow(row),
     steps: (row.todo_steps ?? []).map(mapStepRow).sort(byPosition),
+    agendaSource: mapAgendaSource(row.action_items),
   };
 }
 
@@ -203,7 +255,7 @@ export async function listTodos(
   }
 
   return (data ?? []).map((row) =>
-    mapTodoWithSteps(row as unknown as TodoRow & { todo_steps: StepRow[] | null }),
+    mapTodoWithSteps(row as unknown as TodoSummaryRow),
   );
 }
 
@@ -228,7 +280,7 @@ export async function getTodo(
 
   return data === null
     ? null
-    : mapTodoWithSteps(data as unknown as TodoRow & { todo_steps: StepRow[] | null });
+    : mapTodoWithSteps(data as unknown as TodoSummaryRow);
 }
 
 // ONE TIMELINE, oldest first, so automatic lines and written notes interleave by time.
@@ -288,7 +340,7 @@ export async function createTodo(
     throw new Error(`Could not save that to-do: ${error.message}`);
   }
 
-  return { ...mapTodoRow(data), steps: [] };
+  return { ...mapTodoRow(data), steps: [], agendaSource: null };
 }
 
 export type TodoUpdateResult = {
@@ -391,11 +443,54 @@ export async function updateTodo(
     await writeLogLine(supabase, wardId, todoId, line.kind, line.body);
   }
 
+  if (current.actionItemId !== null && input.complete !== undefined && changedFields.includes("completedAt")) {
+    await setActionItemReviewRequest(supabase, wardId, current.actionItemId, input.complete);
+  }
+
   return {
-    todo: { ...mapTodoRow(data), steps: current.steps },
+    todo: { ...mapTodoRow(data), steps: current.steps, agendaSource: current.agendaSource },
     loggedKinds: pendingLines.map((line) => line.kind),
     changedFields,
   };
+}
+
+// ---------------------------------------------------------------------------
+// THE REVERSE KEY — the owner completes, the MEETING decides
+// ---------------------------------------------------------------------------
+// Completing a linked to-do asks the bishopric to review the agenda item; it never completes the
+// item (decisions.md §1, "confirm, don't silently act"). Only an OPEN item is flagged — a completed
+// one has nothing left to review, and the `.eq("status", "open")` makes that zero rows rather than
+// a second read. Reopening the to-do withdraws the request.
+//
+// The caller's own client, because `action_items` is ward-wide on every verb (migration 019) — no
+// service role is needed in this direction, and none is used.
+async function setActionItemReviewRequest(
+  supabase: Client,
+  wardId: string,
+  actionItemId: string,
+  requested: boolean,
+): Promise<void> {
+  const query = requested
+    ? supabase
+        .from("action_items")
+        .update({ completion_review_requested_at: new Date().toISOString() })
+        .eq("status", "open")
+        .is("completion_review_requested_at", null)
+    : supabase
+        .from("action_items")
+        .update({ completion_review_requested_at: null })
+        .not("completion_review_requested_at", "is", null);
+
+  const { error } = await query.eq("ward_id", wardId).eq("id", actionItemId);
+
+  if (error) {
+    console.error(`Could not update an action item's review request — ${error.message}`, {
+      wardId,
+      actionItemId,
+      requested,
+    });
+    throw new TodoLinkWriteError(error);
+  }
 }
 
 function sameInstant(next: string | null, previous: string | null): boolean {
@@ -403,10 +498,28 @@ function sameInstant(next: string | null, previous: string | null): boolean {
   return new Date(next).getTime() === new Date(previous).getTime();
 }
 
-// Returns false when nothing was deleted — RLS's zero rows, which the route turns into a 404.
-// Steps and timeline lines go with it by the foreign keys' cascade.
-export async function deleteTodo(wardId: string, todoId: string, client?: Client): Promise<boolean> {
+export type DeleteTodoResult = "deleted" | "not_found" | "linked_to_open_item";
+
+// "not_found" is RLS's zero rows, which the route turns into a 404. Steps and timeline lines go
+// with it by the foreign keys' cascade.
+//
+// A TO-DO LINKED TO AN OPEN AGENDA ITEM IS NOT DELETED. The meeting assigned that work and still
+// expects it; deleting would silently orphan the assignment. The route answers 409 naming the way
+// forward — mark it complete, which asks the bishopric to review the item. Once the item is
+// complete (or the link is gone), the owner may delete it like any other.
+export async function deleteTodo(
+  wardId: string,
+  todoId: string,
+  client?: Client,
+): Promise<DeleteTodoResult> {
   const supabase = await resolveClient(client);
+
+  const current = await getTodo(wardId, todoId, supabase);
+  if (current === null) return "not_found";
+
+  if (current.actionItemId !== null && (await isActionItemOpen(supabase, wardId, current.actionItemId))) {
+    return "linked_to_open_item";
+  }
 
   const { data, error } = await supabase
     .from("todos")
@@ -420,7 +533,32 @@ export async function deleteTodo(wardId: string, todoId: string, client?: Client
     throw new Error(`Could not remove that to-do: ${error.message}`);
   }
 
-  return (data ?? []).length > 0;
+  return (data ?? []).length > 0 ? "deleted" : "not_found";
+}
+
+// Read directly rather than from the card's embedded agenda source, which is null for an item that
+// sits on no agenda — the refusal must not depend on a display field.
+async function isActionItemOpen(
+  supabase: Client,
+  wardId: string,
+  actionItemId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("action_items")
+    .select("status")
+    .eq("ward_id", wardId)
+    .eq("id", actionItemId)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`Could not read a to-do's agenda item — ${error.message}`, {
+      wardId,
+      actionItemId,
+    });
+    throw new Error(`Could not check that to-do's agenda item: ${error.message}`);
+  }
+
+  return data?.status === "open";
 }
 
 // ---------------------------------------------------------------------------

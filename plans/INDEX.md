@@ -77,7 +77,7 @@ scope lives on in the P-track.
 | ~~**P2**~~ | ~~Unit hierarchy — stakes, super admin, ward switching~~ | [P2-unit-hierarchy.md](P2-unit-hierarchy.md) | — | ✅ **Shipped 2026-09-21** |
 | ~~**P3**~~ | ~~Shell & IA — tile dashboard, chrome bar, sidebar deleted~~ | [P3-shell-and-ia.md](P3-shell-and-ia.md) | — | ✅ **Shipped 2026-09-22** |
 | **P4** | Module re-skins — 9 modules, ~40 named behaviours | [P4-module-reskins.md](P4-module-reskins.md) | P3 | **Large** |
-| **P5** | To Do & My Appointments — **in progress: p5-a built** | [todo-and-my-appointments.md](todo-and-my-appointments.md) (stub: [P5-todo-and-appointments.md](P5-todo-and-appointments.md)) | P3 | Medium |
+| **P5** | To Do & My Appointments — **in progress: p5-a, p5-b built** | [todo-and-my-appointments.md](todo-and-my-appointments.md) (stub: [P5-todo-and-appointments.md](P5-todo-and-appointments.md)) | P3 | Medium |
 | **P6** | Conducting Sheet & Ward Calendar | [P6-conducting-and-calendar.md](P6-conducting-and-calendar.md) | P4, P5 | Large |
 | **P7** | Prayer Roll & Prayer Items | [P7-prayer.md](P7-prayer.md) | P4 | Medium |
 | **P8** | Receipts · Account · Speaking History Admin | [P8-receipts-account-history.md](P8-receipts-account-history.md) | P3 | Medium |

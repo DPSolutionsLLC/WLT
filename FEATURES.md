@@ -56,7 +56,7 @@ modules exist; the detailed sections further down describe each one.
 
 | Module | Status | Detail |
 |---|---|---|
-| To Do | 🟡 P5 (slice a built) | Module 18 — the spine four other modules hang off |
+| To Do | 🟡 P5 (slices a, b built) | Module 18 — the spine four other modules hang off |
 | My Appointments | 🔜 P5 | [plans/P5](plans/P5-todo-and-appointments.md) |
 | Message | 🔜 P10 | **Newly in scope 2026-09-20** |
 | Zoom | 🔜 P10 | **Newly in scope 2026-09-20**, with a named infrastructure risk |
@@ -862,8 +862,10 @@ can add to-dos only to their **own** list: someone else's work arrives only thro
 owns the assignment (an agenda item, a speaker ask, a Zoom referral), never typed onto their list
 directly.
 
-*Status: slice p5-a (the list, steps, timeline) is built. The agenda link and two-key completion
-are p5-b; see [plans/todo-and-my-appointments.md](plans/todo-and-my-appointments.md).*
+*Status: slices p5-a (the list, steps, timeline) and p5-b (the agenda link and two-key
+completion) are built. The agenda's assignee **picker** is P4's Agendas slice — until then an item
+is linked to a person only through the API. "Schedule this" and My Appointments are p5-c; see
+[plans/todo-and-my-appointments.md](plans/todo-and-my-appointments.md).*
 
 ---
 

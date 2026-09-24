@@ -10,6 +10,7 @@ import { todoProgress } from "@/lib/todos/progress";
 import { todoViewState } from "@/lib/todos/viewState";
 import { MAX_STEP_LABEL } from "@/lib/validation/todo";
 import {
+  MEETING_TYPE_LABELS,
   TODO_VIEW_STATE_LABELS,
   type TodoStep,
   type TodoSummary,
@@ -192,6 +193,17 @@ export function TodoCard({ todo, today, wardZone, onChanged }: TodoCardProps) {
               <span className="text-xs text-muted">{dates.join(" · ")}</span>
             )}
           </span>
+          {/* THE FORWARD KEY (slice p5-b): the meeting completed the item. A flag and never a
+              completion — whether their own work is finished is the owner's to say. */}
+          {todo.sourceCompletedAt !== null && !isDone ? (
+            <Pill tone="pending">Marked complete on the agenda</Pill>
+          ) : null}
+          {todo.agendaSource === null ? null : (
+            <span className="text-xs text-muted">
+              From the {MEETING_TYPE_LABELS[todo.agendaSource.meetingType]} agenda of{" "}
+              {dayLabel(todo.agendaSource.meetingDate)}
+            </span>
+          )}
         </button>
 
         <div className="flex shrink-0 items-center">

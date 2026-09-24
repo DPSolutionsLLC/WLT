@@ -1343,6 +1343,14 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   a key containing "note", which `writeAuditLog()` redacts. Timeline stamps render in the
   **ward's** zone with the time, a deliberate departure from the date-only UTC stamps elsewhere,
   because timeline lines sit minutes apart.
+  **p5-b (migration 082) links an agenda action item to its assignee's to-do**, and the two keys
+  are FLAGS in both directions — the meeting completing the item sets `todos.source_completed_at`,
+  the owner completing the to-do sets `action_items.completion_review_requested_at`; neither side
+  ever completes or deletes the other. `lib/todos/sourceLinks.ts` is the only code that writes to
+  another person's to-do (service role, behind `agendas.manage`, after the item was read through
+  the caller's own client). **Carry-forward MOVES the link onto the copy**, because the copy is the
+  live item — left on the original, the link would never see the next meeting's completion and the
+  owner could never delete the to-do. A to-do linked to an OPEN item answers **409** on delete.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

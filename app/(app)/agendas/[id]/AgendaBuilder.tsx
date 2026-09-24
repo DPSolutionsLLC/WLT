@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import { Input } from "@/components/ui/Input";
+import { Pill } from "@/components/ui/Pill";
 import {
   compareActionItems,
   describeCarriedFrom,
@@ -262,6 +263,14 @@ export function AgendaBuilder({
                           {carried === null ? null : (
                             <p className="mt-1 text-xs text-muted">{carried}</p>
                           )}
+                          {/* THE REVERSE KEY (slice p5-b): the assignee marked their to-do done.
+                              A request for the meeting to look, never a completion — "Mark done"
+                              below is still the only control that completes the item. */}
+                          {item.status === "open" && item.completionReviewRequestedAt !== null ? (
+                            <Pill tone="pending" className="mt-1">
+                              Assignee marked done — review
+                            </Pill>
+                          ) : null}
                         </div>
 
                         {canManage ? (

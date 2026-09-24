@@ -6,7 +6,7 @@
 | Slice | What | State |
 |---|---|---|
 | p5-a | To Do core — migration 081, owner-only RLS, `personal_tools.use`, `/todos` | ✅ Built 2026-09-24 (9290b9f) |
-| p5-b | Agenda link and two-key completion — migration 082 | Not started |
+| p5-b | Agenda link and two-key completion — migration 082 | ✅ Built 2026-09-24 (pending commit) |
 | p5-c | Schedule this, and My Appointments | Not started |
 
 **Load with this:** [prototype/module-map.md](prototype/module-map.md) §2.10, and build-notes-raw.md §`to-do`, §`my-appointments`, §`meeting-invites-role-scoped-appointments`.

@@ -14,6 +14,8 @@ import { todoIdSchema, updateTodoSchema } from "@/lib/validation/todo";
 // the caller is not entitled to learn that it exists — not even the bishop.
 
 const NOT_FOUND = "That to-do could not be found.";
+const LINKED_TO_OPEN_ITEM =
+  "This came from an agenda item that is still open. Mark it complete instead — that asks the bishopric to review it.";
 
 export async function GET(
   _request: Request,
@@ -111,9 +113,14 @@ export async function DELETE(
 
     const { id } = todoIdSchema.parse(await params);
 
-    const deleted = await deleteTodo(user.wardId, id, supabase);
-    if (!deleted) {
+    const outcome = await deleteTodo(user.wardId, id, supabase);
+    if (outcome === "not_found") {
       return NextResponse.json({ error: NOT_FOUND }, { status: 404 });
+    }
+    // Refuse, and name the alternative — without disclosing anything about the agenda item. No
+    // audit row: a refused write is not a mutation (scenario 049's walk).
+    if (outcome === "linked_to_open_item") {
+      return NextResponse.json({ error: LINKED_TO_OPEN_ITEM }, { status: 409 });
     }
 
     await writeAuditLog(

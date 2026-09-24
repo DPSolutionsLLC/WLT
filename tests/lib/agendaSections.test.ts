@@ -25,6 +25,8 @@ function actionItem(overrides: Partial<ActionItem> = {}): ActionItem {
     agendaId: "agenda-1",
     description: "Visit the Diaz family",
     assignedTo: null,
+    assignedUserId: null,
+    completionReviewRequestedAt: null,
     dueDate: null,
     status: "open",
     carriedFromAgendaId: null,
@@ -136,6 +138,21 @@ describe("carrying action items forward", () => {
 
     expect(carried[0].assignedTo).toBe("Sister Alvarez");
     expect(carried[0].dueDate).toBe("2026-10-01");
+  });
+
+  // Slice p5-b: the assignment stands on the copy, an unanswered review request goes with it, and
+  // the copy names the row it came from so the create route can move the assignee's to-do link.
+  it("carries the assigned account, its review request, and the id of the item it copies", () => {
+    const original = actionItem({
+      assignedUserId: "user-eq-president",
+      completionReviewRequestedAt: "2026-09-18T20:00:00Z",
+    });
+
+    const [carried] = itemsToCarryForward([original], "agenda-previous");
+
+    expect(carried.assignedUserId).toBe("user-eq-president");
+    expect(carried.completionReviewRequestedAt).toBe("2026-09-18T20:00:00Z");
+    expect(carried.carriedFromItemId).toBe(original.id);
   });
 
   // ALWAYS THE AGENDA IT IS BEING COPIED FROM, never the original's own origin. An item open

@@ -12,6 +12,11 @@ export type ActionItem = {
   agendaId: string | null;
   description: string;
   assignedTo: string | null;
+  // The ACCOUNT it is assigned to, which links that person's to-do (slice p5-b). Independent of the
+  // free-text `assignedTo`, which nothing computes against.
+  assignedUserId: string | null;
+  // The assignee marked their to-do complete and the meeting has not yet acted on it.
+  completionReviewRequestedAt: string | null;
   dueDate: string | null;
   status: "open" | "complete";
   carriedFromAgendaId: string | null;
@@ -24,8 +29,13 @@ export type ActionItem = {
 export type CarriedActionItem = {
   description: string;
   assignedTo: string | null;
+  assignedUserId: string | null;
+  completionReviewRequestedAt: string | null;
   dueDate: string | null;
   carriedFromAgendaId: string;
+  // The row this is a copy of. Not stored — the create route uses it to move the assignee's to-do
+  // link onto the copy (lib/todos/sourceLinks.ts §relinkCarriedActionItemTodos).
+  carriedFromItemId: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -52,12 +62,17 @@ export function itemsToCarryForward(
     .map((item) => ({
       description: item.description,
       assignedTo: item.assignedTo,
+      // THE ASSIGNMENT STANDS, and so does an unanswered review request: the item is still open,
+      // so the next meeting is where the assignee's "done" gets looked at.
+      assignedUserId: item.assignedUserId,
+      completionReviewRequestedAt: item.completionReviewRequestedAt,
       dueDate: item.dueDate,
       // ALWAYS THE AGENDA IT IS BEING COPIED FROM, never the original's own
       // `carriedFromAgendaId`. An item open across four meetings should read "carried from" the
       // LAST one, because that is where it was last discussed; pointing every copy back at the
       // first would make the chain a star rather than a line and lose the intervening meetings.
       carriedFromAgendaId: previousAgendaId,
+      carriedFromItemId: item.id,
     }));
 }
 

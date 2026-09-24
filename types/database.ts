@@ -110,8 +110,10 @@ export type Database = {
         Row: {
           agenda_id: string | null
           assigned_to: string | null
+          assigned_user_id: string | null
           carried_from_agenda_id: string | null
           completed_at: string | null
+          completion_review_requested_at: string | null
           created_at: string
           description: string
           due_date: string | null
@@ -122,8 +124,10 @@ export type Database = {
         Insert: {
           agenda_id?: string | null
           assigned_to?: string | null
+          assigned_user_id?: string | null
           carried_from_agenda_id?: string | null
           completed_at?: string | null
+          completion_review_requested_at?: string | null
           created_at?: string
           description: string
           due_date?: string | null
@@ -134,8 +138,10 @@ export type Database = {
         Update: {
           agenda_id?: string | null
           assigned_to?: string | null
+          assigned_user_id?: string | null
           carried_from_agenda_id?: string | null
           completed_at?: string | null
+          completion_review_requested_at?: string | null
           created_at?: string
           description?: string
           due_date?: string | null
@@ -150,6 +156,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "agendas"
             referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "action_items_assigned_user_id_fkey"
+            columns: ["assigned_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "action_items_carried_from_agenda_id_ward_id_fkey"
@@ -3065,6 +3078,7 @@ export type Database = {
       }
       todos: {
         Row: {
+          action_item_id: string | null
           assigned_by: string | null
           completed_at: string | null
           created_at: string
@@ -3074,6 +3088,7 @@ export type Database = {
           notes: string | null
           scheduled_for: string | null
           scheduled_with_member_id: string | null
+          source_completed_at: string | null
           tag: string | null
           title: string
           updated_at: string
@@ -3081,6 +3096,7 @@ export type Database = {
           ward_id: string
         }
         Insert: {
+          action_item_id?: string | null
           assigned_by?: string | null
           completed_at?: string | null
           created_at?: string
@@ -3090,6 +3106,7 @@ export type Database = {
           notes?: string | null
           scheduled_for?: string | null
           scheduled_with_member_id?: string | null
+          source_completed_at?: string | null
           tag?: string | null
           title: string
           updated_at?: string
@@ -3097,6 +3114,7 @@ export type Database = {
           ward_id: string
         }
         Update: {
+          action_item_id?: string | null
           assigned_by?: string | null
           completed_at?: string | null
           created_at?: string
@@ -3106,6 +3124,7 @@ export type Database = {
           notes?: string | null
           scheduled_for?: string | null
           scheduled_with_member_id?: string | null
+          source_completed_at?: string | null
           tag?: string | null
           title?: string
           updated_at?: string
@@ -3113,6 +3132,13 @@ export type Database = {
           ward_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "todos_action_item_id_fkey"
+            columns: ["action_item_id"]
+            isOneToOne: false
+            referencedRelation: "action_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "todos_assigned_by_fkey"
             columns: ["assigned_by"]

@@ -1565,8 +1565,21 @@ export type Todo = {
   completedAt: string | null;
   // Null means the owner put it on their own list.
   assignedBy: string | null;
+  // The agenda action item this to-do was created for (slice p5-b); null for one the owner wrote.
+  actionItemId: string | null;
+  // Set when the meeting completed that action item — a FLAG for the owner, never a completion.
+  sourceCompletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+// Where a linked to-do came from, for the card's "From the Bishopric agenda of …" line. Read
+// through `action_items`' ward-wide SELECT; null when the to-do has no link.
+export type TodoAgendaSource = {
+  meetingType: MeetingType;
+  // A `date` column — format in UTC.
+  meetingDate: string;
+  itemStatus: "open" | "complete";
 };
 
 export type TodoStep = {
@@ -1590,6 +1603,7 @@ export type TodoLogEntry = {
 // expanded one can check them off, and WITHOUT its timeline, which is loaded when a card opens.
 export type TodoSummary = Todo & {
   steps: TodoStep[];
+  agendaSource: TodoAgendaSource | null;
 };
 
 // COMPUTED, never stored — lib/todos/viewState.ts. "Overdue" is decided by the clock, and nothing

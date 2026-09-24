@@ -3,7 +3,11 @@ import { writeAuditLog } from "@/lib/audit/writeAuditLog";
 import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
-import { itemsToCarryForward } from "@/lib/agendas/carryForward";
+import {
+  itemsToCarryForward,
+  type ActionItem,
+  type CarriedActionItem,
+} from "@/lib/agendas/carryForward";
 import {
   flaggedItemsToAgendaItems,
   gatherFlaggedItems,
@@ -15,6 +19,7 @@ import {
   listAgendas,
   previousPublishedAgenda,
 } from "@/lib/agendas/queries";
+import { relinkCarriedActionItemTodos } from "@/lib/todos/sourceLinks";
 import {
   agendaTemplate,
   findSectionByTitle,
@@ -80,6 +85,35 @@ export async function GET(request: Request) {
 // is missing its carried items and can add them, rather than an error and a row that may or may
 // not exist. `apply_roster_import` shows the shape a real transaction takes here — a database
 // function — and this is not complex enough to earn one.
+//
+// AN ASSIGNEE'S TO-DO FOLLOWS ITS ITEM TO THE COPY (slice p5-b). The copy is the live item, the one
+// the next meeting completes, so the link moves onto it; lib/todos/sourceLinks.ts
+// §relinkCarriedActionItemTodos says why leaving it on the original fails.
+
+// Which copy is which original. A multi-row INSERT … RETURNING gives rows back in VALUES order,
+// and this CHECKS that rather than trusting it: pairing the wrong rows would move somebody's
+// to-do onto another person's item, silently.
+function pairCarriedCopies(
+  carried: readonly CarriedActionItem[],
+  copies: readonly ActionItem[],
+): { fromItemId: string; toItemId: string }[] {
+  if (carried.length !== copies.length) {
+    throw new Error(
+      `Carried ${carried.length} action items but ${copies.length} came back; their to-do links were not moved.`,
+    );
+  }
+  return carried.map((original, index) => {
+    const copy = copies[index];
+    if (
+      copy.description !== original.description ||
+      copy.assignedUserId !== original.assignedUserId
+    ) {
+      throw new Error("Carried action items came back out of order; their to-do links were not moved.");
+    }
+    return { fromItemId: original.carriedFromItemId, toItemId: copy.id };
+  });
+}
+
 export async function POST(request: Request) {
   const user = await requireSessionUser();
 
@@ -122,6 +156,8 @@ export async function POST(request: Request) {
     );
 
     let carriedCount = 0;
+    let movedTodoLinks: string[] = [];
+    let linkFailed = false;
     if (previous !== null) {
       const previousItems = await listActionItemsForAgendas(
         user.wardId,
@@ -130,8 +166,24 @@ export async function POST(request: Request) {
       );
       const toCarry = itemsToCarryForward(previousItems.get(previous.id) ?? [], previous.id);
       if (toCarry.length > 0) {
-        await createActionItems(user.wardId, agenda.id, toCarry, supabase);
+        const copies = await createActionItems(user.wardId, agenda.id, toCarry, supabase);
         carriedCount = toCarry.length;
+        try {
+          movedTodoLinks = await relinkCarriedActionItemTodos({
+            wardId: user.wardId,
+            moves: pairCarriedCopies(toCarry, copies),
+          });
+        } catch (error) {
+          // ANY failure here, not only a SourceLinkWriteError: the agenda and its items already
+          // exist, so the generic "Could not create the agenda" would be untrue. Logged, then
+          // answered with its own sentence below (rule 7).
+          console.error("POST /api/agendas carried its items but could not move their to-do links", {
+            wardId: user.wardId,
+            agendaId: agenda.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          linkFailed = true;
+        }
       }
     }
 
@@ -151,10 +203,24 @@ export async function POST(request: Request) {
           flaggedItems: flaggedSection === null ? 0 : flagged.length,
           carriedActionItems: carriedCount,
           carriedFrom: previous?.id ?? null,
+          movedTodoLinks,
+          todoLinkFailed: linkFailed,
         },
       },
       supabase,
     );
+
+    // The agenda exists, so this is not "try again", which would create a second one.
+    if (linkFailed) {
+      return NextResponse.json(
+        {
+          error:
+            "The agenda was created, but the to-dos of its carried action items are still linked to the previous agenda. Tell whoever looks after the app.",
+          agenda,
+        },
+        { status: 500 },
+      );
+    }
 
     return NextResponse.json({ agenda, carriedActionItems: carriedCount }, { status: 201 });
   } catch (error) {

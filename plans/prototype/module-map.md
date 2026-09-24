@@ -257,8 +257,11 @@ but a linked todo is *flagged* rather than deleted, and the reverse direction on
 link exists.
 
 > **BUILDING — P5, 2026-09-24.** Slice p5-a (the list, steps with computed progress, the one
-> timeline) is built; the agenda link and two-key completion are p5-b, "Schedule this" and My
-> Appointments p5-c. Plan: [../todo-and-my-appointments.md](../todo-and-my-appointments.md).
+> timeline) is built, and so is p5-b (the agenda link and two-key completion, migration 082);
+> "Schedule this" and My Appointments are p5-c. **One departure from the prototype's wording:**
+> completing an agenda item here does not *remove* it — WLT's agenda keeps completed items as the
+> meeting's record — but the to-do side is exactly as specified: flagged, never deleted.
+> Plan: [../todo-and-my-appointments.md](../todo-and-my-appointments.md).
 > **Deferred by decision:** the Agendas assignee picker → P4's Agendas slice (P5 builds the link,
 > not the picker); role-addressed meeting invites and the conflict check → P6; Google Calendar
 > sync → out of scope. **A to-do is owner-only** — the prototype's own "settled" rule, and the

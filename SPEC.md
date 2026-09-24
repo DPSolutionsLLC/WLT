@@ -799,13 +799,22 @@ id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
 ward_id         uuid REFERENCES wards(id)
 agenda_id       uuid REFERENCES agendas(id)
 description     text NOT NULL
-assigned_to     text
+assigned_to     text                 -- free text; nothing computes against it
+assigned_user_id uuid REFERENCES users(id) ON DELETE SET NULL  -- P5 migration 082: links the assignee's to-do
+completion_review_requested_at timestamptz  -- P5 migration 082: the assignee marked their to-do done
 due_date        date
 status          text DEFAULT 'open'  -- 'open' | 'complete'
 carried_from_agenda_id  uuid REFERENCES agendas(id)
 completed_at    timestamptz
 created_at      timestamptz DEFAULT now()
 ```
+**Two keys, one item (P5 slice b).** Assigning `assigned_user_id` creates that person's linked
+to-do (`lib/todos/sourceLinks.ts`, service role behind `agendas.manage`); reassigning deletes the
+previous one if untouched, otherwise unlinks and keeps it. Completing the item **flags** the to-do
+(`todos.source_completed_at`); completing the to-do **flags** the item
+(`completion_review_requested_at`). Neither side ever completes or deletes the other. Carry-forward
+copies `assigned_user_id` and moves the to-do's link onto the copy — the copy is the live item.
+`assigned_user_id` is checked with `findUsersOutsideWard()` before it is written (400 otherwise).
 
 ### `todos`  *(P5, migration 081)*
 A leader's own task or project. **Owner-only** — no policy admits anybody but `user_id`, the
@@ -825,8 +834,11 @@ due_date                 date                                 -- when it must be
 scheduled_for            timestamptz                          -- "Schedule this" (P5 slice c)
 scheduled_with_member_id uuid  -- (scheduled_with_member_id, ward_id) → members(id, ward_id)
 completed_at             timestamptz
+action_item_id           uuid REFERENCES action_items(id) ON DELETE SET NULL  -- P5 migration 082
+source_completed_at      timestamptz  -- P5 migration 082: the meeting completed the linked item
 created_at               timestamptz DEFAULT now()
 updated_at               timestamptz DEFAULT now()
+-- UNIQUE (action_item_id, user_id) WHERE action_item_id IS NOT NULL
 ```
 Progress and "overdue" are **computed**, never stored (`lib/todos/progress.ts`,
 `lib/todos/viewState.ts`).
@@ -1373,6 +1385,9 @@ GET    /api/agendas              List agendas
 POST   /api/agendas              Create agenda
 PATCH  /api/agendas/[id]         Update agenda
 POST   /api/agendas/[id]/publish Generate PDF and trigger email distribution
+POST   /api/agendas/[id]/action-items  Add an action item (optional `assignedUserId` creates the assignee's to-do)
+PATCH  /api/action-items/[id]    Edit / complete / reopen / reassign (keeps the linked to-do in step)
+DELETE /api/action-items/[id]    Remove (an untouched linked to-do goes with it; a touched one is kept)
 ```
 
 ### To Do  *(P5 — `personal_tools.use`, non-overridable)*
@@ -1381,7 +1396,7 @@ GET    /api/todos?status=open|done   The caller's own to-dos, each with its step
 POST   /api/todos                    Add one to the caller's own list
 GET    /api/todos/[id]               One to-do with its timeline
 PATCH  /api/todos/[id]               Edit, complete / reopen, schedule / unschedule
-DELETE /api/todos/[id]               Remove (steps and timeline cascade)
+DELETE /api/todos/[id]               Remove (steps and timeline cascade); 409 while linked to an open agenda item
 POST   /api/todos/[id]/steps         Add a step
 PATCH  /api/todo-steps/[id]          Rename, check off or uncheck (writes a timeline line)
 DELETE /api/todo-steps/[id]          Remove a step
