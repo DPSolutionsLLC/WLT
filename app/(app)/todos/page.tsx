@@ -52,7 +52,13 @@ export default async function TodosPage({ searchParams }: TodosPageProps) {
         </p>
       </div>
 
-      <TodoList initialOpenTodos={openTodos} today={today} wardZone={wardZone} />
+      <TodoList
+        initialOpenTodos={openTodos}
+        today={today}
+        wardZone={wardZone}
+        user={user}
+        canPickMember={can(user, "roster.view", roleAccess)}
+      />
     </div>
   );
 }

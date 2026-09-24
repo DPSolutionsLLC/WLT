@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import { compareTodos } from "@/lib/todos/viewState";
-import type { TodoSummary } from "@/types/domain";
+import type { SessionUser, TodoSummary } from "@/types/domain";
 import { TodoCard } from "@/app/(app)/todos/TodoCard";
 import { TodoFormDialog } from "@/app/(app)/todos/TodoFormDialog";
 import { TODOS_QUERY_KEY, fetchTodos, type TodoStatusFilter } from "@/app/(app)/todos/todoApi";
@@ -30,6 +30,9 @@ export type TodoListProps = {
   initialOpenTodos: TodoSummary[];
   today: string;
   wardZone: string;
+  user: SessionUser;
+  // `roster.view` — whether "Schedule this" may offer the member picker, which reads /api/members.
+  canPickMember: boolean;
 };
 
 function FilterPill({
@@ -63,7 +66,13 @@ function FilterPill({
   );
 }
 
-export function TodoList({ initialOpenTodos, today, wardZone }: TodoListProps) {
+export function TodoList({
+  initialOpenTodos,
+  today,
+  wardZone,
+  user,
+  canPickMember,
+}: TodoListProps) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<TodoStatusFilter>("open");
   const [tag, setTag] = useState<string | null>(null);
@@ -83,7 +92,7 @@ export function TodoList({ initialOpenTodos, today, wardZone }: TodoListProps) {
 
   const visible = todos
     .filter((todo) => tag === null || todo.tag === tag)
-    .sort((a, b) => compareTodos(a, b, today));
+    .sort((a, b) => compareTodos(a, b, today, wardZone));
 
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: [TODOS_QUERY_KEY] });
@@ -136,7 +145,14 @@ export function TodoList({ initialOpenTodos, today, wardZone }: TodoListProps) {
         <ul className="flex flex-col gap-2">
           {visible.map((todo) => (
             <li key={todo.id}>
-              <TodoCard todo={todo} today={today} wardZone={wardZone} onChanged={refresh} />
+              <TodoCard
+                todo={todo}
+                today={today}
+                wardZone={wardZone}
+                user={user}
+                canPickMember={canPickMember}
+                onChanged={refresh}
+              />
             </li>
           ))}
         </ul>

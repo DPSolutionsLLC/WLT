@@ -1351,6 +1351,11 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   the caller's own client). **Carry-forward MOVES the link onto the copy**, because the copy is the
   live item — left on the original, the link would never see the next meeting's completion and the
   owner could never delete the to-do. A to-do linked to an OPEN item answers **409** on delete.
+  **p5-c: My Appointments is ONE pure function over a list of sources** —
+  `buildMyAppointments()` in `lib/appointments/myAppointments.ts`. P6's role-addressed meeting
+  invites join it as a fourth kind, and **the conflict check must call it**, never assemble a
+  second list. "Schedule this" reads the day and time as the **ward's** wall clock
+  (`lib/todos/scheduleInstant.ts`, over `wallClockToInstant`), never `new Date("…T19:30")`.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

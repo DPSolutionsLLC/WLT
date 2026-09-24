@@ -1405,6 +1405,26 @@ POST   /api/todos/[id]/notes         Write a note on the timeline
 Audit rows carry ids and field names only — never a title, step label or note (the audit log is
 readable by `audit.view`; a to-do is not).
 
+### My Appointments  *(P5 slice c — `personal_tools.use`)*
+No routes of its own. `/appointments` is a Server Component reading three sources for the caller
+(`lib/appointments/queries.ts`) — `visit_appointments` where `made_by` is the caller and the status
+is not cancelled, the caller's scheduled `todos`, and `activity_attendees` rows for the caller on
+events that are not cancelled — and merging them in ONE pure function,
+`buildMyAppointments()` (`lib/appointments/myAppointments.ts`). Its inline actions call the owning
+modules' existing routes: `PATCH /api/visit-appointments/[id] { action: "cancel" }` and
+`PATCH /api/todos/[id] { scheduledFor: null }`. P6's meeting invites join as a fourth source of the
+same function, and the conflict check must call it rather than assembling a second list.
+
+### Page views  *(any signed-in user)*
+```
+PUT    /api/session/page-view    Remember how the caller left a page: { page, view }
+```
+The user's standing rule: every page reopens as it was left. Stored in
+`users.settings.page_views[page]` (migration 077's self-writable column — so NOTHING may read
+authorization out of it), merged at both levels. `lib/validation/pageView.ts` lists the pages and
+each one's shape; My Appointments (`appointments`) is the first. The page reads its view on the
+server as it renders. One audit row per save; the page waits for a pause so a run of clicks is one.
+
 ### Visit Tracker
 ```
 GET    /api/visits               List visit logs (scoped by org)

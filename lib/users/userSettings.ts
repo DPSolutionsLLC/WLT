@@ -120,3 +120,72 @@ export async function writeQuickLinks(
 
   return parseQuickLinks(data.settings);
 }
+
+// ---------------------------------------------------------------------------
+// HOW A PERSON LEFT EACH PAGE — `settings.page_views[page]`
+// ---------------------------------------------------------------------------
+// The user's standing rule (2026-09-24): every page reopens as it was left. One key holds every
+// page's view, so a page joins by adding its name and its schema to lib/validation/pageView.ts,
+// never by inventing a second settings key.
+//
+// This layer stores and returns `unknown`. Each page parses its own view with its own schema and
+// falls back to its own default, so one page's unreadable view can never break another page.
+//
+// Every write MERGES at both levels — the other settings keys, and every other page's view.
+
+const PAGE_VIEWS_KEY = "page_views";
+
+function pageViewsFrom(settings: Record<string, unknown>): Record<string, unknown> {
+  const raw = settings[PAGE_VIEWS_KEY];
+  return raw !== null && typeof raw === "object" && !Array.isArray(raw)
+    ? (raw as Record<string, unknown>)
+    : {};
+}
+
+// Falls back to undefined (the page's own default) rather than throwing: a view that could not be
+// read must not take the page down. Logged, never silent.
+export async function readPageView(
+  userId: string,
+  page: string,
+  client?: SupabaseClient<Database>,
+): Promise<unknown> {
+  const supabase = client ?? (await createServerSupabaseClient());
+
+  try {
+    return pageViewsFrom(await readUserSettings(supabase, userId))[page];
+  } catch (error) {
+    console.error("Falling back to the page's default view", { userId, page, error });
+    return undefined;
+  }
+}
+
+export async function writePageView(
+  userId: string,
+  page: string,
+  view: unknown,
+  client?: SupabaseClient<Database>,
+): Promise<void> {
+  const supabase = client ?? (await createServerSupabaseClient());
+
+  const existing = await readUserSettings(supabase, userId);
+  const pageViews = { ...pageViewsFrom(existing), [page]: view };
+
+  const { data, error } = await supabase
+    .from("users")
+    // MERGE, at both levels. See the header.
+    .update({ settings: { ...existing, [PAGE_VIEWS_KEY]: pageViews } as unknown as Json })
+    .eq("id", userId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    // A column-privilege refusal arrives here — see writeQuickLinks.
+    console.error(`Could not save the user's page view — ${error.message}`, { userId, page });
+    throw new Error(`Could not remember how you left this page: ${error.message}`);
+  }
+
+  // A policy refusal is a zero-row success, not an error — see writeQuickLinks.
+  if (!data) {
+    throw new Error("Could not remember how you left this page: the change was refused.");
+  }
+}

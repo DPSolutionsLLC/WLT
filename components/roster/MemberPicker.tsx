@@ -92,6 +92,11 @@ export type MemberPickerProps = {
   multiple?: boolean;
   max?: number;
   filter?: MemberPickerFilter;
+  // The WHOLE WARD, even for an org leader whose picker would otherwise open on their own
+  // organization. Off by default, so no existing caller changes. First caller: "Schedule this"
+  // (p5-c), where the member a leader is meeting may belong to any organization — the user's
+  // decision walking scenario 077. An explicit `filter.organizationId` still wins.
+  wholeWard?: boolean;
   excludeIds?: readonly string[];
   allowDoNotContact?: boolean;
   showFlags?: boolean;
@@ -138,7 +143,8 @@ export function resolvePickerFilter(
   // An explicit organization beats the session default, so a bishopric caller can point a
   // picker at one organization and an org leader can be handed a different one.
   const organizationId =
-    props.filter?.organizationId ?? defaultOrganizationFilter(user);
+    props.filter?.organizationId ??
+    (props.wholeWard ? undefined : defaultOrganizationFilter(user));
 
   return {
     statuses: statuses.length > 0 ? statuses : ["active"],

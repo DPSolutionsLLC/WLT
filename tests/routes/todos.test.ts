@@ -76,6 +76,7 @@ async function deleteTodo(id: string) {
 describe("To Do routes", () => {
   let fixtures: Fixtures;
   let service: SupabaseClient;
+  let memberId: string | undefined;
 
   beforeAll(async () => {
     fixtures = await seedFixtures(["eqPresident", "bishop", "stakePresident"]);
@@ -88,6 +89,9 @@ describe("To Do routes", () => {
     );
     if (ownerIds.length > 0) {
       await service.from("todos").delete().in("user_id", ownerIds);
+    }
+    if (memberId !== undefined) {
+      await service.from("members").delete().eq("id", memberId);
     }
     await fixtures?.cleanup();
   });
@@ -215,6 +219,56 @@ describe("To Do routes", () => {
 
     const actions = (await auditRowsFor(todoId)).map((row) => row.action);
     expect(actions).toEqual(["todo_created", "todo_completed", "todo_reopened"]);
+  });
+
+  // "Schedule this" (p5-c). The window sends an instant already converted from the ward's wall
+  // clock; the route records a timeline line each way, reads the member's name back through the
+  // ward-scoped foreign key, and clears the member when the schedule is removed.
+  it("schedules a to-do with a member, and unscheduling clears both and says so", async () => {
+    const { data: member, error: memberError } = await service
+      .from("members")
+      .insert({
+        ward_id: fixtures.wardAId,
+        first_name: "Scheduled",
+        last_name: `Fixture${fixtures.runId}`,
+        category: "adult",
+      })
+      .select("id")
+      .single();
+    if (memberError) throw new Error(`Could not seed a member: ${memberError.message}`);
+    memberId = member.id;
+
+    await actAs(fixtures, "eqPresident");
+
+    const created = await createTodo({ title: "Visit about the move" });
+    const todoId = (created.body.todo as { id: string }).id;
+
+    const scheduled = await patchTodo(todoId, {
+      scheduledFor: "2026-09-26T01:30:00.000Z",
+      scheduledWithMemberId: memberId,
+    });
+    expect(scheduled.status).toBe(200);
+
+    const { GET } = await import("@/app/api/todos/route");
+    const listed = await readResponse(await GET(jsonRequest(`${BASE}/todos?status=open`)));
+    const listedTodo = (listed.body.todos as { id: string; scheduledFor: string | null; scheduledWithMemberName: string | null }[])
+      .find((todo) => todo.id === todoId);
+    expect(listedTodo?.scheduledFor).not.toBeNull();
+    expect(new Date(listedTodo?.scheduledFor as string).toISOString()).toBe("2026-09-26T01:30:00.000Z");
+    expect(listedTodo?.scheduledWithMemberName).toBe(`Scheduled Fixture${fixtures.runId}`);
+
+    const unscheduled = await patchTodo(todoId, { scheduledFor: null });
+    expect(unscheduled.status).toBe(200);
+
+    const { data } = await service
+      .from("todos")
+      .select("scheduled_for, scheduled_with_member_id")
+      .eq("id", todoId)
+      .single();
+    expect(data?.scheduled_for).toBeNull();
+    expect(data?.scheduled_with_member_id).toBeNull();
+
+    expect(await logKindsFor(todoId)).toEqual(["scheduled", "unscheduled"]);
   });
 
   // D2, at the route: the bishop gets a 404 for somebody else's to-do — not a 403, which would

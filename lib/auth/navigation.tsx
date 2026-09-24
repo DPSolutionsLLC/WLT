@@ -109,8 +109,7 @@ export const NAVIGATION_SECTIONS: readonly {
 }[] = [
   { id: "meetings", label: "Meetings & Programs", accent: "pine" },
   { id: "people", label: "People & Care", accent: "rust" },
-  // RENDERS FROM P5, with To Do. My Appointments follows in P5's last slice; Message and Zoom are
-  // P10 and have no rows yet, because a placeholder row is the exact bug the `built` gate closes.
+  // RENDERS FROM P5, with To Do and My Appointments. Message and Zoom are P10 and have no rows yet, because a placeholder row is the exact bug the `built` gate closes.
   // The grid still renders nothing for a role with no visible tile here (stake officers, the
   // youth account), so an empty heading never appears.
   { id: "tasks", label: "Tasks & Communication", accent: "gold" },
@@ -287,7 +286,7 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
     accent: "gold",
     built: true,
   },
-  // `built: false` until P5's last slice (p5-c) builds the page.
+  // Built in P5's last slice (p5-c).
   {
     label: "My Appointments",
     href: "/appointments",
@@ -296,7 +295,7 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
     blurb: "Everything you have said you will be at, in one list.",
     icon: <CalendarClock />,
     accent: "gold",
-    built: false,
+    built: true,
   },
   {
     label: "Tithing",

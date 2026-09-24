@@ -56,8 +56,8 @@ modules exist; the detailed sections further down describe each one.
 
 | Module | Status | Detail |
 |---|---|---|
-| To Do | 🟡 P5 (slices a, b built) | Module 18 — the spine four other modules hang off |
-| My Appointments | 🔜 P5 | [plans/P5](plans/P5-todo-and-appointments.md) |
+| To Do | ✅ P5 | Module 18 — the spine four other modules hang off |
+| My Appointments | ✅ P5 | Module 19 — visits, scheduled to-dos and youth sign-ups in one list |
 | Message | 🔜 P10 | **Newly in scope 2026-09-20** |
 | Zoom | 🔜 P10 | **Newly in scope 2026-09-20**, with a named infrastructure risk |
 
@@ -862,9 +862,10 @@ can add to-dos only to their **own** list: someone else's work arrives only thro
 owns the assignment (an agenda item, a speaker ask, a Zoom referral), never typed onto their list
 directly.
 
-*Status: slices p5-a (the list, steps, timeline) and p5-b (the agenda link and two-key
-completion) are built. The agenda's assignee **picker** is P4's Agendas slice — until then an item
-is linked to a person only through the API. "Schedule this" and My Appointments are p5-c; see
+*Status: built in P5 — the list, steps and timeline (p5-a), the agenda link and two-key
+completion (p5-b), and "Schedule this" (p5-c), which gives a to-do a day and time on the ward's
+clock and, optionally, the member it is with. The agenda's assignee **picker** is P4's Agendas
+slice — until then an item is linked to a person only through the API; see
 [plans/todo-and-my-appointments.md](plans/todo-and-my-appointments.md).*
 
 ---
@@ -877,6 +878,15 @@ toggle rather than disappearing. Cancel and unschedule work inline.
 
 A meeting invite is addressed to a **role**, so a calling changing hands carries the invitation
 with it; deferring an invite moves it from one role's list to another's, whoever initiates it.
+
+*Status: built in P5 (p5-c) for the three sources that exist today — visit appointments you
+booked, to-dos you scheduled, and youth events you signed up for. Times read on the ward's clock.
+The list is grouped by day, with every other day shaded; each day collapses, and Expand all /
+Collapse all sit at the top. An item stays with its day until the day is over — greyed once its
+time has passed — and then moves behind "Show past" rather than disappearing. Cancelled items are
+left off. The page reopens exactly as you left it, on any device. Meeting invites and the soft conflict check arrive with the Ward
+Calendar (P6), as a fourth source in the same list. Google Calendar is shown as a disabled card:
+connecting one needs Google sign-in, which the app does not have.*
 
 ---
 

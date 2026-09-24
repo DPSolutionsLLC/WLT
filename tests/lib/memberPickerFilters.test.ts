@@ -99,6 +99,16 @@ describe("resolvePickerFilter", () => {
     expect(filter.organizationId).toBe(ELDERS_QUORUM_ID);
   });
 
+  it("opens on the whole ward for an org leader when asked to", () => {
+    const filter = resolvePickerFilter(
+      pickerProps({ user: eqPresident, wholeWard: true }),
+      eqPresident,
+    );
+
+    expect(filter.organizationId).toBeUndefined();
+    expect(filter.statuses).toEqual(["active"]);
+  });
+
   it("lets an explicit organization override the session default", () => {
     const filter = resolvePickerFilter(
       pickerProps({

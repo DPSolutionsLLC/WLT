@@ -78,12 +78,15 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 // belongs to a slice that can answer it, not to a shortcut row.
 //
 // ORDER IS THE PROTOTYPE'S, not NAVIGATION_ITEMS'. shortcutNavigationItems() preserves what it
-// is given for exactly this reason.
+// is given for exactly this reason. `/todos` is last, where the prototype puts it (P5). The row's
+// links carry no `?from=`, so To Do shows no "Back to Sacrament Calendar" from here — the chrome
+// bar's link is the way back until ModuleShortcutRow grows per-link origins.
 const SACRAMENT_SHORTCUT_HREFS = [
   "/roster",
   "/talks/topics",
   "/music",
   "/program",
+  "/todos",
 ] as const;
 
 // searchParams is a Promise in Next 16, typed explicitly rather than with the generated PageProps

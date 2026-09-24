@@ -2,20 +2,23 @@
 
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Pencil, Plus } from "lucide-react";
+import { CalendarClock, Pencil, Plus } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import { Pill, type PillTone } from "@/components/ui/Pill";
 import { todoProgress } from "@/lib/todos/progress";
 import { todoViewState } from "@/lib/todos/viewState";
 import { MAX_STEP_LABEL } from "@/lib/validation/todo";
+import { formatAppointmentInstant } from "@/lib/visits/visitDates";
 import {
   MEETING_TYPE_LABELS,
   TODO_VIEW_STATE_LABELS,
+  type SessionUser,
   type TodoStep,
   type TodoSummary,
   type TodoViewState,
 } from "@/types/domain";
+import { ScheduleDialog } from "@/app/(app)/todos/ScheduleDialog";
 import { RemoveButton, SmallButton } from "@/app/(app)/todos/SmallButton";
 import { TodoFormDialog } from "@/app/(app)/todos/TodoFormDialog";
 import { TodoTimeline } from "@/app/(app)/todos/TodoTimeline";
@@ -68,19 +71,29 @@ export type TodoCardProps = {
   todo: TodoSummary;
   today: string;
   wardZone: string;
+  user: SessionUser;
+  canPickMember: boolean;
   onChanged: () => void;
 };
 
-export function TodoCard({ todo, today, wardZone, onChanged }: TodoCardProps) {
+export function TodoCard({
+  todo,
+  today,
+  wardZone,
+  user,
+  canPickMember,
+  onChanged,
+}: TodoCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
   const [newStep, setNewStep] = useState("");
   const [error, setError] = useState<{ message: string; place: ErrorPlace } | undefined>(
     undefined,
   );
   const { armedKey, arm, disarm } = useArmedRemoval();
 
-  const state = todoViewState(todo, today);
+  const state = todoViewState(todo, today, wardZone);
   const progress = todoProgress(todo.steps);
   const isDone = todo.completedAt !== null;
   const bodyId = `todo-body-${todo.id}`;
@@ -198,6 +211,14 @@ export function TodoCard({ todo, today, wardZone, onChanged }: TodoCardProps) {
           {todo.sourceCompletedAt !== null && !isDone ? (
             <Pill tone="pending">Marked complete on the agenda</Pill>
           ) : null}
+          {/* A turn-up-at time, so the WARD's zone with the zone named (rule 12) — the same
+              formatter the visit appointments use, which is also what My Appointments shows. */}
+          {todo.scheduledFor === null ? null : (
+            <span className="text-xs font-medium text-foreground">
+              Scheduled {formatAppointmentInstant(todo.scheduledFor, wardZone)}
+              {todo.scheduledWithMemberName === null ? "" : ` · with ${todo.scheduledWithMemberName}`}
+            </span>
+          )}
           {todo.agendaSource === null ? null : (
             <span className="text-xs text-muted">
               From the {MEETING_TYPE_LABELS[todo.agendaSource.meetingType]} agenda of{" "}
@@ -207,8 +228,15 @@ export function TodoCard({ todo, today, wardZone, onChanged }: TodoCardProps) {
         </button>
 
         <div className="flex shrink-0 items-center">
+          {/* Icons alone, so the title keeps its width at 375px (defect 077-D1). */}
           <SmallButton
-            label="Edit"
+            accessibleName={`Schedule ${todo.title}`}
+            onClick={() => setScheduling(true)}
+            disabled={busy}
+          >
+            <CalendarClock aria-hidden="true" className="h-3.5 w-3.5" />
+          </SmallButton>
+          <SmallButton
             accessibleName={`Edit ${todo.title}`}
             onClick={() => setEditing(true)}
             disabled={busy}
@@ -310,7 +338,18 @@ export function TodoCard({ todo, today, wardZone, onChanged }: TodoCardProps) {
         </div>
       ) : null}
 
-      {/* Mounted only while open, so it re-reads the to-do's current values every time. */}
+      {/* Mounted only while open, so each re-reads the to-do's current values every time. */}
+      {scheduling ? (
+        <ScheduleDialog
+          isOpen={scheduling}
+          onClose={() => setScheduling(false)}
+          onSaved={changed}
+          todo={todo}
+          wardZone={wardZone}
+          user={user}
+          canPickMember={canPickMember}
+        />
+      ) : null}
       {editing ? (
         <TodoFormDialog
           isOpen={editing}

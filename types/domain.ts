@@ -1604,6 +1604,9 @@ export type TodoLogEntry = {
 export type TodoSummary = Todo & {
   steps: TodoStep[];
   agendaSource: TodoAgendaSource | null;
+  // "Schedule this" (p5-c): the member's name, read through the ward-scoped composite foreign key,
+  // so the card and My Appointments can say who it is with. Null when nobody was named.
+  scheduledWithMemberName: string | null;
 };
 
 // COMPUTED, never stored — lib/todos/viewState.ts. "Overdue" is decided by the clock, and nothing

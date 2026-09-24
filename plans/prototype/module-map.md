@@ -256,9 +256,10 @@ time. **Two-key completion with agendas**: the agenda item is removed immediatel
 but a linked todo is *flagged* rather than deleted, and the reverse direction only flags when a
 link exists.
 
-> **BUILDING — P5, 2026-09-24.** Slice p5-a (the list, steps with computed progress, the one
-> timeline) is built, and so is p5-b (the agenda link and two-key completion, migration 082);
-> "Schedule this" and My Appointments are p5-c. **One departure from the prototype's wording:**
+> **BUILT — P5, 2026-09-24.** Slice p5-a (the list, steps with computed progress, the one
+> timeline), p5-b (the agenda link and two-key completion, migration 082) and p5-c ("Schedule
+> this" on the ward's clock, and `/appointments` aggregating visits, scheduled to-dos and youth
+> sign-ups through one pure `buildMyAppointments()`) are all built. **One departure from the prototype's wording:**
 > completing an agenda item here does not *remove* it — WLT's agenda keeps completed items as the
 > meeting's record — but the to-do side is exactly as specified: flagged, never deleted.
 > Plan: [../todo-and-my-appointments.md](../todo-and-my-appointments.md).
@@ -562,7 +563,7 @@ says so at the Topics row, because the next reader will wonder whether rule 3 wa
 | Youth Support | Sub-view machine — **8 sub-views** | — | ✓ |
 | Visits | Sub-view machine + form toggles | — | ✓ |
 | To Do | Flat list + filters | — | ✓ |
-| My Appointments | Flat list + `showPast` | — | ✓ |
+| My Appointments | ~~Flat list + `showPast`~~ → **day-grouped, each day collapsible, Expand/Collapse all, `showPast`, remembered per user** — changed by the user walking scenario 077, 2026-09-24 | — | ✓ **built** |
 | Receipts | Tabs (`submit`…) + `viewAs` | — | ✓ |
 | Access Control | Tabs + multi-expand `Set` | — | — |
 | Ministering | `viewMode` + multi-expand `Set` | — | ✓ |

@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 75,
+  "scenarioCount": 76,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -1987,7 +1987,7 @@
       "prerequisites": "none",
       "purpose": "The two-key rules cross two people and two modules. When the meeting completes an agenda item,\nthe assignee's to-do is **flagged, never deleted or completed**. When the assignee completes their\nto-do, the agenda item is **flagged for review, never completed**. A to-do linked to an open item\ncannot be deleted. The assignee picker does not exist yet (decision D1), so the only way to reach\nthese states is to seed them.\n\nThe table-level and route-level guarantees are already covered in Vitest\n(`tests/routes/action-item-todo-link.test.ts`: create, reassign, delete, carry-forward, the 409 and\nthe 400). This walk checks that **both flags are visible** on screen, which no test can see.",
       "checklist": [
-        "Step 3: both cards show **From the Bishopric agenda of <today>**; neither shows \"Marked complete on the agenda\"",
+        "Step 3: both cards show **From the Bishopric meeting agenda of <today>** (the label comes from `MEETING_TYPE_LABELS`); neither shows \"Marked complete on the agenda\"",
         "Step 4: removal is refused with \"This came from an agenda item that is still open. Mark it complete instead — that asks the bishopric to review it.\" beside the card, and B's to-do is still in the database",
         "Step 4: no `todo_deleted` audit row was written for the refusal",
         "Step 6: item A reads as completed (struck through). In the database, A's to-do **still exists**, `completed_at` is null, `source_completed_at` is set, and it has a `source_completed` timeline line",
@@ -1999,10 +1999,55 @@
         "At 375px: no horizontal overflow on either page; the review pill and the source line wrap rather than overflow",
         "No raw uuid on screen",
         "Does **Assignee marked done — review** read as something the bishop is expected to act on, and does it make clear that \"Mark done\" is how they act?",
-        "Does **Marked complete on the agenda** read as \"the meeting thinks this is finished — you decide\", rather than as an error?",
+        "Does **Marked complete on the agenda** read as \"the meeting thinks this is finished — you decide\", rather than as an error? Does \"From the Bishopric meeting agenda of …\" read naturally, and is the pill wrapping to two lines at 375px acceptable?",
         "Is the refusal sentence in step 4 clear about what to do instead?"
       ],
       "seedCommand": "npm run seed -- todos/scenario-076-two-keys-one-agenda-item"
+    },
+    {
+      "id": "todos:scenario-077-everything-ive-said-ill-be-at",
+      "path": "todos/scenario-077-everything-ive-said-ill-be-at",
+      "name": "Everything I've said I'll be at",
+      "scope": "P5",
+      "part": 3,
+      "tags": [
+        "appointments",
+        "visits",
+        "youth",
+        "todos",
+        "full",
+        "P5"
+      ],
+      "prerequisites": "none",
+      "purpose": "My Appointments merges three modules into one list, with times on the ward's clock, grouped by\nday. Every other day is shaded, each day collapses, and the page reopens as it was left. The\nevening-event zone defect only shows up when a real evening time is seeded: 7:30 PM Friday in\nDenver is Saturday in UTC. The same slice adds **Schedule this** to a to-do, which reads a typed\nday and time as the ward's clock and offers any member of the ward.\n\nThe pure rules are already covered in Vitest:\n- `tests/lib/myAppointments.test.ts`: order, the past most recent first, nothing dropped, and the\n  all-day zone trap\n- `tests/lib/todoScheduleInstant.test.ts`: ward wall clock ↔ instant\n- `tests/routes/myAppointments.test.ts`: the three reads, per person, cancelled items excluded\n- `tests/routes/todos.test.ts`: scheduling and unscheduling write their timeline lines\n- `tests/lib/appointmentsView.test.ts` and `tests/routes/page-view.test.ts`: the remembered view,\n  and that saving it keeps every other setting\n- `tests/lib/todoViewState.test.ts`: a scheduled to-do's state follows its ward day\n\nThis walk checks what those tests cannot: the rendered times, the toggle, the inline actions and\nthe links.",
+      "checklist": [
+        "Step 3: the dashboard's Tasks & Communication section shows a **My Appointments** tile",
+        "Step 4: upcoming is grouped under day headings, today's reading \"Today · …\", and every other day sits on a shaded band. Rows show only the time",
+        "Step 4: today holds \"Call the stake clerk\" at 12:05 AM, **greyed** but still in upcoming, not in past",
+        "Step 4: after it, in time order, the Okafor visit (tomorrow 7:00 PM), then \"Drop off the moving boxes\" and \"Varsity basketball vs Roosevelt\" (both next Friday **7:30 PM**, not Saturday 1:30/2:30 AM)",
+        "Step 4: the to-do row reads \"With Samuel Okafor\"",
+        "Step 4: neither cancelled item appears, and neither does the bishop's 6:00 PM visit, nor \"Order new hymnbooks\"",
+        "Step 4: past is hidden as **Show past (3)**. Opened, it is grouped by day, most recent first: \"Meet about the quorum budget\", then the kept Okafor visit (marked **Kept**), then the tournament reading \"All day\" under the right day's heading, not \"12:00 AM\"",
+        "Step 4a: a collapsed day shows its heading and a count, and hides its rows. After Collapse all plus one day opened, a reload and a fresh sign-in both reopen it exactly that way (and with the past showing, if it was). `users.settings.page_views.appointments` holds the view, `quick_links` is untouched, and one `page_view_saved` audit row appears per burst of clicks, not per click",
+        "Step 4a: Expand all opens every day again",
+        "Step 5: the visit row opens `/visits`, the to-do row opens `/todos` scrolled to that card, and the game row opens `/youth/events/<id>`",
+        "Step 6: the visit leaves the list. In the database it has `status = 'cancelled'` and still exists",
+        "Step 7: the to-do leaves the list. On `/todos` it is still open, with no \"Scheduled\" line, and its timeline has an `unscheduled` line; `scheduled_with_member_id` is null",
+        "Step 8: the picker offers Grace Nguyen, who is in no organization. The chosen member's chip carries a ×, and there is no separate \"Nobody in particular\" link",
+        "Step 8: the card shows \"Scheduled <next Friday>, 6:15 PM · with Grace Nguyen\" under an **Upcoming** pill, not \"Someday\". In the database `scheduled_for` is 6:15 PM **Denver** time",
+        "\"Meet about the quorum budget\" (scheduled 6 days ago, not done) reads **Overdue** on `/todos`",
+        "Step 9: the timeline shows \"Scheduled\" followed by the note \"Bring the receipt\"; My Appointments now lists \"Order new hymnbooks\" at 6:15 PM",
+        "The **Google Calendar** card's button is disabled, and the note says why",
+        "At 375px: no horizontal overflow on `/appointments`. The To Do card's Schedule and Edit are **icons** (with ✕), each a 44px target, on one row, and no title is squeezed to a word per line or overlaps a button",
+        "Dark mode: row text, pills and the disabled button stay legible",
+        "No raw uuid on screen",
+        "**Against production, once:** the deployed build shows the same times as local (the zone defect was invisible in dev)",
+        "Does the list read as \"everything I've said I'll be at\"? Is it clear which rows are visits, to-dos and youth events without reading the kind pill?",
+        "Is \"Show past (3)\" the right weight: findable but not competing with the upcoming list?",
+        "Are the shaded day bands enough to see where one day ends and the next begins, without being loud? And does a greyed row read as \"this has happened today\" rather than as disabled?",
+        "Are the Schedule and Edit icons recognisable without their words?"
+      ],
+      "seedCommand": "npm run seed -- todos/scenario-077-everything-ive-said-ill-be-at"
     },
     {
       "id": "visits:scenario-038-the-shared-and-private-note-split",

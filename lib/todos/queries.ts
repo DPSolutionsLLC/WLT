@@ -58,9 +58,12 @@ type AgendaSourceRow = {
   agendas: { meeting_type: string | null; meeting_date: string } | null;
 } | null;
 
+type ScheduledMemberRow = { first_name: string | null; last_name: string | null } | null;
+
 type TodoSummaryRow = TodoRow & {
   todo_steps: StepRow[] | null;
   action_items: AgendaSourceRow;
+  scheduled_member: ScheduledMemberRow;
 };
 
 type StepRow = {
@@ -87,7 +90,7 @@ type LogRow = {
 const TODO_COLUMNS =
   "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, created_at, updated_at";
 const TODO_WITH_STEPS_COLUMNS =
-  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date))";
+  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date)), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name)";
 const STEP_COLUMNS = "id, todo_id, label, position, done_at";
 const LOG_COLUMNS = "id, todo_id, kind, body, created_at";
 
@@ -190,11 +193,18 @@ function mapAgendaSource(row: AgendaSourceRow): TodoAgendaSource | null {
   };
 }
 
+function memberName(row: ScheduledMemberRow): string | null {
+  if (row === null) return null;
+  const name = [row.first_name, row.last_name].filter((part) => part !== null && part !== "").join(" ");
+  return name === "" ? null : name;
+}
+
 function mapTodoWithSteps(row: TodoSummaryRow): TodoSummary {
   return {
     ...mapTodoRow(row),
     steps: (row.todo_steps ?? []).map(mapStepRow).sort(byPosition),
     agendaSource: mapAgendaSource(row.action_items),
+    scheduledWithMemberName: memberName(row.scheduled_member),
   };
 }
 
@@ -340,7 +350,7 @@ export async function createTodo(
     throw new Error(`Could not save that to-do: ${error.message}`);
   }
 
-  return { ...mapTodoRow(data), steps: [], agendaSource: null };
+  return { ...mapTodoRow(data), steps: [], agendaSource: null, scheduledWithMemberName: null };
 }
 
 export type TodoUpdateResult = {
@@ -448,7 +458,16 @@ export async function updateTodo(
   }
 
   return {
-    todo: { ...mapTodoRow(data), steps: current.steps, agendaSource: current.agendaSource },
+    todo: {
+      ...mapTodoRow(data),
+      steps: current.steps,
+      agendaSource: current.agendaSource,
+      // The name travels with the id it was read for; a changed member is re-read by the list.
+      scheduledWithMemberName:
+        data.scheduled_with_member_id === current.scheduledWithMemberId
+          ? current.scheduledWithMemberName
+          : null,
+    },
     loggedKinds: pendingLines.map((line) => line.kind),
     changedFields,
   };

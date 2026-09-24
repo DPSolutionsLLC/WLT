@@ -1867,6 +1867,8 @@ export async function createTodo(options: {
   doDate?: string;
   dueDate?: string;
   scheduledFor?: string;
+  // "Schedule this" (p5-c): a `members` id in the test ward. Only meaningful with `scheduledFor`.
+  scheduledWithMemberId?: string;
   completedAt?: string;
   assignedBy?: string;
   actionItemId?: string;
@@ -1884,6 +1886,7 @@ export async function createTodo(options: {
     do_date: options.doDate ?? null,
     due_date: options.dueDate ?? null,
     scheduled_for: options.scheduledFor ?? null,
+    scheduled_with_member_id: options.scheduledWithMemberId ?? null,
     completed_at: options.completedAt ?? null,
     action_item_id: options.actionItemId ?? null,
     source_completed_at: options.sourceCompletedAt ?? null,

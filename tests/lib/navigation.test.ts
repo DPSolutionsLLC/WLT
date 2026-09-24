@@ -298,9 +298,9 @@ describe("role-filtered navigation", () => {
       (item) => item.href,
     );
 
-    // `/todos` survives: `personal_tools.use` is non-overridable (P5), so no ward override can
-    // take a leader's own list away.
-    expect(hrefs).toEqual(["/music", "/todos"]);
+    // `/todos` and `/appointments` survive: `personal_tools.use` is non-overridable (P5), so no
+    // ward override can take a leader's own list away.
+    expect(hrefs).toEqual(["/music", "/todos", "/appointments"]);
   });
 
   it("honours a ward override that widens a role", () => {
