@@ -2,7 +2,7 @@
 id: p5-a-todo-core
 type: feature
 iter: null
-commits: []
+commits: ["9290b9f"]
 date: 2026-09-24
 files:
   - supabase/migrations/081_todos.sql
