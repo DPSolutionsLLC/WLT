@@ -1,22 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { speakerDisplayName } from "@/components/assignments/SpeakerLine";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
 import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
-import { listReferencesForAssignments } from "@/lib/references/queries";
-import { getMember } from "@/lib/roster/queries";
-import { loadSundayAsks } from "@/lib/sacrament/sundayAsks";
-import {
-  TALKS_LOCK_REASON_TEXT,
-  buildAskNotes,
-  buildAskTitle,
-  talkNeedsAsk,
-} from "@/lib/sacrament/talkAsks";
+import { buildAsksForTalks, loadSundayAsks } from "@/lib/sacrament/sundayAsks";
+import { TALKS_LOCK_REASON_TEXT, talkNeedsAsk } from "@/lib/sacrament/talkAsks";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { AskLinkWriteError, createAsksForSunday } from "@/lib/todos/askLinks";
-import { getTopic } from "@/lib/topics/queries";
 import { wardDateOnly } from "@/lib/ward/wardDate";
 import { readWardTimezone } from "@/lib/ward/wardTimezone";
 
@@ -112,54 +103,15 @@ export async function POST(
     });
     if (toAsk.length === 0) return badRequest(NOBODY_TO_ASK);
 
-    const memberIds = [
-      ...new Set(toAsk.flatMap((talk) => (talk.memberId === null ? [] : [talk.memberId]))),
-    ];
-    const topicIds = [
-      ...new Set(toAsk.flatMap((talk) => (talk.topicId === null ? [] : [talk.topicId]))),
-    ];
-
-    const [members, topics, references, timeZone] = await Promise.all([
-      Promise.all(memberIds.map((memberId) => getMember(user.wardId, memberId, supabase))),
-      Promise.all(topicIds.map((topicId) => getTopic(user.wardId, topicId, supabase))),
-      listReferencesForAssignments(
-        user.wardId,
-        toAsk.map((talk) => talk.id),
-        supabase,
-      ),
+    const [asks, timeZone] = await Promise.all([
+      buildAsksForTalks({
+        wardId: user.wardId,
+        sundayDate: sunday.date,
+        talks: toAsk,
+        client: supabase,
+      }),
       readWardTimezone(user.wardId, supabase),
     ]);
-
-    const membersById = new Map(
-      members.flatMap((member) => (member === null ? [] : [[member.id, member] as const])),
-    );
-    const memberNames = Object.fromEntries(
-      [...membersById.values()].map(
-        (member) => [member.id, `${member.firstName} ${member.lastName}`.trim()] as const,
-      ),
-    );
-    const topicTitles = new Map(
-      topics.flatMap((topic) => (topic === null ? [] : [[topic.id, topic.title] as const])),
-    );
-
-    const asks = toAsk.map((talk) => {
-      const speakerName = speakerDisplayName(talk, memberNames) ?? "a speaker";
-      const member = talk.memberId === null ? undefined : membersById.get(talk.memberId);
-      return {
-        assignmentId: talk.id,
-        title: buildAskTitle(speakerName),
-        notes: buildAskNotes({
-          speakerName,
-          onRoster: talk.memberId !== null,
-          phone: member?.phone ?? null,
-          topicTitle: talk.topicId === null ? null : (topicTitles.get(talk.topicId) ?? null),
-          sundayDate: sunday.date,
-          references: references
-            .filter((reference) => reference.assignmentId === talk.id)
-            .map((reference) => reference.citation),
-        }),
-      };
-    });
 
     let todoIds: string[];
     let partialFailure: AskLinkWriteError | null = null;

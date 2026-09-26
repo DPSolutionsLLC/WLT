@@ -138,7 +138,14 @@ land first.
 > (`lib/todos/askLinks.ts`, service role behind `talks.request`), one function that records an
 > outcome for both the talk's panel and the to-do (`lib/assignments/requestOutcome.ts`), the pure
 > rules (`lib/sacrament/talkAsks.ts`), and a check attached to the Talks pill with **Send asks
-> (N)**. **`f2` and `f3` are next**: the asks follow the conductor, then the assistant.
+> (N)**.
+>
+> **`f2` — The asks follow the conductor (2026-09-26), no migration.** A reconcile after every
+> Sunday save moves open asks to the current conductor, for the edited Sunday and every later
+> Sunday its re-shift moved (`lib/sacrament/conductorHandover.ts`). A clean copy is built from the
+> talk; the old one is closed as handed over. Guarded by a source-reading test. Walking scenario
+> 079 found the old copy still on the old owner's My Appointments, fixed by leaving out closed-
+> without-an-answer to-dos. **`f3` is next**: the conductor window and the assistant.
 >
 > **Module 1 now has `d`, `e` left**, and `f`/`g` wait on **P5**. The INDEX argues P5 should
 > come early for exactly that reason.

@@ -6,13 +6,20 @@ import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { getSunday, readConductorName, updateSunday } from "@/lib/calendar/queries";
 import { notifyOtherBishopric } from "@/lib/notifications/notifyOtherBishopric";
+import {
+  reconcileSundayAsksToConductor,
+  type HandoverResult,
+} from "@/lib/sacrament/conductorHandover";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { AskLinkWriteError } from "@/lib/todos/askLinks";
 import { unfinalizeTopicsIfNeeded } from "@/lib/topics/finalize";
 import { updateSundaySchema } from "@/lib/validation/calendar";
 
 const sundayIdSchema = z.uuid("That Sunday id is not valid.");
 
 const NOT_IN_WARD = "That Sunday is not on your ward's calendar.";
+const ASKS_NOT_MOVED =
+  "The conductor was changed, but their open asks were not all moved. Please try again.";
 
 // `params` is a Promise in Next 16 and the props are typed explicitly rather than with the
 // generated PageProps/RouteContext helper, which only exists after a build
@@ -69,7 +76,7 @@ export async function PATCH(
     }
 
     const { assignmentsReverted } = result;
-    const { conductingReshiftCount, orgConductingReshiftCount } = result;
+    const { conductingReshiftCount, orgConductingReshiftCount, reshiftedSundayIds } = result;
     const changedFields = Object.keys(changes);
 
     // THE DAY'S SHAPE CHANGED, so "the topics are decided" is no longer a true statement about it
@@ -94,6 +101,34 @@ export async function PATCH(
         : ((await unfinalizeTopicsIfNeeded(user.wardId, sundayId, supabase)) ??
           result.sunday);
 
+    // THE WORK FOLLOWS THE CONDUCTOR (Sacrament slice f2). This Sunday and every later one the
+    // edit re-shifted: their open talk asks move to whoever conducts now. It is a reconcile, run on
+    // every save rather than only when the conductor visibly changed, so a retry after a
+    // half-finished move repairs it (lib/sacrament/conductorHandover.ts). On a Sunday with no stray
+    // ask it is one read.
+    let handover: HandoverResult = { handedOverSundayIds: [], createdIds: [], closedIds: [] };
+    // Set only when the move stopped part-way: the to-dos written before it stopped, new copies
+    // and closed old ones together, which is how the error carries them.
+    let writtenBeforeFailure: readonly string[] | null = null;
+    try {
+      handover = await reconcileSundayAsksToConductor({
+        wardId: user.wardId,
+        sundayIds: [sundayId, ...reshiftedSundayIds],
+        actingUserId: user.id,
+        client: supabase,
+      });
+    } catch (error) {
+      if (!(error instanceof AskLinkWriteError)) throw error;
+      console.error("PATCH /api/sundays/[id] moved only some open asks", {
+        wardId: user.wardId,
+        sundayId,
+        cause: error.cause,
+      });
+      writtenBeforeFailure = error.completedIds;
+    }
+
+    // Written when the move failed too: the Sunday WAS changed, and any to-do already moved exists
+    // (rule 6).
     await writeAuditLog(
       {
         wardId: user.wardId,
@@ -114,10 +149,27 @@ export async function PATCH(
           // row is the only durable record of how far one edit reached.
           conductingReshiftCount,
           orgConductingReshiftCount,
+          // Present only when asks moved, so an ordinary edit's row is unchanged.
+          ...(writtenBeforeFailure !== null
+            ? { asksHandedOver: { complete: false, todoIdsWritten: writtenBeforeFailure } }
+            : handover.createdIds.length + handover.closedIds.length > 0
+              ? {
+                  asksHandedOver: {
+                    complete: true,
+                    sundayIds: handover.handedOverSundayIds,
+                    createdTodoIds: handover.createdIds,
+                    closedTodoIds: handover.closedIds,
+                  },
+                }
+              : {}),
         },
       },
       supabase,
     );
+
+    if (writtenBeforeFailure !== null) {
+      return NextResponse.json({ error: ASKS_NOT_MOVED }, { status: 500 });
+    }
 
     // Both conducting edits and rotation edits notify the other two bishopric members
     // (03-calendar.md Step 3). This is a product requirement, not a nicety.

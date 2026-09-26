@@ -277,6 +277,7 @@ Once a Sunday's **References** are finalized or skipped, its Talks pill offers *
 - The answer reaches the talk itself: a decline reopens the slot, clears the speaker and — for a ward member — goes into speaker history with its reason.
 - An answered ask is marked done, never deleted. Its timeline says "Accepted" or "Declined — Not available".
 - Pressing **Send asks** again later asks only the speakers added since. **Changing a talk's speaker closes the old ask** ("Speaker changed"), so nobody is asked twice.
+- **The asks follow the conductor.** Change who conducts a Sunday — by hand, or when a change of Sunday type re-shifts the rotation on later Sundays — and its open asks move to the new conductor. They get a clean copy built from the talk, with the scheduled time and "With" person; the old copy closes on the old conductor's list with "Handed over to ___", keeping whatever they wrote on it, and leaves their My Appointments. If nobody is conducting, the asks stay where they are.
 - The Talks pill shows where the asks stand: dimmed until References is decided, "N not yet asked", **Asks sent** (gold), all accepted (green), or **N declined** (rust).
 
 **CONFIRM** — On acceptance, app generates an AI-assisted confirmation message with topic, suggested scriptures, and suggested General Conference talks. Counselor reviews, edits, and approves before sending.

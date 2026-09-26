@@ -356,6 +356,25 @@ re-ask via Send asks, a speaker change closes the ask), P4 slice `f` status.
 
 ### Sub-slice f2 — The work follows the conductor (commit 2)
 
+> **BUILT 2026-09-26, with four deliberate departures from the tasks below**, agreed with the user
+> before building:
+> 1. **One call site, not several.** A rotation edit never rewrites an existing Sunday (it applies
+>    forward only, migration 023), so the only writes that REPLACE a conductor are inside
+>    `updateSunday()`: the hand change and the type-change re-shift. `generateSundayRange()` and
+>    `populateConducting()` replace nobody and are exempt in the guard test.
+> 2. **A reconcile, not a reaction to a change.** Task 12's `before !== after` cannot be asked
+>    twice: once the new conductor is saved, a retry sees no change. `reconcileSundayAsksToConductor()`
+>    moves any open ask not held by the current conductor, so a repeat finishes a half-done run.
+> 3. **The copy is rebuilt from the talk** (`buildAsksForTalks()`, shared with Send asks), not the
+>    old to-do's title and notes, so what the old owner wrote stays with them (U6).
+> 4. **The copy is dated the ward's today** — it is new work for the person receiving it.
+>
+> **Walking scenario 079 found one defect, fixed:** the closed copy stayed on the old owner's My
+> Appointments as "Done". `readScheduledTodos` now leaves out a to-do with a `closed_reason`.
+> It also found a **pre-existing calendar defect, not fixed here**: saving a Sunday in the editor
+> can move the month's Fast Sunday onto it and zero its speaking slots with no warning, when no
+> earlier Sunday of that month exists as a row.
+
 #### Task 11: Handover
 **File:** `lib/todos/askLinks.ts` (modify)
 - `handOverSundayAsks({ wardId, sundayId, fromUserId, toUserId, toName })`:

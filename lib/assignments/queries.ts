@@ -93,6 +93,7 @@ export type AssignmentComment = {
 
 export type AssignmentFilter =
   | { sundayId: string }
+  | { sundayIds: readonly string[] }
   | { from: string; to: string };
 
 export type CommentFilter = { assignmentId: string } | { sundayId: string };
@@ -280,6 +281,8 @@ export async function listAssignments(
 
   if ("sundayId" in filter) {
     query = query.eq("sunday_id", filter.sundayId);
+  } else if ("sundayIds" in filter) {
+    query = query.in("sunday_id", [...filter.sundayIds]);
   } else {
     // Resolved through lib/calendar/queries.ts rather than an embedded PostgREST join, so the
     // ward scope on `sundays` is applied by the module that owns that table. An empty range

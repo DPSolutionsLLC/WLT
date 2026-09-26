@@ -243,3 +243,144 @@ export async function countOpenAsksByAssignment(params: {
 
   return counts;
 }
+
+// Every OPEN ask on these talks, with who holds it and when it is scheduled. Service role, for the
+// same reason as the count above: the handover must see the old conductor's asks whoever makes
+// the change. Ids and times only, never a title, notes or steps (D2).
+export type OpenAsk = {
+  todoId: string;
+  assignmentId: string;
+  ownerUserId: string;
+  scheduledFor: string | null;
+  scheduledWithMemberId: string | null;
+};
+
+export async function listOpenAsks(params: {
+  wardId: string;
+  assignmentIds: readonly string[];
+  client?: Client;
+}): Promise<OpenAsk[]> {
+  if (params.assignmentIds.length === 0) return [];
+
+  const supabase = params.client ?? createServiceSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("todos")
+    .select("id, ask_assignment_id, user_id, scheduled_for, scheduled_with_member_id")
+    .eq("ward_id", params.wardId)
+    .in("ask_assignment_id", [...params.assignmentIds])
+    .is("completed_at", null);
+
+  if (error) {
+    console.error(`Could not read a Sunday's open asks — ${error.message}`, {
+      wardId: params.wardId,
+    });
+    throw new Error(`Could not read who holds this Sunday's asks: ${error.message}`);
+  }
+
+  return (data ?? []).flatMap((row) =>
+    row.ask_assignment_id === null
+      ? []
+      : [
+          {
+            todoId: row.id,
+            assignmentId: row.ask_assignment_id,
+            ownerUserId: row.user_id,
+            scheduledFor: row.scheduled_for,
+            scheduledWithMemberId: row.scheduled_with_member_id,
+          },
+        ],
+  );
+}
+
+// ---------------------------------------------------------------------------
+// HANDOVER — the work follows the conductor (f2, U3 and U6)
+// ---------------------------------------------------------------------------
+// For each ask: the new owner's CLEAN copy is created FIRST, then the old copy is closed with a
+// `handed_over` line naming the new owner. In that order, a run that stops half-way leaves the
+// work held twice rather than by nobody, and a repeat finishes it: the new copy meets the partial
+// unique index (23505, already there) and the close is conditional on the old copy still being
+// open.
+//
+// The appointment follows the work (U3): `scheduled_for` and `scheduled_with_member_id` are
+// carried onto the new copy. The old owner's notes and steps are not — `ask` is built fresh from
+// the talk (buildAsksForTalks), and the old copy is closed, never deleted.
+export type AskHandover = {
+  fromTodoId: string;
+  ask: AskToCreate;
+  scheduledFor: string | null;
+  scheduledWithMemberId: string | null;
+};
+
+export async function handOverAsks(params: {
+  wardId: string;
+  toUserId: string;
+  toName: string;
+  handovers: readonly AskHandover[];
+  assignedByUserId: string;
+  today: string;
+  client?: Client;
+}): Promise<{ createdIds: string[]; closedIds: string[] }> {
+  const supabase = params.client ?? createServiceSupabaseClient();
+  const createdIds: string[] = [];
+  const closedIds: string[] = [];
+  const done = () => [...createdIds, ...closedIds];
+
+  for (const handover of params.handovers) {
+    const detail = {
+      wardId: params.wardId,
+      assignmentId: handover.ask.assignmentId,
+      fromTodoId: handover.fromTodoId,
+    };
+
+    const { data: created, error: createError } = await supabase
+      .from("todos")
+      .insert({
+        ward_id: params.wardId,
+        user_id: params.toUserId,
+        assigned_by: params.assignedByUserId,
+        title: handover.ask.title,
+        notes: handover.ask.notes,
+        tag: "Sacrament",
+        do_date: params.today,
+        ask_assignment_id: handover.ask.assignmentId,
+        scheduled_for: handover.scheduledFor,
+        scheduled_with_member_id: handover.scheduledWithMemberId,
+      })
+      .select("id")
+      .single();
+
+    // 23505: the new owner already holds an open ask for this talk — a repeat of a run that
+    // stopped after the copy. Theirs stands, and the old copy still has to close.
+    if (createError && createError.code !== "23505") {
+      fail("Could not create the new conductor's copy of an ask", createError, detail, done());
+    }
+    if (created) createdIds.push(created.id);
+
+    const now = new Date().toISOString();
+    const { data: closed, error: closeError } = await supabase
+      .from("todos")
+      .update({ completed_at: now, closed_reason: "handed_over", updated_at: now })
+      .eq("ward_id", params.wardId)
+      .eq("id", handover.fromTodoId)
+      .is("completed_at", null)
+      .select("id");
+
+    if (closeError) fail("Could not close a handed-over ask", closeError, detail, done());
+
+    for (const row of closed ?? []) {
+      const { error: logError } = await supabase.from("todo_log_entries").insert({
+        ward_id: params.wardId,
+        todo_id: row.id,
+        kind: "handed_over",
+        body: params.toName,
+      });
+      if (logError) {
+        fail("Could not write the handover line on an ask", logError, detail, done());
+      }
+      closedIds.push(row.id);
+    }
+  }
+
+  return { createdIds, closedIds };
+}

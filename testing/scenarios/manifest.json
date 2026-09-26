@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 77,
+  "scenarioCount": 78,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -1982,6 +1982,40 @@
         "Does the rust **\"1 declined\"** read as needing action?"
       ],
       "seedCommand": "npm run seed -- talks/scenario-078-send-the-asks-and-hear-back"
+    },
+    {
+      "id": "talks:scenario-079-the-asks-follow-the-conductor",
+      "path": "talks/scenario-079-the-asks-follow-the-conductor",
+      "name": "The asks follow the conductor",
+      "scope": "p4-sacrament-f2",
+      "part": 1,
+      "tags": [
+        "sacrament",
+        "talks",
+        "todos",
+        "calendar",
+        "full",
+        "P4"
+      ],
+      "prerequisites": "none",
+      "purpose": "Sacrament slice `f2`. A Sunday's \"Ask ___ to speak\" to-dos belong to whoever **conducts** it. When\nthe conductor changes, the open asks move: the new conductor gets a **clean copy** built from the\ntalk, and the old copy is closed on the old conductor's list with a line naming who took it over.\nThe scheduled time and the \"With\" person move with it. Whatever the old owner wrote on their copy\nstays with them.\n\nA conductor changes in two ways, and the walk does both: **by hand** in the Sunday editor, and\nthrough the **re-shift** a type change applies to later Sundays (turning a Sunday into a stake\nconference moves everybody after it one place in the rotation).\n\n**Already automated:**\n- `tests/routes/conductor-handover.test.ts`: a change by hand (clean copy, old copy closed with its\n  line, time and \"With\" carried, the old owner's words left behind, audit ids), My Appointments\n  following the work, a retry repairing a half-finished move without a second copy, no audit key\n  when nothing moved, a Sunday with nobody conducting keeping its asks, and the re-shift\n- `tests/lib/conductorHandoverSites.test.ts`: reads the source and fails if a new write of\n  `sundays.conducting_user_id` skips the handover (proved able to fail)",
+      "checklist": [
+        "Step 5: the editor says **Saved.** A is still an **ordinary** Sunday, not a Fast Sunday",
+        "Step 6: A's card reads **Conducting: David Okafor**, and its Talks check still reads **Asks",
+        "Step 7: counselor1 has **no open** asks. In Done, Maria's ask still has your own line in its",
+        "Step 8: counselor1's My Appointments **no longer shows** Maria's appointment",
+        "Step 9: counselor2 has **both** asks, open, with Accepted and Declined",
+        "Step 9: Maria's ask shows the **same scheduled time** and **with Maria Lopez**, the phone and",
+        "Step 9: counselor2's My Appointments shows Maria's appointment with **Accepted / Declined**",
+        "Step 10: C's Talks check turns to **Asks sent**",
+        "Step 11: the warning says who conducts will change on later Sundays",
+        "Step 12: B reads **Stake Conference**, and C now names the conductor the seed printed for",
+        "Step 12: Tomas's ask moved to that person, and the one it left was closed as handed over",
+        "`audit_log`: each `sunday_updated` row that moved asks carries `asksHandedOver` with",
+        "Should the new conductor's copy say **where it came from** (\"Taken over from Peter",
+        "Should step 11's warning also say **open asks will move** with the conductors?"
+      ],
+      "seedCommand": "npm run seed -- talks/scenario-079-the-asks-follow-the-conductor"
     },
     {
       "id": "todos:scenario-075-a-todo-that-became-a-project",

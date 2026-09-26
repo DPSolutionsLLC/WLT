@@ -120,11 +120,18 @@ async function readVisitAppointments(
 
 async function readScheduledTodos(supabase: Client, wardId: string): Promise<MyAppointmentSource[]> {
   // No owner filter — migration 081 admits only the owner (see the header).
+  //
+  // An ask CLOSED WITHOUT AN ANSWER (`closed_reason`: handed over, speaker changed, assistant
+  // released) is not this person's appointment any more. After a handover the new owner's copy
+  // carries the time (Sacrament slice f2, U3); left in, the old copy showed the same meeting on
+  // both calendars, and as "Done" on the old owner's though nobody had done it (walking scenario
+  // 079). The time stays on the closed to-do as its record; it is only left off this page.
   const { data, error } = await supabase
     .from("todos")
     .select(TODO_COLUMNS)
     .eq("ward_id", wardId)
-    .not("scheduled_for", "is", null);
+    .not("scheduled_for", "is", null)
+    .is("closed_reason", null);
 
   if (error) {
     console.error(`Could not read my scheduled to-dos — ${error.message}`, { wardId });

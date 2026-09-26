@@ -201,6 +201,9 @@ export type UpdateSundayResult =
       assignmentsReverted: number;
       conductingReshiftCount: number;
       orgConductingReshiftCount: number;
+      // The LATER Sundays whose conductor this edit re-shifted. Their open talk asks must follow
+      // the new conductor (Sacrament slice f2), and the route cannot see them any other way.
+      reshiftedSundayIds: string[];
     }
   | { status: "needs_confirmation"; warning: CalendarChangeWarning };
 
@@ -864,6 +867,12 @@ async function resolveMonth(
 
 // Only rows whose conducting_user_id is still null. An override a human typed is never
 // overwritten by a later generation — that is the whole point of storing the value.
+//
+// NO ASK HANDOVER HERE (Sacrament slice f2): it replaces nobody. The one case where a filled null
+// meets open asks is a Sunday typed back into a meeting after its conductor was cleared, whose
+// asks stayed with the previous owner. That is the Sunday being edited, and PATCH
+// /api/sundays/[id] reconciles it on every save. tests/lib/conductorHandoverSites.test.ts lists
+// this function as exempt.
 async function populateConducting(
   supabase: SupabaseClient<Database>,
   wardId: string,
@@ -2209,6 +2218,7 @@ export async function updateSunday(
     assignmentsReverted,
     conductingReshiftCount: reshiftCounts.sacrament,
     orgConductingReshiftCount: reshiftCounts.organizations,
+    reshiftedSundayIds: reshiftPlan.sacrament.map((row) => row.sundayId),
   };
 }
 

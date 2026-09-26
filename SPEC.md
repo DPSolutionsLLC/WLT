@@ -852,6 +852,15 @@ ticked or deleted** — Accepted / Declined record the outcome on the talk throu
 `lib/assignments/requestOutcome.ts` and close every open copy with an `ask_accepted` /
 `ask_declined` line. An answered ask is done, never deleted. A **speaker change** on the talk closes
 its open asks (`closed_reason = 'speaker_changed'`) and clears the outcome; nothing else does.
+**The asks follow the conductor (slice f2).** After every Sunday save, `PATCH /api/sundays/[id]`
+reconciles that Sunday and every later Sunday its type change re-shifted
+(`lib/sacrament/conductorHandover.ts`): an open ask held by anybody but the current conductor gets
+a clean copy for the conductor (built from the talk, carrying `scheduled_for` and
+`scheduled_with_member_id`) and is closed with `closed_reason = 'handed_over'` and a `handed_over`
+line naming the new owner. Copy first, close second, so a half-finished run holds the work twice
+and the next save finishes it. A Sunday with no conductor keeps its asks. My Appointments leaves
+out a to-do with a `closed_reason`. `tests/lib/conductorHandoverSites.test.ts` fails if a new
+write of `conducting_user_id` skips the handover.
 Progress and "overdue" are **computed**, never stored (`lib/todos/progress.ts`,
 `lib/todos/viewState.ts`).
 
@@ -1271,7 +1280,7 @@ history that reads as "this member has never spoken".
 ```
 GET    /api/sundays              List Sundays
 POST   /api/sundays              Create Sunday record
-PATCH  /api/sundays/[id]         Update Sunday
+PATCH  /api/sundays/[id]         Update Sunday; moves open talk asks to the conductor (slice f2)
 PATCH  /api/sundays/[id]/topics-finalized       Finalize / un-finalize a Sunday's topics (topics.manage)
 GET    /api/sundays/[id]/references             The References modal's data (talks.plan)
 POST   /api/sundays/[id]/references             Add a reference to one of this Sunday's talks (talks.plan)
