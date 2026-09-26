@@ -267,7 +267,17 @@ PLAN → REVIEW → APPROVE → REQUEST → CONFIRM → NOTIFY → SPEAK → APP
 
 **APPROVE** — Bishop's approval is the final gate. Status moves to `Planned`.
 
-**REQUEST** — Counselor contacts each speaker personally. Logs date, who contacted, and outcome (Accepted / Declined / Pending).
+**REQUEST** — Counselor contacts each speaker personally. Logs date, who contacted, and outcome (Accepted / Declined / Pending). A decline asks **why** (Not available / Other); the reason reaches speaker history, and the slot reopens.
+
+### Asking the speakers — from the Sacrament hub
+Once a Sunday's **References** are finalized or skipped, its Talks pill offers **Send asks (N)**. Each speaker not yet asked becomes an **"Ask ___ to speak"** to-do on the list of whoever is **conducting** that Sunday, carrying the speaker's phone (or "No contact on file"), the Sunday, the topic and the references. A visiting speaker is asked too, marked *"Not on the roster — no contact on file"*.
+- The answer is recorded **on the to-do**: **Accepted**, or **Declined** with a reason and an optional note. There is no checkbox on an open ask, and it cannot be deleted until it is answered.
+- The ask card shows the **topic and the contact details** on its face, read live from the talk, so a hallway conversation has what it needs. **Schedule this** shows them too and starts with the speaker as the person you are meeting. On **My Appointments** a scheduled ask carries the same details and its own **Accepted / Declined**, so the answer can be recorded at the meeting.
+- A speaker change also clears the old speaker's decline note from the talk.
+- The answer reaches the talk itself: a decline reopens the slot, clears the speaker and — for a ward member — goes into speaker history with its reason.
+- An answered ask is marked done, never deleted. Its timeline says "Accepted" or "Declined — Not available".
+- Pressing **Send asks** again later asks only the speakers added since. **Changing a talk's speaker closes the old ask** ("Speaker changed"), so nobody is asked twice.
+- The Talks pill shows where the asks stand: dimmed until References is decided, "N not yet asked", **Asks sent** (gold), all accepted (green), or **N declined** (rust).
 
 **CONFIRM** — On acceptance, app generates an AI-assisted confirmation message with topic, suggested scriptures, and suggested General Conference talks. Counselor reviews, edits, and approves before sending.
 
@@ -287,7 +297,7 @@ PLAN → REVIEW → APPROVE → REQUEST → CONFIRM → NOTIFY → SPEAK → APP
 
 ### Speaker Reliability Profile
 Each member has an assignment history tab visible to the bishopric:
-- Date, assignment type, outcome, cancellation notice given, counselor notes
+- Date, assignment type, outcome (a decline with its reason, e.g. "Declined — Not available · Talk"), cancellation notice given, counselor notes
 - Pattern flags: declined 2+ times, cancelled within 1 week, not asked in 18+ months, not spoken in 2+ years
 - Flags are informational only
 

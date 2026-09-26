@@ -389,6 +389,7 @@ assignment_id   uuid REFERENCES assignments(id)
 outcome         text  -- 'accepted' | 'declined' | 'cancelled' | 'completed'
 cancellation_days_notice    integer
 notes           text
+decline_reason  text  -- migration 083: 'not_available' | 'other'; declines only, null before 083
 created_at      timestamptz DEFAULT now()
 ```
 
@@ -836,10 +837,21 @@ scheduled_with_member_id uuid  -- (scheduled_with_member_id, ward_id) → member
 completed_at             timestamptz
 action_item_id           uuid REFERENCES action_items(id) ON DELETE SET NULL  -- P5 migration 082
 source_completed_at      timestamptz  -- P5 migration 082: the meeting completed the linked item
+ask_assignment_id        uuid REFERENCES assignments(id) ON DELETE SET NULL  -- migration 083: a talk's ask
+closed_reason            text  -- migration 083: 'handed_over' | 'assistant_released' | 'speaker_changed'
 created_at               timestamptz DEFAULT now()
 updated_at               timestamptz DEFAULT now()
 -- UNIQUE (action_item_id, user_id) WHERE action_item_id IS NOT NULL
+-- UNIQUE (ask_assignment_id, user_id) WHERE ask_assignment_id IS NOT NULL AND completed_at IS NULL
 ```
+**A talk's ask (Sacrament slice f, migration 083).** *Send asks* on a Sunday creates one "Ask ___
+to speak" to-do per speaker not yet asked, on the list of that Sunday's **conducting** leader,
+written with the service role (`lib/todos/askLinks.ts`). "Not yet asked" is **computed**: a speaker,
+no open ask, and no recorded answer (`lib/sacrament/talkAsks.ts`). An open ask is **answered, never
+ticked or deleted** — Accepted / Declined record the outcome on the talk through
+`lib/assignments/requestOutcome.ts` and close every open copy with an `ask_accepted` /
+`ask_declined` line. An answered ask is done, never deleted. A **speaker change** on the talk closes
+its open asks (`closed_reason = 'speaker_changed'`) and clears the outcome; nothing else does.
 Progress and "overdue" are **computed**, never stored (`lib/todos/progress.ts`,
 `lib/todos/viewState.ts`).
 
@@ -863,7 +875,10 @@ ward_id         uuid NOT NULL REFERENCES wards(id)
 todo_id         uuid NOT NULL  -- (todo_id, ward_id) → todos(id, ward_id) ON DELETE CASCADE
 kind            text NOT NULL  -- 'note' | 'step_done' | 'step_undone' | 'completed' | 'reopened'
                                -- | 'scheduled' | 'unscheduled' | 'source_completed'
-body            text           -- the note; or the step label SNAPSHOT for step kinds
+                               -- | 'ask_accepted' | 'ask_declined' | 'handed_over'
+                               -- | 'assistant_released' | 'speaker_changed'  (migration 083)
+body            text           -- the note; the step label SNAPSHOT for step kinds; the decline
+                               -- reason's LABEL for ask_declined; the new owner's name for handed_over
 created_at      timestamptz DEFAULT now()
 ```
 
@@ -1263,6 +1278,10 @@ POST   /api/sundays/[id]/references             Add a reference to one of this S
 DELETE /api/sundays/[id]/references/[referenceId]  Remove one (talks.plan)
 POST   /api/sundays/[id]/references/search      Semantic search of the ward's library; writes nothing (talks.plan)
 PATCH  /api/sundays/[id]/references-decision    { decision: 'finalized' | 'skipped' | null } (talks.plan)
+GET    /api/sundays/[id]/asks                   Where the Sunday's asks stand — the Talks pill's check (talks.request)
+POST   /api/sundays/[id]/asks                   Send asks: one to-do per speaker not yet asked, to the conductor (talks.request).
+                                                400 with a sentence before References is decided, with no speaker,
+                                                with nobody conducting, or when everyone has been asked
 ```
 The References routes check that the talk is on THE SUNDAY IN THE URL, not merely in the ward —
 the composite key proves only the second. Finalizing with no references is a 409 naming the
@@ -1397,6 +1416,9 @@ POST   /api/todos                    Add one to the caller's own list
 GET    /api/todos/[id]               One to-do with its timeline
 PATCH  /api/todos/[id]               Edit, complete / reopen, schedule / unschedule
 DELETE /api/todos/[id]               Remove (steps and timeline cascade); 409 while linked to an open agenda item
+                                     or while it is an OPEN talk ask (PATCH refuses `complete: true` on one too)
+POST   /api/todos/[id]/answer        { outcome: 'accepted' | 'declined', declineReason?, note? } on an open talk ask
+                                     (talks.request): records it on the talk, closes every open copy
 POST   /api/todos/[id]/steps         Add a step
 PATCH  /api/todo-steps/[id]          Rename, check off or uncheck (writes a timeline line)
 DELETE /api/todo-steps/[id]          Remove a step

@@ -1536,7 +1536,7 @@ export type SundayReferences = {
 // A leader's own list. Owner-only at the table (D2): nothing here is ever rendered to anybody but
 // the person whose list it is.
 
-// MUST STAY IN STEP WITH `todo_log_entries.kind`'s CHECK in migration 081. `source_completed` is
+// MUST STAY IN STEP WITH `todo_log_entries.kind`'s CHECK, last rewritten by migration 083. `source_completed` is
 // written only once slice p5-b links a to-do to an agenda item; it is in the list now so the
 // CHECK and this tuple never disagree.
 export const TODO_LOG_KINDS = [
@@ -1548,8 +1548,30 @@ export const TODO_LOG_KINDS = [
   "scheduled",
   "unscheduled",
   "source_completed",
+  // Sacrament slice f (migration 083): a talk's ask. `ask_declined` carries the REASON LABEL in
+  // `body`, and `handed_over` the new owner's name, snapshotted — never a free-text note.
+  "ask_accepted",
+  "ask_declined",
+  "handed_over",
+  "assistant_released",
+  "speaker_changed",
 ] as const;
 export type TodoLogKind = (typeof TODO_LOG_KINDS)[number];
+
+// Why an OPEN ask left a list without being answered (`todos.closed_reason`, migration 083). A
+// closed ask has `completedAt` set too, so every reader already treats it as done.
+export const TODO_CLOSED_REASONS = ["handed_over", "assistant_released", "speaker_changed"] as const;
+export type TodoClosedReason = (typeof TODO_CLOSED_REASONS)[number];
+
+// A declined talk's reason (`assignment_history.decline_reason`, migration 083). Shown in speaker
+// history and on the ask's timeline; the free-text note stays on the talk.
+export const DECLINE_REASONS = ["not_available", "other"] as const;
+export type DeclineReason = (typeof DECLINE_REASONS)[number];
+
+export const DECLINE_REASON_LABELS: Record<DeclineReason, string> = {
+  not_available: "Not available",
+  other: "Other",
+};
 
 export type Todo = {
   id: string;
@@ -1569,6 +1591,10 @@ export type Todo = {
   actionItemId: string | null;
   // Set when the meeting completed that action item — a FLAG for the owner, never a completion.
   sourceCompletedAt: string | null;
+  // The talk this to-do asks somebody to give (Sacrament slice f); null for every other to-do.
+  askAssignmentId: string | null;
+  // Set only on an ask that left this list unanswered — see TODO_CLOSED_REASONS.
+  closedReason: TodoClosedReason | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -1580,6 +1606,24 @@ export type TodoAgendaSource = {
   // A `date` column — format in UTC.
   meetingDate: string;
   itemStatus: "open" | "complete";
+};
+
+// Where an ask came from, for the card's "Talk on … · …" line and the Accepted / Declined
+// buttons. Read through `assignments`' ward-wide SELECT; null when the to-do is not an ask, or the
+// talk has since been deleted. `isOpen` is the TO-DO's state — an open ask is answered, not ticked.
+export type TodoAskSource = {
+  assignmentId: string;
+  // A `date` column — format in UTC. Null when the talk sits on no Sunday.
+  sundayDate: string | null;
+  // Null once the speaker has been cleared (a decline clears it).
+  speakerName: string | null;
+  // The speaker's `members` id, for "Schedule this" to start with them. Null for a visitor.
+  speakerMemberId: string | null;
+  onRoster: boolean;
+  // Read live from the talk (lib/todos/askSource.ts), so a later change shows.
+  phone: string | null;
+  topicTitle: string | null;
+  isOpen: boolean;
 };
 
 export type TodoStep = {
@@ -1604,6 +1648,7 @@ export type TodoLogEntry = {
 export type TodoSummary = Todo & {
   steps: TodoStep[];
   agendaSource: TodoAgendaSource | null;
+  askSource: TodoAskSource | null;
   // "Schedule this" (p5-c): the member's name, read through the ward-scoped composite foreign key,
   // so the card and My Appointments can say who it is with. Null when nobody was named.
   scheduledWithMemberName: string | null;

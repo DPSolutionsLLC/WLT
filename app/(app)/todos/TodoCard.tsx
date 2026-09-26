@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CalendarClock, Pencil, Plus } from "lucide-react";
+import { CalendarClock, Mic, Pencil, Plus } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import { Pill, type PillTone } from "@/components/ui/Pill";
@@ -18,6 +18,8 @@ import {
   type TodoSummary,
   type TodoViewState,
 } from "@/types/domain";
+import { AskAnswerDialog } from "@/app/(app)/todos/AskAnswerDialog";
+import { AskDetails } from "@/app/(app)/todos/AskDetails";
 import { ScheduleDialog } from "@/app/(app)/todos/ScheduleDialog";
 import { RemoveButton, SmallButton } from "@/app/(app)/todos/SmallButton";
 import { TodoFormDialog } from "@/app/(app)/todos/TodoFormDialog";
@@ -28,6 +30,11 @@ import { useArmedRemoval } from "@/app/(app)/todos/useArmedRemoval";
 // One to-do. Collapsed it shows only the result — title, where it stands, its dates and its
 // progress — with a small grouped row of actions; tapping the body opens it in place to its steps
 // and its timeline (compact-ui-preference; module-map §6.5: a flat list, not a jump target).
+//
+// THE ACTIONS SIT IN A ROW UNDER THE BODY, so the title uses the card's full width (the user's
+// decision walking scenario 078, for every to-do). Beside the title, three icons left it 102px at
+// 375px, wrapping "Ask Brother Kent Walker to speak" over three lines. An open ask's Accepted and
+// Declined join the same row, after the icons.
 //
 // PROGRESS APPEARS ONLY FOR A PROJECT. todoProgress() is null with zero steps, and a plain item
 // shows nothing at all rather than "0/0". Adding the first step below is what makes it a project;
@@ -87,6 +94,7 @@ export function TodoCard({
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [scheduling, setScheduling] = useState(false);
+  const [declining, setDeclining] = useState(false);
   const [newStep, setNewStep] = useState("");
   const [error, setError] = useState<{ message: string; place: ErrorPlace } | undefined>(
     undefined,
@@ -96,6 +104,11 @@ export function TodoCard({
   const state = todoViewState(todo, today, wardZone);
   const progress = todoProgress(todo.steps);
   const isDone = todo.completedAt !== null;
+  // An ask has NO checkbox, open or done (Sacrament slice f1). Open, it is answered with the buttons
+  // below; done, it stays done — the server refuses both the tick and the untick, and this only
+  // makes the card offer what the server allows.
+  const isAsk = todo.askAssignmentId !== null;
+  const isOpenAsk = isAsk && !isDone;
   const bodyId = `todo-body-${todo.id}`;
   const stepFieldId = `todo-step-${todo.id}`;
 
@@ -131,6 +144,15 @@ export function TodoCard({
       url: `/api/todos/${todo.id}`,
       method: "PATCH",
       body: { complete: !isDone },
+      place: "card",
+    });
+  }
+
+  function accept() {
+    mutation.mutate({
+      url: `/api/todos/${todo.id}/answer`,
+      method: "POST",
+      body: { outcome: "accepted" },
       place: "card",
     });
   }
@@ -171,16 +193,27 @@ export function TodoCard({
         {/* THE CHECKBOX IS THE DONE CONTROL — and unticking it reopens, so a mis-tick is
             recoverable without a delete. The box is 20px to see and the label around it is 44×44
             to tap (defect 075-D1: the bare input was a 20×20 target). */}
-        <label className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center">
-          <input
-            type="checkbox"
-            checked={isDone}
-            disabled={busy}
-            onChange={toggleComplete}
-            aria-label={isDone ? `Reopen ${todo.title}` : `Mark ${todo.title} done`}
-            className="h-5 w-5"
-          />
-        </label>
+        {isAsk ? (
+          // No checkbox on an ask. An open one is answered with Accepted / Declined in the action
+          // row below.
+          <span
+            aria-hidden="true"
+            className="flex h-11 w-11 shrink-0 items-center justify-center text-muted"
+          >
+            <Mic className="h-4 w-4" />
+          </span>
+        ) : (
+          <label className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center">
+            <input
+              type="checkbox"
+              checked={isDone}
+              disabled={busy}
+              onChange={toggleComplete}
+              aria-label={isDone ? `Reopen ${todo.title}` : `Mark ${todo.title} done`}
+              className="h-5 w-5"
+            />
+          </label>
+        )}
 
         <button
           type="button"
@@ -219,6 +252,17 @@ export function TodoCard({
               {todo.scheduledWithMemberName === null ? "" : ` · with ${todo.scheduledWithMemberName}`}
             </span>
           )}
+          {/* A `date` column, so UTC like the do and due dates above. */}
+          {todo.askSource === null ? null : (
+            <span className="text-xs text-muted">
+              Talk
+              {todo.askSource.sundayDate === null ? "" : ` on ${dayLabel(todo.askSource.sundayDate)}`}
+              {todo.askSource.speakerName === null ? "" : ` · ${todo.askSource.speakerName}`}
+            </span>
+          )}
+          {/* Everything needed to extend the invitation, on the card itself — for a hallway
+              conversation as much as for a scheduled one. Only while the ask is open. */}
+          {todo.askSource !== null && isOpenAsk ? <AskDetails ask={todo.askSource} /> : null}
           {todo.agendaSource === null ? null : (
             <span className="text-xs text-muted">
               From the {MEETING_TYPE_LABELS[todo.agendaSource.meetingType]} agenda of{" "}
@@ -227,32 +271,52 @@ export function TodoCard({
           )}
         </button>
 
-        <div className="flex shrink-0 items-center">
-          {/* Icons alone, so the title keeps its width at 375px (defect 077-D1). */}
-          <SmallButton
-            accessibleName={`Schedule ${todo.title}`}
-            onClick={() => setScheduling(true)}
-            disabled={busy}
-          >
-            <CalendarClock aria-hidden="true" className="h-3.5 w-3.5" />
-          </SmallButton>
-          <SmallButton
-            accessibleName={`Edit ${todo.title}`}
-            onClick={() => setEditing(true)}
-            disabled={busy}
-          >
-            <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
-          </SmallButton>
-          <RemoveButton
-            accessibleName={`Remove ${todo.title}`}
-            isArmed={armedKey === "todo"}
-            onArm={() => arm("todo")}
-            onConfirm={() =>
-              mutation.mutate({ url: `/api/todos/${todo.id}`, method: "DELETE", place: "card" })
-            }
-            disabled={busy}
-          />
-        </div>
+      </div>
+
+      {/* THE FULL CARD WIDTH, NOT INDENTED UNDER THE TITLE. Indented, the five buttons of an open ask
+          did not fit at 375px and "Declined" wrapped onto a line of its own (walking scenario 078).
+          The answers are one group pushed to the right, so they wrap together if they ever must. */}
+      <div data-todo-actions="" className="flex flex-wrap items-center gap-0.5">
+        {/* Icons alone, so the row stays short at 375px (defect 077-D1). */}
+        <SmallButton
+          accessibleName={`Schedule ${todo.title}`}
+          onClick={() => setScheduling(true)}
+          disabled={busy}
+        >
+          <CalendarClock aria-hidden="true" className="h-3.5 w-3.5" />
+        </SmallButton>
+        <SmallButton
+          accessibleName={`Edit ${todo.title}`}
+          onClick={() => setEditing(true)}
+          disabled={busy}
+        >
+          <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
+        </SmallButton>
+        <RemoveButton
+          accessibleName={`Remove ${todo.title}`}
+          isArmed={armedKey === "todo"}
+          onArm={() => arm("todo")}
+          onConfirm={() =>
+            mutation.mutate({ url: `/api/todos/${todo.id}`, method: "DELETE", place: "card" })
+          }
+          disabled={busy}
+        />
+        {isOpenAsk ? (
+          <span className="ml-auto flex items-center gap-0.5">
+            <SmallButton
+              label="Accepted"
+              accessibleName={`They accepted — ${todo.title}`}
+              onClick={accept}
+              disabled={busy}
+            />
+            <SmallButton
+              label="Declined"
+              accessibleName={`They declined — ${todo.title}`}
+              onClick={() => setDeclining(true)}
+              disabled={busy}
+            />
+          </span>
+        ) : null}
       </div>
 
       <FormError message={cardError} />
@@ -348,6 +412,15 @@ export function TodoCard({
           wardZone={wardZone}
           user={user}
           canPickMember={canPickMember}
+        />
+      ) : null}
+      {declining ? (
+        <AskAnswerDialog
+          isOpen={declining}
+          onClose={() => setDeclining(false)}
+          onSaved={changed}
+          todoId={todo.id}
+          title={todo.title}
         />
       ) : null}
       {editing ? (

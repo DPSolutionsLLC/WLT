@@ -82,6 +82,19 @@ describe("topicShapeChanged — what does NOT un-finalize a Sunday", () => {
     expect(topicShapeChanged(patch({ action: "waive_contact" }))).toBe(false);
   });
 
+  // Sacrament slice f1 moved the speaker's answer out of `update` into its own action, and a
+  // decline through it clears the speaker and reopens the slot. None of that is a topic.
+  it("leaves it finalized when a speaker's answer is recorded, a decline included", () => {
+    expect(
+      topicShapeChanged(patch({ action: "record_outcome", outcome: "accepted" })),
+    ).toBe(false);
+    expect(
+      topicShapeChanged(
+        patch({ action: "record_outcome", outcome: "declined", declineReason: "not_available" }),
+      ),
+    ).toBe(false);
+  });
+
   // ---------------------------------------------------------------------------
   // EVERY NON-TOPIC FIELD ON THE UPDATE ACTION, ONE ASSERTION EACH
   // ---------------------------------------------------------------------------
@@ -94,7 +107,6 @@ describe("topicShapeChanged — what does NOT un-finalize a Sunday", () => {
     ["slotNumber", 2],
     ["slotLengthMinutes", 12],
     ["assignmentType", "youth_speaker"],
-    ["requestOutcome", "accepted"],
     ["requestNotes", "Happy to speak"],
     ["notifyMessage", "Here is your topic"],
     ["notifySentAt", "2027-03-01T12:00:00.000Z"],

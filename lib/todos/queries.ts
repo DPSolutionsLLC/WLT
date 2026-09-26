@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { InvalidInputError } from "@/lib/auth/errors";
+import { mapAskSource, type AskSourceRow } from "@/lib/todos/askSource";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type {
   CreateTodoInput,
@@ -9,10 +11,12 @@ import type {
 import type { Database } from "@/types/database";
 import {
   MEETING_TYPES,
+  TODO_CLOSED_REASONS,
   TODO_LOG_KINDS,
   type MeetingType,
   type Todo,
   type TodoAgendaSource,
+  type TodoClosedReason,
   type TodoLogEntry,
   type TodoLogKind,
   type TodoStep,
@@ -49,6 +53,8 @@ type TodoRow = {
   assigned_by: string | null;
   action_item_id: string | null;
   source_completed_at: string | null;
+  ask_assignment_id: string | null;
+  closed_reason: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -63,6 +69,7 @@ type ScheduledMemberRow = { first_name: string | null; last_name: string | null 
 type TodoSummaryRow = TodoRow & {
   todo_steps: StepRow[] | null;
   action_items: AgendaSourceRow;
+  ask: AskSourceRow;
   scheduled_member: ScheduledMemberRow;
 };
 
@@ -85,12 +92,17 @@ type LogRow = {
 // One string literal on ONE line each — concatenation widens the type to `string` and defeats
 // supabase-js's literal parsing of the select list (plans/retros/calendar-a-rules-and-api.md).
 //
+// `ask` is the talk an ask to-do was created for (Sacrament slice f), read through `assignments`'
+// SELECT policy. An ask's owner is a bishopric member, who reads every talk in the ward. The embed
+// is written out in lib/todos/askSource.ts too, which maps it; lib/appointments/queries.ts carries
+// the same text.
+//
 // `action_items` has TWO foreign keys to `agendas` (the agenda it is on, and the one it was carried
 // from), so the embed names its constraint — without the hint PostgREST refuses the ambiguity.
 const TODO_COLUMNS =
-  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, created_at, updated_at";
+  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, closed_reason, created_at, updated_at";
 const TODO_WITH_STEPS_COLUMNS =
-  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date)), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name)";
+  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, closed_reason, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date)), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, sundays!assignments_sunday_id_ward_id_fkey (date), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), topics!assignments_topic_id_ward_id_fkey (title)), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name)";
 const STEP_COLUMNS = "id, todo_id, label, position, done_at";
 const LOG_COLUMNS = "id, todo_id, kind, body, created_at";
 
@@ -132,6 +144,17 @@ function toLogKind(value: string): TodoLogKind {
   return value as TodoLogKind;
 }
 
+function toClosedReason(value: string | null): TodoClosedReason | null {
+  if (value === null) return null;
+  if (!(TODO_CLOSED_REASONS as readonly string[]).includes(value)) {
+    throw new Error(
+      `todos.closed_reason holds "${value}", which is not a known value. The CHECK constraint ` +
+        "and types/domain.ts have drifted.",
+    );
+  }
+  return value as TodoClosedReason;
+}
+
 // Explicit objects rather than spreads, so a column added later cannot ride into a response
 // nobody reviewed.
 function mapTodoRow(row: TodoRow): Todo {
@@ -148,6 +171,8 @@ function mapTodoRow(row: TodoRow): Todo {
     assignedBy: row.assigned_by,
     actionItemId: row.action_item_id,
     sourceCompletedAt: row.source_completed_at,
+    askAssignmentId: row.ask_assignment_id,
+    closedReason: toClosedReason(row.closed_reason),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -204,6 +229,7 @@ function mapTodoWithSteps(row: TodoSummaryRow): TodoSummary {
     ...mapTodoRow(row),
     steps: (row.todo_steps ?? []).map(mapStepRow).sort(byPosition),
     agendaSource: mapAgendaSource(row.action_items),
+    askSource: mapAskSource(row.ask, row.completed_at),
     scheduledWithMemberName: memberName(row.scheduled_member),
   };
 }
@@ -350,7 +376,13 @@ export async function createTodo(
     throw new Error(`Could not save that to-do: ${error.message}`);
   }
 
-  return { ...mapTodoRow(data), steps: [], agendaSource: null, scheduledWithMemberName: null };
+  return {
+    ...mapTodoRow(data),
+    steps: [],
+    agendaSource: null,
+    askSource: null,
+    scheduledWithMemberName: null,
+  };
 }
 
 export type TodoUpdateResult = {
@@ -397,6 +429,13 @@ export async function updateTodo(
   if (input.dueDate !== undefined && input.dueDate !== current.dueDate) {
     row.due_date = input.dueDate;
     changedFields.push("dueDate");
+  }
+
+  if (input.complete === true && isOpenAsk(current)) {
+    throw new InvalidInputError(OPEN_ASK_COMPLETE);
+  }
+  if (input.complete === false && current.askAssignmentId !== null && current.completedAt !== null) {
+    throw new InvalidInputError(ANSWERED_ASK_REOPEN);
   }
 
   if (input.complete !== undefined && input.complete !== (current.completedAt !== null)) {
@@ -462,6 +501,7 @@ export async function updateTodo(
       ...mapTodoRow(data),
       steps: current.steps,
       agendaSource: current.agendaSource,
+      askSource: current.askSource,
       // The name travels with the id it was read for; a changed member is re-read by the list.
       scheduledWithMemberName:
         data.scheduled_with_member_id === current.scheduledWithMemberId
@@ -517,7 +557,26 @@ function sameInstant(next: string | null, previous: string | null): boolean {
   return new Date(next).getTime() === new Date(previous).getTime();
 }
 
-export type DeleteTodoResult = "deleted" | "not_found" | "linked_to_open_item";
+// ---------------------------------------------------------------------------
+// AN OPEN ASK IS ANSWERED, NEVER TICKED OR DELETED (Sacrament slice f)
+// ---------------------------------------------------------------------------
+// Accepted / Declined replace the checkbox on the card. They are what records the answer on the
+// talk and closes every copy of the ask (POST /api/todos/[id]/answer). A plain tick would leave
+// the talk not knowing the answer. A delete would leave the speaker counted as asked with nobody
+// holding the ask. Once answered or closed (`completed_at` set), it behaves like any done to-do.
+const OPEN_ASK_COMPLETE = "Record their answer — Accepted or Declined.";
+
+// AND AN ANSWERED OR CLOSED ASK STAYS DONE. Reopening one would let the same answer be recorded
+// twice (a second speaker-history row), or meet migration 083b's one-open-ask index as a 500. A
+// new ask comes from Send asks, which asks whoever is the speaker now.
+const ANSWERED_ASK_REOPEN =
+  "This ask has been answered or closed. To ask again, change the speaker on the talk and press Send asks.";
+
+function isOpenAsk(todo: Todo): boolean {
+  return todo.askAssignmentId !== null && todo.completedAt === null;
+}
+
+export type DeleteTodoResult = "deleted" | "not_found" | "linked_to_open_item" | "open_ask";
 
 // "not_found" is RLS's zero rows, which the route turns into a 404. Steps and timeline lines go
 // with it by the foreign keys' cascade.
@@ -535,6 +594,8 @@ export async function deleteTodo(
 
   const current = await getTodo(wardId, todoId, supabase);
   if (current === null) return "not_found";
+
+  if (isOpenAsk(current)) return "open_ask";
 
   if (current.actionItemId !== null && (await isActionItemOpen(supabase, wardId, current.actionItemId))) {
     return "linked_to_open_item";

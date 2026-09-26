@@ -28,4 +28,22 @@ describe("describeLogEntry", () => {
       "Marked complete on the agenda",
     );
   });
+
+  // Sacrament slice f. `ask_declined`'s body is the REASON LABEL, never the free-text note.
+  it("says what a talk's ask was answered or closed with", () => {
+    expect(describeLogEntry({ kind: "ask_accepted", body: null })).toBe("Accepted");
+    expect(describeLogEntry({ kind: "ask_declined", body: "Not available" })).toBe(
+      "Declined — Not available",
+    );
+    expect(describeLogEntry({ kind: "ask_declined", body: null })).toBe("Declined");
+    expect(describeLogEntry({ kind: "handed_over", body: "Brother Diaz" })).toBe(
+      "Handed over to Brother Diaz",
+    );
+    expect(describeLogEntry({ kind: "assistant_released", body: null })).toBe(
+      "No longer assisting this Sunday",
+    );
+    expect(describeLogEntry({ kind: "speaker_changed", body: null })).toBe(
+      "Speaker changed — this ask is closed",
+    );
+  });
 });

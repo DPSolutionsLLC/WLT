@@ -72,6 +72,9 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
         // Cancelling runs PATCH /api/visit-appointments/[id], which asserts `visits.create`. The
         // control is offered only where the route would allow it.
         canCancelVisits={can(user, "visits.create", roleAccess)}
+        // A talk ask's Accepted / Declined post to /api/todos/[id]/answer, which asserts
+        // `talks.request`.
+        canAnswerAsks={can(user, "talks.request", roleAccess)}
       />
 
       <CalendarSyncCard />

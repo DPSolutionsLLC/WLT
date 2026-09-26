@@ -133,6 +133,13 @@ land first.
 > Add-manually windows; suggested scriptures as picks) — module-map §2.1 has the list. **A shared,
 > admin-loaded corpus for every ward was raised and is NOT built**; it needs its own plan.
 >
+> **`f1` — Send asks and the answer on the to-do (2026-09-24), migration 083.** Built from
+> plans/sacrament-talk-asks-conductor-and-assistant.md. The conductor's "Ask ___ to speak" to-dos
+> (`lib/todos/askLinks.ts`, service role behind `talks.request`), one function that records an
+> outcome for both the talk's panel and the to-do (`lib/assignments/requestOutcome.ts`), the pure
+> rules (`lib/sacrament/talkAsks.ts`), and a check attached to the Talks pill with **Send asks
+> (N)**. **`f2` and `f3` are next**: the asks follow the conductor, then the assistant.
+>
 > **Module 1 now has `d`, `e` left**, and `f`/`g` wait on **P5**. The INDEX argues P5 should
 > come early for exactly that reason.
 

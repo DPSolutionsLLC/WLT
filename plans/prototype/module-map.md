@@ -129,6 +129,20 @@ Each numbered item below is a candidate slice. "New" means no WLT route, table o
 > `referencesDecisionOf(sunday) !== null` as its gate and `listReferencesForAssignments` for the
 > to-do; nothing reads either yet.
 >
+> **Slice `f1` — Send asks, the answer on the to-do, the four-state Talks check (2026-09-24),
+> migration 083.** Behaviours **3, 4, 5 and 6** are built, with four **deliberate departures**
+> settled with the user (plans/sacrament-talk-asks-conductor-and-assistant.md, U1–U9):
+> the asks go to the Sunday's **conducting** leader rather than to whoever finalized; an answered
+> ask is **marked done, never deleted**; **visiting speakers are asked too**, marked "Not on the
+> roster — no contact on file" (their answer is on the talk but not in speaker history, which holds
+> members only); and "finalize Talks" became **Send asks**, which sends only the speakers not yet
+> asked, while **a speaker change closes the old ask**. `declineHistory` (behaviour 5) is not a
+> second array: `assignment_history` already held declines as their own rows, and it gained a
+> `decline_reason` plus a "Talk" label on every row. The pill's four states come from the talks'
+> outcomes and open asks, never from the pipeline stage. The 9-stage pipeline stays beside it (U5).
+> **Still to come in slice `f`:** `f2` (the asks follow the conductor on a handover or a rotation
+> re-shift) and `f3` (an assistant holding a mirrored copy of every open ask).
+>
 > **Reworked the same day after walking scenario 074 (user decisions):** references are
 > **bishopric-only** — the pill is absent for everybody else and migration 080 narrows the read;
 > **skipping is refused while references exist**; the modal shows only the chosen references, with

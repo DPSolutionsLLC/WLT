@@ -34,6 +34,7 @@ function todo(id: string, startsAt: string): MyAppointmentSource {
     detail: null,
     href: `/todos#todo-${id}`,
     completed: false,
+    ask: null,
   };
 }
 

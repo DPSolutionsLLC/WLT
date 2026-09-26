@@ -1,4 +1,5 @@
 import { ReliabilityFlag } from "@/components/roster/ReliabilityFlag";
+import { describeHistoryOutcome } from "@/lib/assignments/historyOutcome";
 import { reliabilityFlags } from "@/lib/assignments/reliabilityFlags";
 import type { SpeakerHistoryRow } from "@/lib/assignments/queries";
 import { formatSundayLabelWithYear } from "@/lib/calendar/dates";
@@ -16,13 +17,6 @@ import { ASSIGNMENT_TYPE_LABELS } from "@/types/domain";
 export type SpeakerHistoryTabProps = {
   history: readonly SpeakerHistoryRow[];
   asOf: Date;
-};
-
-const OUTCOME_LABELS: Record<string, string> = {
-  accepted: "Accepted",
-  declined: "Declined",
-  cancelled: "Cancelled",
-  completed: "Spoke",
 };
 
 export function SpeakerHistoryTab({ history, asOf }: SpeakerHistoryTabProps) {
@@ -84,7 +78,7 @@ export function SpeakerHistoryTab({ history, asOf }: SpeakerHistoryTabProps) {
                     : "Not recorded"}
                 </td>
                 <td className="py-2 pr-3 text-muted">
-                  {entry.outcome ? OUTCOME_LABELS[entry.outcome] : "Not recorded"}
+                  {describeHistoryOutcome(entry)}
                 </td>
                 <td className="py-2 pr-3 text-muted">
                   {entry.cancellationDaysNotice === null

@@ -11,8 +11,10 @@ import {
   updateAssignmentFields,
   waiveContactStages,
   writeAssignmentHistory,
+  writeRequestOutcome,
   type Assignment,
 } from "@/lib/assignments/queries";
+import { recordRequestOutcome, speakerChanged } from "@/lib/assignments/requestOutcome";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
 import {
   BISHOPRIC_ROLES,
@@ -25,11 +27,17 @@ import { requireSessionUser } from "@/lib/auth/session";
 import { getSunday, listBishopricUsers } from "@/lib/calendar/queries";
 import { emitNotification } from "@/lib/notifications/emitNotification";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  AskLinkWriteError,
+  closeAsksForAssignment,
+  resolveAsksForAssignment,
+} from "@/lib/todos/askLinks";
 import { topicShapeChanged, unfinalizeTopicsIfNeeded } from "@/lib/topics/finalize";
 import { stampTopicAssigned } from "@/lib/topics/queries";
 import { updateAssignmentSchema } from "@/lib/validation/assignment";
 import type { Database } from "@/types/database";
 import {
+  DECLINE_REASON_LABELS,
   PIPELINE_STAGE_LABELS,
   type PipelineStage,
   type Role,
@@ -50,6 +58,20 @@ const NOT_FOUND = "That assignment is not in your ward.";
 // A row that vanished between the read and the write. Both mean "not yours"
 // (plans/retros/foundation-c-services.md).
 const WRITE_REFUSED = "That assignment could not be saved. Reload and try again.";
+
+// The talk change is saved; closing (or resolving) its ask to-dos was not. p5-b's order — source
+// write, link write, audit — with the audit written EITHER WAY, because the change happened
+// (rule 6), and this sentence naming what did not (rule 7). Re-sending is safe.
+async function tryAskLinkWrite<T>(
+  write: () => Promise<T>,
+): Promise<{ value: T | null; failure: AskLinkWriteError | null }> {
+  try {
+    return { value: await write(), failure: null };
+  } catch (error) {
+    if (error instanceof AskLinkWriteError) return { value: null, failure: error };
+    throw error;
+  }
+}
 
 function isBishopric(role: Role): boolean {
   return (BISHOPRIC_ROLES as readonly string[]).includes(role);
@@ -161,6 +183,39 @@ export async function PATCH(
         supabase,
       );
 
+      // ---------------------------------------------------------------------------
+      // A SPEAKER CHANGE CLOSES THE TALK'S OPEN ASKS — and nothing else here does
+      // ---------------------------------------------------------------------------
+      // The ask named somebody who is no longer the speaker, so it is closed with a line on every
+      // holder's list, never deleted (U9). The outcome AND its note are cleared, so Send asks
+      // offers the NEW speaker and the old speaker's answer does not sit beside the new one's name
+      // (defect 078-D2, the user's decision 2026-09-24). Nothing is lost: a member's decline and
+      // its reason stay in speaker history. A topic, a slot or any contact field must NOT
+      // do this: the rule is about WHAT changed (lib/topics/finalize.ts's lesson).
+      let current = assignment;
+      let asksClosed: string[] = [];
+      let askFailure: AskLinkWriteError | null = null;
+      let outcomeReset = false;
+
+      if (speakerChanged(existing, assignment)) {
+        const closing = await tryAskLinkWrite(() =>
+          closeAsksForAssignment({
+            wardId: user.wardId,
+            assignmentId,
+            reason: "speaker_changed",
+          }),
+        );
+        asksClosed = closing.value ?? [];
+        askFailure = closing.failure;
+
+        if (assignment.requestOutcome !== null || assignment.requestNotes !== null) {
+          current =
+            (await writeRequestOutcome(user.wardId, assignmentId, null, null, supabase)) ??
+            assignment;
+          outcomeReset = true;
+        }
+      }
+
       // Only the FIELD NAMES, never their values. request_notes and the two message columns can
       // carry a member's circumstances, and an audit row is bishopric-readable (CLAUDE.md rule 8).
       const changedFields = Object.keys(input.fields);
@@ -177,6 +232,8 @@ export async function PATCH(
             changedFields,
             approvalsInvalidated: invalidated > 0,
             approvalsCleared: invalidated,
+            asksClosed,
+            outcomeReset,
           },
         },
         supabase,
@@ -193,7 +250,72 @@ export async function PATCH(
         });
       }
 
-      return NextResponse.json({ assignment, approvalsInvalidated: invalidated > 0 });
+      if (askFailure !== null) {
+        return NextResponse.json({ error: askFailure.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ assignment: current, approvalsInvalidated: invalidated > 0 });
+    }
+
+    if (input.action === "record_outcome") {
+      assertCan(user, "talks.request", roleAccess);
+
+      const declineReason = input.outcome === "declined" ? (input.declineReason ?? null) : null;
+
+      const result = await recordRequestOutcome({
+        wardId: user.wardId,
+        existing,
+        outcome: input.outcome,
+        declineReason,
+        note: input.note ?? null,
+        actorUserId: user.id,
+        sundayLabel: await describeSunday(user, existing, supabase),
+        client: supabase,
+      });
+
+      if (result.assignment === null) {
+        return NextResponse.json({ error: WRITE_REFUSED }, { status: 404 });
+      }
+
+      // An answer given on the talk's own panel closes the ask to-dos for it too. Otherwise the
+      // conductor would still be holding an ask for somebody who has already answered.
+      const outcome = input.outcome;
+      const resolving =
+        outcome === "pending"
+          ? { value: [] as string[], failure: null }
+          : await tryAskLinkWrite(() =>
+              resolveAsksForAssignment({
+                wardId: user.wardId,
+                assignmentId,
+                outcome,
+                reasonLabel: declineReason === null ? null : DECLINE_REASON_LABELS[declineReason],
+              }),
+            );
+
+      // Ids and the reason CODE. Never the note, which can carry a member's circumstances.
+      await writeAuditLog(
+        {
+          wardId: user.wardId,
+          userId: user.id,
+          action: "assignment_outcome_recorded",
+          module: "talks",
+          detail: {
+            assignmentId,
+            outcome,
+            declineReason,
+            movedToPlan: result.movedToPlan,
+            historyWritten: result.historyWritten,
+            asksClosed: resolving.value ?? [],
+          },
+        },
+        supabase,
+      );
+
+      if (resolving.failure !== null) {
+        return NextResponse.json({ error: resolving.failure.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ assignment: result.assignment });
     }
 
     if (input.action === "waive_contact") {
@@ -288,6 +410,7 @@ export async function PATCH(
 
     let historyWritten = false;
     let current = assignment;
+    let declineAskFailure: AskLinkWriteError | null = null;
 
     if (isDecline) {
       // Reassigned from the clear's own returned row rather than left as the pre-clear read: the
@@ -303,6 +426,19 @@ export async function PATCH(
         "declined",
         supabase,
       );
+
+      // The decline is the speaker's answer, so any ask to-do for this talk is resolved with it.
+      // Left open, it would ask the conductor to put a question already answered. No reason is
+      // known on this path; the timeline reads a plain "Declined".
+      const resolving = await tryAskLinkWrite(() =>
+        resolveAsksForAssignment({
+          wardId: user.wardId,
+          assignmentId,
+          outcome: "declined",
+          reasonLabel: null,
+        }),
+      );
+      declineAskFailure = resolving.failure;
     }
 
     if (to === "complete") {
@@ -382,6 +518,10 @@ export async function PATCH(
         title: "A speaker declined",
         body: `The speaker for slot ${slot} on ${date} declined. That slot is back at planning and needs somebody else.`,
       });
+    }
+
+    if (declineAskFailure !== null) {
+      return NextResponse.json({ error: declineAskFailure.message }, { status: 500 });
     }
 
     return NextResponse.json({

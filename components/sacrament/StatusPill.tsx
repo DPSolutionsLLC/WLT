@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { FinalizeTopicsButton } from "@/components/sacrament/FinalizeTopicsButton";
 import { Pill } from "@/components/ui/Pill";
@@ -81,6 +82,10 @@ export type StatusPillProps = {
   // `topics.manage` — the permission PATCH /api/sundays/[id]/topics-finalized asserts. Resolved
   // once per page and handed down, never re-derived here (CLAUDE.md rule 10).
   canFinalizeTopics: boolean;
+  // Attached to the pill's right edge in place of a finalize checkmark — the Talks pill's ask
+  // check (components/sacrament/TalkAsksCheck.tsx). A sibling, never a child of the anchor, for the
+  // reason the header gives.
+  trailing?: ReactNode;
 };
 
 export function StatusPill({
@@ -89,8 +94,10 @@ export function StatusPill({
   sundayLabel,
   sundayId,
   canFinalizeTopics,
+  trailing,
 }: StatusPillProps) {
   const showsFinalizeControl = pill.finalized !== null && canFinalizeTopics;
+  const hasAttachment = showsFinalizeControl || trailing !== undefined;
 
   return (
     // NO GAP. The pill and the checkmark are ONE segmented control, and the whole reason this
@@ -113,7 +120,7 @@ export function StatusPill({
           makes `rounded-full rounded-r-none` resolve the way it reads. */}
       <Pill
         toneClassName={STATUS_TONES[pill.status]}
-        className={showsFinalizeControl ? "font-medium rounded-r-none" : "font-medium"}
+        className={hasAttachment ? "font-medium rounded-r-none" : "font-medium"}
       >
         {/* aria-hidden on the visible text, because the anchor's own aria-label already says all
             of it and more. Without this a screen reader reads the pill twice. */}
@@ -131,6 +138,8 @@ export function StatusPill({
           sundayLabel={sundayLabel}
         />
       )}
+
+      {trailing}
     </span>
   );
 }

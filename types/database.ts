@@ -867,6 +867,7 @@ export type Database = {
           assignment_id: string | null
           cancellation_days_notice: number | null
           created_at: string
+          decline_reason: string | null
           id: string
           member_id: string
           notes: string | null
@@ -877,6 +878,7 @@ export type Database = {
           assignment_id?: string | null
           cancellation_days_notice?: number | null
           created_at?: string
+          decline_reason?: string | null
           id?: string
           member_id: string
           notes?: string | null
@@ -887,6 +889,7 @@ export type Database = {
           assignment_id?: string | null
           cancellation_days_notice?: number | null
           created_at?: string
+          decline_reason?: string | null
           id?: string
           member_id?: string
           notes?: string | null
@@ -3079,7 +3082,9 @@ export type Database = {
       todos: {
         Row: {
           action_item_id: string | null
+          ask_assignment_id: string | null
           assigned_by: string | null
+          closed_reason: string | null
           completed_at: string | null
           created_at: string
           do_date: string | null
@@ -3097,7 +3102,9 @@ export type Database = {
         }
         Insert: {
           action_item_id?: string | null
+          ask_assignment_id?: string | null
           assigned_by?: string | null
+          closed_reason?: string | null
           completed_at?: string | null
           created_at?: string
           do_date?: string | null
@@ -3115,7 +3122,9 @@ export type Database = {
         }
         Update: {
           action_item_id?: string | null
+          ask_assignment_id?: string | null
           assigned_by?: string | null
+          closed_reason?: string | null
           completed_at?: string | null
           created_at?: string
           do_date?: string | null
@@ -3137,6 +3146,13 @@ export type Database = {
             columns: ["action_item_id"]
             isOneToOne: false
             referencedRelation: "action_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_ask_assignment_id_fkey"
+            columns: ["ask_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "assignments"
             referencedColumns: ["id"]
           },
           {

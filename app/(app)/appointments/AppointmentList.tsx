@@ -22,6 +22,8 @@ import {
   type MyAppointmentSource,
 } from "@/lib/appointments/myAppointments";
 import { APPOINTMENT_VIEW_STATE_LABELS, type AppointmentViewState } from "@/types/domain";
+import { AskAnswerDialog } from "@/app/(app)/todos/AskAnswerDialog";
+import { AskDetails } from "@/app/(app)/todos/AskDetails";
 import { SmallButton } from "@/app/(app)/todos/SmallButton";
 import { sendTodoRequest } from "@/app/(app)/todos/todoApi";
 
@@ -44,6 +46,11 @@ import { sendTodoRequest } from "@/app/(app)/todos/todoApi";
 // event's own page. Both actions call the owning module's existing route — this page owns no
 // write of its own, which is what keeps it an aggregation rather than a second copy of three
 // modules.
+//
+// A SCHEDULED TALK ASK ALSO CARRIES ITS TOPIC, ITS CONTACT DETAILS, AND ACCEPTED / DECLINED
+// (Sacrament slice f1, the user's request walking scenario 078): the meeting is where the answer
+// is given, so it can be recorded there. Both buttons post to the To Do answer route, and Declined
+// opens the same window as on the card. Still no write of this page's own.
 //
 // TIMES ARE THE WARD'S, with the zone named in the formatter (rule 12). The zone arrives from the
 // page, so the server's first render and the browser's read the same hour.
@@ -148,6 +155,9 @@ export type AppointmentListProps = {
   asOf: string;
   initialView: AppointmentsView;
   canCancelVisits: boolean;
+  // `talks.request`, which POST /api/todos/[id]/answer asserts. Without it, an ask shows its
+  // details and no answer buttons.
+  canAnswerAsks: boolean;
 };
 
 export function AppointmentList({
@@ -158,11 +168,13 @@ export function AppointmentList({
   asOf,
   initialView,
   canCancelVisits,
+  canAnswerAsks,
 }: AppointmentListProps) {
   const router = useRouter();
   const [view, setView] = useState<AppointmentsView>(initialView);
   const [saveError, setSaveError] = useState<string | undefined>(undefined);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [declining, setDeclining] = useState<{ id: string; title: string } | null>(null);
   const [error, setError] = useState<{ id: string; message: string } | null>(null);
   // Bumped by every change the person makes; 0 means "nothing to save yet", so opening the page
   // never writes the view it was just given.
@@ -231,6 +243,12 @@ export function AppointmentList({
     );
   }
 
+  function acceptAsk(source: MyAppointmentSource) {
+    void run(source.id, () =>
+      sendTodoRequest(`/api/todos/${source.id}/answer`, "POST", { outcome: "accepted" }),
+    );
+  }
+
   // `inUpcoming`: only today's list greys a row whose time has gone by — greyed, still here, still
   // actionable, until the day is over. Everything under Past is past, so greying there would say
   // nothing and, since an all-day item is never "started", would grey some rows and not others.
@@ -266,6 +284,25 @@ export function AppointmentList({
                   <span className="text-xs text-muted">{source.detail}</span>
                 )}
               </span>
+              {source.kind === "todo" && source.ask !== null && source.ask.isOpen ? (
+                <AskDetails ask={source.ask} />
+              ) : null}
+              {source.kind === "todo" && source.ask?.isOpen === true && canAnswerAsks ? (
+                <span className="flex flex-wrap items-center gap-1">
+                  <SmallButton
+                    label="Accepted"
+                    accessibleName={`They accepted — ${source.title}`}
+                    onClick={() => acceptAsk(source)}
+                    disabled={busyId !== null}
+                  />
+                  <SmallButton
+                    label="Declined"
+                    accessibleName={`They declined — ${source.title}`}
+                    onClick={() => setDeclining({ id: source.id, title: source.title })}
+                    disabled={busyId !== null}
+                  />
+                </span>
+              ) : null}
             </div>
 
             <div className="flex shrink-0 items-center">
@@ -382,6 +419,17 @@ export function AppointmentList({
           </button>
           {view.showPast ? renderDays(pastDays, "Past") : null}
         </div>
+      )}
+
+      {/* Mounted only while open, so each decline starts from a clean window. */}
+      {declining === null ? null : (
+        <AskAnswerDialog
+          isOpen
+          onClose={() => setDeclining(null)}
+          onSaved={() => router.refresh()}
+          todoId={declining.id}
+          title={declining.title}
+        />
       )}
     </div>
   );

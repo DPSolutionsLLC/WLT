@@ -99,11 +99,11 @@ export type SundayStatusAssignment = {
   topicId: string | null;
   memberId: string | null;
   externalSpeakerName: string | null;
-  // NOT READ BY ANY COUNT BELOW, and deliberately required anyway. p4-sacrament-f turns the Talks
-  // pill four-state (dimmed → pending → accepted → declined), which is a question about the
-  // pipeline stage and nothing else. Every caller already holds it — `Assignment.stage` is on the
-  // row they mapped from — so requiring it now costs nothing and means that slice changes this
-  // module rather than every page that feeds it.
+  // NOT READ BY ANY COUNT BELOW. It was required in anticipation of p4-sacrament-f's four-state
+  // Talks pill, but that slice found the state is NOT a question about the stage. It comes from the
+  // talks' outcomes and their open ask to-dos, and it is computed by lib/sacrament/talkAsks.ts and
+  // rendered as a check attached to the pill (components/sacrament/TalkAsksCheck.tsx). An ask
+  // sits beside the pipeline (U5), so a talk at `plan` can already be asked.
   stage: PipelineStage;
 };
 

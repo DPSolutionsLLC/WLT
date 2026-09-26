@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 76,
+  "scenarioCount": 77,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -1937,6 +1937,51 @@
         "Would a bishop want the topic's own **suggested scriptures** offered as one-tap chips here?"
       ],
       "seedCommand": "npm run seed -- talks/scenario-074-references-finalize-and-skip"
+    },
+    {
+      "id": "talks:scenario-078-send-the-asks-and-hear-back",
+      "path": "talks/scenario-078-send-the-asks-and-hear-back",
+      "name": "Send the asks and hear back",
+      "scope": "p4-sacrament-f1",
+      "part": 1,
+      "tags": [
+        "sacrament",
+        "talks",
+        "todos",
+        "full",
+        "P4"
+      ],
+      "prerequisites": "none",
+      "purpose": "Sacrament slice `f1` joins the hub and To Do. Once a Sunday's References are finalized or skipped,\nthe Talks pill offers **Send asks (N)**. Each speaker not yet asked becomes an \"Ask ___ to speak\"\nto-do on the list of whoever **conducts** that Sunday. The speaker's answer is recorded **on the\nto-do** with Accepted or Declined, and it reaches the talk: a decline reopens the slot and goes\ninto speaker history with its reason.\n\nReaching \"References decided, three speakers, one of them a visitor\" by hand takes many steps, so\nthe seed builds it. The walk then crosses three pages (the hub, To Do, and the member page) as the\nconductor, and checks that the bishop sees none of it on their own list.\n\n**Already automated:**\n- `tests/lib/talkAsks.test.ts`: every \"needs an ask\" combination, the pill's precedence and lock\n  reasons, the ask's text (phone, no phone, visitor, the UTC Sunday) and the history label\n- `tests/routes/talk-asks.test.ts`: the gate, one ask per speaker, a second Send sends nothing,\n  accept and decline with history, a visitor's decline writing no history, the 404 / 409 / 400\n  refusals, a speaker change closing the ask, the panel's answer closing it too, and no text in\n  any audit row\n- `tests/rls/todos.test.ts`: the ask is invisible to the other two members of the bishopric\n- `tests/components/sacrament/SundayCard.test.tsx`: where the check and Send asks render",
+      "checklist": [
+        "Step 3: **B's** Talks check is dimmed, and hovering it reads **\"Finalize or skip References",
+        "Step 3: **A's** Talks check reads **\"3 not yet asked\"** with **Send asks (3)** beside it",
+        "Step 4: the button goes away, and A's check reads **Asks sent** in gold",
+        "Step 5: there are **exactly three** asks, each tagged **Sacrament**, each titled \"Ask ___ to",
+        "Maria's notes read **Phone: 801-555-0142**, the Sunday in words, the topic, and",
+        "Tomas's notes read **\"No contact on file\"**",
+        "Brother Kent Walker's notes read **\"Not on the roster — no contact on file\"**",
+        "Each open ask shows **Accepted** and **Declined** and **no checkbox**",
+        "Each open ask shows its **Topic** and its **contact line** on the card itself, without being",
+        "Schedule, Edit and ✕ sit in a **row under the card's text**, before Accepted and Declined, so",
+        "Step 6: the ✕ is refused with **\"Record their answer instead — Accepted or Declined.\"**, shown",
+        "Step 7: Maria's ask moves to **Done**, and its timeline reads **\"Accepted\"**",
+        "Step 8: Tomas's ask moves to Done, and its timeline reads **\"Declined — Not available\"**. The",
+        "Step 9: A's Talks check turns **rust** and reads **\"1 declined\"**",
+        "Step 10: Tomas's speaking history shows **\"Declined — Not available · Talk\"** for A's date",
+        "Step 11: slot 2 was **open** (no speaker) before you chose Ana",
+        "Step 12, before pressing: A's check reads **\"1 not yet asked\"**, no longer \"1 declined\".",
+        "Step 12: **Send asks (1)** sends one ask, for **Ana Silva only**. Nobody already asked is",
+        "Step 12b: the Schedule window shows Ana's **topic and phone**, and **With** already names",
+        "Step 12c: My Appointments shows Ana's row **with Ana Silva**, her **topic and phone**, and",
+        "Step 12c: pressing **Accepted** there records it on the talk (`request_outcome` accepted) and",
+        "Step 13: the bishop's To Do shows **none** of the counselor's asks",
+        "Step 14: at 375px the Accepted / Declined buttons sit under the title, and the title is not",
+        "`audit_log` shows `talk_asks_sent` twice and `talk_ask_answered` twice, and no title, note or",
+        "Is **\"Send asks (N)\"** clear about what it will do before it is pressed?",
+        "Does the rust **\"1 declined\"** read as needing action?"
+      ],
+      "seedCommand": "npm run seed -- talks/scenario-078-send-the-asks-and-hear-back"
     },
     {
       "id": "todos:scenario-075-a-todo-that-became-a-project",

@@ -1,5 +1,5 @@
 import { wardDateOnly } from "@/lib/ward/wardDate";
-import type { AppointmentViewState } from "@/types/domain";
+import type { AppointmentViewState, TodoAskSource } from "@/types/domain";
 
 // My Appointments — everything a leader has said they will be at, in ONE list (P5 slice c).
 //
@@ -49,7 +49,9 @@ type AppointmentBase = {
 
 export type MyAppointmentSource =
   | (AppointmentBase & { kind: "visit"; allDay: false; viewState: AppointmentViewState })
-  | (AppointmentBase & { kind: "todo"; allDay: false; completed: boolean })
+  // `ask` is set on a talk's ask (Sacrament slice f1): its topic and contact details, and whether
+  // it still waits for an answer, which the row can record.
+  | (AppointmentBase & { kind: "todo"; allDay: false; completed: boolean; ask: TodoAskSource | null })
   | (AppointmentBase & { kind: "youth"; allDay: boolean });
 
 export type MyAppointmentKind = MyAppointmentSource["kind"];

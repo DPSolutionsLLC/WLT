@@ -16,6 +16,7 @@ import { todoIdSchema, updateTodoSchema } from "@/lib/validation/todo";
 const NOT_FOUND = "That to-do could not be found.";
 const LINKED_TO_OPEN_ITEM =
   "This came from an agenda item that is still open. Mark it complete instead — that asks the bishopric to review it.";
+const OPEN_ASK = "Record their answer instead — Accepted or Declined.";
 
 export async function GET(
   _request: Request,
@@ -121,6 +122,9 @@ export async function DELETE(
     // audit row: a refused write is not a mutation (scenario 049's walk).
     if (outcome === "linked_to_open_item") {
       return NextResponse.json({ error: LINKED_TO_OPEN_ITEM }, { status: 409 });
+    }
+    if (outcome === "open_ask") {
+      return NextResponse.json({ error: OPEN_ASK }, { status: 409 });
     }
 
     await writeAuditLog(

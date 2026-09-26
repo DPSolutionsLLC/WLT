@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MyAppointmentSource } from "@/lib/appointments/myAppointments";
+import { mapAskSource, type AskSourceRow } from "@/lib/todos/askSource";
 import { appointmentViewState } from "@/lib/visits/appointmentStatus";
 import type { Database } from "@/types/database";
 import { APPOINTMENT_STATUSES, type AppointmentStatus } from "@/types/domain";
@@ -30,8 +31,10 @@ type Client = SupabaseClient<Database>;
 // literal parsing of the select list (plans/retros/calendar-a-rules-and-api.md).
 const VISIT_COLUMNS =
   "id, scheduled_for, status, households!visit_appointments_household_id_ward_id_fkey (family_name)";
+// `ask` is the talk a scheduled ask was created for (Sacrament slice f1), so the row can show its
+// topic and contact details and answer it here. The embed is lib/todos/askSource.ts's, verbatim.
 const TODO_COLUMNS =
-  "id, title, scheduled_for, completed_at, scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name)";
+  "id, title, scheduled_for, completed_at, scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, sundays!assignments_sunday_id_ward_id_fkey (date), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), topics!assignments_topic_id_ward_id_fkey (title))";
 const YOUTH_COLUMNS =
   "id, activity_events!activity_attendees_event_id_ward_id_fkey (id, title, event_date, all_day, status, youth_activity_profiles!activity_events_profile_id_ward_id_fkey (activity_name))";
 
@@ -48,6 +51,7 @@ type TodoRow = {
   scheduled_for: string | null;
   completed_at: string | null;
   scheduled_member: { first_name: string | null; last_name: string | null } | null;
+  ask: AskSourceRow;
 };
 
 type YouthRow = {
@@ -141,6 +145,7 @@ async function readScheduledTodos(supabase: Client, wardId: string): Promise<MyA
         href: `/todos#todo-${row.id}`,
         // A completed scheduled to-do still appears — the commitment happened.
         completed: row.completed_at !== null,
+        ask: mapAskSource(row.ask, row.completed_at),
       };
     });
 }

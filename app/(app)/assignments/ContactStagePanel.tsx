@@ -15,8 +15,11 @@ import type { Assignment } from "@/lib/assignments/queries";
 import { speakerFrom } from "@/lib/assignments/speaker";
 import type { DateOnly } from "@/lib/calendar/dates";
 import {
+  DECLINE_REASON_LABELS,
+  DECLINE_REASONS,
   PIPELINE_STAGE_LABELS,
   REQUEST_OUTCOMES,
+  type DeclineReason,
   type PipelineStage,
   type RequestOutcome,
 } from "@/types/domain";
@@ -156,6 +159,7 @@ export function ContactStagePanel({
     assignment.requestOutcome ?? "pending",
   );
   const [requestNotes, setRequestNotes] = useState(assignment.requestNotes ?? "");
+  const [declineReason, setDeclineReason] = useState<DeclineReason>("not_available");
   // Held as named values rather than computed inline, because both are now needed twice: once as
   // the textarea's starting content, and once as the thing "Back to the plain version" restores.
   // Pure functions of their inputs, so recomputing per render costs nothing.
@@ -231,27 +235,18 @@ export function ContactStagePanel({
     }
   }
 
+  // ONE CALL, whatever the answer (Sacrament slice f). A decline is not merely an outcome to
+  // record: the route sends the slot back to planning, clears the speaker's name, writes speaker
+  // history with the reason, and closes any ask to-do for this talk. It used to be two calls from
+  // here, and a failure between them left a "declined" talk still naming its speaker.
   async function saveRequestOutcome(): Promise<void> {
     const notes = requestNotes.trim();
 
-    const saved = await send({
-      action: "update",
-      fields: {
-        requestOutcome: outcome,
-        requestNotes: notes === "" ? null : notes,
-      },
-    });
-
-    if (!saved || outcome !== "declined") return;
-
-    // A decline is not merely an outcome to record. The slot goes back to planning and the
-    // speaker's name is cleared by the route, so the planner sees an open slot rather than a
-    // speaker who is still coming. The reason is required on every backward move.
     await send({
-      action: "transition",
-      to: "plan",
-      reason:
-        notes === "" ? "The speaker declined." : `The speaker declined. ${notes}`.slice(0, 300),
+      action: "record_outcome",
+      outcome,
+      ...(outcome === "declined" ? { declineReason } : {}),
+      ...(notes === "" ? {} : { note: notes }),
     });
   }
 
@@ -388,6 +383,30 @@ export function ContactStagePanel({
                 </label>
               ))}
             </fieldset>
+
+            {outcome === "declined" && (
+              <>
+                <label
+                  htmlFor={`decline-reason-${assignment.id}`}
+                  className="text-sm font-medium text-foreground"
+                >
+                  Why did they decline?
+                </label>
+                <select
+                  id={`decline-reason-${assignment.id}`}
+                  value={declineReason}
+                  disabled={isWorking}
+                  onChange={(event) => setDeclineReason(event.target.value as DeclineReason)}
+                  className={`min-h-11 ${TEXTAREA_CLASSES}`}
+                >
+                  {DECLINE_REASONS.map((reason) => (
+                    <option key={reason} value={reason}>
+                      {DECLINE_REASON_LABELS[reason]}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
 
             <label
               htmlFor={`request-notes-${assignment.id}`}

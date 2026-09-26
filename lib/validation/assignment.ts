@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { MAX_SPEAKING_SLOTS, dateOnlySchema } from "@/lib/validation/calendar";
+import { recordOutcomeSchema } from "@/lib/validation/talkAsk";
 import {
   ASSIGNMENT_TYPES,
   MAX_EXTERNAL_SPEAKER_NAME,
   MAX_EXTERNAL_SPEAKER_TITLE,
   PIPELINE_STAGES,
-  REQUEST_OUTCOMES,
 } from "@/types/domain";
 
 // No wardId on any schema here, ever — it comes from the session (conventions.md §Validation).
@@ -59,7 +59,10 @@ export const createAssignmentSchema = z
   .superRefine(refuseBothSpeakers);
 export type CreateAssignmentInput = z.infer<typeof createAssignmentSchema>;
 
-// Every field a planner may edit, and deliberately NOT pipeline_stage. The stage moves through
+// Every field a planner may edit, and deliberately NOT pipeline_stage, and NOT the request's
+// outcome. An answer goes through `action: "record_outcome"`, whose decline has side effects a
+// field write would skip (lib/assignments/requestOutcome.ts). The request's NOTES stay here: a
+// note is a contact detail, not an answer. The stage moves through
 // `action: "transition"` and nowhere else — that separation is what makes implicit stage
 // advancement, the phase's first pitfall, unrepresentable rather than merely discouraged.
 export const assignmentFieldsSchema = z
@@ -70,7 +73,6 @@ export const assignmentFieldsSchema = z
     memberId: z.uuid("Choose someone from the roster.").nullable().optional(),
     externalSpeaker: externalSpeakerSchema.nullable().optional(),
     topicId: z.uuid("Choose a topic from the library.").nullable().optional(),
-    requestOutcome: z.enum(REQUEST_OUTCOMES).nullable().optional(),
     requestNotes: z.string().trim().max(2000).nullable().optional(),
     notifyMessage: z.string().trim().max(4000).nullable().optional(),
     notifySentAt: z.iso.datetime().nullable().optional(),
@@ -106,6 +108,7 @@ export const updateAssignmentSchema = z.discriminatedUnion("action", [
     action: z.literal("waive_contact"),
     note: z.string().trim().max(300).optional(),
   }),
+  recordOutcomeSchema,
 ]);
 export type UpdateAssignmentInput = z.infer<typeof updateAssignmentSchema>;
 

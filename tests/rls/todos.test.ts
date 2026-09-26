@@ -272,3 +272,107 @@ describe("todos RLS", () => {
     expect(error).not.toBeNull();
   });
 });
+
+// Sacrament slice f (migration 083). A talk's ask is written by the SERVICE ROLE onto the
+// conductor's list, and an assistant (f3) gets a copy of their own. NO POLICY MOVED, so the two
+// holders of one ask are still strangers to each other's lists: the bishopric members who are not
+// the owner see nothing, exactly as the bishop sees nothing above.
+describe("todos RLS — a talk's ask", () => {
+  let fixtures: Fixtures;
+  let service: SupabaseClient;
+  let assignmentId = "";
+  let askId = "";
+
+  beforeAll(async () => {
+    fixtures = await seedFixtures(["bishop", "counselor1", "counselor2"]);
+    service = createServiceSupabaseClient();
+
+    const { data: sunday, error: sundayError } = await service
+      .from("sundays")
+      .insert({ ward_id: fixtures.wardAId, date: "2027-08-01", type: "standard", speaking_slots: 2 })
+      .select("id")
+      .single();
+    if (sundayError) throw new Error(sundayError.message);
+
+    const { data: talk, error: talkError } = await service
+      .from("assignments")
+      .insert({
+        ward_id: fixtures.wardAId,
+        sunday_id: sunday.id,
+        assignment_type: "sacrament_talk",
+        slot_number: 1,
+        external_speaker_name: "Brother Visitor",
+        pipeline_stage: "plan",
+      })
+      .select("id")
+      .single();
+    if (talkError) throw new Error(talkError.message);
+    assignmentId = talk.id;
+
+    const { data: ask, error: askError } = await service
+      .from("todos")
+      .insert({
+        ward_id: fixtures.wardAId,
+        user_id: fixtures.user("counselor1").id,
+        assigned_by: fixtures.user("bishop").id,
+        title: "Ask Brother Visitor to speak",
+        ask_assignment_id: assignmentId,
+      })
+      .select("id")
+      .single();
+    if (askError) throw new Error(askError.message);
+    askId = ask.id;
+  });
+
+  afterAll(async () => {
+    await fixtures?.cleanup();
+  });
+
+  it("lets the conductor read their ask — the anchor", async () => {
+    const conductor = await asRole(fixtures, "counselor1");
+    const { data, error } = await conductor
+      .from("todos")
+      .select("id, ask_assignment_id")
+      .eq("ask_assignment_id", assignmentId);
+
+    expect(error).toBeNull();
+    expect(data).toEqual([{ id: askId, ask_assignment_id: assignmentId }]);
+  });
+
+  it("hides the ask from the other two members of the bishopric", async () => {
+    for (const handle of ["bishop", "counselor2"] as const) {
+      const other = await asRole(fixtures, handle);
+      const { data, error } = await other.from("todos").select("id").eq("id", askId);
+
+      expect(error).toBeNull();
+      expect(data).toEqual([]);
+    }
+  });
+
+  it("refuses an authenticated client creating an ask, even onto its own list", async () => {
+    const conductor = await asRole(fixtures, "counselor1");
+    const { error } = await conductor.from("todos").insert({
+      ward_id: fixtures.wardAId,
+      user_id: fixtures.user("counselor1").id,
+      assigned_by: fixtures.user("bishop").id,
+      title: "Ask Brother Visitor to speak",
+      ask_assignment_id: assignmentId,
+    });
+
+    expect(error).not.toBeNull();
+
+    const { data } = await service.from("todos").select("id").eq("ask_assignment_id", assignmentId);
+    expect(data).toEqual([{ id: askId }]);
+  });
+
+  it("allows at most one OPEN ask per talk per person", async () => {
+    const { error } = await service.from("todos").insert({
+      ward_id: fixtures.wardAId,
+      user_id: fixtures.user("counselor1").id,
+      title: "Ask Brother Visitor to speak",
+      ask_assignment_id: assignmentId,
+    });
+
+    expect(error?.code).toBe("23505");
+  });
+});

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { SundayTypeBadge } from "@/components/calendar/SundayTypeBadge";
 import { ReferencesPill } from "@/components/sacrament/ReferencesPill";
 import { StatusPill } from "@/components/sacrament/StatusPill";
+import { TalkAsksCheck } from "@/components/sacrament/TalkAsksCheck";
 import { Card } from "@/components/ui/Card";
 import { formatSundayLabel, type DateOnly } from "@/lib/calendar/dates";
 import {
@@ -9,6 +10,7 @@ import {
   type SundayPill,
   type SundayPillLinkKey,
 } from "@/lib/sacrament/sundayStatus";
+import type { TalksAskState } from "@/lib/sacrament/talkAsks";
 import { SUNDAY_TYPE_LABELS, type SundayType } from "@/types/domain";
 
 // ONE SUNDAY ON THE HUB: the date, what kind of Sunday it is, who is conducting, and a row of
@@ -67,6 +69,10 @@ export type SundayCardProps = {
   // `talks.plan` — the bishopric. False withholds the References pill ENTIRELY: references are the
   // bishopric's planning material and nobody else reads them (migration 080, defect 074-D2).
   canPlanTalks: boolean;
+  // Where this Sunday's asks stand, and how many Send asks would send (Sacrament slice f1). Null
+  // for anybody without `talks.request`, which POST /api/sundays/[id]/asks asserts: the Talks pill
+  // then carries no check and no button, absent rather than disabled.
+  talkAsks: { state: TalksAskState; asksToSend: number } | null;
 };
 
 export function SundayCard({
@@ -80,6 +86,7 @@ export function SundayCard({
   conductingHref,
   canFinalizeTopics,
   canPlanTalks,
+  talkAsks,
 }: SundayCardProps) {
   const sundayLabel = formatSundayLabel(date);
   const holdsMeeting = sundayHasPills(type);
@@ -149,6 +156,16 @@ export function SundayCard({
                     sundayLabel={sundayLabel}
                     sundayId={sundayId}
                     canFinalizeTopics={canFinalizeTopics}
+                    trailing={
+                      pill.key === "talks" && talkAsks !== null ? (
+                        <TalkAsksCheck
+                          state={talkAsks.state}
+                          sundayId={sundayId}
+                          sundayLabel={sundayLabel}
+                          asksToSend={talkAsks.asksToSend}
+                        />
+                      ) : undefined
+                    }
                   />
                 )}
               </li>

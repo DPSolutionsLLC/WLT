@@ -16,8 +16,10 @@ import {
   PIPELINE_STAGES,
   REQUEST_OUTCOMES,
   type AssignmentHistoryOutcome,
+  DECLINE_REASONS,
   type AssignmentType,
   type CommentLevel,
+  type DeclineReason,
   type PipelineStage,
   type RequestOutcome,
 } from "@/types/domain";
@@ -382,7 +384,10 @@ export async function createAssignment(
   return mapAssignmentRow(data);
 }
 
-// Cannot write pipeline_stage. There is no branch here that could, and no parameter that would
+// Cannot write pipeline_stage. Cannot write request_outcome either (request_notes it can): an
+// outcome goes through
+// lib/assignments/requestOutcome.ts, which is where a decline's side effects live (Sacrament slice
+// f). There is no branch here that could write the stage, and no parameter that would
 // carry one — the phase's first pitfall is an implicit stage advance, and the only defence that
 // survives a future edit is that the capability is absent (04-talks-pipeline.md §Step 3).
 //
@@ -410,7 +415,6 @@ export async function updateAssignmentFields(
     patch.slot_length_minutes = fields.slotLengthMinutes;
   }
   if (fields.topicId !== undefined) patch.topic_id = fields.topicId;
-  if (fields.requestOutcome !== undefined) patch.request_outcome = fields.requestOutcome;
   if (fields.requestNotes !== undefined) patch.request_notes = fields.requestNotes;
   if (fields.notifyMessage !== undefined) patch.notify_message = fields.notifyMessage;
   if (fields.notifySentAt !== undefined) patch.notify_sent_at = fields.notifySentAt;
@@ -494,6 +498,41 @@ export async function transitionAssignment(
       to,
     });
     throw new Error(`Could not move that assignment to ${to}: ${error.message}`);
+  }
+
+  return data ? mapAssignmentRow(data) : null;
+}
+
+// The ONE writer of `request_outcome` outside a decline's clearSpeaker(). It writes the answer's
+// note with it; a planner's own note edit still goes through updateAssignmentFields().
+// Only lib/assignments/requestOutcome.ts and a speaker change's reset call it, so the pipeline
+// revamp changes one function (Sacrament slice f). `notes` undefined leaves the notes alone.
+export async function writeRequestOutcome(
+  wardId: string,
+  assignmentId: string,
+  outcome: RequestOutcome | null,
+  notes: string | null | undefined,
+  client?: SupabaseClient<Database>,
+): Promise<Assignment | null> {
+  const supabase = await resolveClient(client);
+
+  const patch: AssignmentUpdate = { request_outcome: outcome };
+  if (notes !== undefined) patch.request_notes = notes;
+
+  const { data, error } = await supabase
+    .from("assignments")
+    .update(patch)
+    .eq("ward_id", wardId)
+    .eq("id", assignmentId)
+    .select(ASSIGNMENT_COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`Could not record a talk's answer — ${error.message}`, {
+      wardId,
+      assignmentId,
+    });
+    throw new Error(`Could not record that answer: ${error.message}`);
   }
 
   return data ? mapAssignmentRow(data) : null;
@@ -858,11 +897,14 @@ export async function createComment(
 // everybody remembering to check. Do not relax that column to make this function simpler.
 //
 // Returns whether a row was written, so the caller's audit detail can say so honestly.
+//
+// `declineReason` is written only with a `declined` outcome (migration 083d) and is null otherwise.
 export async function writeAssignmentHistory(
   wardId: string,
   assignment: Assignment,
   outcome: AssignmentHistoryOutcome,
   client?: SupabaseClient<Database>,
+  declineReason: DeclineReason | null = null,
 ): Promise<boolean> {
   if (assignment.memberId === null) return false;
 
@@ -877,6 +919,7 @@ export async function writeAssignmentHistory(
       ASSIGNMENT_HISTORY_OUTCOMES,
       "assignment_history.outcome",
     ),
+    decline_reason: outcome === "declined" ? declineReason : null,
   });
 
   if (error) {
@@ -932,11 +975,13 @@ export type SpeakerHistoryRow = SpeakerHistoryEntry & {
   assignmentId: string | null;
   assignmentType: AssignmentType | null;
   notes: string | null;
+  // Null for every outcome but a decline, and for a decline recorded before migration 083.
+  declineReason: DeclineReason | null;
   createdAt: string;
 };
 
 const HISTORY_COLUMNS =
-  "id, member_id, assignment_id, outcome, cancellation_days_notice, notes, created_at";
+  "id, member_id, assignment_id, outcome, cancellation_days_notice, notes, decline_reason, created_at";
 
 type AssignmentHistoryRow = {
   id: string;
@@ -945,6 +990,7 @@ type AssignmentHistoryRow = {
   outcome: string | null;
   cancellation_days_notice: number | null;
   notes: string | null;
+  decline_reason: string | null;
   created_at: string;
 };
 
@@ -1039,6 +1085,11 @@ async function attachAssignmentContext(
       ),
       cancellationDaysNotice: row.cancellation_days_notice,
       notes: row.notes,
+      declineReason: toOptionalEnum(
+        row.decline_reason,
+        DECLINE_REASONS,
+        "assignment_history.decline_reason",
+      ),
       sundayDate: sundayId === null ? null : (sundayDates.get(sundayId) ?? null),
       createdAt: row.created_at,
     };

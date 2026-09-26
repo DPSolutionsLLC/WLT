@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/Modal";
 import { instantToWardInputs, wardInputsToInstant } from "@/lib/todos/scheduleInstant";
 import { MAX_NOTE_BODY } from "@/lib/validation/todo";
 import type { SessionUser, TodoSummary } from "@/types/domain";
+import { AskDetails } from "@/app/(app)/todos/AskDetails";
 import { sendTodoRequest } from "@/app/(app)/todos/todoApi";
 
 // "Schedule this" (p5-c) — give a to-do a time somebody has to turn up at, so it appears on My
@@ -25,6 +26,11 @@ import { sendTodoRequest } from "@/app/(app)/todos/todoApi";
 // The chosen member's chip carries its own × to clear it, so there is no separate control for that.
 // It is a `members` id, ward-scoped by migration 081's composite foreign key, so no
 // findUsersOutsideWard() check applies — that is for USER ids.
+//
+// AN OPEN TALK ASK STARTS WITH ITS SPEAKER as the member, and shows the topic and contact details
+// at the top (the user's decision walking scenario 078), so My Appointments reads "With Maria
+// Lopez" and the meeting has what it needs. Only when the picker is offered, so the choice is
+// visible and can be changed. A visitor is not on the roster, so theirs starts empty.
 //
 // THE NOTE IS A TIMELINE LINE, not a field of the schedule: it is written after the schedule
 // saves, through the same route the timeline's own "Add a note" uses. If it fails, the schedule
@@ -54,7 +60,11 @@ export function ScheduleDialog({
 
   const [date, setDate] = useState(existing?.date ?? todo.doDate ?? "");
   const [time, setTime] = useState(existing?.time ?? "");
-  const [memberId, setMemberId] = useState<string | null>(todo.scheduledWithMemberId);
+  const askSpeaker =
+    canPickMember && todo.askSource?.isOpen === true ? todo.askSource.speakerMemberId : null;
+  const [memberId, setMemberId] = useState<string | null>(
+    todo.scheduledWithMemberId ?? askSpeaker,
+  );
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | undefined>(undefined);
   const idPrefix = `todo-schedule-${todo.id}`;
@@ -124,6 +134,7 @@ export function ScheduleDialog({
         }}
       >
         <p className="break-words text-sm text-muted">{todo.title}</p>
+        {todo.askSource !== null && todo.askSource.isOpen ? <AskDetails ask={todo.askSource} /> : null}
 
         {/* min-w-0 on the flex children so the two inputs share a 375px row without overflowing. */}
         <div className="flex flex-wrap gap-3">

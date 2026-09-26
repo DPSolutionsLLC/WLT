@@ -73,6 +73,8 @@ function props(overrides: Partial<SundayCardProps> = {}): SundayCardProps {
     // on explicitly, so the absence assertions cannot pass because somebody forgot to.
     canFinalizeTopics: false,
     canPlanTalks: false,
+    // No `talks.request`: no ask check on the Talks pill. The ask tests turn it on explicitly.
+    talkAsks: null,
     ...overrides,
   };
 }
@@ -541,5 +543,64 @@ describe("SundayCard — the References pill", () => {
     );
 
     expect(screen.queryByRole("button", { name: PILL_NAME })).toBeNull();
+  });
+});
+
+// Sacrament slice f1. The state itself is talksAskState()'s, tested in tests/lib/talkAsks.test.ts;
+// these assert only what the card does with it.
+describe("SundayCard — the Talks pill's ask check", () => {
+  const SEND = /send asks to/i;
+
+  it("renders no check and no Send asks without talks.request", () => {
+    render(<SundayCard {...props()} />);
+
+    expect(screen.queryByRole("button", { name: SEND })).toBeNull();
+    expect(screen.queryByText(/not yet asked/i)).toBeNull();
+  });
+
+  it("offers Send asks with its count when speakers are waiting to be asked", () => {
+    render(
+      <SundayCard
+        {...props({ talkAsks: { state: { kind: "not_asked", count: 2 }, asksToSend: 2 } })}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: SEND })).toHaveTextContent("Send asks (2)");
+    expect(screen.getByText("2 not yet asked")).toBeInTheDocument();
+  });
+
+  it("still offers Send asks beside a declined state when a new speaker needs asking", () => {
+    render(
+      <SundayCard
+        {...props({ talkAsks: { state: { kind: "declined", count: 1 }, asksToSend: 1 } })}
+      />,
+    );
+
+    expect(screen.getByText("1 declined")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: SEND })).toHaveTextContent("Send asks (1)");
+  });
+
+  it("says why the check is locked, to a pointer and to a screen reader", () => {
+    render(
+      <SundayCard
+        {...props({
+          talkAsks: { state: { kind: "locked", reason: "references_open" }, asksToSend: 0 },
+        })}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: SEND })).toBeNull();
+    expect(screen.getByTitle("Finalize or skip References first")).toBeInTheDocument();
+    expect(screen.getByText(/Asks locked: Finalize or skip References first/)).toBeInTheDocument();
+  });
+
+  it("keeps the check a sibling of the Talks link, never inside it", () => {
+    render(
+      <SundayCard {...props({ talkAsks: { state: { kind: "pending" }, asksToSend: 0 } })} />,
+    );
+
+    const talksLink = screen.getByRole("link", { name: /^Talks/ });
+    expect(within(talksLink).queryByText("Asks sent")).toBeNull();
+    expect(screen.getByText("Asks sent")).toBeInTheDocument();
   });
 });
