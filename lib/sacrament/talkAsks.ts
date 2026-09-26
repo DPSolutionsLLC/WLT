@@ -1,6 +1,6 @@
 import { formatSundayLabelWithYear, type DateOnly } from "@/lib/calendar/dates";
 import { MAX_TODO_NOTES, MAX_TODO_TITLE } from "@/lib/validation/todo";
-import type { RequestOutcome } from "@/types/domain";
+import { holdsSacramentMeeting, type RequestOutcome, type SundayType } from "@/types/domain";
 
 // THE RULES FOR ASKING A SUNDAY'S SPEAKERS — Sacrament slice f1. Pure: no clock, no database.
 //
@@ -23,14 +23,33 @@ export type TalkAskInput = {
   // Open ask to-dos for this talk, across every owner. The conductor's and the assistant's copies
   // of one ask count twice. Only "is it zero" is ever read.
   openAskCount: number;
+  // talkIsOff(): nobody is asked to give a talk that is off (Sacrament slice f2b).
+  isOff: boolean;
 };
 
 export function talkNeedsAsk(talk: TalkAskInput): boolean {
   return (
     talk.hasSpeaker &&
+    !talk.isOff &&
     talk.openAskCount === 0 &&
     (talk.requestOutcome === null || talk.requestOutcome === "pending")
   );
+}
+
+// ---------------------------------------------------------------------------
+// A TALK IS OFF — Sacrament slice f2b
+// ---------------------------------------------------------------------------
+// Its Sunday holds no sacrament meeting (a stake conference), or its slot no longer exists (a Fast
+// Sunday has no speaking slots; a Sunday can be cut to fewer). COMPUTED from the Sunday every time,
+// never stored: the calendar decides it, and the calendar can change back. A talk with no slot
+// number is off only when the meeting is.
+export function talkIsOff(input: {
+  sundayType: SundayType;
+  speakingSlots: number;
+  slotNumber: number | null;
+}): boolean {
+  if (!holdsSacramentMeeting(input.sundayType)) return true;
+  return input.slotNumber !== null && input.slotNumber > input.speakingSlots;
 }
 
 export function countTalksNeedingAsk(talks: readonly TalkAskInput[]): number {
@@ -127,6 +146,13 @@ function truncate(text: string, limit: number): string {
 
 export function buildAskTitle(speakerName: string): string {
   return truncate(`Ask ${speakerName.trim()} to speak`, MAX_TODO_TITLE);
+}
+
+// For a speaker who had ALREADY ACCEPTED when their talk went off: there is no open ask left to
+// mark, so whoever asked them gets this instead (f2b). Worded without a pronoun, which the app
+// cannot know.
+export function buildTellTitle(speakerName: string): string {
+  return truncate(`Let ${speakerName.trim()} know there's no talk`, MAX_TODO_TITLE);
 }
 
 // `sundays.date` is a `date` column, so the day is formatted in UTC (CLAUDE.md rule 12).

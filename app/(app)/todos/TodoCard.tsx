@@ -157,6 +157,16 @@ export function TodoCard({
     });
   }
 
+  // The talk is off (Sacrament slice f2b): the speaker has been told they are not needed.
+  function toldThem() {
+    mutation.mutate({
+      url: `/api/todos/${todo.id}/answer`,
+      method: "POST",
+      body: { outcome: "told" },
+      place: "card",
+    });
+  }
+
   function toggleStep(step: TodoStep) {
     mutation.mutate({
       url: `/api/todo-steps/${step.id}`,
@@ -301,7 +311,16 @@ export function TodoCard({
           }
           disabled={busy}
         />
-        {isOpenAsk ? (
+        {isOpenAsk && todo.askSource?.talkOff === true ? (
+          <span className="ml-auto flex items-center gap-0.5">
+            <SmallButton
+              label="Told them"
+              accessibleName={`Told them they're not needed — ${todo.title}`}
+              onClick={toldThem}
+              disabled={busy}
+            />
+          </span>
+        ) : isOpenAsk ? (
           <span className="ml-auto flex items-center gap-0.5">
             <SmallButton
               label="Accepted"

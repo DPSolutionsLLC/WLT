@@ -1536,7 +1536,7 @@ export type SundayReferences = {
 // A leader's own list. Owner-only at the table (D2): nothing here is ever rendered to anybody but
 // the person whose list it is.
 
-// MUST STAY IN STEP WITH `todo_log_entries.kind`'s CHECK, last rewritten by migration 083. `source_completed` is
+// MUST STAY IN STEP WITH `todo_log_entries.kind`'s CHECK, last rewritten by migration 084. `source_completed` is
 // written only once slice p5-b links a to-do to an agenda item; it is in the list now so the
 // CHECK and this tuple never disagree.
 export const TODO_LOG_KINDS = [
@@ -1555,12 +1555,26 @@ export const TODO_LOG_KINDS = [
   "handed_over",
   "assistant_released",
   "speaker_changed",
+  // Sacrament slice f2b (migration 084). `taken_over` carries the PREVIOUS owner's name and
+  // `talk_off` the Sunday in words, both snapshotted.
+  "taken_over",
+  "talk_off",
+  "told_not_needed",
+  "talk_back_on",
 ] as const;
 export type TodoLogKind = (typeof TODO_LOG_KINDS)[number];
 
-// Why an OPEN ask left a list without being answered (`todos.closed_reason`, migration 083). A
-// closed ask has `completedAt` set too, so every reader already treats it as done.
-export const TODO_CLOSED_REASONS = ["handed_over", "assistant_released", "speaker_changed"] as const;
+// Why an OPEN ask left a list without being answered (`todos.closed_reason`, migrations 083 and
+// 084). A closed ask has `completedAt` set too, so every reader already treats it as done.
+// `told_not_needed`: its talk was off and the owner told the speaker. `talk_back_on`: the talk came
+// back before that, and the speaker is asked again from scratch.
+export const TODO_CLOSED_REASONS = [
+  "handed_over",
+  "assistant_released",
+  "speaker_changed",
+  "told_not_needed",
+  "talk_back_on",
+] as const;
 export type TodoClosedReason = (typeof TODO_CLOSED_REASONS)[number];
 
 // A declined talk's reason (`assignment_history.decline_reason`, migration 083). Shown in speaker
@@ -1595,6 +1609,8 @@ export type Todo = {
   askAssignmentId: string | null;
   // Set only on an ask that left this list unanswered — see TODO_CLOSED_REASONS.
   closedReason: TodoClosedReason | null;
+  // When the owner was told this ask's talk is off (Sacrament slice f2b, migration 084).
+  talkOffAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -1624,6 +1640,10 @@ export type TodoAskSource = {
   phone: string | null;
   topicTitle: string | null;
   isOpen: boolean;
+  // The talk is OFF: its Sunday holds no meeting, or its slot no longer exists (talkIsOff()).
+  // Computed live from the Sunday. An open ask on a talk that is off shows "Told them" in place of
+  // Accepted / Declined (Sacrament slice f2b).
+  talkOff: boolean;
 };
 
 export type TodoStep = {

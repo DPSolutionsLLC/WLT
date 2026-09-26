@@ -8,6 +8,7 @@ import { getMember } from "@/lib/roster/queries";
 import {
   buildAskNotes,
   buildAskTitle,
+  talkIsOff,
   talksAskState,
   type TalkAskInput,
   type TalksAskState,
@@ -58,6 +59,11 @@ export async function loadSundayAsks(
         hasSpeaker: hasSpeaker(talk),
         requestOutcome: talk.requestOutcome,
         openAskCount: openCounts.get(talk.id) ?? 0,
+        isOff: talkIsOff({
+          sundayType: loaded.sunday.type,
+          speakingSlots: loaded.sunday.speakingSlots,
+          slotNumber: talk.slotNumber,
+        }),
       },
     ]),
   );
@@ -81,12 +87,16 @@ export async function loadSundayAsks(
 // and so does a handover (Sacrament slice f2): the new conductor gets a CLEAN copy built here,
 // never the old owner's to-do copied, because whatever the old owner wrote on theirs stays with
 // them (U6).
+// `speakerName` rides along for a caller that words something else about the same speaker (f2b's
+// "Let ___ know there's no talk"), so nobody parses it back out of a title that may be truncated.
+export type BuiltAsk = AskToCreate & { speakerName: string };
+
 export async function buildAsksForTalks(params: {
   wardId: string;
   sundayDate: string;
   talks: readonly Assignment[];
   client: SupabaseClient<Database>;
-}): Promise<AskToCreate[]> {
+}): Promise<BuiltAsk[]> {
   const { wardId, talks, client } = params;
   if (talks.length === 0) return [];
 
@@ -124,6 +134,7 @@ export async function buildAsksForTalks(params: {
     const member = talk.memberId === null ? undefined : membersById.get(talk.memberId);
     return {
       assignmentId: talk.id,
+      speakerName,
       title: buildAskTitle(speakerName),
       notes: buildAskNotes({
         speakerName,
@@ -137,4 +148,29 @@ export async function buildAsksForTalks(params: {
       }),
     };
   });
+}
+
+// Each talk's speaker as a name, for sentences about them (f2b's calendar warning). Only the
+// members are read — none of what an ask's notes need.
+export async function loadSpeakerNames(params: {
+  wardId: string;
+  talks: readonly Assignment[];
+  client: SupabaseClient<Database>;
+}): Promise<Map<string, string>> {
+  const memberIds = [
+    ...new Set(params.talks.flatMap((talk) => (talk.memberId === null ? [] : [talk.memberId]))),
+  ];
+  const members = await Promise.all(
+    memberIds.map((memberId) => getMember(params.wardId, memberId, params.client)),
+  );
+  const memberNames = Object.fromEntries(
+    members.flatMap((member) =>
+      member === null ? [] : [[member.id, `${member.firstName} ${member.lastName}`.trim()] as const],
+    ),
+  );
+  return new Map(
+    params.talks.map(
+      (talk) => [talk.id, speakerDisplayName(talk, memberNames) ?? "a speaker"] as const,
+    ),
+  );
 }

@@ -161,6 +161,9 @@ export async function closeAsksForAssignment(params: {
   assignmentId: string;
   reason: TodoClosedReason;
   body?: string | null;
+  // Only the asks whose owner was told the talk is off (f2b's back-on close). An ask sent after the
+  // talk came back on is a fresh one and must not be closed with them.
+  onlyTalkOff?: boolean;
   client?: Client;
 }): Promise<string[]> {
   return completeOpenAsks(params, {
@@ -171,20 +174,22 @@ export async function closeAsksForAssignment(params: {
 }
 
 async function completeOpenAsks(
-  params: { wardId: string; assignmentId: string; client?: Client },
+  params: { wardId: string; assignmentId: string; onlyTalkOff?: boolean; client?: Client },
   line: { closedReason: TodoClosedReason | null; kind: TodoLogKind; body: string | null },
 ): Promise<string[]> {
   const supabase = params.client ?? createServiceSupabaseClient();
   const detail = { wardId: params.wardId, assignmentId: params.assignmentId, kind: line.kind };
   const now = new Date().toISOString();
 
-  const { data, error } = await supabase
+  let update = supabase
     .from("todos")
     .update({ completed_at: now, closed_reason: line.closedReason, updated_at: now })
     .eq("ward_id", params.wardId)
     .eq("ask_assignment_id", params.assignmentId)
-    .is("completed_at", null)
-    .select("id");
+    .is("completed_at", null);
+  if (params.onlyTalkOff === true) update = update.not("talk_off_at", "is", null);
+
+  const { data, error } = await update.select("id");
 
   if (error) fail("Could not close a talk's open asks", error, detail);
 
@@ -253,6 +258,8 @@ export type OpenAsk = {
   ownerUserId: string;
   scheduledFor: string | null;
   scheduledWithMemberId: string | null;
+  // Set once the owner was told the talk is off (f2b).
+  talkOffAt: string | null;
 };
 
 export async function listOpenAsks(params: {
@@ -266,7 +273,7 @@ export async function listOpenAsks(params: {
 
   const { data, error } = await supabase
     .from("todos")
-    .select("id, ask_assignment_id, user_id, scheduled_for, scheduled_with_member_id")
+    .select("id, ask_assignment_id, user_id, scheduled_for, scheduled_with_member_id, talk_off_at")
     .eq("ward_id", params.wardId)
     .in("ask_assignment_id", [...params.assignmentIds])
     .is("completed_at", null);
@@ -288,6 +295,7 @@ export async function listOpenAsks(params: {
             ownerUserId: row.user_id,
             scheduledFor: row.scheduled_for,
             scheduledWithMemberId: row.scheduled_with_member_id,
+            talkOffAt: row.talk_off_at,
           },
         ],
   );
@@ -307,6 +315,8 @@ export async function listOpenAsks(params: {
 // the talk (buildAsksForTalks), and the old copy is closed, never deleted.
 export type AskHandover = {
   fromTodoId: string;
+  // The previous owner's name, for the new copy's "Taken over from ___" line.
+  fromName: string;
   ask: AskToCreate;
   scheduledFor: string | null;
   scheduledWithMemberId: string | null;
@@ -355,7 +365,18 @@ export async function handOverAsks(params: {
     if (createError && createError.code !== "23505") {
       fail("Could not create the new conductor's copy of an ask", createError, detail, done());
     }
-    if (created) createdIds.push(created.id);
+    if (created) {
+      createdIds.push(created.id);
+      const { error: takenOverError } = await supabase.from("todo_log_entries").insert({
+        ward_id: params.wardId,
+        todo_id: created.id,
+        kind: "taken_over",
+        body: handover.fromName,
+      });
+      if (takenOverError) {
+        fail("Could not write the taken-over line on an ask", takenOverError, detail, done());
+      }
+    }
 
     const now = new Date().toISOString();
     const { data: closed, error: closeError } = await supabase
@@ -383,4 +404,148 @@ export async function handOverAsks(params: {
   }
 
   return { createdIds, closedIds };
+}
+
+// ---------------------------------------------------------------------------
+// THE TALK IS OFF — Sacrament slice f2b
+// ---------------------------------------------------------------------------
+// Its Sunday holds no meeting any more, or its slot is gone (talkIsOff()). Whoever asked the
+// speaker must tell them, so the ask STAYS on their list, stamped `talk_off_at`, with a line saying
+// so. The card then offers "Told them" in place of Accepted / Declined. Conditional on the stamp
+// still being empty, so a repeat writes nothing twice. `sundayLabel` is the Sunday in words,
+// snapshotted into the line.
+export async function markAsksTalkOff(params: {
+  wardId: string;
+  todoIds: readonly string[];
+  sundayLabel: string;
+  client?: Client;
+}): Promise<string[]> {
+  if (params.todoIds.length === 0) return [];
+  const supabase = params.client ?? createServiceSupabaseClient();
+  const detail = { wardId: params.wardId, todoCount: params.todoIds.length };
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from("todos")
+    .update({ talk_off_at: now, updated_at: now })
+    .eq("ward_id", params.wardId)
+    .in("id", [...params.todoIds])
+    .is("completed_at", null)
+    .is("talk_off_at", null)
+    .select("id");
+  if (error) fail("Could not mark an ask's talk as off", error, detail);
+
+  const marked = (data ?? []).map((row) => row.id);
+  if (marked.length === 0) return marked;
+
+  const { error: logError } = await supabase.from("todo_log_entries").insert(
+    marked.map((todoId) => ({
+      ward_id: params.wardId,
+      todo_id: todoId,
+      kind: "talk_off",
+      body: params.sundayLabel,
+    })),
+  );
+  if (logError) fail("Could not write the talk-off line on an ask", logError, detail, marked);
+
+  return marked;
+}
+
+// A speaker who had ALREADY ACCEPTED has no open ask left to mark, so whoever asked them gets a
+// new to-do, "Let ___ know there's no talk", linked to the talk and stamped off from the start.
+// Idempotent through migration 083b's index: the owner already holding an open item for the talk
+// is 23505, and that is the outcome wanted.
+export type TellToCreate = {
+  assignmentId: string;
+  ownerUserId: string;
+  title: string;
+  notes: string;
+};
+
+export async function createTellTodos(params: {
+  wardId: string;
+  tells: readonly TellToCreate[];
+  assignedByUserId: string;
+  today: string;
+  sundayLabel: string;
+  client?: Client;
+}): Promise<string[]> {
+  const supabase = params.client ?? createServiceSupabaseClient();
+  const created: string[] = [];
+  const now = new Date().toISOString();
+
+  for (const tell of params.tells) {
+    const detail = { wardId: params.wardId, assignmentId: tell.assignmentId };
+    const { data, error } = await supabase
+      .from("todos")
+      .insert({
+        ward_id: params.wardId,
+        user_id: tell.ownerUserId,
+        assigned_by: params.assignedByUserId,
+        title: tell.title,
+        notes: tell.notes,
+        tag: "Sacrament",
+        do_date: params.today,
+        ask_assignment_id: tell.assignmentId,
+        talk_off_at: now,
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      if (error.code === "23505") continue;
+      fail("Could not create a to-do to tell a speaker there is no talk", error, detail, created);
+    }
+
+    const { error: logError } = await supabase.from("todo_log_entries").insert({
+      ward_id: params.wardId,
+      todo_id: data.id,
+      kind: "talk_off",
+      body: params.sundayLabel,
+    });
+    if (logError) {
+      fail("Could not write the talk-off line on a new to-do", logError, detail, [
+        ...created,
+        data.id,
+      ]);
+    }
+    created.push(data.id);
+  }
+
+  return created;
+}
+
+// Who asked this talk's speaker last: the owner of its most recent ask that was not closed without
+// an answer. They are the one to tell a speaker who accepted that the talk is off. A talk accepted
+// from its own panel, with no ask at all, has no entry and the caller chooses somebody.
+export async function listLatestAskOwners(params: {
+  wardId: string;
+  assignmentIds: readonly string[];
+  client?: Client;
+}): Promise<Map<string, string>> {
+  const owners = new Map<string, string>();
+  if (params.assignmentIds.length === 0) return owners;
+  const supabase = params.client ?? createServiceSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("todos")
+    .select("ask_assignment_id, user_id")
+    .eq("ward_id", params.wardId)
+    .in("ask_assignment_id", [...params.assignmentIds])
+    .is("closed_reason", null)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error(`Could not read who asked a talk's speaker — ${error.message}`, {
+      wardId: params.wardId,
+    });
+    throw new Error(`Could not read who asked these speakers: ${error.message}`);
+  }
+
+  for (const row of data ?? []) {
+    if (row.ask_assignment_id !== null && !owners.has(row.ask_assignment_id)) {
+      owners.set(row.ask_assignment_id, row.user_id);
+    }
+  }
+  return owners;
 }

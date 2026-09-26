@@ -839,6 +839,8 @@ action_item_id           uuid REFERENCES action_items(id) ON DELETE SET NULL  --
 source_completed_at      timestamptz  -- P5 migration 082: the meeting completed the linked item
 ask_assignment_id        uuid REFERENCES assignments(id) ON DELETE SET NULL  -- migration 083: a talk's ask
 closed_reason            text  -- migration 083: 'handed_over' | 'assistant_released' | 'speaker_changed'
+                               -- | 'told_not_needed' | 'talk_back_on'  (migration 084)
+talk_off_at              timestamptz  -- migration 084: when the owner was told the talk is off
 created_at               timestamptz DEFAULT now()
 updated_at               timestamptz DEFAULT now()
 -- UNIQUE (action_item_id, user_id) WHERE action_item_id IS NOT NULL
@@ -852,6 +854,16 @@ ticked or deleted** — Accepted / Declined record the outcome on the talk throu
 `lib/assignments/requestOutcome.ts` and close every open copy with an `ask_accepted` /
 `ask_declined` line. An answered ask is done, never deleted. A **speaker change** on the talk closes
 its open asks (`closed_reason = 'speaker_changed'`) and clears the outcome; nothing else does.
+**A talk that is off (slice f2b, migration 084).** A talk is off when its Sunday holds no meeting
+or its slot no longer exists — `talkIsOff()` in `lib/sacrament/talkAsks.ts`, computed from the
+Sunday and never stored. The same reconcile marks each open ask on it (`talk_off_at`, a `talk_off`
+line) and leaves it with its owner; a speaker who had accepted gets their last asker a new
+"Let ___ know there's no talk" to-do. The owner closes either with **Told them**
+(`POST /api/todos/[id]/answer` with `outcome: "told"`, refused while the talk is on), which clears
+the talk's answer. If the talk comes back on first, those items close as `talk_back_on` and the
+answer is cleared, so Send asks offers every speaker again. Send asks never offers a talk that is
+off. The calendar's confirmation warning names the speakers asked and who will tell them, and how
+many open asks a re-shift moves to whom (`lib/sacrament/askWarnings.ts`).
 **The asks follow the conductor (slice f2).** After every Sunday save, `PATCH /api/sundays/[id]`
 reconciles that Sunday and every later Sunday its type change re-shifted
 (`lib/sacrament/conductorHandover.ts`): an open ask held by anybody but the current conductor gets
@@ -859,7 +871,8 @@ a clean copy for the conductor (built from the talk, carrying `scheduled_for` an
 `scheduled_with_member_id`) and is closed with `closed_reason = 'handed_over'` and a `handed_over`
 line naming the new owner. Copy first, close second, so a half-finished run holds the work twice
 and the next save finishes it. A Sunday with no conductor keeps its asks. My Appointments leaves
-out a to-do with a `closed_reason`. `tests/lib/conductorHandoverSites.test.ts` fails if a new
+out a to-do with a `closed_reason`. The new copy gets a `taken_over` line naming the previous
+owner (slice f2b). `tests/lib/conductorHandoverSites.test.ts` fails if a new
 write of `conducting_user_id` skips the handover.
 Progress and "overdue" are **computed**, never stored (`lib/todos/progress.ts`,
 `lib/todos/viewState.ts`).
@@ -886,6 +899,8 @@ kind            text NOT NULL  -- 'note' | 'step_done' | 'step_undone' | 'comple
                                -- | 'scheduled' | 'unscheduled' | 'source_completed'
                                -- | 'ask_accepted' | 'ask_declined' | 'handed_over'
                                -- | 'assistant_released' | 'speaker_changed'  (migration 083)
+                               -- | 'taken_over' | 'talk_off' | 'told_not_needed' | 'talk_back_on'
+                               --   (migration 084)
 body            text           -- the note; the step label SNAPSHOT for step kinds; the decline
                                -- reason's LABEL for ask_declined; the new owner's name for handed_over
 created_at      timestamptz DEFAULT now()

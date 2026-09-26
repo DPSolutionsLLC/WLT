@@ -55,6 +55,7 @@ type TodoRow = {
   source_completed_at: string | null;
   ask_assignment_id: string | null;
   closed_reason: string | null;
+  talk_off_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -100,9 +101,9 @@ type LogRow = {
 // `action_items` has TWO foreign keys to `agendas` (the agenda it is on, and the one it was carried
 // from), so the embed names its constraint — without the hint PostgREST refuses the ambiguity.
 const TODO_COLUMNS =
-  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, closed_reason, created_at, updated_at";
+  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, closed_reason, talk_off_at, created_at, updated_at";
 const TODO_WITH_STEPS_COLUMNS =
-  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, closed_reason, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date)), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, sundays!assignments_sunday_id_ward_id_fkey (date), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), topics!assignments_topic_id_ward_id_fkey (title)), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name)";
+  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, closed_reason, talk_off_at, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date)), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number, sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), topics!assignments_topic_id_ward_id_fkey (title)), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name)";
 const STEP_COLUMNS = "id, todo_id, label, position, done_at";
 const LOG_COLUMNS = "id, todo_id, kind, body, created_at";
 
@@ -173,6 +174,7 @@ function mapTodoRow(row: TodoRow): Todo {
     sourceCompletedAt: row.source_completed_at,
     askAssignmentId: row.ask_assignment_id,
     closedReason: toClosedReason(row.closed_reason),
+    talkOffAt: row.talk_off_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

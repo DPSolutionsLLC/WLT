@@ -379,7 +379,9 @@ describe("Talk asks — Sacrament slice f1", () => {
 
       const { status, body } = await deleteTodo(ask.id);
       expect(status).toBe(409);
-      expect(errorMessage(body)).toBe("Record their answer instead — Accepted or Declined.");
+      expect(errorMessage(body)).toBe(
+        "Record their answer instead — Accepted or Declined, or Told them if the talk is off.",
+      );
       expect((await openAskFor(withPhoneTalkId)).id).toBe(ask.id);
     });
 

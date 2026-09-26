@@ -1,4 +1,5 @@
-import type { TodoAskSource } from "@/types/domain";
+import { talkIsOff } from "@/lib/sacrament/talkAsks";
+import { SUNDAY_TYPES, type SundayType, type TodoAskSource } from "@/types/domain";
 
 // WHAT AN ASK TO-DO SHOWS ABOUT ITS TALK, read LIVE from the talk (Sacrament slice f1, the user's
 // request walking scenario 078). A leader who catches a speaker in the hallway, calls them, or
@@ -12,8 +13,8 @@ import type { TodoAskSource } from "@/types/domain";
 // is the one place its rows become a TodoAskSource. Pure: no server imports.
 //
 // The embed both files carry, verbatim:
-//   ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name,
-//     sundays!assignments_sunday_id_ward_id_fkey (date),
+//   ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number,
+//     sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots),
 //     members!assignments_member_id_ward_id_fkey (first_name, last_name, phone),
 //     topics!assignments_topic_id_ward_id_fkey (title))
 
@@ -21,10 +22,21 @@ export type AskSourceRow = {
   id: string;
   member_id: string | null;
   external_speaker_name: string | null;
-  sundays: { date: string } | null;
+  slot_number: number | null;
+  sundays: { date: string; type: string; speaking_slots: number } | null;
   members: { first_name: string | null; last_name: string | null; phone: string | null } | null;
   topics: { title: string } | null;
 } | null;
+
+// `sundays.type` arrives as plain text. Its CHECK admits only SUNDAY_TYPES, so anything else means
+// the database and this file disagree, which must be loud rather than guessed at.
+function toSundayType(value: string): SundayType {
+  const known = SUNDAY_TYPES.find((type) => type === value);
+  if (known === undefined) {
+    throw new Error(`sundays.type holds "${value}", which is not a known Sunday type.`);
+  }
+  return known;
+}
 
 function memberName(row: { first_name: string | null; last_name: string | null } | null): string | null {
   if (row === null) return null;
@@ -46,5 +58,12 @@ export function mapAskSource(row: AskSourceRow, completedAt: string | null): Tod
     phone: phone === "" ? null : phone,
     topicTitle: row.topics?.title ?? null,
     isOpen: completedAt === null,
+    talkOff:
+      row.sundays !== null &&
+      talkIsOff({
+        sundayType: toSundayType(row.sundays.type),
+        speakingSlots: row.sundays.speaking_slots,
+        slotNumber: row.slot_number,
+      }),
   };
 }

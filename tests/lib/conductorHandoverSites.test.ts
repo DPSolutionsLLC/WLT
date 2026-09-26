@@ -131,8 +131,10 @@ describe("every write of a Sunday's conductor hands its open asks over", () => {
 
     for (const file of callers) {
       const source = read(file);
-      expect(source, file).toMatch(/reconcileSundayAsksToConductor\s*\(/);
-      expect(source, file).toMatch(/sundayIds:\s*\[sundayId,\s*\.\.\.reshiftedSundayIds\]/);
+      expect(source, file).toMatch(/reconcileSundayAsks\s*\(/);
+      expect(source, file).toMatch(
+        /sundayIds:\s*\[sundayId,\s*\.\.\.resolvedMonthSundayIds,\s*\.\.\.reshiftedSundayIds\]/,
+      );
     }
   });
 });

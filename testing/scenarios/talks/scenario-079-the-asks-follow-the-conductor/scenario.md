@@ -79,11 +79,14 @@ The change by hand
 - [ ] Step 9: Maria's ask shows the **same scheduled time** and **with Maria Lopez**, the phone and
       topic, and **not** your own line from step 4
 - [ ] Step 9: counselor2's My Appointments shows Maria's appointment with **Accepted / Declined**
+- [ ] Step 9: Maria's ask's timeline reads **"Taken over from Peter Nakamura"** *(added by slice
+      f2b; walked in scenario 080)*
 
 The re-shift
 
 - [ ] Step 10: C's Talks check turns to **Asks sent**
-- [ ] Step 11: the warning says who conducts will change on later Sundays
+- [ ] Step 11: the warning says who conducts will change on later Sundays, and **"1 open ask moves
+      to ___"** *(added by slice f2b; covered by tests/routes/conductor-handover.test.ts)*
 - [ ] Step 12: B reads **Stake Conference**, and C now names the conductor the seed printed for
       "after B's change"
 - [ ] Step 12: Tomas's ask moved to that person, and the one it left was closed as handed over
@@ -94,11 +97,11 @@ The record
 - [ ] `audit_log`: each `sunday_updated` row that moved asks carries `asksHandedOver` with
       `complete: true` and the Sunday, created and closed ids. An ordinary save carries none
 
-Questions for a human
+Questions for a human — both answered **yes** by the user on 2026-09-26 and built in slice f2b
 
-- [ ] Should the new conductor's copy say **where it came from** ("Taken over from Peter
-      Nakamura")? Today its timeline reads "Nothing yet"
-- [ ] Should step 11's warning also say **open asks will move** with the conductors?
+- [x] Should the new conductor's copy say **where it came from**? → "Taken over from ___"
+- [x] Should step 11's warning also say **open asks will move** with the conductors? → "1 open ask
+      moves to ___"
 
 ## Failure Behavior
 

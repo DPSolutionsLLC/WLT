@@ -16,7 +16,8 @@ import { todoIdSchema, updateTodoSchema } from "@/lib/validation/todo";
 const NOT_FOUND = "That to-do could not be found.";
 const LINKED_TO_OPEN_ITEM =
   "This came from an agenda item that is still open. Mark it complete instead — that asks the bishopric to review it.";
-const OPEN_ASK = "Record their answer instead — Accepted or Declined.";
+const OPEN_ASK =
+  "Record their answer instead — Accepted or Declined, or Told them if the talk is off.";
 
 export async function GET(
   _request: Request,

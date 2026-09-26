@@ -145,7 +145,16 @@ land first.
 > Sunday its re-shift moved (`lib/sacrament/conductorHandover.ts`). A clean copy is built from the
 > talk; the old one is closed as handed over. Guarded by a source-reading test. Walking scenario
 > 079 found the old copy still on the old owner's My Appointments, fixed by leaving out closed-
-> without-an-answer to-dos. **`f3` is next**: the conductor window and the assistant.
+> without-an-answer to-dos.
+>
+> **`f2b` — When a talk is off (2026-09-26), migration 084.** From the user's answers to walking
+> scenario 079's questions. A talk is off when its Sunday holds no meeting or its slot is gone
+> (`talkIsOff()`, computed). The reconcile marks open asks on it and gives an accepted speaker's
+> asker a "Let ___ know there's no talk" to-do; **Told them** closes either and clears the answer;
+> a talk back on closes what is left and asks everybody again from scratch. The calendar warning
+> names the speakers and the asks a re-shift moves, and a handed-over copy says "Taken over from
+> ___". Walked as scenario 080. **`f3` is next** (its migration is now 085): the conductor window
+> and the assistant.
 >
 > **Module 1 now has `d`, `e` left**, and `f`/`g` wait on **P5**. The INDEX argues P5 should
 > come early for exactly that reason.

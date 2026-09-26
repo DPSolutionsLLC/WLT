@@ -192,6 +192,11 @@ export type CalendarChangeWarning = {
   conductingReshiftCount: number;
   orgConductingReshiftCount: number;
   message: string;
+  // For the route's sentences about talk asks (Sacrament slice f2b): every talk this change puts at
+  // risk, on every Sunday it reaches, and each later Sunday's new conductor. The calendar module
+  // does not read to-dos; PATCH /api/sundays/[id] turns these into sentences appended to `message`.
+  atRiskAssignmentIds: string[];
+  conductorReshifts: { sundayId: string; toUserId: string | null }[];
 };
 
 export type UpdateSundayResult =
@@ -204,6 +209,9 @@ export type UpdateSundayResult =
       // The LATER Sundays whose conductor this edit re-shifted. Their open talk asks must follow
       // the new conductor (Sacrament slice f2), and the route cannot see them any other way.
       reshiftedSundayIds: string[];
+      // Every Sunday of the edited month when the save re-resolved it. A Fast Sunday can move ONTO
+      // another Sunday, which switches that Sunday's talks off (f2b). Empty when nothing re-resolved.
+      resolvedMonthSundayIds: string[];
     }
   | { status: "needs_confirmation"; warning: CalendarChangeWarning };
 
@@ -1376,10 +1384,12 @@ async function countWorkAtRisk(
   wardId: string,
   sundayId: string,
   aboveSlot: number | null,
-): Promise<{ assignmentCount: number; prayerCount: number }> {
+): Promise<{ assignmentCount: number; prayerCount: number; assignmentIds: string[] }> {
+  // The ids, not only a count: the warning also names the speakers who were ASKED to give these
+  // talks (Sacrament slice f2b), and the route needs the talks to find them.
   let assignments = service
     .from("assignments")
-    .select("id", { count: "exact", head: true })
+    .select("id")
     .eq("ward_id", wardId)
     .eq("sunday_id", sundayId);
 
@@ -1387,7 +1397,7 @@ async function countWorkAtRisk(
     assignments = assignments.gt("slot_number", aboveSlot);
   }
 
-  const { count: assignmentCount, error: assignmentError } = await assignments;
+  const { data: assignmentRows, error: assignmentError } = await assignments;
 
   if (assignmentError) {
     console.error(
@@ -1413,7 +1423,8 @@ async function countWorkAtRisk(
     throw new Error(`Could not check that Sunday's prayers: ${prayerError.message}`);
   }
 
-  return { assignmentCount: assignmentCount ?? 0, prayerCount: prayerCount ?? 0 };
+  const assignmentIds = (assignmentRows ?? []).map((row) => row.id);
+  return { assignmentCount: assignmentIds.length, prayerCount: prayerCount ?? 0, assignmentIds };
 }
 
 function isUserId(value: string | null): value is string {
@@ -1955,8 +1966,10 @@ export async function updateSunday(
     });
   }
 
+  let resolvedMonthSundayIds: string[] = [];
   if (changesResolution) {
     const monthSundays = await listSundays(wardId, monthRange, supabase);
+    resolvedMonthSundayIds = monthSundays.map((sunday) => sunday.id);
 
     // The month as it WOULD be, patched in memory.
     const projected = toCandidates(monthSundays).map((candidate) =>
@@ -2053,6 +2066,11 @@ export async function updateSunday(
         prayerCount: warned.prayerCount,
         conductingReshiftCount: reshiftCounts.sacrament,
         orgConductingReshiftCount: reshiftCounts.organizations,
+        atRiskAssignmentIds: counted.flatMap((risk) => risk.assignmentIds),
+        conductorReshifts: reshiftPlan.sacrament.map((row) => ({
+          sundayId: row.sundayId,
+          toUserId: row.userId,
+        })),
         message: buildWarningMessage(
           warned.reason,
           warned.sunday.date,
@@ -2219,6 +2237,7 @@ export async function updateSunday(
     conductingReshiftCount: reshiftCounts.sacrament,
     orgConductingReshiftCount: reshiftCounts.organizations,
     reshiftedSundayIds: reshiftPlan.sacrament.map((row) => row.sundayId),
+    resolvedMonthSundayIds,
   };
 }
 

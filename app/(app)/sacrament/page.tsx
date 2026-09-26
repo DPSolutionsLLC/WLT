@@ -27,6 +27,7 @@ import { countReferencesByAssignment } from "@/lib/references/queries";
 import { hasSpeaker } from "@/lib/sacrament/sundayAsks";
 import {
   countTalksNeedingAsk,
+  talkIsOff,
   talksAskState,
   type TalkAskInput,
 } from "@/lib/sacrament/talkAsks";
@@ -203,14 +204,25 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
       })
     : new Map<string, number>();
 
+  const sundaysById = new Map(sundays.map((sunday) => [sunday.id, sunday] as const));
   const askInputsBySunday = groupBySunday(
     assignments,
     (assignment) => assignment.sundayId,
-    (assignment): TalkAskInput => ({
-      hasSpeaker: hasSpeaker(assignment),
-      requestOutcome: assignment.requestOutcome,
-      openAskCount: openAskCounts.get(assignment.id) ?? 0,
-    }),
+    (assignment): TalkAskInput => {
+      const sunday = assignment.sundayId === null ? undefined : sundaysById.get(assignment.sundayId);
+      return {
+        hasSpeaker: hasSpeaker(assignment),
+        requestOutcome: assignment.requestOutcome,
+        openAskCount: openAskCounts.get(assignment.id) ?? 0,
+        isOff:
+          sunday !== undefined &&
+          talkIsOff({
+            sundayType: sunday.type,
+            speakingSlots: sunday.speakingSlots,
+            slotNumber: assignment.slotNumber,
+          }),
+      };
+    },
   );
 
   const conductingNames = conductingNameMap(bishopricUsers);

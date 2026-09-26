@@ -30,8 +30,9 @@ const BISHOPRIC: readonly FixtureHandle[] = ["bishop", "counselor1", "counselor2
 const FROM = "2027-07-01";
 const TO = "2027-09-30";
 
-// Changed by hand.
-const MANUAL_DATE = "2027-07-04";
+// Changed by hand. NOT the first Sunday of its month: generation makes that one a Fast Sunday with
+// no speaking slots, and a talk with no slot is off (Sacrament slice f2b), so nobody is asked.
+const MANUAL_DATE = "2027-07-11";
 // Turned into a stake conference, which re-shifts who conducts on every later Sunday.
 const EDITED_DATE = "2027-08-15";
 const RESHIFTED_DATE = "2027-08-22";
@@ -283,6 +284,11 @@ describe("Conductor handover — Sacrament slice f2", () => {
         expect(copy.completed_at).toBeNull();
         expect(copy.assigned_by).toBe(fixtures.user("bishop").id);
         expect(copy.do_date).not.toBeNull();
+        // Where it came from (Sacrament slice f2b).
+        expect(await logLines(copy.id)).toContainEqual({
+          kind: "taken_over",
+          body: await nameOf(firstConductorId),
+        });
       }
 
       // The appointment follows the work; the old owner's words do not (U6).
@@ -394,6 +400,11 @@ describe("Conductor handover — Sacrament slice f2", () => {
       expect((await sendAsks(reshiftedSundayId)).status).toBe(201);
       expect((await openAsksFor(reshiftedTalkId)).map((row) => row.user_id)).toEqual([before]);
 
+      // The warning says the ask will move before anybody confirms (Sacrament slice f2b).
+      const warned = await patchSunday(editedSundayId, { type: "stake_conference" });
+      expect(warned.status).toBe(409);
+      const warning = (warned.body.warning as { message: string }).message;
+
       const { status, body } = await patchSunday(
         editedSundayId,
         { type: "stake_conference" },
@@ -405,6 +416,9 @@ describe("Conductor handover — Sacrament slice f2", () => {
       const after = await conductorOf(reshiftedSundayId);
       expect(after).not.toBeNull();
       expect(after).not.toBe(before);
+      // The bishop is making this change, so the bishop is "you".
+      const newOwner = after === fixtures.user("bishop").id ? "you" : await nameOf(after!);
+      expect(warning).toContain(`1 open ask moves to ${newOwner}.`);
 
       const rows = await asksFor(reshiftedTalkId);
       expect(rows.filter((row) => row.completed_at === null).map((row) => row.user_id)).toEqual([

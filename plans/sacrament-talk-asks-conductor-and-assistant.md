@@ -118,7 +118,7 @@ answer resolves it for both.
 - `tests/lib/conductorHandoverSites.test.ts` — create — source-reading guard
 
 **f3 — The conductor window and the assistant**
-- `supabase/migrations/084_sunday_assistant.sql` — create — `sundays.assistant_user_id`
+- `supabase/migrations/085_sunday_assistant.sql` — create — `sundays.assistant_user_id` (renumbered from 084, which f2b took)
 - `types/database.ts`, `types/domain.ts`, `lib/calendar/queries.ts` (Sunday mapper and column list), `lib/validation/calendar.ts` — modify — `assistantUserId` (rule 9)
 - `lib/todos/askLinks.ts` — modify
   - `mirrorAsksToAssistant()`
@@ -408,10 +408,36 @@ re-ask via Send asks, a speaker change closes the ask), P4 slice `f` status.
 - Prove it can fail: temporarily remove one call and see it go red, then restore it. Record this
   in the retro (`appWideGrant`'s discipline).
 
+### Sub-slice f2b — When a talk is off (added 2026-09-26, its own commit)
+
+From the user's answers to walking scenario 079's questions: a handed-over copy should say where
+it came from, the calendar's warning should say which asks move, and a talk that is off must reach
+the speaker who was asked. The user agreed the proposal and chose **from scratch** when a talk
+comes back on.
+
+- **Migration 084** (additive): `todos.talk_off_at`, `closed_reason` values `told_not_needed` and
+  `talk_back_on`, log kinds `taken_over`, `talk_off`, `told_not_needed`, `talk_back_on`.
+- **`talkIsOff()`**: no meeting, or a slot number above the Sunday's speaking slots. Computed.
+  Send asks never offers a talk that is off (`TalkAskInput.isOff`, required).
+- **The reconcile** (`reconcileSundayAsks`, renamed from `reconcileSundayAsksToConductor`) gains
+  two rules before the handover: mark open asks on off talks and give an accepted speaker's last
+  asker a tell to-do (the person making the change when nobody asked through To Do); close stamped
+  asks on a talk back on and clear its answer. Off asks stay with their owner and are never handed
+  over. The route now reconciles the edited Sunday, **every Sunday of its month when the save
+  re-resolved it** (a Fast Sunday can move onto another Sunday), and every re-shifted Sunday.
+- **Told them**: `outcome: "told"` on the answer route, admitted only while the talk is off; it
+  clears the answer and closes every open copy. Accepted / Declined are refused while off.
+- **The warning**: `CalendarChangeWarning` carries `atRiskAssignmentIds` and `conductorReshifts`;
+  the route appends `describeAskConsequences()`'s sentences. The calendar module still reads no
+  to-dos.
+- **Walked as scenario 080.** It found nothing new; building it found that scenario 079's route
+  test had asked speakers on a Fast Sunday, which `talkIsOff()` now refuses.
+
 ### Sub-slice f3 — The conductor window and the assistant (commit 3)
 
-#### Task 14: Migration 084
-**File:** `supabase/migrations/084_sunday_assistant.sql` (create)
+#### Task 14: Migration 085
+**File:** `supabase/migrations/085_sunday_assistant.sql` (create) — renumbered from 084, which
+slice f2b took
 ```sql
 alter table sundays
   add column assistant_user_id uuid references users (id) on delete set null,
@@ -454,7 +480,7 @@ alter table sundays
 - The compact-ui preference applies: the window fits its content, with small grouped buttons.
 
 #### Task 18: Docs for f2/f3
-- SPEC: migration 084, the assistant field, the handover rule.
+- SPEC: migration 085, the assistant field, the handover rule.
 - FEATURES.
 - module-map §2.1: the user's conductor/assistant model, marked as a deliberate extension beyond the prototype, whose `ConductingModal` only substitutes.
 - `CLAUDE.md` §9: one entry:
@@ -568,7 +594,7 @@ open asks with private notes already on them.
 ## Validation Commands
 
 ```bash
-# Migrations and types (f1: 083; f3: 084)
+# Migrations and types (f1: 083; f2b: 084; f3: 085)
 npm run db:push
 npm run db:types
 
@@ -602,8 +628,8 @@ npm run manifest
   `recordRequestOutcome()` the only writer of an outcome, so the revamp changes one function.
 - **Breaking changes:** none. `ContactStagePanel`'s decline gains a required reason select;
   existing history rows keep `decline_reason` null, which renders as "Declined".
-- **Migrations:** 083 and 084 are purely additive, so neither is held back. Apply 083 before
-  deploying f1 and 084 before f3.
+- **Migrations:** 083, 084 and 085 are purely additive, so none is held back. Apply 083 before
+  deploying f1, 084 before f2b and 085 before f3.
 - **Deliberately not built:**
   - notifications to the conductor when asks arrive (the to-dos simply appear, P5's rule)
   - more than one assistant

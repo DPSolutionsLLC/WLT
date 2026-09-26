@@ -7,7 +7,9 @@ import {
   askContactLine,
   buildAskNotes,
   buildAskTitle,
+  buildTellTitle,
   countTalksNeedingAsk,
+  talkIsOff,
   talkNeedsAsk,
   talksAskState,
   type TalkAskInput,
@@ -18,7 +20,7 @@ import { REQUEST_OUTCOMES, type RequestOutcome } from "@/types/domain";
 // Sacrament slice f1: the pure rules for asking a Sunday's speakers.
 
 function talk(overrides: Partial<TalkAskInput> = {}): TalkAskInput {
-  return { hasSpeaker: true, requestOutcome: null, openAskCount: 0, ...overrides };
+  return { hasSpeaker: true, requestOutcome: null, openAskCount: 0, isOff: false, ...overrides };
 }
 
 describe("talkNeedsAsk", () => {
@@ -27,17 +29,24 @@ describe("talkNeedsAsk", () => {
   // Every combination, so a later edit to one clause cannot quietly change another row.
   it.each(
     [true, false].flatMap((hasSpeaker) =>
-      [0, 1, 2].flatMap((openAskCount) =>
-        outcomes.map((requestOutcome) => ({ hasSpeaker, openAskCount, requestOutcome })),
+      [false, true].flatMap((isOff) =>
+        [0, 1, 2].flatMap((openAskCount) =>
+          outcomes.map((requestOutcome) => ({ hasSpeaker, isOff, openAskCount, requestOutcome })),
+        ),
       ),
     ),
-  )("$hasSpeaker speaker, $openAskCount open, outcome $requestOutcome", (input) => {
+  )("$hasSpeaker speaker, off $isOff, $openAskCount open, outcome $requestOutcome", (input) => {
     const expected =
       input.hasSpeaker &&
+      !input.isOff &&
       input.openAskCount === 0 &&
       (input.requestOutcome === null || input.requestOutcome === "pending");
 
     expect(talkNeedsAsk(input)).toBe(expected);
+  });
+
+  it("does not ask anybody to give a talk that is off", () => {
+    expect(talkNeedsAsk(talk({ isOff: true }))).toBe(false);
   });
 
   it("does not ask an empty slot", () => {
@@ -274,5 +283,32 @@ describe("describeHistoryOutcome", () => {
   it("labels every other outcome as a talk too", () => {
     expect(describeHistoryOutcome({ outcome: "completed", declineReason: null })).toBe("Spoke · Talk");
     expect(describeHistoryOutcome({ outcome: null, declineReason: null })).toBe("Not recorded");
+  });
+});
+
+// Sacrament slice f2b.
+describe("talkIsOff", () => {
+  it("is off on a Sunday that holds no sacrament meeting, whatever the slot", () => {
+    for (const sundayType of ["stake_conference", "general_conference"] as const) {
+      expect(talkIsOff({ sundayType, speakingSlots: 3, slotNumber: 1 })).toBe(true);
+      expect(talkIsOff({ sundayType, speakingSlots: 3, slotNumber: null })).toBe(true);
+    }
+  });
+
+  it("is off when its slot no longer exists, and on while it does", () => {
+    expect(talkIsOff({ sundayType: "standard", speakingSlots: 2, slotNumber: 3 })).toBe(true);
+    expect(talkIsOff({ sundayType: "standard", speakingSlots: 2, slotNumber: 2 })).toBe(false);
+    // A Fast Sunday has no speaking slots.
+    expect(talkIsOff({ sundayType: "fast_sunday", speakingSlots: 0, slotNumber: 1 })).toBe(true);
+  });
+
+  it("keeps a talk with no slot number on while the meeting is", () => {
+    expect(talkIsOff({ sundayType: "standard", speakingSlots: 0, slotNumber: null })).toBe(false);
+  });
+});
+
+describe("buildTellTitle", () => {
+  it("names the speaker without a pronoun", () => {
+    expect(buildTellTitle("Maria Lopez")).toBe("Let Maria Lopez know there's no talk");
   });
 });

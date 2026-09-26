@@ -46,4 +46,20 @@ describe("describeLogEntry", () => {
       "Speaker changed — this ask is closed",
     );
   });
+
+  // Sacrament slice f2b. `taken_over` names the PREVIOUS owner, `talk_off` the Sunday in words.
+  it("says where a handed-over ask came from, and what happened when its talk went off", () => {
+    expect(describeLogEntry({ kind: "taken_over", body: "Peter Nakamura" })).toBe(
+      "Taken over from Peter Nakamura",
+    );
+    expect(describeLogEntry({ kind: "talk_off", body: "Sunday, October 11, 2026" })).toBe(
+      "No talk on Sunday, October 11, 2026 any more — let them know they're not needed",
+    );
+    expect(describeLogEntry({ kind: "told_not_needed", body: null })).toBe(
+      "Told them they're not needed",
+    );
+    expect(describeLogEntry({ kind: "talk_back_on", body: null })).toBe(
+      "The talk is back on — ask again with Send asks",
+    );
+  });
 });

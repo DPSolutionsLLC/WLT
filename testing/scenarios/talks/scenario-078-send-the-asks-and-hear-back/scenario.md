@@ -90,7 +90,7 @@ The asks, on the conductor's To Do
 - [ ] Schedule, Edit and ✕ sit in a **row under the card's text**, before Accepted and Declined, so
       the title runs across the card. Every to-do has this layout, not only asks *(added
       2026-09-25)*
-- [ ] Step 6: the ✕ is refused with **"Record their answer instead — Accepted or Declined."**, shown
+- [ ] Step 6: the ✕ is refused with **"Record their answer instead — Accepted or Declined, or Told them if the talk is off."**, shown
       beside the card, and the ask stays
 - [ ] Step 7: Maria's ask moves to **Done**, and its timeline reads **"Accepted"**
 - [ ] Step 8: Tomas's ask moves to Done, and its timeline reads **"Declined — Not available"**. The

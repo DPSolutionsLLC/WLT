@@ -37,10 +37,12 @@ export const recordOutcomeSchema = z
   .superRefine(requireReasonOnDecline);
 export type RecordOutcomeInput = z.infer<typeof recordOutcomeSchema>;
 
-// POST /api/todos/[id]/answer.
+// POST /api/todos/[id]/answer. `told` is "Told them": the talk is off and the owner has let the
+// speaker know they are not needed (Sacrament slice f2b). The route admits it only while the talk
+// is off, and admits Accepted / Declined only while it is on.
 export const answerAskSchema = z
   .object({
-    outcome: z.enum(["accepted", "declined"]),
+    outcome: z.enum(["accepted", "declined", "told"]),
     ...answerFields,
   })
   .superRefine(requireReasonOnDecline);

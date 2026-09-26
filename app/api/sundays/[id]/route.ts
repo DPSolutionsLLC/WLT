@@ -6,9 +6,10 @@ import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { getSunday, readConductorName, updateSunday } from "@/lib/calendar/queries";
 import { notifyOtherBishopric } from "@/lib/notifications/notifyOtherBishopric";
+import { describeAskConsequences } from "@/lib/sacrament/askWarnings";
 import {
-  reconcileSundayAsksToConductor,
-  type HandoverResult,
+  reconcileSundayAsks,
+  type ReconcileResult,
 } from "@/lib/sacrament/conductorHandover";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { AskLinkWriteError } from "@/lib/todos/askLinks";
@@ -18,8 +19,8 @@ import { updateSundaySchema } from "@/lib/validation/calendar";
 const sundayIdSchema = z.uuid("That Sunday id is not valid.");
 
 const NOT_IN_WARD = "That Sunday is not on your ward's calendar.";
-const ASKS_NOT_MOVED =
-  "The conductor was changed, but their open asks were not all moved. Please try again.";
+const ASKS_NOT_UPDATED =
+  "The Sunday was saved, but its talk asks were not all brought up to date. Please try again.";
 
 // `params` is a Promise in Next 16 and the props are typed explicitly rather than with the
 // generated PageProps/RouteContext helper, which only exists after a build
@@ -67,16 +68,30 @@ export async function PATCH(
     }
 
     if (result.status === "needs_confirmation") {
+      // The calendar's warning, plus what the change will do to TALK ASKS (Sacrament slice f2b):
+      // who was asked to speak on a talk this switches off and who will be told to let them know,
+      // and which open asks move to a new conductor. Appended to the server's own sentence, which
+      // the dialog renders verbatim.
+      const asksSentence = await describeAskConsequences({
+        wardId: user.wardId,
+        atRiskAssignmentIds: result.warning.atRiskAssignmentIds,
+        conductorReshifts: result.warning.conductorReshifts,
+        actingUserId: user.id,
+        client: supabase,
+      });
+      const warning =
+        asksSentence === ""
+          ? result.warning
+          : { ...result.warning, message: `${result.warning.message} ${asksSentence}` };
+
       // Both keys on purpose: `error` so the generic client error path shows something useful,
       // `warning` so calendar-b's dialog can render the specifics and word itself from `reason`.
-      return NextResponse.json(
-        { error: result.warning.message, warning: result.warning },
-        { status: 409 },
-      );
+      return NextResponse.json({ error: warning.message, warning }, { status: 409 });
     }
 
     const { assignmentsReverted } = result;
-    const { conductingReshiftCount, orgConductingReshiftCount, reshiftedSundayIds } = result;
+    const { conductingReshiftCount, orgConductingReshiftCount } = result;
+    const { reshiftedSundayIds, resolvedMonthSundayIds } = result;
     const changedFields = Object.keys(changes);
 
     // THE DAY'S SHAPE CHANGED, so "the topics are decided" is no longer a true statement about it
@@ -101,25 +116,27 @@ export async function PATCH(
         : ((await unfinalizeTopicsIfNeeded(user.wardId, sundayId, supabase)) ??
           result.sunday);
 
-    // THE WORK FOLLOWS THE CONDUCTOR (Sacrament slice f2). This Sunday and every later one the
-    // edit re-shifted: their open talk asks move to whoever conducts now. It is a reconcile, run on
-    // every save rather than only when the conductor visibly changed, so a retry after a
-    // half-finished move repairs it (lib/sacrament/conductorHandover.ts). On a Sunday with no stray
-    // ask it is one read.
-    let handover: HandoverResult = { handedOverSundayIds: [], createdIds: [], closedIds: [] };
+    // THE TALK ASKS FOLLOW THE CALENDAR (Sacrament slices f2 and f2b). This Sunday, every Sunday of
+    // its month when the save re-resolved it (a Fast Sunday can move ONTO another Sunday), and every
+    // later Sunday the edit re-shifted: an ask on a talk now off is marked for its owner to tell the
+    // speaker, one on a talk back on is closed to ask afresh, and the rest follow whoever conducts
+    // now. It is a reconcile, run on every save rather than only when something visibly changed,
+    // so a retry after a half-finished run repairs it (lib/sacrament/conductorHandover.ts). On a
+    // Sunday with no open ask and no accepted speaker it is two reads.
+    let reconciled: ReconcileResult | null = null;
     // Set only when the move stopped part-way: the to-dos written before it stopped, new copies
     // and closed old ones together, which is how the error carries them.
     let writtenBeforeFailure: readonly string[] | null = null;
     try {
-      handover = await reconcileSundayAsksToConductor({
+      reconciled = await reconcileSundayAsks({
         wardId: user.wardId,
-        sundayIds: [sundayId, ...reshiftedSundayIds],
+        sundayIds: [sundayId, ...resolvedMonthSundayIds, ...reshiftedSundayIds],
         actingUserId: user.id,
         client: supabase,
       });
     } catch (error) {
       if (!(error instanceof AskLinkWriteError)) throw error;
-      console.error("PATCH /api/sundays/[id] moved only some open asks", {
+      console.error("PATCH /api/sundays/[id] brought only some talk asks up to date", {
         wardId: user.wardId,
         sundayId,
         cause: error.cause,
@@ -149,26 +166,42 @@ export async function PATCH(
           // row is the only durable record of how far one edit reached.
           conductingReshiftCount,
           orgConductingReshiftCount,
-          // Present only when asks moved, so an ordinary edit's row is unchanged.
+          // Each present only when something was written, so an ordinary edit's row is unchanged.
+          // A run that stopped part-way reports the to-dos it did write under `asksHandedOver`.
           ...(writtenBeforeFailure !== null
             ? { asksHandedOver: { complete: false, todoIdsWritten: writtenBeforeFailure } }
-            : handover.createdIds.length + handover.closedIds.length > 0
-              ? {
-                  asksHandedOver: {
-                    complete: true,
-                    sundayIds: handover.handedOverSundayIds,
-                    createdTodoIds: handover.createdIds,
-                    closedTodoIds: handover.closedIds,
-                  },
-                }
-              : {}),
+            : {}),
+          ...(reconciled !== null && reconciled.createdIds.length + reconciled.closedIds.length > 0
+            ? {
+                asksHandedOver: {
+                  complete: true,
+                  sundayIds: reconciled.handedOverSundayIds,
+                  createdTodoIds: reconciled.createdIds,
+                  closedTodoIds: reconciled.closedIds,
+                },
+              }
+            : {}),
+          ...(reconciled !== null &&
+          reconciled.talkOffTodoIds.length +
+            reconciled.tellTodoIds.length +
+            reconciled.backOnTodoIds.length >
+            0
+            ? {
+                talkAsks: {
+                  markedOffTodoIds: reconciled.talkOffTodoIds,
+                  tellTodoIds: reconciled.tellTodoIds,
+                  backOnTodoIds: reconciled.backOnTodoIds,
+                  answersClearedAssignmentIds: reconciled.answersClearedAssignmentIds,
+                },
+              }
+            : {}),
         },
       },
       supabase,
     );
 
     if (writtenBeforeFailure !== null) {
-      return NextResponse.json({ error: ASKS_NOT_MOVED }, { status: 500 });
+      return NextResponse.json({ error: ASKS_NOT_UPDATED }, { status: 500 });
     }
 
     // Both conducting edits and rotation edits notify the other two bishopric members

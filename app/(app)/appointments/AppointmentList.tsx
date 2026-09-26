@@ -243,6 +243,12 @@ export function AppointmentList({
     );
   }
 
+  function toldThem(source: MyAppointmentSource) {
+    void run(source.id, () =>
+      sendTodoRequest(`/api/todos/${source.id}/answer`, "POST", { outcome: "told" }),
+    );
+  }
+
   function acceptAsk(source: MyAppointmentSource) {
     void run(source.id, () =>
       sendTodoRequest(`/api/todos/${source.id}/answer`, "POST", { outcome: "accepted" }),
@@ -287,7 +293,19 @@ export function AppointmentList({
               {source.kind === "todo" && source.ask !== null && source.ask.isOpen ? (
                 <AskDetails ask={source.ask} />
               ) : null}
-              {source.kind === "todo" && source.ask?.isOpen === true && canAnswerAsks ? (
+              {source.kind === "todo" &&
+              source.ask?.isOpen === true &&
+              source.ask.talkOff &&
+              canAnswerAsks ? (
+                <span className="flex flex-wrap items-center gap-1">
+                  <SmallButton
+                    label="Told them"
+                    accessibleName={`Told them they're not needed — ${source.title}`}
+                    onClick={() => toldThem(source)}
+                    disabled={busyId !== null}
+                  />
+                </span>
+              ) : source.kind === "todo" && source.ask?.isOpen === true && canAnswerAsks ? (
                 <span className="flex flex-wrap items-center gap-1">
                   <SmallButton
                     label="Accepted"

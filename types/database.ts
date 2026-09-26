@@ -3095,6 +3095,7 @@ export type Database = {
           scheduled_with_member_id: string | null
           source_completed_at: string | null
           tag: string | null
+          talk_off_at: string | null
           title: string
           updated_at: string
           user_id: string
@@ -3115,6 +3116,7 @@ export type Database = {
           scheduled_with_member_id?: string | null
           source_completed_at?: string | null
           tag?: string | null
+          talk_off_at?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -3135,6 +3137,7 @@ export type Database = {
           scheduled_with_member_id?: string | null
           source_completed_at?: string | null
           tag?: string | null
+          talk_off_at?: string | null
           title?: string
           updated_at?: string
           user_id?: string
