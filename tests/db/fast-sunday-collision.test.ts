@@ -106,7 +106,10 @@ describe("fast Sunday collision", () => {
     expect(onDate(after, "2026-03-08").speakingSlots).toBe(3);
   });
 
-  it("applies on confirm and reverts the assignment rather than deleting it", async () => {
+  // INVERTED by Sacrament slice f2c (the user's decision, 2026-09-26). A talk that loses its slot
+  // used to go back to `plan` with its speaker; it is now CANCELLED — kept, whole, as a record, and
+  // off the Sunday. What the old rule protected is kept: nothing is deleted.
+  it("applies on confirm and cancels the assignment rather than deleting it", async () => {
     const result = await updateSunday(
       wardId,
       onDate(march, "2026-03-01").id,
@@ -117,25 +120,27 @@ describe("fast Sunday collision", () => {
 
     expect(result?.status).toBe("applied");
     if (result?.status !== "applied") return;
-    expect(result.assignmentsReverted).toBe(1);
+    expect(result.workCancelled.assignments).toBe(1);
 
     const after = await readMonth("2026-03");
     expect(onDate(after, "2026-03-01").type).toBe("stake_conference");
     expect(onDate(after, "2026-03-08").type).toBe("fast_sunday");
     expect(onDate(after, "2026-03-08").speakingSlots).toBe(0);
 
-    // Still there. Reverted to the first pipeline stage, never deleted — the planning work behind
-    // an assignment is somebody's (03-calendar.md §Pitfall 5).
+    // Still there, stage untouched, marked cancelled — the planning work behind an assignment is
+    // somebody's (03-calendar.md §Pitfall 5), and the Sunday it moved onto has no slot for it.
     const { data, error } = await bishop
       .from("assignments")
-      .select("id, pipeline_stage")
+      .select("id, pipeline_stage, cancelled_at, cancelled_reason")
       .eq("ward_id", wardId)
       .eq("id", assignmentId)
       .maybeSingle();
 
     expect(error).toBeNull();
     expect(data?.id).toBe(assignmentId);
-    expect(data?.pipeline_stage).toBe("plan");
+    expect(data?.pipeline_stage).toBe("approve");
+    expect(data?.cancelled_at).not.toBeNull();
+    expect(data?.cancelled_reason).toBe("fast_sunday");
   });
 
   it("does not block when the target Sunday holds no assignments", async () => {
@@ -328,7 +333,7 @@ describe("fast Sunday collision", () => {
       expect(onDate(await readMonth("2026-06"), "2026-06-21").type).toBe("standard");
     });
 
-    it("reverts those speakers to planning on confirm, and never deletes them", async () => {
+    it("cancels those speakers on confirm, and never deletes them", async () => {
       const target = onDate(june, "2026-06-21");
 
       const result = await updateSunday(
@@ -341,16 +346,17 @@ describe("fast Sunday collision", () => {
 
       expect(result?.status).toBe("applied");
       if (result?.status !== "applied") return;
-      expect(result.assignmentsReverted).toBe(2);
+      expect(result.workCancelled.assignments).toBe(2);
 
       const { data } = await bishop
         .from("assignments")
-        .select("id, pipeline_stage")
+        .select("id, pipeline_stage, cancelled_reason")
         .eq("ward_id", wardId)
         .eq("sunday_id", target.id);
 
       expect(data).toHaveLength(2);
-      expect(data?.every((row) => row.pipeline_stage === "plan")).toBe(true);
+      expect(data?.every((row) => row.pipeline_stage === "confirm")).toBe(true);
+      expect(data?.every((row) => row.cancelled_reason === "no_meeting")).toBe(true);
     });
 
     it("warns before cutting speaking slots below the speakers already in them", async () => {
@@ -374,7 +380,7 @@ describe("fast Sunday collision", () => {
       expect(result.warning.assignmentCount).toBe(1);
     });
 
-    it("reverts only the speakers that no longer fit", async () => {
+    it("cancels only the speakers that no longer fit", async () => {
       const target = onDate(june, "2026-06-28");
 
       const result = await updateSunday(
@@ -387,17 +393,18 @@ describe("fast Sunday collision", () => {
 
       expect(result?.status).toBe("applied");
       if (result?.status !== "applied") return;
-      expect(result.assignmentsReverted).toBe(1);
+      expect(result.workCancelled.assignments).toBe(1);
 
       const { data } = await bishop
         .from("assignments")
-        .select("slot_number, pipeline_stage")
+        .select("slot_number, pipeline_stage, cancelled_reason")
         .eq("ward_id", wardId)
         .eq("sunday_id", target.id)
         .order("slot_number");
 
-      expect(data?.[0].pipeline_stage).toBe("confirm");
-      expect(data?.[1].pipeline_stage).toBe("plan");
+      expect(data?.[0].cancelled_reason).toBeNull();
+      expect(data?.[1].cancelled_reason).toBe("slot_removed");
+      expect(data?.[1].pipeline_stage).toBe("confirm");
     });
 
     it("does not warn on a change that voids nothing", async () => {
@@ -441,7 +448,7 @@ describe("fast Sunday collision", () => {
       expect(result.warning.assignmentCount).toBe(1);
     });
 
-    it("reverts for a ward_secretary too, not only for a bishop", async () => {
+    it("cancels for a ward_secretary too, not only for a bishop", async () => {
       const target = onDate(june, "2026-06-07");
 
       const result = await updateSunday(
@@ -454,16 +461,16 @@ describe("fast Sunday collision", () => {
 
       expect(result?.status).toBe("applied");
       if (result?.status !== "applied") return;
-      expect(result.assignmentsReverted).toBe(1);
+      expect(result.workCancelled.assignments).toBe(1);
 
       const { data } = await bishop
         .from("assignments")
-        .select("pipeline_stage")
+        .select("cancelled_reason")
         .eq("ward_id", wardId)
         .eq("sunday_id", target.id)
         .single();
 
-      expect(data?.pipeline_stage).toBe("plan");
+      expect(data?.cancelled_reason).toBe("no_meeting");
     });
   });
 });

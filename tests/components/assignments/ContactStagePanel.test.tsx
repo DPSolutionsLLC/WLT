@@ -60,6 +60,8 @@ function assignment(overrides: Partial<Assignment> = {}): Assignment {
     completedAt: null,
     contactWaivedAt: null,
     contactWaivedBy: null,
+    cancelledAt: null,
+    cancelledReason: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };

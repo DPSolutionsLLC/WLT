@@ -7,6 +7,8 @@ import {
   askContactLine,
   buildAskNotes,
   buildAskTitle,
+  buildMusicTellTitle,
+  buildPrayerTellTitle,
   buildTellTitle,
   countTalksNeedingAsk,
   talkIsOff,
@@ -309,6 +311,13 @@ describe("talkIsOff", () => {
 
 describe("buildTellTitle", () => {
   it("names the speaker without a pronoun", () => {
-    expect(buildTellTitle("Maria Lopez")).toBe("Let Maria Lopez know there's no talk");
+    expect(buildTellTitle("Maria Lopez")).toBe("Let Maria Lopez know the talk is cancelled");
+    expect(buildPrayerTellTitle("Ana Silva")).toBe("Let Ana Silva know the prayer is cancelled");
+    expect(buildMusicTellTitle("The Primary choir")).toBe(
+      "Let The Primary choir know the musical number is cancelled",
+    );
+    expect(buildMusicTellTitle(null)).toBe(
+      "Let the performer know the musical number is cancelled",
+    );
   });
 });

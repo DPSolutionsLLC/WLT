@@ -45,6 +45,7 @@ import {
   ROTATION_POSITIONS,
   SUNDAY_TYPES,
   type AssignmentType,
+  type CancelledReason,
   type OrganizationType,
   type ReferencesDecision,
   type RotationCadence,
@@ -197,13 +198,18 @@ export type CalendarChangeWarning = {
   // does not read to-dos; PATCH /api/sundays/[id] turns these into sentences appended to `message`.
   atRiskAssignmentIds: string[];
   conductorReshifts: { sundayId: string; toUserId: string | null }[];
+  // Hymn choices and the musical number that a lost MEETING cancels (Sacrament slice f2c). Zero for
+  // every other reason: a Fast Sunday still sings.
+  musicCount: number;
 };
 
 export type UpdateSundayResult =
   | {
       status: "applied";
       sunday: Sunday;
-      assignmentsReverted: number;
+      // What this change CANCELLED (Sacrament slice f2c) — talks, prayers, and hymn choices plus the
+      // musical number. It used to report talks sent back to planning.
+      workCancelled: CancelledWork;
       conductingReshiftCount: number;
       orgConductingReshiftCount: number;
       // The LATER Sundays whose conductor this edit re-shifted. Their open talk asks must follow
@@ -832,7 +838,7 @@ async function resolveMonth(
   supabase: SupabaseClient<Database>,
   wardId: string,
   anyDayInMonth: DateOnly,
-): Promise<{ assignmentsReverted: number }> {
+): Promise<void> {
   const start = monthStart(anyDayInMonth);
   const monthSundays = await listSundays(
     wardId,
@@ -863,14 +869,10 @@ async function resolveMonth(
 
   if (data === null || typeof data !== "object" || Array.isArray(data)) {
     throw new Error(
-      "apply_fast_sunday returned something other than an object. Migration 023 and " +
+      "apply_fast_sunday returned something other than an object. Migration 085 and " +
         "lib/calendar/queries.ts have drifted.",
     );
   }
-
-  const reverted = (data as Record<string, unknown>).assignments_reverted;
-
-  return { assignmentsReverted: typeof reverted === "number" ? reverted : 0 };
 }
 
 // Only rows whose conducting_user_id is still null. An override a human typed is never
@@ -1384,14 +1386,22 @@ async function countWorkAtRisk(
   wardId: string,
   sundayId: string,
   aboveSlot: number | null,
-): Promise<{ assignmentCount: number; prayerCount: number; assignmentIds: string[] }> {
+  meetingLost: boolean,
+): Promise<{
+  assignmentCount: number;
+  prayerCount: number;
+  musicCount: number;
+  assignmentIds: string[];
+}> {
   // The ids, not only a count: the warning also names the speakers who were ASKED to give these
-  // talks (Sacrament slice f2b), and the route needs the talks to find them.
+  // talks (Sacrament slice f2b), and the route needs the talks to find them. Only LIVE rows: a
+  // cancelled one is a record, already off the Sunday (f2c).
   let assignments = service
     .from("assignments")
     .select("id")
     .eq("ward_id", wardId)
-    .eq("sunday_id", sundayId);
+    .eq("sunday_id", sundayId)
+    .is("cancelled_at", null);
 
   if (aboveSlot !== null) {
     assignments = assignments.gt("slot_number", aboveSlot);
@@ -1413,7 +1423,8 @@ async function countWorkAtRisk(
     .from("prayer_assignments")
     .select("id", { count: "exact", head: true })
     .eq("ward_id", wardId)
-    .eq("sunday_id", sundayId);
+    .eq("sunday_id", sundayId)
+    .is("cancelled_at", null);
 
   if (prayerError) {
     console.error(`Could not count the Sunday's prayers — ${prayerError.message}`, {
@@ -1423,25 +1434,72 @@ async function countWorkAtRisk(
     throw new Error(`Could not check that Sunday's prayers: ${prayerError.message}`);
   }
 
+  // Music is at risk only when the meeting itself goes: a Fast Sunday still sings.
+  let musicCount = 0;
+  if (meetingLost) {
+    const [hymns, numbers] = await Promise.all([
+      service
+        .from("hymn_selections")
+        .select("id", { count: "exact", head: true })
+        .eq("ward_id", wardId)
+        .eq("sunday_id", sundayId)
+        .is("cancelled_at", null),
+      service
+        .from("musical_numbers")
+        .select("id", { count: "exact", head: true })
+        .eq("ward_id", wardId)
+        .eq("sunday_id", sundayId)
+        .is("cancelled_at", null),
+    ]);
+    const musicError = hymns.error ?? numbers.error;
+    if (musicError) {
+      console.error(`Could not count the Sunday's music — ${musicError.message}`, {
+        wardId,
+        sundayId,
+      });
+      throw new Error(`Could not check that Sunday's music: ${musicError.message}`);
+    }
+    musicCount = (hymns.count ?? 0) + (numbers.count ?? 0);
+  }
+
   const assignmentIds = (assignmentRows ?? []).map((row) => row.id);
-  return { assignmentCount: assignmentIds.length, prayerCount: prayerCount ?? 0, assignmentIds };
+  return {
+    assignmentCount: assignmentIds.length,
+    prayerCount: prayerCount ?? 0,
+    musicCount,
+    assignmentIds,
+  };
 }
 
 function isUserId(value: string | null): value is string {
   return value !== null;
 }
 
-// What a planner is told when a calendar change voided their work. Worded from the REASON rather
+// The reason a calendar change gives, as the reason a cancelled row records (migration 085).
+function toCancelledReason(reason: CalendarChangeReason): CancelledReason {
+  switch (reason) {
+    case "meeting_cancelled":
+      return "no_meeting";
+    case "fast_sunday_set":
+    case "fast_sunday_moved":
+      return "fast_sunday";
+    case "slots_reduced":
+    case "conducting_reshuffled":
+      return "slot_removed";
+  }
+}
+
+// What a planner is told when a calendar change cancelled their work. Worded from the REASON rather
 // than assembled from the counts, exactly as buildWarningMessage is: the two sentences a user
 // reads about one event have to agree, and rebuilding either from parts is the drift roster-c
 // shipped twice.
-function buildRevertMessage(
+function buildCancelMessage(
   reason: CalendarChangeReason,
   date: DateOnly,
   count: number,
 ): string {
   const speakers = `${count} speaking ${count === 1 ? "assignment" : "assignments"}`;
-  const them = count === 1 ? "It is" : "They are";
+  const them = count === 1 ? "It stays" : "They stay";
 
   const because =
     reason === "meeting_cancelled"
@@ -1450,13 +1508,15 @@ function buildRevertMessage(
         ? `because ${date} became Fast Sunday`
         : `because ${date} now has fewer speaking slots`;
 
-  return `${speakers} on ${date} went back to planning ${because}. ${them} not deleted, and ${
+  return `${speakers} on ${date} ${count === 1 ? "was" : "were"} cancelled ${because}. ${them} on record as cancelled, and ${
     count === 1 ? "it does" : "they do"
   } not count as a talk that was given.`;
 }
 
 // calendar-b left this gap open: the revert path voided somebody's planning work and told nobody,
-// because no trigger key existed for it. Migration 025 adds `assignment_reverted`.
+// because no trigger key existed for it. Migration 025 adds `assignment_reverted`. The KEY is kept
+// though the work is now cancelled rather than reverted (Sacrament slice f2c): renaming it would
+// quietly reset everybody's opt-out for it.
 //
 // Addressed to the PLANNERS when the rows record one, falling back to the trigger's own role list
 // — bishop and counselor — when planned_by is null, which is the case for every assignment seeded
@@ -1464,7 +1524,7 @@ function buildRevertMessage(
 //
 // emitNotification never throws (it is one of exactly two sanctioned exceptions to CLAUDE.md
 // rule 7), so a notification failure cannot fail a calendar change that has already committed.
-async function notifyAssignmentsReverted(
+async function notifyAssignmentsCancelled(
   wardId: string,
   date: DateOnly,
   count: number,
@@ -1476,8 +1536,8 @@ async function notifyAssignmentsReverted(
     {
       wardId,
       triggerKey: "assignment_reverted",
-      title: "Speaking assignments went back to planning",
-      body: buildRevertMessage(reason, date, count),
+      title: "Speaking assignments were cancelled",
+      body: buildCancelMessage(reason, date, count),
       // Omitted rather than passed as an empty array: emitNotification resolves the trigger's
       // default roles only when recipientUserIds is undefined, and an empty array would address
       // the notification to nobody at all.
@@ -1487,119 +1547,174 @@ async function notifyAssignmentsReverted(
   );
 }
 
-// Reverted to 'plan', NEVER deleted. The planning work behind an assignment is somebody's
-// (03-calendar.md §Pitfall 5), and a talk that did not happen must not read as one that did.
+export type CancelledWork = { assignments: number; prayers: number; music: number };
+
+// A SUNDAY'S LOST WORK IS CANCELLED, NEVER DELETED AND NEVER SENT BACK TO PLANNING — Sacrament slice
+// f2c, REVERSING what this function did before (it set lost talks back to `plan`, keeping the
+// speaker). The user's decision, 2026-09-26: once a Sunday is marked as not holding sacrament
+// meeting, all of its work is released; if it ever holds one again, planning starts over.
 //
-// Phase 4 MUST count speaker history from `pipeline_stage = 'complete'`, never from a row's mere
-// existence — that is what makes a voided assignment genuinely not count toward any rotation.
-// `counts_toward_rotation` is a different flag entirely: it says whether an assignment TYPE counts
-// (a high council speaker does not count toward the ward's member rotation). Reusing it to mean
-// "cancelled" would be a bug nobody could see. Recorded in plans/04-talks-pipeline.md.
+// What the old rule protected is kept: "the planning work behind an assignment is somebody's"
+// (03-calendar.md §Pitfall 5) — so every row stays, with every column it had, stamped
+// `cancelled_at` + `cancelled_reason`. Every reader skips a cancelled row, which is what empties
+// the Sunday. Only its PLACE is given up.
 //
-// Runs BEFORE apply_fast_sunday(), so that function's own revert finds nothing left to do and the
-// count reported to the user comes from exactly one place.
-async function revertAssignmentsToPlan(
+//   - talks: those past `aboveSlot`, or all of them; for every reason;
+//   - prayers and music: only when the MEETING is lost. A Fast Sunday still has its prayers and
+//     its hymns; only its speakers go (calendar-a Decision 4);
+//   - the Sunday's topics and references decisions: cleared when every talk goes, because the
+//     "decided" they record was about talks that no longer exist.
+//
+// Telling people is NOT done here. The speakers' history and the "Let ___ know it's cancelled"
+// to-dos are written by the save-time reconcile (lib/sacrament/conductorHandover.ts), which asks
+// of the state what is still missing, so a retry finishes a half-done run. This function's writes
+// are conditional on `cancelled_at is null` for the same reason.
+//
+// Runs BEFORE apply_fast_sunday(), which since migration 085 never touches assignments.
+//
+// `counts_toward_rotation` is NOT a cancelled flag and must never be used as one (04-talks-pipeline
+// Rule 2): it says whether an assignment TYPE counts.
+async function cancelSundayWork(
   service: SupabaseClient<Database>,
   wardId: string,
   sunday: Sunday,
   aboveSlot: number | null,
   reason: CalendarChangeReason,
-): Promise<number> {
-  // The planners are read BEFORE the update, because the update is what makes these rows
-  // uninteresting: afterwards they are ordinary plan-stage assignments and nothing distinguishes
-  // the ones this operation touched. Notifying the PLANNER is what 03-calendar.md asks for — the
-  // person whose work was voided, not whoever happens to hold a role.
-  let affected = service
+): Promise<CancelledWork> {
+  const cancelled = {
+    cancelled_at: new Date().toISOString(),
+    cancelled_reason: toCancelledReason(reason),
+  };
+  const detail = { wardId, sundayId: sunday.id, reason };
+
+  // The planners are read BEFORE the update, because the update is what takes these rows off the
+  // Sunday. Notifying the PLANNER is what 03-calendar.md asks for — the person whose work was
+  // cancelled, not whoever happens to hold a role.
+  let talks = service
     .from("assignments")
-    .select("id, planned_by")
+    .update(cancelled)
     .eq("ward_id", wardId)
     .eq("sunday_id", sunday.id)
-    .neq("pipeline_stage", "plan");
+    .is("cancelled_at", null);
+  if (aboveSlot !== null) talks = talks.gt("slot_number", aboveSlot);
 
-  if (aboveSlot !== null) {
-    affected = affected.gt("slot_number", aboveSlot);
+  const { data: talkRows, error: talkError } = await talks.select("id, planned_by");
+  if (talkError) {
+    console.error(`Could not cancel the Sunday's talks — ${talkError.message}`, detail);
+    throw new Error(`Could not cancel those talks: ${talkError.message}`);
+  }
+  const assignments = (talkRows ?? []).length;
+
+  let prayers = 0;
+  let music = 0;
+  if (reason === "meeting_cancelled") {
+    const [prayerResult, hymnResult, numberResult] = await Promise.all([
+      service
+        .from("prayer_assignments")
+        .update(cancelled)
+        .eq("ward_id", wardId)
+        .eq("sunday_id", sunday.id)
+        .is("cancelled_at", null)
+        .select("id"),
+      service
+        .from("hymn_selections")
+        .update(cancelled)
+        .eq("ward_id", wardId)
+        .eq("sunday_id", sunday.id)
+        .is("cancelled_at", null)
+        .select("id"),
+      service
+        .from("musical_numbers")
+        .update(cancelled)
+        .eq("ward_id", wardId)
+        .eq("sunday_id", sunday.id)
+        .is("cancelled_at", null)
+        .select("id"),
+    ]);
+    const error = prayerResult.error ?? hymnResult.error ?? numberResult.error;
+    if (error) {
+      console.error(`Could not cancel the Sunday's prayers and music — ${error.message}`, detail);
+      throw new Error(`Could not cancel that Sunday's prayers and music: ${error.message}`);
+    }
+    prayers = (prayerResult.data ?? []).length;
+    music = (hymnResult.data ?? []).length + (numberResult.data ?? []).length;
   }
 
-  const { data: before, error: beforeError } = await affected;
-
-  if (beforeError) {
-    console.error(`Could not read the Sunday's assignments — ${beforeError.message}`, {
-      wardId,
-      sundayId: sunday.id,
-    });
-    throw new Error(
-      `Could not check those speakers before reverting them: ${beforeError.message}`,
-    );
+  // Every talk went, so the "decided" stamps describe nothing. A slot cut keeps the rest, and the
+  // route's own unfinalizeTopicsIfNeeded() already handles a changed slot count.
+  if (aboveSlot === null) {
+    const { error } = await service
+      .from("sundays")
+      .update({
+        topics_finalized_at: null,
+        references_finalized_at: null,
+        references_skipped_at: null,
+      })
+      .eq("ward_id", wardId)
+      .eq("id", sunday.id);
+    if (error) {
+      console.error(`Could not clear the Sunday's decisions — ${error.message}`, detail);
+      throw new Error(`Could not clear that Sunday's topics and references: ${error.message}`);
+    }
   }
 
-  let query = service
-    .from("assignments")
-    .update({ pipeline_stage: "plan" })
-    .eq("ward_id", wardId)
-    .eq("sunday_id", sunday.id)
-    .neq("pipeline_stage", "plan");
-
-  if (aboveSlot !== null) {
-    query = query.gt("slot_number", aboveSlot);
-  }
-
-  const { data, error } = await query.select("id");
-
-  if (error) {
-    console.error(`Could not revert the Sunday's assignments — ${error.message}`, {
-      wardId,
-      sundayId: sunday.id,
-    });
-    throw new Error(`Could not return those speakers to planning: ${error.message}`);
-  }
-
-  const reverted = (data ?? []).length;
-
-  if (reverted > 0) {
-    await notifyAssignmentsReverted(
+  if (assignments > 0) {
+    await notifyAssignmentsCancelled(
       wardId,
       sunday.date,
-      reverted,
+      assignments,
       reason,
-      [...new Set((before ?? []).map((row) => row.planned_by).filter(isUserId))],
+      [...new Set((talkRows ?? []).map((row) => row.planned_by).filter(isUserId))],
       service,
     );
   }
 
-  return reverted;
+  return { assignments, prayers, music };
 }
 
-// Prayers are reported for context and NEVER block. A Sunday with no speakers still has an
-// invocation and a benediction, so prayers are not orphaned by speaking_slots = 0 — speakers are
-// (calendar-a Decision 4). A CANCELLED meeting is the one case where prayers genuinely are
-// affected, and the sentence says so rather than claiming they are safe.
+// What will be CANCELLED, said before it happens (Sacrament slice f2c). Speakers are cancelled for
+// every reason. Prayers and music are cancelled only when the meeting is lost; on a Fast Sunday or
+// a slot cut they are untouched, and the sentence says so rather than leaving it to be guessed.
 function buildWarningMessage(
   reason: CalendarChangeReason,
   date: DateOnly,
   assignmentCount: number,
   prayerCount: number,
+  musicCount: number,
   reshift: { sacrament: number; organizations: number },
 ): string {
   const speakers = `${assignmentCount} speaking ${
     assignmentCount === 1 ? "assignment" : "assignments"
   }`;
-  const them = assignmentCount === 1 ? "it" : "them";
 
   const prayerNoun = `${prayerCount} prayer ${
     prayerCount === 1 ? "assignment" : "assignments"
   }`;
+  const musicNoun = `${musicCount} music ${musicCount === 1 ? "choice" : "choices"}`;
 
-  const prayers =
-    prayerCount === 0
+  const cancelsTalks =
+    assignmentCount === 0
       ? ""
-      : reason === "meeting_cancelled"
-        ? ` Its ${prayerNoun} will need rescheduling too.`
-        : ` Its ${prayerNoun} will be left alone.`;
+      : ` Confirming cancels ${assignmentCount === 1 ? "it" : "them"}: ${
+          assignmentCount === 1 ? "it stays" : "they stay"
+        } on record as cancelled, nothing is deleted, and ${
+          assignmentCount === 1 ? "it does" : "they do"
+        } not count as a talk that was given.`;
 
-  const ending =
-    `Confirming returns ${them} to the planning stage — nothing is deleted, and ` +
-    `${assignmentCount === 1 ? "it does" : "they do"} not count as a talk that was ` +
-    `given.${prayers}`;
+  const others =
+    reason === "meeting_cancelled"
+      ? [prayerCount > 0 ? prayerNoun : null, musicCount > 0 ? musicNoun : null].filter(
+          (part): part is string => part !== null,
+        )
+      : [];
+  const cancelsOthers =
+    others.length === 0 ? "" : ` Its ${others.join(" and ")} will be cancelled too.`;
+  const keepsPrayers =
+    reason !== "meeting_cancelled" && prayerCount > 0
+      ? ` Its ${prayerNoun} will be left alone.`
+      : "";
+
+  const ending = `${cancelsTalks}${cancelsOthers}${keepsPrayers}`;
 
   // APPENDED to whichever warning is shown, never queued as a second one. Confirming applies the
   // whole patch, so a consequence the user was not told about would break that promise — and the
@@ -1608,13 +1723,15 @@ function buildWarningMessage(
 
   switch (reason) {
     case "fast_sunday_moved":
-      return `Fast Sunday would move to ${date}, which already has ${speakers}. ${ending}${reshuffle}`;
+      return `Fast Sunday would move to ${date}, which already has ${speakers}.${ending}${reshuffle}`;
     case "meeting_cancelled":
-      return `${date} would no longer hold a sacrament meeting, and it already has ${speakers}. ${ending}${reshuffle}`;
+      return assignmentCount === 0
+        ? `${date} would no longer hold a sacrament meeting.${ending}${reshuffle}`
+        : `${date} would no longer hold a sacrament meeting, and it already has ${speakers}.${ending}${reshuffle}`;
     case "fast_sunday_set":
-      return `${date} would become Fast Sunday, which has no speakers, and it already has ${speakers}. ${ending}${reshuffle}`;
+      return `${date} would become Fast Sunday, which has no speakers, and it already has ${speakers}.${ending}${reshuffle}`;
     case "slots_reduced":
-      return `${date} would have fewer speaking slots than the ${speakers} already in them. ${ending}${reshuffle}`;
+      return `${date} would have fewer speaking slots than the ${speakers} already in them.${ending}${reshuffle}`;
     // The re-shift is the ONLY consequence: nobody's speaking assignment is at risk, so there is
     // no `ending` to append to and the sentence stands on its own.
     case "conducting_reshuffled":
@@ -2027,17 +2144,24 @@ export async function updateSunday(
   // Counted through the service client so a ward_secretary sees the same warning a bishop does.
   const counted = [];
   for (const risk of atRisk) {
+    const meetingLost = risk.reason === "meeting_cancelled";
     const counts = await countWorkAtRisk(
       service,
       wardId,
       risk.sunday.id,
       risk.aboveSlot,
+      meetingLost,
     );
-    if (counts.assignmentCount > 0) counted.push({ ...risk, ...counts });
+    const cancelsSomething =
+      counts.assignmentCount > 0 ||
+      (meetingLost && counts.prayerCount + counts.musicCount > 0);
+    if (cancelsSomething) counted.push({ ...risk, ...counts });
   }
 
-  // Only assignments block. Prayers are reported alongside for context and never stop a change
-  // (calendar-a Decision 4).
+  // Whatever this change CANCELS blocks it until confirmed (Sacrament slice f2c). Speakers always
+  // could; prayers and music now do too when the meeting is lost, because they are cancelled
+  // rather than left alone — which reverses calendar-a Decision 4 for that one case. On a Fast
+  // Sunday or a slot cut prayers and music are untouched and are only reported.
   if ((counted.length > 0 || reshiftTotal > 0) && opts?.confirm !== true) {
     // One warning at a time, the edited Sunday first because it is the change the user actually
     // made. Confirming applies the whole patch, so a second warning is not shown for the same
@@ -2050,9 +2174,10 @@ export async function updateSunday(
 
     const warned = first
       ? { reason: first.reason, sunday: first.sunday, fromDate: first.fromDate,
-          assignmentCount: first.assignmentCount, prayerCount: first.prayerCount }
+          assignmentCount: first.assignmentCount, prayerCount: first.prayerCount,
+          musicCount: first.musicCount }
       : { reason: "conducting_reshuffled" as const, sunday: before, fromDate: null,
-          assignmentCount: 0, prayerCount: 0 };
+          assignmentCount: 0, prayerCount: 0, musicCount: 0 };
 
     return {
       status: "needs_confirmation",
@@ -2064,6 +2189,7 @@ export async function updateSunday(
         fromDate: warned.fromDate,
         assignmentCount: warned.assignmentCount,
         prayerCount: warned.prayerCount,
+        musicCount: warned.musicCount,
         conductingReshiftCount: reshiftCounts.sacrament,
         orgConductingReshiftCount: reshiftCounts.organizations,
         atRiskAssignmentIds: counted.flatMap((risk) => risk.assignmentIds),
@@ -2076,23 +2202,27 @@ export async function updateSunday(
           warned.sunday.date,
           warned.assignmentCount,
           warned.prayerCount,
+          warned.musicCount,
           reshiftCounts,
         ),
       },
     };
   }
 
-  // Confirmed. Revert BEFORE the patch and before apply_fast_sunday(), so that function's own
-  // revert finds nothing left to do and the number reported to the user comes from one place.
-  let assignmentsReverted = 0;
+  // Confirmed. Cancel BEFORE the patch and before apply_fast_sunday(), so the counts reported to
+  // the user come from one place (Sacrament slice f2c).
+  const workCancelled: CancelledWork = { assignments: 0, prayers: 0, music: 0 };
   for (const risk of counted) {
-    assignmentsReverted += await revertAssignmentsToPlan(
+    const cancelled = await cancelSundayWork(
       service,
       wardId,
       risk.sunday,
       risk.aboveSlot,
       risk.reason,
     );
+    workCancelled.assignments += cancelled.assignments;
+    workCancelled.prayers += cancelled.prayers;
+    workCancelled.music += cancelled.music;
   }
 
   // What the speaking slots become. An explicit count always wins; otherwise this is the ONE
@@ -2233,7 +2363,7 @@ export async function updateSunday(
   return {
     status: "applied",
     sunday,
-    assignmentsReverted,
+    workCancelled,
     conductingReshiftCount: reshiftCounts.sacrament,
     orgConductingReshiftCount: reshiftCounts.organizations,
     reshiftedSundayIds: reshiftPlan.sacrament.map((row) => row.sundayId),

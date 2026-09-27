@@ -14,6 +14,7 @@ import { SUNDAY_TYPES, type SundayType, type TodoAskSource } from "@/types/domai
 //
 // The embed both files carry, verbatim:
 //   ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number,
+//     cancelled_at,
 //     sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots),
 //     members!assignments_member_id_ward_id_fkey (first_name, last_name, phone),
 //     topics!assignments_topic_id_ward_id_fkey (title))
@@ -23,6 +24,7 @@ export type AskSourceRow = {
   member_id: string | null;
   external_speaker_name: string | null;
   slot_number: number | null;
+  cancelled_at: string | null;
   sundays: { date: string; type: string; speaking_slots: number } | null;
   members: { first_name: string | null; last_name: string | null; phone: string | null } | null;
   topics: { title: string } | null;
@@ -58,12 +60,15 @@ export function mapAskSource(row: AskSourceRow, completedAt: string | null): Tod
     phone: phone === "" ? null : phone,
     topicTitle: row.topics?.title ?? null,
     isOpen: completedAt === null,
+    // Off when the talk was CANCELLED (Sacrament slice f2c), or when its Sunday lost the meeting or
+    // the slot without cancelling it (f2b; calendar generation can do that).
     talkOff:
-      row.sundays !== null &&
-      talkIsOff({
-        sundayType: toSundayType(row.sundays.type),
-        speakingSlots: row.sundays.speaking_slots,
-        slotNumber: row.slot_number,
-      }),
+      row.cancelled_at !== null ||
+      (row.sundays !== null &&
+        talkIsOff({
+          sundayType: toSundayType(row.sundays.type),
+          speakingSlots: row.sundays.speaking_slots,
+          slotNumber: row.slot_number,
+        })),
   };
 }

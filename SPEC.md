@@ -854,6 +854,17 @@ ticked or deleted** — Accepted / Declined record the outcome on the talk throu
 `lib/assignments/requestOutcome.ts` and close every open copy with an `ask_accepted` /
 `ask_declined` line. An answered ask is done, never deleted. A **speaker change** on the talk closes
 its open asks (`closed_reason = 'speaker_changed'`) and clears the outcome; nothing else does.
+**A Sunday's cancelled work (slice f2c, migration 085).** `cancelled_at` + `cancelled_reason`
+(`no_meeting | fast_sunday | slot_removed`) on `assignments`, `prayer_assignments`,
+`hymn_selections` and `musical_numbers`. `updateSunday()` cancels — never reverts, never deletes —
+the talks a change loses and, when the meeting is lost, the prayers and music; it clears the Sunday's
+topics/references stamps when every talk goes. Every read skips cancelled rows
+(`tests/lib/cancelledReaders.test.ts`); the prayer one-per-type index is partial on
+`cancelled_at is null`. `todos.ask_prayer_id` and `todos.musical_number_id` link the "Let ___ know
+it's cancelled" to-dos; the reconcile writes them and speaker history `cancelled` (null notice).
+Told them is admitted on any to-do with `talk_off_at`, under `personal_tools.use`, and leaves the
+cancelled record unchanged. `apply_fast_sunday` no longer touches assignments. The "back on" rule
+of f2b is retired: `talk_back_on` stays admitted by the CHECKs and is written by nothing.
 **A talk that is off (slice f2b, migration 084).** A talk is off when its Sunday holds no meeting
 or its slot no longer exists — `talkIsOff()` in `lib/sacrament/talkAsks.ts`, computed from the
 Sunday and never stored. The same reconcile marks each open ask on it (`talk_off_at`, a `talk_off`

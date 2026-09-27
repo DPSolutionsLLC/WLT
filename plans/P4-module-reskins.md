@@ -153,8 +153,14 @@ land first.
 > asker a "Let ___ know there's no talk" to-do; **Told them** closes either and clears the answer;
 > a talk back on closes what is left and asks everybody again from scratch. The calendar warning
 > names the speakers and the asks a re-shift moves, and a handed-over copy says "Taken over from
-> ___". Walked as scenario 080. **`f3` is next** (its migration is now 085): the conductor window
-> and the assistant.
+> ___". Walked as scenario 080.
+>
+> **`f2c` — A Sunday's work is cancelled (2026-09-26), migration 085.** The user's decision
+> reverses "reverted to plan": lost talks — and, when the meeting goes, its prayers and music — are
+> cancelled, kept as records and skipped by every reader, so planning starts over. Speaker history
+> records `cancelled`; whoever asked each person gets a "Let ___ know it's cancelled" to-do with
+> Told them. f2b's "back on" rule is retired. Walked as scenario 081. **`f3` is next** (its
+> migration is now 086): the conductor window and the assistant.
 >
 > **Module 1 now has `d`, `e` left**, and `f`/`g` wait on **P5**. The INDEX argues P5 should
 > come early for exactly that reason.

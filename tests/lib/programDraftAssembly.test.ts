@@ -71,6 +71,8 @@ function assignment(overrides: Partial<Assignment> & { slotNumber: number }): As
     completedAt: null,
     contactWaivedAt: null,
     contactWaivedBy: null,
+    cancelledAt: null,
+    cancelledReason: null,
     createdAt: "2026-08-01T00:00:00.000Z",
     ...overrides,
   };
@@ -86,6 +88,8 @@ function prayer(prayerType: "invocation" | "benediction", memberId: string | nul
     askedBy: null,
     askedAt: null,
     confirmedAt: null,
+    cancelledAt: null,
+    cancelledReason: null,
     createdAt: "2026-08-01T00:00:00.000Z",
   };
 }

@@ -89,7 +89,7 @@ export async function PATCH(
       return NextResponse.json({ error: warning.message, warning }, { status: 409 });
     }
 
-    const { assignmentsReverted } = result;
+    const { workCancelled } = result;
     const { conductingReshiftCount, orgConductingReshiftCount } = result;
     const { reshiftedSundayIds, resolvedMonthSundayIds } = result;
     const changedFields = Object.keys(changes);
@@ -116,13 +116,14 @@ export async function PATCH(
         : ((await unfinalizeTopicsIfNeeded(user.wardId, sundayId, supabase)) ??
           result.sunday);
 
-    // THE TALK ASKS FOLLOW THE CALENDAR (Sacrament slices f2 and f2b). This Sunday, every Sunday of
-    // its month when the save re-resolved it (a Fast Sunday can move ONTO another Sunday), and every
-    // later Sunday the edit re-shifted: an ask on a talk now off is marked for its owner to tell the
-    // speaker, one on a talk back on is closed to ask afresh, and the rest follow whoever conducts
-    // now. It is a reconcile, run on every save rather than only when something visibly changed,
-    // so a retry after a half-finished run repairs it (lib/sacrament/conductorHandover.ts). On a
-    // Sunday with no open ask and no accepted speaker it is two reads.
+    // THE PEOPLE FOLLOW THE CALENDAR (Sacrament slices f2, f2b and f2c). This Sunday, every Sunday
+    // of its month when the save re-resolved it (a Fast Sunday can move ONTO another Sunday), and
+    // every later Sunday the edit re-shifted. Work this save cancelled reaches the people it
+    // affects — speaker history, and a "Let ___ know it's cancelled" to-do for whoever asked each
+    // person — and the open asks that are left follow whoever conducts now. It is a reconcile, run
+    // on every save rather than only when something visibly changed, so a retry after a
+    // half-finished run repairs it (lib/sacrament/conductorHandover.ts). On a Sunday with nothing
+    // to act on it is a few reads.
     let reconciled: ReconcileResult | null = null;
     // Set only when the move stopped part-way: the to-dos written before it stopped, new copies
     // and closed old ones together, which is how the error carries them.
@@ -160,7 +161,8 @@ export async function PATCH(
           // `note` and would store "[redacted]" anyway, which arrives as noise. Whether it
           // changed is the part an auditor can act on.
           notesChanged: changes.notes !== undefined,
-          assignmentsReverted,
+          // What this change cancelled (Sacrament slice f2c).
+          workCancelled,
           // How many LATER Sundays this edit moved. A re-shift can overwrite a conducting
           // override a human typed (there is no is_override flag — migration 024), so the audit
           // row is the only durable record of how far one edit reached.
@@ -184,14 +186,13 @@ export async function PATCH(
           ...(reconciled !== null &&
           reconciled.talkOffTodoIds.length +
             reconciled.tellTodoIds.length +
-            reconciled.backOnTodoIds.length >
+            reconciled.historyWrittenAssignmentIds.length >
             0
             ? {
                 talkAsks: {
                   markedOffTodoIds: reconciled.talkOffTodoIds,
                   tellTodoIds: reconciled.tellTodoIds,
-                  backOnTodoIds: reconciled.backOnTodoIds,
-                  answersClearedAssignmentIds: reconciled.answersClearedAssignmentIds,
+                  historyWrittenAssignmentIds: reconciled.historyWrittenAssignmentIds,
                 },
               }
             : {}),
@@ -226,7 +227,7 @@ export async function PATCH(
 
     return NextResponse.json({
       sunday,
-      assignmentsReverted,
+      workCancelled,
       conductingReshiftCount,
       orgConductingReshiftCount,
     });

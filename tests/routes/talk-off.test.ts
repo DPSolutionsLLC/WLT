@@ -1,8 +1,9 @@
 // @vitest-environment node
 //
-// Sacrament slice f2b: when a talk is OFF — its Sunday holds no meeting, or its slot is gone —
-// whoever asked the speaker is told to let them know, and if the talk comes back the speaker is
-// asked again from scratch.
+// Sacrament slices f2b and f2c: when a Sunday stops holding sacrament meeting — or a talk loses its
+// slot — its work is CANCELLED: kept as a record, never deleted, and taken off the Sunday. Whoever
+// asked each person gets a "Let ___ know it's cancelled" to-do and confirms with Told them. If the
+// Sunday holds a meeting again, planning simply starts over.
 //
 // Only the client factory is mocked (tests/helpers/routeClient.ts), so every query runs as a
 // genuinely authenticated user against the hosted project. Every assertion about a write re-reads
@@ -63,13 +64,29 @@ async function getTodo(todoId: string) {
   );
 }
 
-describe("A talk that is off — Sacrament slice f2b", () => {
+async function createTalk(body: unknown) {
+  const { POST } = await import("@/app/api/assignments/route");
+  return readResponse(await POST(jsonRequest(`${BASE}/assignments`, { method: "POST", body })));
+}
+
+async function upsertPrayer(body: unknown) {
+  const { POST } = await import("@/app/api/prayers/route");
+  return readResponse(await POST(jsonRequest(`${BASE}/prayers`, { method: "POST", body })));
+}
+
+describe("A Sunday's work is cancelled — Sacrament slices f2b and f2c", () => {
   let fixtures: Fixtures;
   let wardId = "";
   let sundayId = "";
+  let mariaId = "";
+  let anaId = "";
+  let tomasId = "";
   let mariaTalkId = "";
   let anaTalkId = "";
   let visitorTalkId = "";
+  let invocationId = "";
+  let benedictionId = "";
+  let musicalNumberId = "";
   let conductorName = "";
 
   type TodoRow = {
@@ -81,20 +98,25 @@ describe("A talk that is off — Sacrament slice f2b", () => {
     talk_off_at: string | null;
   };
 
-  async function todosFor(assignmentId: string): Promise<TodoRow[]> {
+  const TODO_COLUMNS = "id, user_id, title, completed_at, closed_reason, talk_off_at";
+
+  async function todosLinked(
+    column: "ask_assignment_id" | "ask_prayer_id" | "musical_number_id",
+    id: string,
+  ): Promise<TodoRow[]> {
     const { data, error } = await fixtures.service
       .from("todos")
-      .select("id, user_id, title, completed_at, closed_reason, talk_off_at")
+      .select(TODO_COLUMNS)
       .eq("ward_id", wardId)
-      .eq("ask_assignment_id", assignmentId)
+      .eq(column, id)
       .order("created_at", { ascending: true });
     if (error) throw new Error(error.message);
     return data ?? [];
   }
 
-  async function openFor(assignmentId: string): Promise<TodoRow[]> {
-    return (await todosFor(assignmentId)).filter((row) => row.completed_at === null);
-  }
+  const todosFor = (assignmentId: string) => todosLinked("ask_assignment_id", assignmentId);
+  const openFor = async (assignmentId: string) =>
+    (await todosFor(assignmentId)).filter((row) => row.completed_at === null);
 
   async function logLines(todoId: string) {
     const { data, error } = await fixtures.service
@@ -106,14 +128,33 @@ describe("A talk that is off — Sacrament slice f2b", () => {
     return data ?? [];
   }
 
-  async function outcomeOf(assignmentId: string) {
+  async function readRow(table: "assignments" | "prayer_assignments", id: string) {
+    const { data, error } = await fixtures.service
+      .from(table)
+      .select("cancelled_at, cancelled_reason")
+      .eq("id", id)
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async function talk(assignmentId: string) {
     const { data, error } = await fixtures.service
       .from("assignments")
-      .select("request_outcome")
+      .select("member_id, request_outcome, pipeline_stage, cancelled_at, cancelled_reason")
       .eq("id", assignmentId)
       .single();
     if (error) throw new Error(error.message);
-    return data.request_outcome;
+    return data;
+  }
+
+  async function cancelledHistory(assignmentId: string) {
+    const { data, error } = await fixtures.service
+      .from("assignment_history")
+      .select("outcome, cancellation_days_notice")
+      .eq("assignment_id", assignmentId);
+    if (error) throw new Error(error.message);
+    return (data ?? []).filter((row) => row.outcome === "cancelled");
   }
 
   async function latestSundayAudit(): Promise<Record<string, unknown>> {
@@ -152,6 +193,7 @@ describe("A talk that is off — Sacrament slice f2b", () => {
         type: "standard",
         speaking_slots: 3,
         conducting_user_id: fixtures.user("counselor1").id,
+        topics_finalized_at: new Date().toISOString(),
         references_skipped_at: new Date().toISOString(),
       })
       .select("id")
@@ -174,8 +216,9 @@ describe("A talk that is off — Sacrament slice f2b", () => {
       if (error) throw new Error(error.message);
       return data.id;
     };
-    const maria = await seedMember("Maria");
-    const ana = await seedMember("Ana");
+    mariaId = await seedMember("Maria");
+    anaId = await seedMember("Ana");
+    tomasId = await seedMember("Tomas");
 
     const seedTalk = async (
       slotNumber: number,
@@ -197,9 +240,53 @@ describe("A talk that is off — Sacrament slice f2b", () => {
       if (error) throw new Error(error.message);
       return data.id;
     };
-    mariaTalkId = await seedTalk(1, { memberId: maria });
-    anaTalkId = await seedTalk(2, { memberId: ana });
+    mariaTalkId = await seedTalk(1, { memberId: mariaId });
+    anaTalkId = await seedTalk(2, { memberId: anaId });
     visitorTalkId = await seedTalk(3, { externalName: "Brother Visitor" });
+
+    // Tomas was ASKED to give the invocation, by counselor2. Ana is only ASSIGNED the benediction:
+    // nobody has asked her, so nobody has anyone to tell.
+    const { data: prayers, error: prayerError } = await service
+      .from("prayer_assignments")
+      .insert([
+        {
+          ward_id: wardId,
+          sunday_id: sundayId,
+          prayer_type: "invocation",
+          member_id: tomasId,
+          stage: "ask",
+          asked_by: fixtures.user("counselor2").id,
+          asked_at: new Date().toISOString(),
+        },
+        {
+          ward_id: wardId,
+          sunday_id: sundayId,
+          prayer_type: "benediction",
+          member_id: anaId,
+          stage: "assign",
+        },
+      ])
+      .select("id, prayer_type");
+    if (prayerError) throw new Error(prayerError.message);
+    invocationId = prayers.find((row) => row.prayer_type === "invocation")!.id;
+    benedictionId = prayers.find((row) => row.prayer_type === "benediction")!.id;
+
+    const { error: hymnError } = await service.from("hymn_selections").insert({
+      ward_id: wardId,
+      sunday_id: sundayId,
+      hymn_type: "opening",
+      hymn_number: 2,
+      hymn_title: "The Spirit of God",
+    });
+    if (hymnError) throw new Error(hymnError.message);
+
+    const { data: number, error: numberError } = await service
+      .from("musical_numbers")
+      .insert({ ward_id: wardId, sunday_id: sundayId, performer: "Ward choir", piece_title: "Abide" })
+      .select("id")
+      .single();
+    if (numberError) throw new Error(numberError.message);
+    musicalNumberId = number.id;
 
     // Three asks for the conductor; Ana accepts hers.
     await actAs(fixtures, "bishop");
@@ -217,12 +304,14 @@ describe("A talk that is off — Sacrament slice f2b", () => {
   });
 
   describe("the meeting is cancelled", () => {
-    it("warns who was asked, and who will be told to let them know", async () => {
+    it("warns what will be cancelled, and who will be told", async () => {
       await actAs(fixtures, "bishop");
       const { status, body } = await patchSunday(sundayId, { type: "stake_conference" });
 
       expect(status).toBe(409);
       const message = (body.warning as { message: string }).message;
+      expect(message).toContain("Confirming cancels them");
+      expect(message).toContain("Its 2 prayer assignments and 2 music choices will be cancelled too.");
       expect(message).toContain(
         `Maria Off${fixtures.runId}, Ana Off${fixtures.runId} and Brother Visitor have been asked to speak that day.`,
       );
@@ -231,10 +320,54 @@ describe("A talk that is off — Sacrament slice f2b", () => {
       );
     });
 
-    it("keeps each open ask with its owner, marked, and gives an accepted speaker's asker a to-do", async () => {
+    it("cancels every talk, prayer and piece of music, deleting nothing", async () => {
       await actAs(fixtures, "bishop");
-      expect((await patchSunday(sundayId, { type: "stake_conference" }, true)).status).toBe(200);
+      const { status, body } = await patchSunday(sundayId, { type: "stake_conference" }, true);
 
+      expect(status).toBe(200);
+      expect(body.workCancelled).toEqual({ assignments: 3, prayers: 2, music: 2 });
+
+      for (const talkId of [mariaTalkId, anaTalkId, visitorTalkId]) {
+        const row = await talk(talkId);
+        expect(row.cancelled_reason).toBe("no_meeting");
+        // The record keeps the stage it reached; it is not sent back to planning.
+        expect(row.pipeline_stage).toBe("plan");
+      }
+      expect((await talk(anaTalkId)).request_outcome).toBe("accepted");
+      expect((await talk(mariaTalkId)).member_id).toBe(mariaId);
+
+      for (const prayerId of [invocationId, benedictionId]) {
+        expect((await readRow("prayer_assignments", prayerId)).cancelled_reason).toBe("no_meeting");
+      }
+
+      const { data: music } = await fixtures.service
+        .from("hymn_selections")
+        .select("cancelled_reason")
+        .eq("sunday_id", sundayId);
+      expect(music?.map((row) => row.cancelled_reason)).toEqual(["no_meeting"]);
+
+      const { data: sunday } = await fixtures.service
+        .from("sundays")
+        .select("topics_finalized_at, references_finalized_at, references_skipped_at")
+        .eq("id", sundayId)
+        .single();
+      expect(sunday).toEqual({
+        topics_finalized_at: null,
+        references_finalized_at: null,
+        references_skipped_at: null,
+      });
+    });
+
+    it("writes a cancelled speaker-history row for each member, never a late cancellation", async () => {
+      for (const talkId of [mariaTalkId, anaTalkId]) {
+        const rows = await cancelledHistory(talkId);
+        expect(rows).toEqual([{ outcome: "cancelled", cancellation_days_notice: null }]);
+      }
+      // A visitor has no history row (migration 005: member_id not null).
+      expect(await cancelledHistory(visitorTalkId)).toEqual([]);
+    });
+
+    it("keeps each open ask with its owner, marked, and tells whoever asked the rest", async () => {
       const counselorId = fixtures.user("counselor1").id;
       for (const talkId of [mariaTalkId, visitorTalkId]) {
         const [ask] = await openFor(talkId);
@@ -245,59 +378,77 @@ describe("A talk that is off — Sacrament slice f2b", () => {
 
       const [tell] = await openFor(anaTalkId);
       expect(tell.user_id).toBe(counselorId);
-      expect(tell.title).toBe(`Let Ana Off${fixtures.runId} know there's no talk`);
-      expect(tell.talk_off_at).not.toBeNull();
-      expect(await logLines(tell.id)).toEqual([{ kind: "talk_off", body: SUNDAY_LABEL }]);
+      expect(tell.title).toBe(`Let Ana Off${fixtures.runId} know the talk is cancelled`);
+
+      // The invocation's asker is told; the benediction was never asked.
+      const [prayerTell] = await todosLinked("ask_prayer_id", invocationId);
+      expect(prayerTell.user_id).toBe(fixtures.user("counselor2").id);
+      expect(prayerTell.title).toBe(`Let Tomas Off${fixtures.runId} know the prayer is cancelled`);
+      expect(prayerTell.talk_off_at).not.toBeNull();
+      expect(await todosLinked("ask_prayer_id", benedictionId)).toEqual([]);
+
+      // Nothing records who arranged the musical number, so the person who cancelled is told.
+      const [musicTell] = await todosLinked("musical_number_id", musicalNumberId);
+      expect(musicTell.user_id).toBe(fixtures.user("bishop").id);
+      expect(musicTell.title).toBe("Let Ward choir know the musical number is cancelled");
 
       const audit = await latestSundayAudit();
-      const talkAsks = audit.talkAsks as { markedOffTodoIds: string[]; tellTodoIds: string[] };
+      expect(audit.workCancelled).toEqual({ assignments: 3, prayers: 2, music: 2 });
+      const talkAsks = audit.talkAsks as {
+        markedOffTodoIds: string[];
+        tellTodoIds: string[];
+        historyWrittenAssignmentIds: string[];
+      };
       expect(talkAsks.markedOffTodoIds).toHaveLength(2);
-      expect(talkAsks.tellTodoIds).toEqual([tell.id]);
+      expect(talkAsks.tellTodoIds).toHaveLength(3);
+      expect(talkAsks.historyWrittenAssignmentIds.sort()).toEqual([mariaTalkId, anaTalkId].sort());
     });
 
-    it("shows the owner that the talk is off", async () => {
+    it("shows the owner that the talk is off, and refuses Accepted", async () => {
       await actAs(fixtures, "counselor1");
       const [ask] = await openFor(mariaTalkId);
-      const { status, body } = await getTodo(ask.id);
 
-      expect(status).toBe(200);
+      const { body } = await getTodo(ask.id);
       expect((body.todo as { askSource: { talkOff: boolean } }).askSource.talkOff).toBe(true);
-    });
 
-    it("refuses Accepted while the talk is off, and says what to do instead", async () => {
-      await actAs(fixtures, "counselor1");
-      const [ask] = await openFor(mariaTalkId);
-      const { status, body } = await answer(ask.id, { outcome: "accepted" });
-
+      const { status, body: refusal } = await answer(ask.id, { outcome: "accepted" });
       expect(status).toBe(400);
-      expect(errorMessage(body)).toMatch(/press Told them/);
-      expect(await outcomeOf(mariaTalkId)).toBeNull();
+      expect(errorMessage(refusal)).toMatch(/press Told them/);
     });
 
-    it("closes the item with Told them and clears the talk's answer", async () => {
+    it("closes a to-do with Told them and leaves the cancelled record as it was", async () => {
       await actAs(fixtures, "counselor1");
       const [tell] = await openFor(anaTalkId);
-      const { status } = await answer(tell.id, { outcome: "told" });
+      expect((await answer(tell.id, { outcome: "told" })).status).toBe(200);
 
-      expect(status).toBe(200);
       const closed = (await todosFor(anaTalkId)).find((row) => row.id === tell.id)!;
       expect(closed.closed_reason).toBe("told_not_needed");
       expect(await logLines(tell.id)).toContainEqual({ kind: "told_not_needed", body: null });
-      expect(await outcomeOf(anaTalkId)).toBeNull();
+      expect((await talk(anaTalkId)).request_outcome).toBe("accepted");
+
+      // A prayer's to-do closes on its own.
+      await actAs(fixtures, "counselor2");
+      const [prayerTell] = await todosLinked("ask_prayer_id", invocationId);
+      expect((await answer(prayerTell.id, { outcome: "told" })).status).toBe(200);
+      const [closedPrayer] = await todosLinked("ask_prayer_id", invocationId);
+      expect(closedPrayer.closed_reason).toBe("told_not_needed");
     });
 
-    it("writes nothing twice on the next save", async () => {
+    it("writes nothing twice on the next save, and never brings a told to-do back", async () => {
       await actAs(fixtures, "bishop");
       expect((await patchSunday(sundayId, { notes: "Stake conference" })).status).toBe(200);
 
-      expect(await openFor(mariaTalkId)).toHaveLength(1);
+      expect(await todosFor(anaTalkId)).toHaveLength(2);
       expect(await openFor(anaTalkId)).toHaveLength(0);
+      expect(await todosLinked("ask_prayer_id", invocationId)).toHaveLength(1);
+      expect(await todosLinked("musical_number_id", musicalNumberId)).toHaveLength(1);
+      expect(await cancelledHistory(mariaTalkId)).toHaveLength(1);
       expect(await latestSundayAudit()).not.toHaveProperty("talkAsks");
     });
   });
 
   describe("the meeting comes back", () => {
-    it("closes what was left open and asks everybody again from scratch", async () => {
+    it("reads as an empty Sunday, and leaves the unfinished to-dos open", async () => {
       await actAs(fixtures, "bishop");
       // A Sunday with no meeting has no conductor, and this ward has no rotation to refill it, so
       // the bishopric names one as the meeting comes back.
@@ -308,42 +459,89 @@ describe("A talk that is off — Sacrament slice f2b", () => {
       );
       expect(status).toBe(200);
 
-      for (const talkId of [mariaTalkId, visitorTalkId]) {
-        expect(await openFor(talkId)).toHaveLength(0);
-        const rows = await todosFor(talkId);
-        expect(rows.at(-1)?.closed_reason).toBe("talk_back_on");
-        expect(await logLines(rows.at(-1)!.id)).toContainEqual({
-          kind: "talk_back_on",
-          body: null,
-        });
-      }
-
-      // Send asks offers all three again: Maria and the visitor were never answered, and Ana's
-      // acceptance was cleared when the conductor told her.
-      const sent = await sendAsks(sundayId);
-      expect(sent.status).toBe(201);
-      expect(sent.body.sent).toBe(3);
+      // The user's decision C6: the cancellation happened, so these people still need telling.
+      expect(await openFor(mariaTalkId)).toHaveLength(1);
+      expect(await openFor(visitorTalkId)).toHaveLength(1);
+      expect((await talk(mariaTalkId)).cancelled_reason).toBe("no_meeting");
     });
 
-    it("refuses Told them while the talk is on", async () => {
-      await actAs(fixtures, "counselor1");
-      const [ask] = await openFor(mariaTalkId);
-      const { status, body } = await answer(ask.id, { outcome: "told" });
+    it("lets planning start over in the same slots", async () => {
+      await actAs(fixtures, "bishop");
+      const created = await createTalk({
+        sundayId,
+        assignmentType: "sacrament_talk",
+        slotNumber: 1,
+        memberId: tomasId,
+      });
+      expect(created.status).toBe(201);
 
-      expect(status).toBe(400);
-      expect(errorMessage(body)).toMatch(/still on/);
+      const prayer = await upsertPrayer({ sundayId, prayerType: "invocation", memberId: mariaId });
+      expect(prayer.status).toBeLessThan(300);
+
+      const { data: live } = await fixtures.service
+        .from("prayer_assignments")
+        .select("id")
+        .eq("sunday_id", sundayId)
+        .eq("prayer_type", "invocation")
+        .is("cancelled_at", null);
+      expect(live).toHaveLength(1);
+      expect(live?.[0].id).not.toBe(invocationId);
     });
   });
 
   describe("a slot is cut", () => {
-    it("marks only the talk whose slot is gone", async () => {
-      await actAs(fixtures, "bishop");
-      expect((await patchSunday(sundayId, { speakingSlots: 2 }, true)).status).toBe(200);
+    it("cancels only the talk whose slot is gone, and leaves prayers alone", async () => {
+      const { data: third, error } = await fixtures.service
+        .from("assignments")
+        .insert({
+          ward_id: wardId,
+          sunday_id: sundayId,
+          assignment_type: "sacrament_talk",
+          slot_number: 3,
+          member_id: anaId,
+          pipeline_stage: "plan",
+        })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
 
-      const [visitorAsk] = await openFor(visitorTalkId);
-      expect(visitorAsk.talk_off_at).not.toBeNull();
-      const [mariaAsk] = await openFor(mariaTalkId);
-      expect(mariaAsk.talk_off_at).toBeNull();
+      await actAs(fixtures, "bishop");
+      const { status, body } = await patchSunday(sundayId, { speakingSlots: 2 }, true);
+      expect(status).toBe(200);
+      expect(body.workCancelled).toEqual({ assignments: 1, prayers: 0, music: 0 });
+
+      expect((await readRow("assignments", third.id)).cancelled_reason).toBe("slot_removed");
+
+      const { data: liveTalks } = await fixtures.service
+        .from("assignments")
+        .select("slot_number")
+        .eq("sunday_id", sundayId)
+        .is("cancelled_at", null);
+      expect(liveTalks?.map((row) => row.slot_number)).toEqual([1]);
+    });
+
+    it("refuses Told them on a to-do whose talk is still on", async () => {
+      await actAs(fixtures, "bishop");
+      const { error } = await fixtures.service
+        .from("sundays")
+        .update({ references_skipped_at: new Date().toISOString() })
+        .eq("id", sundayId);
+      if (error) throw new Error(error.message);
+      expect((await sendAsks(sundayId)).status).toBe(201);
+
+      const { data: tomasTalk } = await fixtures.service
+        .from("assignments")
+        .select("id")
+        .eq("sunday_id", sundayId)
+        .eq("member_id", tomasId)
+        .is("cancelled_at", null)
+        .single();
+      await actAs(fixtures, "counselor1");
+      const [ask] = await openFor(tomasTalk!.id);
+      const { status, body } = await answer(ask.id, { outcome: "told" });
+
+      expect(status).toBe(400);
+      expect(errorMessage(body)).toMatch(/still on/);
     });
   });
 });

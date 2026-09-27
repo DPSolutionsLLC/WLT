@@ -753,7 +753,9 @@ export async function listRecentTopicUsage(
     .eq("ward_id", wardId)
     .in("sunday_id", [...dateById.keys()])
     // A slot with no topic is not a usage. This is the filter the whole list is about.
-    .not("topic_id", "is", null);
+    .not("topic_id", "is", null)
+    // Nor is a cancelled talk: the topic was never given (Sacrament slice f2c).
+    .is("cancelled_at", null);
 
   if (error) {
     console.error(`Could not read recent topic usage — ${error.message}`, { wardId });

@@ -137,6 +137,18 @@ describe("reliabilityFlags", () => {
       expect(reliabilityFlags(history, AS_OF)).not.toContain("not_asked_recently");
     });
 
+    // Sacrament slice f2c, the user's decision C7: a talk the WARD cancelled was never given, so it
+    // must not hide the member from this suggestion.
+    it("does not count a cancelled talk as being asked", () => {
+      const { onBoundary } = monthsBeforeToday(NOT_ASKED_MONTHS);
+      const history = [
+        entry({ outcome: "declined", sundayDate: onBoundary }),
+        entry({ outcome: "cancelled", sundayDate: addMonths(TODAY, -1) }),
+      ];
+
+      expect(reliabilityFlags(history, AS_OF)).toContain("not_asked_recently");
+    });
+
     it("ignores a history row that lost its date with its assignment", () => {
       // `assignment_history.assignment_id` is `on delete set null`, so a dateless row is real.
       // It must not read as the most recent assignment, and it must not read as none at all.

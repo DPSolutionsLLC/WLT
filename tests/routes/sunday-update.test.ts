@@ -1,7 +1,8 @@
 // @vitest-environment node
 //
 // PATCH /api/sundays/[id] — the 409 shape when a single edit carries BOTH consequences at once:
-// speakers about to be returned to planning, and later Sundays about to change conductor.
+// speakers about to be cancelled (Sacrament slice f2c — they used to be returned to planning), and
+// later Sundays about to change conductor.
 //
 // The two must arrive in ONE warning. The route shows one warning at a time because confirming
 // applies the whole patch, so a re-shift the user was not told about would break that promise —
@@ -169,19 +170,21 @@ describe("PATCH /api/sundays/[id] — assignments plus a conducting re-shift", (
     );
 
     expect(status).toBe(200);
-    expect(body.assignmentsReverted).toBe(2);
+    expect(body.workCancelled).toEqual({ assignments: 2, prayers: 0, music: 0 });
     expect(body.conductingReshiftCount).toBeGreaterThan(0);
     expect(body.orgConductingReshiftCount).toBe(0);
 
-    // Reverted, never deleted (03-calendar.md §Pitfall 5).
+    // Cancelled, never deleted (03-calendar.md §Pitfall 5, as reversed by slice f2c): the stage the
+    // talk reached is left as it was.
     const { data: assignments } = await fixtures.service
       .from("assignments")
-      .select("pipeline_stage")
+      .select("pipeline_stage, cancelled_reason")
       .eq("ward_id", wardId)
       .eq("sunday_id", editedSundayId);
 
     expect(assignments).toHaveLength(2);
-    expect(assignments?.every((row) => row.pipeline_stage === "plan")).toBe(true);
+    expect(assignments?.every((row) => row.pipeline_stage === "request")).toBe(true);
+    expect(assignments?.every((row) => row.cancelled_reason === "no_meeting")).toBe(true);
   });
 
   // A re-shift can overwrite a conducting override a human typed — there is no is_override flag
@@ -192,7 +195,7 @@ describe("PATCH /api/sundays/[id] — assignments plus a conducting re-shift", (
 
     const detail = rows[0].detail as Record<string, unknown>;
 
-    expect(detail.assignmentsReverted).toBe(2);
+    expect(detail.workCancelled).toEqual({ assignments: 2, prayers: 0, music: 0 });
     expect(typeof detail.conductingReshiftCount).toBe("number");
     expect(detail.conductingReshiftCount as number).toBeGreaterThan(0);
     expect(detail.orgConductingReshiftCount).toBe(0);

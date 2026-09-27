@@ -55,6 +55,11 @@ const assignmentIdSchema = z.uuid("That assignment id is not valid.");
 
 const NOT_FOUND = "That assignment is not in your ward.";
 
+// A cancelled talk is a RECORD (Sacrament slice f2c): nothing may edit it. Refused with a sentence
+// rather than a zero-row write, so the reason is visible.
+const CANCELLED_TALK =
+  "This talk was cancelled when its Sunday lost the meeting or the slot. Plan a new talk instead.";
+
 // A row that vanished between the read and the write. Both mean "not yours"
 // (plans/retros/foundation-c-services.md).
 const WRITE_REFUSED = "That assignment could not be saved. Reload and try again.";
@@ -146,6 +151,9 @@ export async function PATCH(
     const existing = await getAssignment(user.wardId, assignmentId, supabase);
     if (!existing) {
       return NextResponse.json({ error: NOT_FOUND }, { status: 404 });
+    }
+    if (existing.cancelledAt !== null) {
+      return NextResponse.json({ error: CANCELLED_TALK }, { status: 409 });
     }
 
     if (input.action === "update") {

@@ -12,12 +12,14 @@ import type { Database } from "@/types/database";
 import {
   ASSIGNMENT_HISTORY_OUTCOMES,
   ASSIGNMENT_TYPES,
+  CANCELLED_REASONS,
   COMMENT_LEVELS,
   PIPELINE_STAGES,
   REQUEST_OUTCOMES,
   type AssignmentHistoryOutcome,
   DECLINE_REASONS,
   type AssignmentType,
+  type CancelledReason,
   type CommentLevel,
   type DeclineReason,
   type PipelineStage,
@@ -68,6 +70,10 @@ export type Assignment = {
   completedAt: string | null;
   contactWaivedAt: string | null;
   contactWaivedBy: string | null;
+  // Sacrament slice f2c (migration 085). A cancelled talk is a RECORD: listAssignments() skips it,
+  // so its slot reads as free, and nothing may edit it.
+  cancelledAt: string | null;
+  cancelledReason: CancelledReason | null;
   createdAt: string;
 };
 
@@ -91,10 +97,17 @@ export type AssignmentComment = {
   createdAt: string;
 };
 
-export type AssignmentFilter =
+export type AssignmentFilter = (
   | { sundayId: string }
   | { sundayIds: readonly string[] }
-  | { from: string; to: string };
+  | { from: string; to: string }
+) & {
+  // CANCELLED TALKS ARE SKIPPED BY DEFAULT (Sacrament slice f2c). A cancelled talk is a record, not
+  // work on the Sunday: every page, count and slot check reads the Sunday as if it were not there,
+  // which is what lets planning start over. Only a reader that deals in the record itself — the
+  // save-time reconcile that tells people — opts in.
+  includeCancelled?: boolean;
+};
 
 export type CommentFilter = { assignmentId: string } | { sundayId: string };
 
@@ -134,6 +147,8 @@ type AssignmentRow = {
   completed_at: string | null;
   contact_waived_at: string | null;
   contact_waived_by: string | null;
+  cancelled_at: string | null;
+  cancelled_reason: string | null;
   created_at: string;
 };
 
@@ -157,7 +172,7 @@ type AssignmentCommentRow = {
 // the select list and silently turns every mapped row into GenericStringError. It is also how a
 // column goes quietly missing from a built-up list (plans/retros/calendar-a-rules-and-api.md).
 const ASSIGNMENT_COLUMNS =
-  "id, sunday_id, member_id, external_speaker_name, external_speaker_title, assignment_type, counts_toward_rotation, topic_id, slot_number, slot_length_minutes, pipeline_stage, planned_by, plan_submitted_at, approved_at, requested_at, requested_by, request_outcome, request_notes, confirmed_at, notify_message, notify_sent_at, notify_sent_by, sunday_confirmed_at, thank_you_message, thank_you_sent_at, thank_you_sent_by, completed_at, contact_waived_at, contact_waived_by, created_at";
+  "id, sunday_id, member_id, external_speaker_name, external_speaker_title, assignment_type, counts_toward_rotation, topic_id, slot_number, slot_length_minutes, pipeline_stage, planned_by, plan_submitted_at, approved_at, requested_at, requested_by, request_outcome, request_notes, confirmed_at, notify_message, notify_sent_at, notify_sent_by, sunday_confirmed_at, thank_you_message, thank_you_sent_at, thank_you_sent_by, completed_at, contact_waived_at, contact_waived_by, cancelled_at, cancelled_reason, created_at";
 
 const APPROVAL_COLUMNS = "id, assignment_id, user_id, approved, comment, created_at";
 
@@ -230,6 +245,12 @@ export function mapAssignmentRow(row: AssignmentRow): Assignment {
     completedAt: row.completed_at,
     contactWaivedAt: row.contact_waived_at,
     contactWaivedBy: row.contact_waived_by,
+    cancelledAt: row.cancelled_at,
+    cancelledReason: toOptionalEnum(
+      row.cancelled_reason,
+      CANCELLED_REASONS,
+      "assignments.cancelled_reason",
+    ),
     createdAt: row.created_at,
   };
 }
@@ -278,6 +299,8 @@ export async function listAssignments(
     .from("assignments")
     .select(ASSIGNMENT_COLUMNS)
     .eq("ward_id", wardId);
+
+  if (filter.includeCancelled !== true) query = query.is("cancelled_at", null);
 
   if ("sundayId" in filter) {
     query = query.eq("sunday_id", filter.sundayId);
@@ -948,7 +971,9 @@ export async function countAssignmentsOnSunday(
     .from("assignments")
     .select("id", { count: "exact", head: true })
     .eq("ward_id", wardId)
-    .eq("sunday_id", sundayId);
+    .eq("sunday_id", sundayId)
+    // A cancelled talk is not on the Sunday (Sacrament slice f2c).
+    .is("cancelled_at", null);
 
   if (error) {
     console.error(`Could not count a Sunday's assignments — ${error.message}`, {
@@ -1172,4 +1197,33 @@ export async function listSpeakerHistoryByMember(
   }
 
   return byMember;
+}
+
+// Which of these talks already have a `cancelled` history row (Sacrament slice f2c). The save-time
+// reconcile writes one for each cancelled member talk that lacks it, so a retry never writes two.
+export async function listCancelledHistoryAssignmentIds(
+  wardId: string,
+  assignmentIds: readonly string[],
+  client?: SupabaseClient<Database>,
+): Promise<Set<string>> {
+  const found = new Set<string>();
+  if (assignmentIds.length === 0) return found;
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("assignment_history")
+    .select("assignment_id")
+    .eq("ward_id", wardId)
+    .eq("outcome", "cancelled")
+    .in("assignment_id", [...assignmentIds]);
+
+  if (error) {
+    console.error(`Could not read cancelled speaker history — ${error.message}`, { wardId });
+    throw new Error(`Could not read speaker history: ${error.message}`);
+  }
+
+  for (const row of data ?? []) {
+    if (row.assignment_id !== null) found.add(row.assignment_id);
+  }
+  return found;
 }

@@ -33,6 +33,8 @@ export type Hymn = {
   source: HymnSource;
 };
 
+// A CANCELLED hymn choice or musical number is a RECORD, not music on the Sunday (Sacrament slice
+// f2c, migration 085): every read here skips it unless it opts in, and no write here touches one.
 export type HymnSelection = {
   id: string;
   sundayId: string;
@@ -41,6 +43,7 @@ export type HymnSelection = {
   hymnTitle: string | null;
   aiSuggested: boolean;
   selectedBy: string | null;
+  cancelledAt: string | null;
 };
 
 export type MusicalNumber = {
@@ -49,6 +52,7 @@ export type MusicalNumber = {
   performer: string | null;
   pieceTitle: string | null;
   notes: string | null;
+  cancelledAt: string | null;
 };
 
 // One string literal on ONE line per table, and never a `+` concatenation between them
@@ -56,9 +60,9 @@ export type MusicalNumber = {
 const HYMN_COLUMNS = "number, title, topic_tags, source";
 
 const SELECTION_COLUMNS =
-  "id, sunday_id, hymn_type, hymn_number, hymn_title, ai_suggested, selected_by";
+  "id, sunday_id, hymn_type, hymn_number, hymn_title, ai_suggested, selected_by, cancelled_at";
 
-const MUSICAL_NUMBER_COLUMNS = "id, sunday_id, performer, piece_title, notes";
+const MUSICAL_NUMBER_COLUMNS = "id, sunday_id, performer, piece_title, notes, cancelled_at";
 
 type HymnRow = {
   number: number;
@@ -75,6 +79,7 @@ type SelectionRow = {
   hymn_title: string | null;
   ai_suggested: boolean;
   selected_by: string | null;
+  cancelled_at: string | null;
 };
 
 type MusicalNumberRow = {
@@ -83,6 +88,7 @@ type MusicalNumberRow = {
   performer: string | null;
   piece_title: string | null;
   notes: string | null;
+  cancelled_at: string | null;
 };
 
 function toHymnSource(value: string): HymnSource {
@@ -121,6 +127,7 @@ function mapSelectionRow(row: SelectionRow): HymnSelection | null {
     hymnTitle: row.hymn_title,
     aiSuggested: row.ai_suggested,
     selectedBy: row.selected_by,
+    cancelledAt: row.cancelled_at,
   };
 }
 
@@ -133,6 +140,7 @@ function mapMusicalNumberRow(row: MusicalNumberRow): MusicalNumber | null {
     performer: row.performer,
     pieceTitle: row.piece_title,
     notes: row.notes,
+    cancelledAt: row.cancelled_at,
   };
 }
 
@@ -215,7 +223,8 @@ export async function listSelections(
   let query = supabase
     .from("hymn_selections")
     .select(SELECTION_COLUMNS)
-    .eq("ward_id", wardId);
+    .eq("ward_id", wardId)
+    .is("cancelled_at", null);
 
   if (filter.sundayId !== undefined) {
     query = query.eq("sunday_id", filter.sundayId);
@@ -330,6 +339,8 @@ export async function deleteSelection(
     .eq("ward_id", wardId)
     .eq("sunday_id", sundayId)
     .eq("hymn_type", hymnType)
+    // Only the live choice. A cancelled one is a record and is never deleted.
+    .is("cancelled_at", null)
     .select("id");
 
   if (error) {
@@ -360,6 +371,7 @@ export async function getMusicalNumber(
     .select(MUSICAL_NUMBER_COLUMNS)
     .eq("ward_id", wardId)
     .eq("sunday_id", sundayId)
+    .is("cancelled_at", null)
     .order("created_at")
     .limit(1)
     .maybeSingle();
@@ -375,21 +387,25 @@ export async function getMusicalNumber(
   return data ? mapMusicalNumberRow(data) : null;
 }
 
+// `includeCancelled` is for the save-time reconcile that tells performers a number is cancelled.
 export async function listMusicalNumbers(
   wardId: string,
   sundayIds: readonly string[],
   client?: SupabaseClient<Database>,
+  options: { includeCancelled?: boolean } = {},
 ): Promise<MusicalNumber[]> {
   if (sundayIds.length === 0) return [];
 
   const supabase = await resolveClient(client);
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("musical_numbers")
     .select(MUSICAL_NUMBER_COLUMNS)
     .eq("ward_id", wardId)
-    .in("sunday_id", sundayIds)
-    .order("created_at");
+    .in("sunday_id", sundayIds);
+  if (options.includeCancelled !== true) query = query.is("cancelled_at", null);
+
+  const { data, error } = await query.order("created_at");
 
   if (error) {
     console.error(`Could not read the ward's musical numbers — ${error.message}`, { wardId });
@@ -469,6 +485,8 @@ export async function deleteMusicalNumber(
     .delete()
     .eq("ward_id", wardId)
     .eq("sunday_id", sundayId)
+    // Only the live number. A cancelled one is a record and is never deleted.
+    .is("cancelled_at", null)
     .select("id");
 
   if (error) {

@@ -40,7 +40,7 @@ const WARNING_TITLES: Record<CalendarChangeReason, string> = {
 
 type PatchResponse = {
   sunday?: Sunday;
-  assignmentsReverted?: number;
+  workCancelled?: { assignments: number; prayers: number; music: number };
   warning?: CalendarChangeWarning;
   error?: string;
 };
@@ -101,15 +101,10 @@ export function SundayEditor({ sunday, bishopricUsers, bishopricNames }: SundayE
 
       setWarning(undefined);
 
-      // A silent success after that warning is worse than the warning. "Moved back to planning",
-      // never "removed" or "cancelled" — those assignments still exist and Phase 4 must not count
-      // them as talks that were given (04-talks-pipeline.md §Step 2).
-      const reverted = body.assignmentsReverted ?? 0;
-      setStatusMessage(
-        reverted > 0
-          ? `Saved. ${reverted} ${reverted === 1 ? "speaker" : "speakers"} moved back to the planning stage.`
-          : "Saved.",
-      );
+      // A silent success after that warning is worse than the warning. The work is CANCELLED and
+      // says so (Sacrament slice f2c, reversing the "moved back to planning" wording this replaced):
+      // it stays on record, never deleted, and never counts as a talk that was given.
+      setStatusMessage(describeCancelledWork(body.workCancelled));
 
       // The saved row comes back AFTER the month was re-resolved, so the form has to take its new
       // state from the response — apply_fast_sunday may have changed this Sunday's own type and
@@ -284,4 +279,22 @@ export function SundayEditor({ sunday, bishopricUsers, bishopricNames }: SundayE
       </Modal>
     </>
   );
+}
+
+// "Saved. 2 speakers and 1 prayer cancelled." — or just "Saved." when nothing was.
+function describeCancelledWork(
+  work: { assignments: number; prayers: number; music: number } | undefined,
+): string {
+  if (work === undefined) return "Saved.";
+  const parts = [
+    work.assignments > 0
+      ? `${work.assignments} ${work.assignments === 1 ? "speaker" : "speakers"}`
+      : null,
+    work.prayers > 0 ? `${work.prayers} ${work.prayers === 1 ? "prayer" : "prayers"}` : null,
+    work.music > 0 ? `${work.music} music ${work.music === 1 ? "choice" : "choices"}` : null,
+  ].filter((part): part is string => part !== null);
+  if (parts.length === 0) return "Saved.";
+  const listed =
+    parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+  return `Saved. ${listed} cancelled.`;
 }

@@ -924,6 +924,8 @@ export type Database = {
         Row: {
           approved_at: string | null
           assignment_type: string | null
+          cancelled_at: string | null
+          cancelled_reason: string | null
           completed_at: string | null
           confirmed_at: string | null
           contact_waived_at: string | null
@@ -957,6 +959,8 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           assignment_type?: string | null
+          cancelled_at?: string | null
+          cancelled_reason?: string | null
           completed_at?: string | null
           confirmed_at?: string | null
           contact_waived_at?: string | null
@@ -990,6 +994,8 @@ export type Database = {
         Update: {
           approved_at?: string | null
           assignment_type?: string | null
+          cancelled_at?: string | null
+          cancelled_reason?: string | null
           completed_at?: string | null
           confirmed_at?: string | null
           contact_waived_at?: string | null
@@ -1541,6 +1547,8 @@ export type Database = {
       hymn_selections: {
         Row: {
           ai_suggested: boolean
+          cancelled_at: string | null
+          cancelled_reason: string | null
           created_at: string
           hymn_number: number | null
           hymn_title: string | null
@@ -1552,6 +1560,8 @@ export type Database = {
         }
         Insert: {
           ai_suggested?: boolean
+          cancelled_at?: string | null
+          cancelled_reason?: string | null
           created_at?: string
           hymn_number?: number | null
           hymn_title?: string | null
@@ -1563,6 +1573,8 @@ export type Database = {
         }
         Update: {
           ai_suggested?: boolean
+          cancelled_at?: string | null
+          cancelled_reason?: string | null
           created_at?: string
           hymn_number?: number | null
           hymn_title?: string | null
@@ -1953,6 +1965,8 @@ export type Database = {
       }
       musical_numbers: {
         Row: {
+          cancelled_at: string | null
+          cancelled_reason: string | null
           created_at: string
           id: string
           notes: string | null
@@ -1962,6 +1976,8 @@ export type Database = {
           ward_id: string
         }
         Insert: {
+          cancelled_at?: string | null
+          cancelled_reason?: string | null
           created_at?: string
           id?: string
           notes?: string | null
@@ -1971,6 +1987,8 @@ export type Database = {
           ward_id: string
         }
         Update: {
+          cancelled_at?: string | null
+          cancelled_reason?: string | null
           created_at?: string
           id?: string
           notes?: string | null
@@ -2157,6 +2175,8 @@ export type Database = {
         Row: {
           asked_at: string | null
           asked_by: string | null
+          cancelled_at: string | null
+          cancelled_reason: string | null
           confirmed_at: string | null
           created_at: string
           id: string
@@ -2169,6 +2189,8 @@ export type Database = {
         Insert: {
           asked_at?: string | null
           asked_by?: string | null
+          cancelled_at?: string | null
+          cancelled_reason?: string | null
           confirmed_at?: string | null
           created_at?: string
           id?: string
@@ -2181,6 +2203,8 @@ export type Database = {
         Update: {
           asked_at?: string | null
           asked_by?: string | null
+          cancelled_at?: string | null
+          cancelled_reason?: string | null
           confirmed_at?: string | null
           created_at?: string
           id?: string
@@ -3083,6 +3107,7 @@ export type Database = {
         Row: {
           action_item_id: string | null
           ask_assignment_id: string | null
+          ask_prayer_id: string | null
           assigned_by: string | null
           closed_reason: string | null
           completed_at: string | null
@@ -3090,6 +3115,7 @@ export type Database = {
           do_date: string | null
           due_date: string | null
           id: string
+          musical_number_id: string | null
           notes: string | null
           scheduled_for: string | null
           scheduled_with_member_id: string | null
@@ -3104,6 +3130,7 @@ export type Database = {
         Insert: {
           action_item_id?: string | null
           ask_assignment_id?: string | null
+          ask_prayer_id?: string | null
           assigned_by?: string | null
           closed_reason?: string | null
           completed_at?: string | null
@@ -3111,6 +3138,7 @@ export type Database = {
           do_date?: string | null
           due_date?: string | null
           id?: string
+          musical_number_id?: string | null
           notes?: string | null
           scheduled_for?: string | null
           scheduled_with_member_id?: string | null
@@ -3125,6 +3153,7 @@ export type Database = {
         Update: {
           action_item_id?: string | null
           ask_assignment_id?: string | null
+          ask_prayer_id?: string | null
           assigned_by?: string | null
           closed_reason?: string | null
           completed_at?: string | null
@@ -3132,6 +3161,7 @@ export type Database = {
           do_date?: string | null
           due_date?: string | null
           id?: string
+          musical_number_id?: string | null
           notes?: string | null
           scheduled_for?: string | null
           scheduled_with_member_id?: string | null
@@ -3159,10 +3189,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "todos_ask_prayer_id_fkey"
+            columns: ["ask_prayer_id"]
+            isOneToOne: false
+            referencedRelation: "prayer_assignments"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "todos_assigned_by_fkey"
             columns: ["assigned_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_musical_number_id_fkey"
+            columns: ["musical_number_id"]
+            isOneToOne: false
+            referencedRelation: "musical_numbers"
             referencedColumns: ["id"]
           },
           {

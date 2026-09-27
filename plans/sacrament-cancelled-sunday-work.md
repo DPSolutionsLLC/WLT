@@ -5,6 +5,8 @@
 **Phase:** P4 module 1 (Sacrament), slice `f2c`, after `f2b`. Slice `f3` (the assistant) follows,
 and its migration moves from 085 to **086**.
 **Structure:** one slice, one commit, one migration (085).
+**Status:** BUILT 2026-09-26 and walked as scenario 081. Departures from the tasks below are listed
+at the end.
 
 ## Overview
 
@@ -143,3 +145,22 @@ Sundays do not exist), and it should be fixed with it, as its own item.
 - **sacrament-topics-finalize-and-history:** a stale "decided" signal must not survive an edit.
 - **youth-h (060-D2):** no policy moves in this slice; if one must, USING and WITH CHECK agree.
 - **Never `npm run build` while `npm run dev` runs;** stopping dev orphans the Next.js child.
+
+## As built — departures from this plan
+
+- **The people side lives in the reconcile, not in `cancelSundayWork()`.** `lib/calendar` does not
+  import the talks or to-do modules (they import it), so the calendar only marks rows cancelled and
+  the save-time reconcile writes speaker history and the "let them know" to-dos. It asks of the
+  STATE — "has this cancelled item ever had a to-do?" / "does this talk have a `cancelled` history
+  row?" — so a retry finishes a half-done run and Told them can never bring a to-do back.
+- **Told them no longer clears the talk's answer** (f2b did, so a returning talk could be asked
+  again). A cancelled record stays exactly as it was. It is admitted on any to-do stamped
+  `talk_off_at`, under `personal_tools.use`: a ward secretary who cancels a meeting holds the
+  musical number's to-do and no talk permission.
+- **Titles:** "Let ___ know the talk / the prayer / the musical number is cancelled". The timeline
+  line reads "Cancelled for ___ — let them know they're not needed".
+- **`listAssignments` takes `includeCancelled`**; `getAssignment`, `getPrayer` and the speaker-history
+  context read cancelled rows by design and are named exemptions in the source-reading test. The talk
+  PATCH and approve routes refuse a cancelled talk with a 409 and a sentence.
+- **The f2b route test was rewritten in place** (`tests/routes/talk-off.test.ts`) rather than a new
+  file beside it: its scenario is this slice's scenario.

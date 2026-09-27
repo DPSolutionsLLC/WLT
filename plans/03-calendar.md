@@ -414,6 +414,10 @@ fires into nothing.
 - **Silently zeroing speaking slots.** Moving Fast Sunday onto a Sunday that already has
   speakers orphans them. Warn, confirm, and revert the assignments to `plan` — never
   delete them.
+  > **Superseded 2026-09-26 (Sacrament slice f2c, the user's decision):** the assignments are now
+  > **cancelled** — kept whole as a record with `cancelled_at`, never deleted, and skipped by every
+  > reader — rather than reverted to `plan` with their speaker. "Warn, confirm, never delete"
+  > stands. See CLAUDE.md §9 and `plans/sacrament-cancelled-sunday-work.md`.
 - **Forgetting the reverse direction.** Clearing a conference designation must move Fast
   Sunday back *earlier*, not leave it where it shifted to.
 - **Deleting a Sunday.** Assignments, prayers, hymns, and programs all reference it.

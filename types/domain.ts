@@ -1564,6 +1564,19 @@ export const TODO_LOG_KINDS = [
 ] as const;
 export type TodoLogKind = (typeof TODO_LOG_KINDS)[number];
 
+// Why a Sunday's work was cancelled (`cancelled_reason` on assignments, prayer_assignments,
+// hymn_selections and musical_numbers, migration 085). Sacrament slice f2c: when a Sunday stops
+// holding sacrament meeting, or a talk loses its slot, the work is RELEASED and kept as a
+// cancelled record — never deleted, never sent back to planning with its speaker.
+export const CANCELLED_REASONS = ["no_meeting", "fast_sunday", "slot_removed"] as const;
+export type CancelledReason = (typeof CANCELLED_REASONS)[number];
+
+export const CANCELLED_REASON_LABELS: Record<CancelledReason, string> = {
+  no_meeting: "No sacrament meeting",
+  fast_sunday: "Fast Sunday",
+  slot_removed: "Speaking slot removed",
+};
+
 // Why an OPEN ask left a list without being answered (`todos.closed_reason`, migrations 083 and
 // 084). A closed ask has `completedAt` set too, so every reader already treats it as done.
 // `told_not_needed`: its talk was off and the owner told the speaker. `talk_back_on`: the talk came

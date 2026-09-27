@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 79,
+  "scenarioCount": 80,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -2046,6 +2046,39 @@
         "Step 8's warning says who conducts will change but not that the open \"let them know\" items"
       ],
       "seedCommand": "npm run seed -- talks/scenario-080-the-talk-is-off"
+    },
+    {
+      "id": "talks:scenario-081-a-cancelled-sunday",
+      "path": "talks/scenario-081-a-cancelled-sunday",
+      "name": "A cancelled Sunday",
+      "scope": "p4-sacrament-f2c",
+      "part": 1,
+      "tags": [
+        "sacrament",
+        "talks",
+        "prayers",
+        "music",
+        "todos",
+        "calendar",
+        "full",
+        "P4"
+      ],
+      "prerequisites": "none",
+      "purpose": "Sacrament slice `f2c`. When a Sunday stops holding sacrament meeting, **all of its planning work\nis released and recorded as cancelled** — talks, prayers, the hymn choice and the musical number —\nand the Sunday's topics and references decisions are cleared. Nothing is deleted: every row stays\nas a record, marked cancelled, and every screen skips it, so the Sunday reads as empty. Whoever\nasked each person gets a **\"Let ___ know it's cancelled\"** to-do and confirms with **Told them**. A\nward member's speaker history shows **\"Cancelled · Talk\"**, which never counts as having spoken or\nas being asked. If the Sunday holds a meeting again, planning starts over.\n\nThis **reverses** the older rule that a lost talk went \"back to planning\" with its speaker.\n\n**Already automated:**\n- `tests/routes/talk-off.test.ts`: the warning's sentences; every talk, prayer and piece of music\n  cancelled with nothing deleted; the decisions cleared; history for members only, never a late\n  cancellation; the to-dos for an asked speaker, an accepted speaker, an asked prayer and the\n  musical number, and none for an unasked prayer or a hymn; Accepted refused; Told them leaving the\n  record as it was; a retry writing nothing twice; planning starting over in the same slots; a cut\n  slot (each rule proved able to fail)\n- `tests/lib/cancelledReaders.test.ts`: no read of talks, prayers or music skips the cancelled\n  filter (proved able to fail)\n- `tests/db/fast-sunday-collision.test.ts`, `tests/routes/sunday-update.test.ts`: the calendar's\n  own cancellations, inverted from \"reverted to planning\"\n- `tests/lib/reliabilityFlags.test.ts`: a cancelled talk is not \"asked recently\"",
+      "checklist": [
+        "Step 3: A reads **Topics 3/3 · Refs: skipped · Talks 3/3 · Prayer 2/2 · Music 1/3**",
+        "Step 5: the warning says the 3 speaking assignments will be **cancelled**, that they **stay",
+        "Step 5: the editor reads **\"Saved. 3 speakers, 2 prayers and 2 music choices cancelled.\"**",
+        "Step 6: A reads **Stake Conference — No sacrament meeting**",
+        "Step 7: counselor1 has **four** to-dos, each with a **Cancelled** pill and **Told them**:",
+        "Step 8: Maria's speaking history shows A's date as **\"Cancelled · Talk\"**",
+        "Step 9: counselor2 has **\"Let Tomas Reyes know the prayer is cancelled\"**, and nothing about",
+        "Step 10: A reads **Conducting: Peter Nakamura** and **Topics 0/3 · Talks 0/3 · Prayer 0/2 ·",
+        "Step 10: counselor1's four to-dos are **still open**: the cancellation happened, and those",
+        "Nothing was deleted: every talk, prayer, hymn and musical-number row is still in the database",
+        "`audit_log`: the save carries `workCancelled` and `talkAsks` with the history, marked and"
+      ],
+      "seedCommand": "npm run seed -- talks/scenario-081-a-cancelled-sunday"
     },
     {
       "id": "todos:scenario-075-a-todo-that-became-a-project",

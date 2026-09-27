@@ -1356,6 +1356,30 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   invites join it as a fourth kind, and **the conflict check must call it**, never assemble a
   second list. "Schedule this" reads the day and time as the **ward's** wall clock
   (`lib/todos/scheduleInstant.ts`, over `wallClockToInstant`), never `new Date("…T19:30")`.
+- **A SUNDAY'S LOST WORK IS CANCELLED, NOT SENT BACK TO PLANNING — DECIDED 2026-09-26, REVERSING
+  `03-calendar.md` Pitfall 5 and `04-talks-pipeline.md` "reverted to plan" (Sacrament slice f2c,
+  migration 085).** The user: once a Sunday is marked as not holding sacrament meeting, *all of the
+  work should have been released*, converted to a cancelled status with a confirmation that the
+  people involved were told; if it becomes a meeting again, the work just starts over. So when a
+  Sunday loses its meeting, becomes Fast Sunday, or has a slot cut, `cancelSundayWork()`
+  (`lib/calendar/queries.ts`) stamps the lost talks — and, when the MEETING is lost, its prayers,
+  hymn choices and musical number — with `cancelled_at` + `cancelled_reason`, and clears the
+  Sunday's topics/references decisions when every talk goes. **Nothing is deleted**, which is the
+  part of the old rule that survives: a cancelled row keeps every column it had. **Every reader
+  skips a cancelled row** (`listAssignments` by default, and the prayer and music reads), so the
+  Sunday reads as empty and planning starts over in the same slots; `tests/lib/cancelledReaders.test.ts`
+  reads the source and fails on a read that forgets. The people side runs in the save-time reconcile
+  (`lib/sacrament/conductorHandover.ts`), asking of the state what is missing so a retry finishes a
+  half-done run: a member's cancelled talk writes speaker history `cancelled` with a **null**
+  notice (never `late_canceller`, which is for a speaker who backs out), and whoever asked each
+  person gets a **"Let ___ know it's cancelled"** to-do closed with **Told them** — the asker for a
+  talk or an asked prayer, the person making the change for a musical number (nothing records who
+  arranged it), nobody for a hymn. Unfinished to-dos **stay open** if the meeting returns. A
+  cancelled talk counts as neither spoken nor "asked recently". Prayers and music now **block** the
+  confirm when the meeting is lost, reversing calendar-a Decision 4 for that case. **Known gap:**
+  calendar GENERATION can still move Fast Sunday onto a Sunday with talks without cancelling them
+  (`apply_fast_sunday` no longer touches talks at all); they read as off until that Sunday's next
+  save. Fix it with the pre-existing Fast Sunday defect walking scenario 079 found.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

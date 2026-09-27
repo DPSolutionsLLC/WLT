@@ -19,7 +19,7 @@ import {
   type TodoViewState,
 } from "@/types/domain";
 import { AskAnswerDialog } from "@/app/(app)/todos/AskAnswerDialog";
-import { AskDetails } from "@/app/(app)/todos/AskDetails";
+import { AskDetails, CancelledNotice } from "@/app/(app)/todos/AskDetails";
 import { ScheduleDialog } from "@/app/(app)/todos/ScheduleDialog";
 import { RemoveButton, SmallButton } from "@/app/(app)/todos/SmallButton";
 import { TodoFormDialog } from "@/app/(app)/todos/TodoFormDialog";
@@ -107,7 +107,12 @@ export function TodoCard({
   // An ask has NO checkbox, open or done (Sacrament slice f1). Open, it is answered with the buttons
   // below; done, it stays done — the server refuses both the tick and the untick, and this only
   // makes the card offer what the server allows.
-  const isAsk = todo.askAssignmentId !== null;
+  //
+  // A to-do stamped `talk_off_at` asks its owner to TELL somebody their part was cancelled
+  // (Sacrament slices f2b and f2c): a talk ask, or the to-do for a cancelled prayer or musical
+  // number. It has no checkbox either; "Told them" closes it.
+  const needsTelling = todo.talkOffAt !== null || todo.askSource?.talkOff === true;
+  const isAsk = todo.askAssignmentId !== null || todo.talkOffAt !== null;
   const isOpenAsk = isAsk && !isDone;
   const bodyId = `todo-body-${todo.id}`;
   const stepFieldId = `todo-step-${todo.id}`;
@@ -273,6 +278,7 @@ export function TodoCard({
           {/* Everything needed to extend the invitation, on the card itself — for a hallway
               conversation as much as for a scheduled one. Only while the ask is open. */}
           {todo.askSource !== null && isOpenAsk ? <AskDetails ask={todo.askSource} /> : null}
+          {todo.askSource === null && isOpenAsk && needsTelling ? <CancelledNotice /> : null}
           {todo.agendaSource === null ? null : (
             <span className="text-xs text-muted">
               From the {MEETING_TYPE_LABELS[todo.agendaSource.meetingType]} agenda of{" "}
@@ -311,7 +317,7 @@ export function TodoCard({
           }
           disabled={busy}
         />
-        {isOpenAsk && todo.askSource?.talkOff === true ? (
+        {isOpenAsk && needsTelling ? (
           <span className="ml-auto flex items-center gap-0.5">
             <SmallButton
               label="Told them"

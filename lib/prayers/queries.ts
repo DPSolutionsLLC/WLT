@@ -6,6 +6,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { UpsertPrayerInput } from "@/lib/validation/prayer";
 import type { Database } from "@/types/database";
 import {
+  CANCELLED_REASONS,
+  type CancelledReason,
   PRAYER_COMPLETED_STAGE,
   PRAYER_STAGES,
   PRAYER_TYPES,
@@ -25,6 +27,11 @@ import {
 // PRAYERS SURVIVE `speaking_slots = 0`. A fast Sunday still has an invocation and a benediction,
 // so nothing here is gated on the slot count — that guard belongs to speakers only
 // (lib/calendar/queries.ts documents the same rule from the calendar side).
+//
+// A CANCELLED PRAYER IS A RECORD, NOT A PRAYER ON THE SUNDAY (Sacrament slice f2c, migration 085).
+// When a Sunday stops holding sacrament meeting its prayers are cancelled. Every read here skips
+// them unless it opts in, so the slot reads as open; and no write here touches one, so the record
+// stays as it was. getPrayer() alone returns one, by id, so a route can say why it refuses.
 
 export type Prayer = {
   id: string;
@@ -35,10 +42,15 @@ export type Prayer = {
   askedBy: string | null;
   askedAt: string | null;
   confirmedAt: string | null;
+  cancelledAt: string | null;
+  cancelledReason: CancelledReason | null;
   createdAt: string;
 };
 
-export type PrayerFilter = { sundayId: string } | { from: DateOnly; to: DateOnly };
+export type PrayerFilter = ({ sundayId: string } | { from: DateOnly; to: DateOnly }) & {
+  // Only the save-time reconcile that tells people reads cancelled prayers.
+  includeCancelled?: boolean;
+};
 
 export type PrayerTransitionStamps = {
   actorUserId: string;
@@ -53,6 +65,8 @@ type PrayerRow = {
   asked_by: string | null;
   asked_at: string | null;
   confirmed_at: string | null;
+  cancelled_at: string | null;
+  cancelled_reason: string | null;
   created_at: string;
 };
 
@@ -65,7 +79,7 @@ type PrayerUpdate = Database["public"]["Tables"]["prayer_assignments"]["Update"]
 // Concatenation widens the type to `string`, which defeats supabase-js's literal-type parsing of
 // the select list (plans/retros/calendar-a-rules-and-api.md).
 const PRAYER_COLUMNS =
-  "id, sunday_id, member_id, prayer_type, stage, asked_by, asked_at, confirmed_at, created_at";
+  "id, sunday_id, member_id, prayer_type, stage, asked_by, asked_at, confirmed_at, cancelled_at, cancelled_reason, created_at";
 
 // The last-prayed read needs the Sunday's date, so it carries its own list rather than appending
 // to the one above — a second const, never a concatenation of the first.
@@ -102,6 +116,11 @@ export function mapPrayerRow(row: PrayerRow): Prayer {
     askedBy: row.asked_by,
     askedAt: row.asked_at,
     confirmedAt: row.confirmed_at,
+    cancelledAt: row.cancelled_at,
+    cancelledReason:
+      row.cancelled_reason === null
+        ? null
+        : toEnumValue(row.cancelled_reason, CANCELLED_REASONS, "prayer_assignments.cancelled_reason"),
     createdAt: row.created_at,
   };
 }
@@ -123,6 +142,8 @@ export async function listPrayers(
     .from("prayer_assignments")
     .select(PRAYER_COLUMNS)
     .eq("ward_id", wardId);
+
+  if (filter.includeCancelled !== true) query = query.is("cancelled_at", null);
 
   if ("sundayId" in filter) {
     query = query.eq("sunday_id", filter.sundayId);
@@ -186,6 +207,8 @@ export async function findPrayerSlot(
     .eq("ward_id", wardId)
     .eq("sunday_id", sundayId)
     .eq("prayer_type", prayerType)
+    // The LIVE slot. A cancelled prayer no longer holds it (migration 085's partial index).
+    .is("cancelled_at", null)
     .maybeSingle();
 
   if (error) {
@@ -281,6 +304,7 @@ export async function setPrayerMember(
     .update(patch)
     .eq("ward_id", wardId)
     .eq("id", prayerId)
+    .is("cancelled_at", null)
     .select(PRAYER_COLUMNS)
     .maybeSingle();
 
@@ -332,6 +356,7 @@ export async function transitionPrayer(
     .update(patch)
     .eq("ward_id", wardId)
     .eq("id", prayerId)
+    .is("cancelled_at", null)
     .select(PRAYER_COLUMNS)
     .maybeSingle();
 
@@ -370,6 +395,7 @@ export async function listLastPrayed(
     .select(LAST_PRAYED_COLUMNS)
     .eq("ward_id", wardId)
     .eq("stage", PRAYER_COMPLETED_STAGE)
+    .is("cancelled_at", null)
     .in("member_id", memberIds as string[]);
 
   if (error) {
@@ -384,4 +410,29 @@ export async function listLastPrayed(
   );
 
   return shapeLastPrayed(memberIds, rows);
+}
+
+// The CANCELLED prayers on these Sundays, in one read (Sacrament slice f2c). Only the save-time
+// reconcile reads them, to tell whoever asked each person that the prayer is cancelled.
+export async function listCancelledPrayers(
+  wardId: string,
+  sundayIds: readonly string[],
+  client?: SupabaseClient<Database>,
+): Promise<Prayer[]> {
+  if (sundayIds.length === 0) return [];
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("prayer_assignments")
+    .select(PRAYER_COLUMNS)
+    .eq("ward_id", wardId)
+    .in("sunday_id", [...sundayIds])
+    .not("cancelled_at", "is", null);
+
+  if (error) {
+    console.error(`Could not read cancelled prayers — ${error.message}`, { wardId });
+    throw new Error(`Could not read cancelled prayers: ${error.message}`);
+  }
+
+  return (data ?? []).map(mapPrayerRow);
 }

@@ -80,6 +80,11 @@ It is stored rather than derived so a later policy change does not rewrite histo
 
 ### Non-negotiable: a voided assignment must not count as a talk that was given
 
+> **Updated 2026-09-26 (Sacrament slice f2c).** A voided assignment is no longer sent back to `plan`;
+> it is **cancelled** (`assignments.cancelled_at`), kept whole and skipped by every reader. Both
+> rules below still hold: a cancelled talk never reached `complete`, and `counts_toward_rotation`
+> is still not a cancelled flag — `cancelled_at` is. See CLAUDE.md §9.
+
 Phase 3 can send an assignment **backwards** to stage `plan`. It happens whenever a calendar
 change voids work — a Sunday is marked stake conference or holiday, a Sunday becomes Fast
 Sunday, speaking slots are cut below the speakers already in them, or Fast Sunday re-resolves
@@ -460,6 +465,10 @@ Read it before building on any of Phase 4.
     `complete` transition. The flag exists because §Step 8 specifies it and its boundary is tested,
     but nothing in the app can make it fire. **Whoever builds a cancellation path owns making it
     real**; the flag is not evidence that one exists.
+    > **2026-09-26 (slice f2c):** a cancellation path now writes `outcome = 'cancelled'` — when the
+    > WARD cancels a meeting — with `cancellation_days_notice` **null**, deliberately, so
+    > `late_canceller` stays dormant: it describes a speaker who backs out, which the app still has
+    > no path for. `not_asked_recently` now skips `cancelled` rows.
 11. **`target_type: 'group'` is readable but not creatable.** The route must verify that a target
     resolves to a live row in the right table, because `target_id` carries no foreign key. There is
     no `groups` table, so a `group` target can never be verified — and accepting an unverifiable

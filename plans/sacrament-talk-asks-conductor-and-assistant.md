@@ -118,7 +118,7 @@ answer resolves it for both.
 - `tests/lib/conductorHandoverSites.test.ts` — create — source-reading guard
 
 **f3 — The conductor window and the assistant**
-- `supabase/migrations/085_sunday_assistant.sql` — create — `sundays.assistant_user_id` (renumbered from 084, which f2b took)
+- `supabase/migrations/086_sunday_assistant.sql` — create — `sundays.assistant_user_id` (renumbered twice: f2b took 084 and f2c took 085)
 - `types/database.ts`, `types/domain.ts`, `lib/calendar/queries.ts` (Sunday mapper and column list), `lib/validation/calendar.ts` — modify — `assistantUserId` (rule 9)
 - `lib/todos/askLinks.ts` — modify
   - `mirrorAsksToAssistant()`
@@ -433,11 +433,16 @@ comes back on.
 - **Walked as scenario 080.** It found nothing new; building it found that scenario 079's route
   test had asked speakers on a Fast Sunday, which `talkIsOff()` now refuses.
 
+### Sub-slice f2c — A Sunday's work is cancelled (added 2026-09-26)
+
+Planned and recorded in `plans/sacrament-cancelled-sunday-work.md`. It retires f2b's "back on"
+rule: cancelled work never comes back, so there is nothing to close when a meeting returns.
+
 ### Sub-slice f3 — The conductor window and the assistant (commit 3)
 
-#### Task 14: Migration 085
-**File:** `supabase/migrations/085_sunday_assistant.sql` (create) — renumbered from 084, which
-slice f2b took
+#### Task 14: Migration 086
+**File:** `supabase/migrations/086_sunday_assistant.sql` (create) — renumbered from 084: slice
+f2b took 084 and slice f2c took 085
 ```sql
 alter table sundays
   add column assistant_user_id uuid references users (id) on delete set null,
@@ -480,7 +485,7 @@ alter table sundays
 - The compact-ui preference applies: the window fits its content, with small grouped buttons.
 
 #### Task 18: Docs for f2/f3
-- SPEC: migration 085, the assistant field, the handover rule.
+- SPEC: migration 086, the assistant field, the handover rule.
 - FEATURES.
 - module-map §2.1: the user's conductor/assistant model, marked as a deliberate extension beyond the prototype, whose `ConductingModal` only substitutes.
 - `CLAUDE.md` §9: one entry:
@@ -594,7 +599,7 @@ open asks with private notes already on them.
 ## Validation Commands
 
 ```bash
-# Migrations and types (f1: 083; f2b: 084; f3: 085)
+# Migrations and types (f1: 083; f2b: 084; f2c: 085; f3: 086)
 npm run db:push
 npm run db:types
 
@@ -628,8 +633,8 @@ npm run manifest
   `recordRequestOutcome()` the only writer of an outcome, so the revamp changes one function.
 - **Breaking changes:** none. `ContactStagePanel`'s decline gains a required reason select;
   existing history rows keep `decline_reason` null, which renders as "Declined".
-- **Migrations:** 083, 084 and 085 are purely additive, so none is held back. Apply 083 before
-  deploying f1, 084 before f2b and 085 before f3.
+- **Migrations:** 083–086 hold nothing back. Apply 083 before deploying f1, 084 before f2b, 085
+  before f2c (see its header for the one behavioural change) and 086 before f3.
 - **Deliberately not built:**
   - notifications to the conductor when asks arrive (the to-dos simply appear, P5's rule)
   - more than one assistant

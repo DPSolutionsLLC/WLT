@@ -451,16 +451,32 @@ export async function markAsksTalkOff(params: {
   return marked;
 }
 
-// A speaker who had ALREADY ACCEPTED has no open ask left to mark, so whoever asked them gets a
-// new to-do, "Let ___ know there's no talk", linked to the talk and stamped off from the start.
-// Idempotent through migration 083b's index: the owner already holding an open item for the talk
-// is 23505, and that is the outcome wanted.
+// SOMEBODY MUST BE TOLD IT'S CANCELLED — a to-do linked to what was cancelled and stamped
+// `talk_off_at` from the start, so the card offers "Told them". Three kinds (Sacrament slices f2b
+// and f2c):
+//   - a talk whose speaker had ALREADY ACCEPTED, so no open ask is left to mark: whoever asked them;
+//   - a prayer somebody was asked to give (migration 085's `ask_prayer_id`): whoever asked;
+//   - a musical number (`musical_number_id`): the person making the change, because nothing
+//     records who arranged it.
+// Idempotent through the partial unique index on each link (083b, 085c): the owner already holding
+// an open item for it is 23505, and that is the outcome wanted.
+export type TellLink =
+  | { assignmentId: string }
+  | { prayerId: string }
+  | { musicalNumberId: string };
+
 export type TellToCreate = {
-  assignmentId: string;
+  link: TellLink;
   ownerUserId: string;
   title: string;
   notes: string;
 };
+
+function linkColumns(link: TellLink) {
+  if ("assignmentId" in link) return { ask_assignment_id: link.assignmentId };
+  if ("prayerId" in link) return { ask_prayer_id: link.prayerId };
+  return { musical_number_id: link.musicalNumberId };
+}
 
 export async function createTellTodos(params: {
   wardId: string;
@@ -475,7 +491,7 @@ export async function createTellTodos(params: {
   const now = new Date().toISOString();
 
   for (const tell of params.tells) {
-    const detail = { wardId: params.wardId, assignmentId: tell.assignmentId };
+    const detail = { wardId: params.wardId, ...tell.link };
     const { data, error } = await supabase
       .from("todos")
       .insert({
@@ -486,7 +502,7 @@ export async function createTellTodos(params: {
         notes: tell.notes,
         tag: "Sacrament",
         do_date: params.today,
-        ask_assignment_id: tell.assignmentId,
+        ...linkColumns(tell.link),
         talk_off_at: now,
       })
       .select("id")
@@ -494,7 +510,7 @@ export async function createTellTodos(params: {
 
     if (error) {
       if (error.code === "23505") continue;
-      fail("Could not create a to-do to tell a speaker there is no talk", error, detail, created);
+      fail("Could not create a to-do to tell somebody it's cancelled", error, detail, created);
     }
 
     const { error: logError } = await supabase.from("todo_log_entries").insert({
@@ -548,4 +564,103 @@ export async function listLatestAskOwners(params: {
     }
   }
   return owners;
+}
+
+// ---------------------------------------------------------------------------
+// HAS ANYBODY BEEN TOLD YET? — Sacrament slice f2c
+// ---------------------------------------------------------------------------
+// The save-time reconcile creates a "let them know" to-do only for cancelled work that has NEVER had
+// one, open or closed. Asked of the state, a retry finishes a half-done run, and pressing Told them
+// can never bring one back.
+
+// Talks with any to-do already stamped `talk_off_at` — a marked ask, or a tell.
+export async function listToldAssignmentIds(params: {
+  wardId: string;
+  assignmentIds: readonly string[];
+  client?: Client;
+}): Promise<Set<string>> {
+  const ids = await linkedIds(params.wardId, "ask_assignment_id", params.assignmentIds, true, params.client);
+  return ids;
+}
+
+export async function listToldPrayerIds(params: {
+  wardId: string;
+  prayerIds: readonly string[];
+  client?: Client;
+}): Promise<Set<string>> {
+  return linkedIds(params.wardId, "ask_prayer_id", params.prayerIds, false, params.client);
+}
+
+export async function listToldMusicalNumberIds(params: {
+  wardId: string;
+  musicalNumberIds: readonly string[];
+  client?: Client;
+}): Promise<Set<string>> {
+  return linkedIds(params.wardId, "musical_number_id", params.musicalNumberIds, false, params.client);
+}
+
+async function linkedIds(
+  wardId: string,
+  column: "ask_assignment_id" | "ask_prayer_id" | "musical_number_id",
+  ids: readonly string[],
+  onlyStamped: boolean,
+  client?: Client,
+): Promise<Set<string>> {
+  const found = new Set<string>();
+  if (ids.length === 0) return found;
+  const supabase = client ?? createServiceSupabaseClient();
+
+  let query = supabase
+    .from("todos")
+    .select("ask_assignment_id, ask_prayer_id, musical_number_id")
+    .eq("ward_id", wardId)
+    .in(column, [...ids]);
+  if (onlyStamped) query = query.not("talk_off_at", "is", null);
+
+  const { data, error } = await query;
+  if (error) {
+    console.error(`Could not read who has been told — ${error.message}`, { wardId, column });
+    throw new Error(`Could not check who has been told: ${error.message}`);
+  }
+
+  for (const row of data ?? []) {
+    const value = row[column];
+    if (value !== null) found.add(value);
+  }
+  return found;
+}
+
+// "Told them" on a to-do that is not a talk ask — a cancelled prayer's or musical number's. Only
+// this one to-do closes: nobody else holds a copy. Conditional on it still being open.
+export async function closeToldTodo(params: {
+  wardId: string;
+  todoId: string;
+  client?: Client;
+}): Promise<string[]> {
+  const supabase = params.client ?? createServiceSupabaseClient();
+  const detail = { wardId: params.wardId, todoId: params.todoId };
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from("todos")
+    .update({ completed_at: now, closed_reason: "told_not_needed", updated_at: now })
+    .eq("ward_id", params.wardId)
+    .eq("id", params.todoId)
+    .is("completed_at", null)
+    .not("talk_off_at", "is", null)
+    .select("id");
+  if (error) fail("Could not close a to-do as told", error, detail);
+
+  const closed = (data ?? []).map((row) => row.id);
+  if (closed.length === 0) return closed;
+
+  const { error: logError } = await supabase.from("todo_log_entries").insert({
+    ward_id: params.wardId,
+    todo_id: params.todoId,
+    kind: "told_not_needed",
+    body: null,
+  });
+  if (logError) fail("Could not write the told line on a to-do", logError, detail, closed);
+
+  return closed;
 }

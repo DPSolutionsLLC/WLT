@@ -148,11 +148,20 @@ export function buildAskTitle(speakerName: string): string {
   return truncate(`Ask ${speakerName.trim()} to speak`, MAX_TODO_TITLE);
 }
 
-// For a speaker who had ALREADY ACCEPTED when their talk went off: there is no open ask left to
-// mark, so whoever asked them gets this instead (f2b). Worded without a pronoun, which the app
-// cannot know.
+// "LET ___ KNOW IT'S CANCELLED" (Sacrament slices f2b and f2c). Whoever asked somebody to take part
+// on a Sunday that lost it gets one of these. Worded without a pronoun, which the app cannot know.
 export function buildTellTitle(speakerName: string): string {
-  return truncate(`Let ${speakerName.trim()} know there's no talk`, MAX_TODO_TITLE);
+  return truncate(`Let ${speakerName.trim()} know the talk is cancelled`, MAX_TODO_TITLE);
+}
+
+export function buildPrayerTellTitle(personName: string): string {
+  return truncate(`Let ${personName.trim()} know the prayer is cancelled`, MAX_TODO_TITLE);
+}
+
+// `performer` is free text and may be empty.
+export function buildMusicTellTitle(performer: string | null): string {
+  const who = performer === null || performer.trim() === "" ? "the performer" : performer.trim();
+  return truncate(`Let ${who} know the musical number is cancelled`, MAX_TODO_TITLE);
 }
 
 // `sundays.date` is a `date` column, so the day is formatted in UTC (CLAUDE.md rule 12).

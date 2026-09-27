@@ -53,7 +53,7 @@ describe("describeLogEntry", () => {
       "Taken over from Peter Nakamura",
     );
     expect(describeLogEntry({ kind: "talk_off", body: "Sunday, October 11, 2026" })).toBe(
-      "No talk on Sunday, October 11, 2026 any more — let them know they're not needed",
+      "Cancelled for Sunday, October 11, 2026 — let them know they're not needed",
     );
     expect(describeLogEntry({ kind: "told_not_needed", body: null })).toBe(
       "Told them they're not needed",

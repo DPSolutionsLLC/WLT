@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAssignment, writeRequestOutcome } from "@/lib/assignments/queries";
+import { getAssignment } from "@/lib/assignments/queries";
 import { recordRequestOutcome } from "@/lib/assignments/requestOutcome";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
 import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
@@ -9,6 +9,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   AskLinkWriteError,
   closeAsksForAssignment,
+  closeToldTodo,
   resolveAsksForAssignment,
 } from "@/lib/todos/askLinks";
 import { getTodo } from "@/lib/todos/queries";
@@ -29,11 +30,16 @@ import { DECLINE_REASON_LABELS } from "@/types/domain";
 // (lib/todos/askLinks.ts). Order: the talk, then the to-dos, then the audit. The audit is written
 // even when closing the to-dos failed, because the answer is recorded either way.
 //
-// "TOLD THEM" (Sacrament slice f2b). While the talk is OFF — no meeting, or no slot — there is no
-// answer to record: the owner lets the speaker know they are not needed. That closes every open
-// copy with "Told them they're not needed" and clears the talk's recorded answer, so if the talk
-// ever comes back the speaker is asked from scratch. Accepted / Declined are refused while the
-// talk is off, and "told" while it is on.
+// "TOLD THEM" (Sacrament slices f2b and f2c). Work that was cancelled — a talk, a prayer, a musical
+// number — leaves its owner a to-do stamped `talk_off_at`, and there is no answer to record: the
+// owner lets the person know they are not needed and presses Told them. That closes every open copy
+// of a talk ask, or the one to-do for a prayer or a musical number, with "Told them they're not
+// needed". The cancelled record itself is left exactly as it was.
+//
+// Told them needs only `personal_tools.use`: it closes the caller's own to-do (RLS proves it is
+// theirs) and the other copies of the same talk ask. A ward secretary who cancelled a meeting holds
+// the musical number's to-do and no talk permission. Accepted / Declined still need `talks.request`,
+// and are refused on anything that is off.
 
 const NOT_FOUND = "That to-do could not be found.";
 const NOT_AN_OPEN_ASK =
@@ -44,8 +50,7 @@ const COPIES_NOT_CLOSED =
 const TALK_IS_OFF =
   "There is no talk any more. Once you've let them know they're not needed, press Told them.";
 const TALK_IS_ON = "The talk is still on. Record their answer with Accepted or Declined.";
-const TOLD_NOT_ALL_CLOSED =
-  "The talk was updated, but not every copy of this to-do was closed. Please refresh.";
+const TOLD_NOT_ALL_CLOSED = "Not every copy of this to-do was closed. Please refresh.";
 
 export async function POST(
   request: Request,
@@ -57,32 +62,41 @@ export async function POST(
     const supabase = await createServerSupabaseClient();
     const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
-    assertCan(user, "talks.request", roleAccess);
-
     const { id } = todoIdSchema.parse(await params);
     const input = answerAskSchema.parse(await readJsonBody(request));
+
+    assertCan(user, input.outcome === "told" ? "personal_tools.use" : "talks.request", roleAccess);
 
     const todo = await getTodo(user.wardId, id, supabase);
     if (todo === null) {
       return NextResponse.json({ error: NOT_FOUND }, { status: 404 });
     }
+
+    const isOff = todo.talkOffAt !== null || todo.askSource?.talkOff === true;
+    if (input.outcome === "told") {
+      if (todo.completedAt !== null || !isOff) {
+        return NextResponse.json({ error: TALK_IS_ON }, { status: 400 });
+      }
+      return await recordTold({
+        wardId: user.wardId,
+        userId: user.id,
+        todoId: id,
+        assignmentId: todo.askAssignmentId,
+        supabase,
+      });
+    }
+
     if (todo.askAssignmentId === null || todo.completedAt !== null) {
       return NextResponse.json({ error: NOT_AN_OPEN_ASK }, { status: 400 });
+    }
+    if (isOff) {
+      return NextResponse.json({ error: TALK_IS_OFF }, { status: 400 });
     }
 
     const assignmentId = todo.askAssignmentId;
     const existing = await getAssignment(user.wardId, assignmentId, supabase);
     if (existing === null) {
       return NextResponse.json({ error: TALK_GONE }, { status: 404 });
-    }
-
-    const talkOff = todo.askSource?.talkOff === true;
-    if (input.outcome === "told") {
-      if (!talkOff) return NextResponse.json({ error: TALK_IS_ON }, { status: 400 });
-      return await recordTold({ wardId: user.wardId, userId: user.id, todoId: id, assignmentId, supabase });
-    }
-    if (talkOff) {
-      return NextResponse.json({ error: TALK_IS_OFF }, { status: 400 });
     }
 
     const declineReason = input.outcome === "declined" ? (input.declineReason ?? null) : null;
@@ -156,37 +170,31 @@ export async function POST(
   }
 }
 
-// "Told them": the answer is cleared on the talk FIRST, then every open copy closes, then the audit
-// — the same order an answer takes, so a failure part-way leaves the talk honest.
+// "Told them". Nothing on the cancelled record changes — it stays exactly as it was when it was
+// cancelled. Every open copy of a talk ask closes (the conductor's and the assistant's); a prayer's
+// or a musical number's to-do closes alone, since nobody else holds one.
 async function recordTold(params: {
   wardId: string;
   userId: string;
   todoId: string;
-  assignmentId: string;
+  assignmentId: string | null;
   supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>;
 }): Promise<NextResponse> {
-  const cleared = await writeRequestOutcome(
-    params.wardId,
-    params.assignmentId,
-    null,
-    undefined,
-    params.supabase,
-  );
-  if (cleared === null) {
-    return NextResponse.json({ error: TALK_GONE }, { status: 404 });
-  }
-
   let todosClosed: string[] = [];
   let closeFailure: AskLinkWriteError | null = null;
   try {
-    todosClosed = await closeAsksForAssignment({
-      wardId: params.wardId,
-      assignmentId: params.assignmentId,
-      reason: "told_not_needed",
-    });
+    todosClosed =
+      params.assignmentId === null
+        ? await closeToldTodo({ wardId: params.wardId, todoId: params.todoId })
+        : await closeAsksForAssignment({
+            wardId: params.wardId,
+            assignmentId: params.assignmentId,
+            reason: "told_not_needed",
+          });
   } catch (error) {
     if (!(error instanceof AskLinkWriteError)) throw error;
     closeFailure = error;
+    todosClosed = [...error.completedIds];
   }
 
   await writeAuditLog(
@@ -201,7 +209,7 @@ async function recordTold(params: {
   );
 
   if (closeFailure !== null) {
-    console.error("POST /api/todos/[id]/answer cleared the talk but not every copy closed", {
+    console.error("POST /api/todos/[id]/answer did not close every copy on Told them", {
       wardId: params.wardId,
       todoId: params.todoId,
       cause: closeFailure.cause,

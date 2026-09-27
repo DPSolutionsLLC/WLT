@@ -93,7 +93,10 @@ export function reliabilityFlags(
     flags.push("late_canceller");
   }
 
-  const lastAsked = mostRecentDate(history);
+  // A CANCELLED talk is not an ask that happened (Sacrament slice f2c, the user's decision C7): the
+  // ward cancelled the meeting, and the member never spoke. Counting it would hide them from the
+  // "not asked in a while" suggestion for eighteen months for a talk they never gave.
+  const lastAsked = mostRecentDate(history.filter((entry) => entry.outcome !== "cancelled"));
 
   if (lastAsked !== null && monthsHavePassed(lastAsked, NOT_ASKED_MONTHS, today)) {
     flags.push("not_asked_recently");
