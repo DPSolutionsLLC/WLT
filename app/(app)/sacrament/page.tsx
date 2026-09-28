@@ -17,6 +17,8 @@ import {
 } from "@/lib/calendar/dates";
 import {
   conductingNameMap,
+  ensureHorizonGenerated,
+  ensureMonthGenerated,
   listBishopricUsers,
   listSundays,
   referencesDecisionOf,
@@ -60,12 +62,21 @@ import { countOpenAsksByAssignment } from "@/lib/todos/askLinks";
 // who passes, blesses and prepares — lands at /sacrament/ordinances, nested under this hub.
 //
 // ---------------------------------------------------------------------------
-// READS ONLY
+// IT GENERATES SUNDAYS, EXACTLY AS /calendar DOES — REVERSED 2026-09-28
 // ---------------------------------------------------------------------------
-// Generating a month is a calendar WRITE and stays on /calendar. A hub that quietly created
-// Sundays would be a surprise, and it would race the planner and the prayer tracker to do it —
-// calendar-c's half-generated months, which app/(app)/assignments/page.tsx records at its own
-// listSundays call for the same reason.
+// This hub used to be READS ONLY, leaving generation to /calendar. Since the hub replaced the
+// Talks tile it is the front door to planning a meeting, and a ward whose calendar nobody had
+// opened lately saw an empty month here with no way forward. The user chose to match /calendar
+// in full: the same ensureHorizonGenerated() + ensureMonthGenerated() pair, in the same order,
+// under the same `calendar.manage` gate — see app/(app)/calendar/page.tsx for why both calls are
+// needed and why the gate exists.
+//
+// The race the old note feared is harmless: `sundays` is unique on (ward_id, date) and
+// generation inserts with ignoreDuplicates, so two pages generating one month at once create each
+// Sunday once and overwrite nothing.
+//
+// ⚠️ IT INHERITS DEFECT 072-D3: the first visit of each month pays ~14s while the horizon
+// regenerates. Accepted knowingly; the fix (generate only the missing months) is still open.
 //
 // ---------------------------------------------------------------------------
 // THE SHORTCUT ROW — p4-sacrament-b1
@@ -128,7 +139,11 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
   const month = parseMonthParam(params.month, today);
   const range = { from: month, to: lastDayOfMonth(month) };
 
-  const sundays = await listSundays(user.wardId, range, supabase);
+  const sundays = can(user, "calendar.manage", roleAccess)
+    ? await ensureHorizonGenerated(user.wardId, today, supabase).then(() =>
+        ensureMonthGenerated(user.wardId, month, supabase),
+      )
+    : await listSundays(user.wardId, range, supabase);
   const sundayIds = sundays.map((sunday) => sunday.id);
 
   // `programs` is DELIBERATELY NOT READ any more. The programme left the pill row and became the

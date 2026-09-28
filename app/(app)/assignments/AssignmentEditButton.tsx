@@ -15,10 +15,15 @@ import type { SessionUser } from "@/types/domain";
 // It exists rather than reusing the planner's own trigger because this page knows something the
 // month view does not: WHO approved. The month read carries approval counts only, deliberately,
 // so the planner's warning counts and this one names names.
+//
+// A null assignment is an OPEN SLOT, and the same modal opens in create mode — the month planner
+// has always done this (MonthPlannerBoard's setOpenSlot). Without it this page was a dead end:
+// the hub's Talks pill lands here, and nothing on it could plan a speaker.
 
 export type AssignmentEditButtonProps = {
   user: SessionUser;
-  assignment: Assignment;
+  assignment: Assignment | null;
+  slotNumber: number;
   sundayId: string;
   sundayLabel: string;
   topics: TopicOption[];
@@ -28,6 +33,7 @@ export type AssignmentEditButtonProps = {
 export function AssignmentEditButton({
   user,
   assignment,
+  slotNumber,
   sundayId,
   sundayLabel,
   topics,
@@ -39,7 +45,7 @@ export function AssignmentEditButton({
   return (
     <>
       <Button type="button" variant="secondary" onClick={() => setIsOpen(true)}>
-        Edit
+        {assignment === null ? "Plan" : "Edit"}
       </Button>
 
       {isOpen && (
@@ -53,7 +59,7 @@ export function AssignmentEditButton({
           user={user}
           sundayId={sundayId}
           sundayLabel={sundayLabel}
-          slotNumber={assignment.slotNumber ?? 1}
+          slotNumber={slotNumber}
           assignment={assignment}
           topics={topics}
           approvedCount={approvedNames.length}

@@ -5,6 +5,7 @@ import { ApprovalPanel } from "@/app/(app)/assignments/ApprovalPanel";
 import { AssignmentEditButton } from "@/app/(app)/assignments/AssignmentEditButton";
 import { CommentThread } from "@/app/(app)/assignments/CommentThread";
 import { ContactStagePanel } from "@/app/(app)/assignments/ContactStagePanel";
+import { SundaySlotList } from "@/app/(app)/assignments/SundaySlotList";
 import { SpeakerLine, speakerDisplayName } from "@/components/assignments/SpeakerLine";
 import { GoalAlertBanner } from "@/components/goals/GoalAlertBanner";
 import type { GoalAlert } from "@/components/goals/GoalAlerts";
@@ -209,14 +210,25 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
         />
       )}
 
-      {assignments.length === 0 ? (
-        <Card>
-          <p className="text-sm text-muted">
-            Nothing is planned for this Sunday yet. Plan a slot from the month view.
-          </p>
-        </Card>
-      ) : (
-        assignments.map((assignment) => {
+      <SundaySlotList
+        speakingSlots={sunday.speakingSlots}
+        assignments={assignments}
+        renderPlanButton={
+          canPlan
+            ? (slotNumber) => (
+                <AssignmentEditButton
+                  user={user}
+                  assignment={null}
+                  slotNumber={slotNumber}
+                  sundayId={sunday.id}
+                  sundayLabel={formatSundayLabel(sunday.date)}
+                  topics={topics}
+                  approvedNames={[]}
+                />
+              )
+            : null
+        }
+        renderAssignment={(assignment) => {
           const approvals = approvalsByAssignment.get(assignment.id) ?? [];
           const approvedNames = approvedNamesFor(assignment);
           const member =
@@ -248,6 +260,7 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
                   <AssignmentEditButton
                     user={user}
                     assignment={assignment}
+                    slotNumber={assignment.slotNumber ?? 1}
                     sundayId={sunday.id}
                     sundayLabel={formatSundayLabel(sunday.date)}
                     topics={topics}
@@ -341,8 +354,8 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
               </div>
             </Card>
           );
-        })
-      )}
+        }}
+      />
 
       <Card>
         <h2 className="text-base font-semibold text-foreground">

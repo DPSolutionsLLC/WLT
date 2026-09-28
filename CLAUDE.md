@@ -1387,6 +1387,15 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   Fast Sunday onto them without cancelling them (generation cancels nothing, and `apply_fast_sunday`
   no longer touches talks); they read as off until that Sunday's next save. Generation creates whole
   months, so this needs a month built one Sunday at a time.
+- **THE SACRAMENT HUB GENERATES SUNDAYS, EXACTLY AS `/calendar` DOES — DECIDED 2026-09-28,
+  REVERSING p4-sacrament-a's "READS ONLY".** Since the hub replaced the Talks tile it is the front
+  door to planning, and a ward whose calendar nobody had opened lately saw an empty month there with
+  no way forward. `app/(app)/sacrament/page.tsx` now runs the same `ensureHorizonGenerated()` +
+  `ensureMonthGenerated()` pair under the same `calendar.manage` gate. The race the old note feared
+  is harmless — `sundays` is unique on `(ward_id, date)` and generation inserts with
+  `ignoreDuplicates`. **It inherits defect 072-D3** (~14s on the first visit of each month),
+  accepted knowingly. In the same change `/assignments/[sunday_id]` lists **every slot**, open ones
+  with **Plan**, so the hub's Talks pill no longer lands on a page that cannot plan a speaker.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS
