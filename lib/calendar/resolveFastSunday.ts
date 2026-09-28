@@ -1,5 +1,5 @@
 import { FAST_SUNDAY_DISPLACING_TYPES, type SundayType } from "@/types/domain";
-import type { DateOnly } from "@/lib/calendar/dates";
+import { lastDayOfMonth, monthStart, sundaysInRange, type DateOnly } from "@/lib/calendar/dates";
 
 // Fast Sunday is a RESOLUTION RULE, not a generation-time constant.
 //
@@ -22,25 +22,40 @@ export type FastSundayCandidate = {
   fastSundayPinned: boolean;
 };
 
-export function resolveFastSunday(monthSundays: FastSundayCandidate[]): string | null {
-  // A copy. Sorting the argument in place would reorder a caller's array underneath it, and
-  // generateSundays() relies on its own ordering after this returns.
-  const byDate = [...monthSundays].sort((left, right) => left.date.localeCompare(right.date));
+// THE CALENDAR DECIDES, NOT WHICH ROWS HAPPEN TO EXIST. Every Sunday of `anyDayInMonth`'s month is
+// considered, and a Sunday with no row yet counts as an ordinary one: it holds a meeting and is not
+// displacing, because nothing has said otherwise. When Fast Sunday falls on such a date the answer
+// is null — no EXISTING Sunday is Fast Sunday — and apply_fast_sunday() leaves every row ordinary.
+//
+// It used to walk only the rows it was given, so a month whose earlier Sundays had not been
+// created promoted a LATER Sunday, zeroing its speaking slots. Walking scenario 079 met exactly
+// that: a seed with the month's last Sunday alone made it Fast Sunday on the first save.
+export function resolveFastSunday(
+  monthSundays: FastSundayCandidate[],
+  anyDayInMonth: DateOnly,
+): string | null {
+  const start = monthStart(anyDayInMonth);
+  const byDate = new Map(monthSundays.map((candidate) => [candidate.date, candidate] as const));
+  const calendar = sundaysInRange(start, lastDayOfMonth(start));
 
   // A pin outranks the rule until a human clears it. More than one pin in a month is prevented
   // by the data layer; if a stale one survives anyway, the earliest wins and nothing throws — a
   // bad pin must not take a calendar page down with it.
-  const pinned = byDate.find((candidate) => candidate.fastSundayPinned);
+  const pinned = calendar
+    .map((date) => byDate.get(date))
+    .find((candidate) => candidate?.fastSundayPinned === true);
   if (pinned) return pinned.id;
 
   // A candidate already typed `fast_sunday` is not displacing, so it stays chosen. That is what
   // makes re-resolution idempotent: running this over an already-resolved month returns the same
   // id rather than walking Fast Sunday forward one week per run.
-  const winner = byDate.find(
-    (candidate) => !FAST_SUNDAY_DISPLACING_TYPES.includes(candidate.type),
-  );
+  for (const date of calendar) {
+    const candidate = byDate.get(date);
+    if (candidate === undefined) return null;
+    if (!FAST_SUNDAY_DISPLACING_TYPES.includes(candidate.type)) return candidate.id;
+  }
 
   // Every Sunday in the month is displaced. A month with no Fast Sunday is a real state — a
   // stake conference weekend followed by general conference — not an error.
-  return winner?.id ?? null;
+  return null;
 }

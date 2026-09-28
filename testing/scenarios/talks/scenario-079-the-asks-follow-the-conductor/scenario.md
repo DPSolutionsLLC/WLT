@@ -122,6 +122,10 @@ counselor2.
   Sunday that exists, and the editor sends the whole form on every save. This predates slice f2
   and was reported separately. The seed now creates every Sunday, with each month's first one
   pinned, as a generated calendar would.
+  **FIXED 2026-09-27** as two defects: Fast Sunday is now decided by the calendar, counting a
+  Sunday with no row as an ordinary one (`resolveFastSunday()`), and the warning no longer skips
+  the edited Sunday when the save's own impact is not already recorded. Re-walked: September 27
+  alone in its month saved as "Saved." and stayed Standard with 3 slots.
 - **Defect found and fixed: the old owner kept the appointment.** After the change by hand,
   counselor1's My Appointments still showed "7:00 PM · Ask Maria Lopez to speak · **Done** · With
   Maria Lopez", beside counselor2's copy of the same meeting. `readScheduledTodos` now leaves out

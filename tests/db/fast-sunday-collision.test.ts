@@ -473,4 +473,62 @@ describe("fast Sunday collision", () => {
       expect(data?.cancelled_reason).toBe("no_meeting");
     });
   });
+
+  // WALKING SCENARIO 079 (2026-09-27). Two defects met on one save, each tested on its own here.
+  describe("a month whose earlier Sundays are missing, or whose Fast Sunday is misplaced", () => {
+    const insertSunday = async (date: string, type: "standard" | "fast_sunday", slots: number) => {
+      const { data, error } = await fixtures.service
+        .from("sundays")
+        .insert({ ward_id: wardId, date, type, speaking_slots: slots })
+        .select("id")
+        .single();
+      if (error) throw new Error(`Could not seed ${date}: ${error.message}`);
+      return data.id;
+    };
+
+    const insertTalk = async (sundayId: string) => {
+      const { error } = await fixtures.service.from("assignments").insert({
+        ward_id: wardId,
+        sunday_id: sundayId,
+        assignment_type: "sacrament_talk",
+        pipeline_stage: "plan",
+        slot_number: 1,
+      });
+      if (error) throw new Error(`Could not seed a talk: ${error.message}`);
+    };
+
+    // Defect 1: Fast Sunday went to the first Sunday that EXISTED, so the month's last Sunday,
+    // alone in the calendar, became Fast Sunday on a plain save and lost its speaking slots.
+    it("never makes a later Sunday Fast Sunday because the earlier ones are missing", async () => {
+      const lateId = await insertSunday("2026-10-25", "standard", 3);
+      await insertTalk(lateId);
+
+      const result = await updateSunday(wardId, lateId, { type: "standard" }, undefined, bishop);
+
+      expect(result?.status).toBe("applied");
+      const late = onDate(await readMonth("2026-10"), "2026-10-25");
+      expect(late.type).toBe("standard");
+      expect(late.speakingSlots).toBe(3);
+    });
+
+    // Defect 2: the warning skipped Fast Sunday moving onto the Sunday being edited whenever it was
+    // the target, and SundayEditor re-sends an unchanged type on every save, so nothing warned.
+    it("warns when a plain save would move Fast Sunday onto the edited Sunday's speakers", async () => {
+      const firstId = await insertSunday("2026-11-01", "standard", 3);
+      await insertTalk(firstId);
+      await insertSunday("2026-11-08", "fast_sunday", 0);
+      await insertSunday("2026-11-15", "standard", 3);
+
+      const result = await updateSunday(wardId, firstId, { type: "standard" }, undefined, bishop);
+
+      expect(result?.status).toBe("needs_confirmation");
+      if (result?.status !== "needs_confirmation") return;
+      expect(result.warning.reason).toBe("fast_sunday_moved");
+      expect(result.warning.sundayId).toBe(firstId);
+      expect(result.warning.assignmentCount).toBe(1);
+
+      // Nothing written while warning.
+      expect(onDate(await readMonth("2026-11"), "2026-11-01").speakingSlots).toBe(3);
+    });
+  });
 });

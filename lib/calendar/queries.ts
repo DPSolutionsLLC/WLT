@@ -846,7 +846,7 @@ async function resolveMonth(
     supabase,
   );
 
-  const fastSundayId = resolveFastSunday(toCandidates(monthSundays));
+  const fastSundayId = resolveFastSunday(toCandidates(monthSundays), start);
 
   const { data, error } = await supabase.rpc("apply_fast_sunday", {
     p_ward_id: wardId,
@@ -2099,15 +2099,19 @@ export async function updateSunday(
         : candidate,
     );
 
-    const nextFastId = resolveFastSunday(projected);
+    const nextFastId = resolveFastSunday(projected, start);
     const fastBefore = currentFastSunday(monthSundays);
 
     if (nextFastId !== null && nextFastId !== (fastBefore?.id ?? null)) {
       const target = monthSundays.find((sunday) => sunday.id === nextFastId);
 
-      // Skipped when the target is the Sunday being edited — its impact is already recorded above
-      // and one change must never produce two warnings about the same speakers.
-      if (target && target.id !== sundayId) {
+      // Skipped only when the edit's OWN impact is already recorded for the Sunday being edited:
+      // one change must never produce two warnings about the same speakers. It used to skip the
+      // edited Sunday whenever it was the target, and SundayEditor re-sends an unchanged type on
+      // every save — so a plain save could move Fast Sunday onto the edited Sunday, zero its
+      // speaking slots and warn nobody (walking scenario 079).
+      const alreadyRecorded = target?.id === sundayId && editedImpact !== null;
+      if (target && !alreadyRecorded) {
         atRisk.push({
           reason: "fast_sunday_moved",
           sunday: target,

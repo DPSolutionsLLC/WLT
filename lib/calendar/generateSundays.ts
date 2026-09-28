@@ -66,12 +66,11 @@ export function generateSundays(
     }
   }
 
-  // A month only PARTIALLY covered by the range resolves against only the Sundays this call
-  // generated, so a range starting on the 15th can put Fast Sunday on the third Sunday. That is
-  // the honest answer for a ragged range, and it does not arise in practice because
-  // ensureMonthGenerated() and generateSundayRange() both widen to whole months before calling
-  // here. A caller that generates a ragged range gets a ragged answer.
-  for (const monthSundays of byMonth.values()) {
+  // A month only PARTIALLY covered by the range sets no Fast Sunday among the rows it generated
+  // when the month's real Fast Sunday falls before the range: resolveFastSunday() counts every
+  // Sunday of the month, generated or not. ensureMonthGenerated() and generateSundayRange() both
+  // widen to whole months before calling here anyway.
+  for (const [month, monthSundays] of byMonth) {
     const fastSundayDate = resolveFastSunday(
       monthSundays.map((sunday) => ({
         // The date doubles as the id: real ids do not exist before the insert, and this function
@@ -81,6 +80,7 @@ export function generateSundays(
         type: sunday.type,
         fastSundayPinned: false,
       })),
+      `${month}-01`,
     );
 
     if (fastSundayDate === null) continue;

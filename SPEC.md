@@ -863,7 +863,8 @@ topics/references stamps when every talk goes. Every read skips cancelled rows
 `cancelled_at is null`. `todos.ask_prayer_id` and `todos.musical_number_id` link the "Let ___ know
 it's cancelled" to-dos; the reconcile writes them and speaker history `cancelled` (null notice).
 Told them is admitted on any to-do with `talk_off_at`, under `personal_tools.use`, and leaves the
-cancelled record unchanged. `apply_fast_sunday` no longer touches assignments. The "back on" rule
+cancelled record unchanged. `apply_fast_sunday` no longer touches assignments. Fast Sunday is chosen by `resolveFastSunday()`
+over every CALENDAR Sunday of the month, a Sunday with no row counting as ordinary (2026-09-27). The "back on" rule
 of f2b is retired: `talk_back_on` stays admitted by the CHECKs and is written by nothing.
 **A talk that is off (slice f2b, migration 084).** A talk is off when its Sunday holds no meeting
 or its slot no longer exists — `talkIsOff()` in `lib/sacrament/talkAsks.ts`, computed from the

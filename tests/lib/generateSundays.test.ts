@@ -87,10 +87,12 @@ describe("generateSundays", () => {
     }
   });
 
-  // Documented behaviour, not a bug: a partially covered month resolves against only the Sundays
-  // the call generated. generateSundayRange() re-resolves against the whole month afterwards, and
-  // ensureMonthGenerated() only ever asks for whole months, so this does not arise in the app.
-  it("resolves a partially covered month against only the Sundays it generated", () => {
+  // INVERTED 2026-09-27. This used to be "documented behaviour, not a bug": a partially covered
+  // month resolved against only the Sundays the call generated, so a range starting on the 10th
+  // made the 15th Fast Sunday. It WAS the bug walking scenario 079 met — a later Sunday promoted,
+  // its speaking slots zeroed. resolveFastSunday() now counts every Sunday of the month, and the
+  // 1st (not generated here) keeps it.
+  it("never makes a later Sunday Fast Sunday because the range starts mid-month", () => {
     const partial = generateSundays("2026-03-10", "2026-03-31");
 
     expect(partial.map((row) => row.date)).toEqual([
@@ -98,7 +100,8 @@ describe("generateSundays", () => {
       "2026-03-22",
       "2026-03-29",
     ]);
-    expect(fastSundayOf("2026-03", partial)).toBe("2026-03-15");
+    expect(fastSundayOf("2026-03", partial)).toBeNull();
+    expect(partial.every((row) => row.type === "standard")).toBe(true);
   });
 
   // The slot count is keyed on holdsSacramentMeeting(), not on the NAME of one type, so a future

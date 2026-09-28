@@ -98,6 +98,12 @@ them: the Sunday has 0 slots) until the next save of that Sunday reconciles them
 narrow case as the pre-existing Fast Sunday defect walking scenario 079 found (a month whose earlier
 Sundays do not exist), and it should be fixed with it, as its own item.
 
+> **Narrowed 2026-09-27.** `resolveFastSunday()` now decides by the calendar, counting a Sunday with
+> no row as an ordinary one, so generation can no longer promote a later Sunday. What remains is one
+> case: a month's FIRST Sunday created later as a conference, after a later Sunday in that month
+> already has talks. Generation always creates whole months, so it needs a month built one Sunday
+> at a time; it is recorded rather than built for.
+
 ## Relevant Files
 
 | File | Change |

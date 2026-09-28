@@ -1376,10 +1376,17 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   talk or an asked prayer, the person making the change for a musical number (nothing records who
   arranged it), nobody for a hymn. Unfinished to-dos **stay open** if the meeting returns. A
   cancelled talk counts as neither spoken nor "asked recently". Prayers and music now **block** the
-  confirm when the meeting is lost, reversing calendar-a Decision 4 for that case. **Known gap:**
-  calendar GENERATION can still move Fast Sunday onto a Sunday with talks without cancelling them
-  (`apply_fast_sunday` no longer touches talks at all); they read as off until that Sunday's next
-  save. Fix it with the pre-existing Fast Sunday defect walking scenario 079 found.
+  confirm when the meeting is lost, reversing calendar-a Decision 4 for that case.
+  **FAST SUNDAY IS DECIDED BY THE CALENDAR, NOT BY WHICH ROWS EXIST — fixed 2026-09-27.**
+  `resolveFastSunday(candidates, anyDayInMonth)` walks every Sunday of the month and counts one with
+  no row as ordinary, so a month whose earlier Sundays were never created cannot promote a later one
+  (walking scenario 079 met it: a plain save zeroed the slots of a month's only Sunday). The month is
+  a REQUIRED argument so no caller can forget it. The save's warning also no longer skips the edited
+  Sunday unless its own impact is already recorded. **Remaining gap, recorded rather than built:** a
+  month's FIRST Sunday created later as a conference, after a later Sunday already has talks, moves
+  Fast Sunday onto them without cancelling them (generation cancels nothing, and `apply_fast_sunday`
+  no longer touches talks); they read as off until that Sunday's next save. Generation creates whole
+  months, so this needs a month built one Sunday at a time.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS
