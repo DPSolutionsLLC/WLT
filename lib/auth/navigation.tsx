@@ -143,29 +143,25 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
     built: true,
   },
   // ---------------------------------------------------------------------------
-  // TOPICS IS REACHED FROM THE SACRAMENT HUB'S SHORTCUT ROW, NOT FROM THE DASHBOARD
+  // TOPIC HISTORY — A TILE AGAIN, AND STILL ON THE SACRAMENT HUB'S SHORTCUT ROW
   // ---------------------------------------------------------------------------
-  // The user's decision, 2026-09-23, on seeing it deployed: "I don't think that's really
-  // necessary. If anything I'd probably rather just have that accessible from within the
-  // Sacrament module." The prototype has agreed since the beginning — its Sacrament hub carries a
-  // `.sac-nav` row of eight shortcuts and Topics is one of them (module-map.md §6.4).
+  // On 2026-09-23 the user moved Topics off the dashboard and onto the hub's shortcut row. The tile
+  // was withheld but the ROW was kept because `/talks/topics` was then the only home of the AI
+  // topic candidate queue, and rule 3 needed that queue reachable.
   //
-  // ⚠️ THE ROW SURVIVES AND THE TILE DOES NOT. `/talks/topics` is the ONLY home for the AI topic
-  // candidate accept/reject queue (app/(app)/talks/topics/CandidateQueue.tsx, rendered inside
-  // TopicList), and CLAUDE.md rule 3 is that no AI output reaches a row without explicit
-  // approval. The page is untouched; only the TILE is withheld, and the shortcut row is what
-  // keeps the queue reachable. That was considered rather than overlooked — say so here, because
-  // the next reader will wonder.
+  // That reason is gone. There is no topic library and no candidate queue (the user's decision,
+  // 2026-09-29, migration 086): a talk's topic is its words, and this page is the ward's searchable
+  // history of them. The user asked for the history to have its own dashboard tile, so
+  // `onDashboard: false` is removed — and it stays on the shortcut row as well.
   {
-    label: "Topics",
+    label: "Topic history",
     href: "/talks/topics",
     permission: "topics.view",
     section: "meetings",
-    blurb: "The pool of subjects talks are assigned from.",
+    blurb: "Every topic used, when, and by whom.",
     icon: <Lightbulb />,
     accent: "pine",
     built: true,
-    onDashboard: false,
   },
   {
     label: "Program",
@@ -388,8 +384,9 @@ export function visibleNavigationItems(
 // stays in NAVIGATION_ITEMS. A page that spelled its own labels and icons would be the second
 // copy this file's header refuses.
 //
-// It does NOT consult `onDashboard`. Topics is withheld from the grid precisely so that this is
-// where it is reached from, so honouring that flag here would leave it with no entry point at all.
+// It does NOT consult `onDashboard`. A row withheld from the grid is withheld precisely so that
+// this is where it is reached from, so honouring that flag here would leave it with no entry point
+// at all. (Topics was the first such row; it became a tile again with the topic history, 2026-09-29.)
 //
 // THE GIVEN ORDER IS KEPT, not NAVIGATION_ITEMS' — the prototype's row has its own order and the
 // caller is the only thing that knows it. An href naming no row, or naming an unbuilt or

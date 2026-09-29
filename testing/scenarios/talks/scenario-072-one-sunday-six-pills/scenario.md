@@ -6,6 +6,8 @@ tags: [talks, sacrament, full, p4]
 prerequisites: none
 ---
 
+> **PARTLY RETIRED 2026-09-29.** Every check that `/talks/topics` is the "Topic library" is out of date: it is now the **Topic history**, with its own dashboard tile (plans/sacrament-topics-screen-rebuild.md `t2`). The pill checks still stand.
+
 ## Purpose
 
 The Sacrament hub's whole value is that **a pill's count matches the page behind it**. That needs

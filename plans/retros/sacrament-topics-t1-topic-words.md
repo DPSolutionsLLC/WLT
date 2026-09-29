@@ -2,7 +2,7 @@
 id: sacrament-topics-t1-topic-words
 type: feature
 iter: null
-commits: ["05f0df9"]
+commits: ["ee1d3fd"]
 date: 2026-09-29
 files:
   - supabase/migrations/086_talk_topic_words.sql

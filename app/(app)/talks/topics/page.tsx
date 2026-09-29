@@ -1,21 +1,22 @@
-import { RecentTopicUsage } from "@/app/(app)/talks/topics/RecentTopicUsage";
-import { TopicList } from "@/app/(app)/talks/topics/TopicList";
+import { TopicHistoryList } from "@/app/(app)/talks/topics/TopicHistoryList";
 import { NotPermitted } from "@/components/ui/NotPermitted";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { formatDateOnly } from "@/lib/calendar/dates";
-import { listCandidates, listRecentTopicUsage, listTopics } from "@/lib/topics/queries";
+import { listTopicHistory } from "@/lib/topics/queries";
+import { parseTopicHistoryView } from "@/lib/topics/topicHistory";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { readPageView } from "@/lib/users/userSettings";
 
-// The topic library, at /talks/topics rather than the plan's /topics — that is what SPEC.md
-// §Component Structure specifies and what NAVIGATION_ITEMS has always linked to. Building it
-// anywhere else would have left the one Topics link in the sidebar pointing at a 404.
+// THE WARD'S TOPIC HISTORY — every topic given in sacrament meeting, and who gave it. It replaced
+// the topic library on the user's decision, 2026-09-29: "a good usable history of topics that have
+// been used", not "a library of preselected topics". A talk's topic is the words typed for it
+// (migration 086), and this page reads them straight off the talks.
 //
-// `topics.view` and `topics.manage` are bishopric-only in lib/auth/permissions.ts, and migration
-// 019 puts `topics` in the bishopric-only RLS loop. Both agree, so a non-bishopric role gets a
-// "Not permitted" page rather than an empty library — an empty library is a different claim.
+// `topics.view` is bishopric-only in lib/auth/permissions.ts, so anybody else gets "Not permitted"
+// rather than an empty history — an empty history is a different claim.
 
-export default async function TopicsPage() {
+export default async function TopicHistoryPage() {
   const user = await requireSessionUser();
   const supabase = await createServerSupabaseClient();
   const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
@@ -23,43 +24,27 @@ export default async function TopicsPage() {
   // can() rather than assertCan(): a ForbiddenError escaping a Server Component becomes a 500
   // whose message Next.js strips in production (plans/retros/auth-b-invites-admin.md).
   if (!can(user, "topics.view", roleAccess)) {
-    return <NotPermitted detail="The topic library is limited to the bishopric." />;
+    return <NotPermitted detail="The topic history is limited to the bishopric." />;
   }
 
-  const canManage = can(user, "topics.manage", roleAccess);
-
-  // Read ONCE here and handed down, so the usage window and anything else dated on this page
-  // cannot disagree about which day it is (lib/topics/queries.ts takes no clock of its own).
+  // Read ONCE here, so "coming up" means the same day everywhere on the page.
   const today = formatDateOnly(new Date());
 
-  const [topics, candidates, recentUsage] = await Promise.all([
-    // The DEFAULT filter — active topics, every category. TopicList seeds its cache from this
-    // and refetches for any other combination.
-    listTopics(user.wardId, { status: "active" }, supabase),
-    listCandidates(user.wardId, "pending", supabase),
-    listRecentTopicUsage(user.wardId, { today }, supabase),
+  const [entries, savedView] = await Promise.all([
+    listTopicHistory(user.wardId, { today }, supabase),
+    readPageView(user.id, "topic_history", supabase),
   ]);
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-xl font-semibold text-foreground">Topic library</h1>
+        <h1 className="font-display text-xl font-semibold text-foreground">Topic history</h1>
         <p className="mt-1 text-sm text-muted">
-          The pool every Sunday&rsquo;s topics are chosen from. Topics nobody has used yet appear
-          first, so the ones worth considering are at the top.
+          Every topic given in sacrament meeting, and who gave it.
         </p>
       </div>
 
-      {/* ABOVE THE LIBRARY, because it is what a conductor consults BEFORE choosing — the whole
-          point is not to repeat what has just been given. Below it, it would be a footnote to a
-          decision already made. */}
-      <RecentTopicUsage usage={recentUsage} />
-
-      <TopicList
-        initialTopics={topics}
-        initialCandidates={candidates}
-        canManage={canManage}
-      />
+      <TopicHistoryList entries={entries} initialView={parseTopicHistoryView(savedView)} />
     </div>
   );
 }

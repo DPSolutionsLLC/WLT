@@ -1396,6 +1396,16 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   `ignoreDuplicates`. **It inherits defect 072-D3** (~14s on the first visit of each month),
   accepted knowingly. In the same change `/assignments/[sunday_id]` lists **every slot**, open ones
   with **Plan**, so the hub's Talks pill no longer lands on a page that cannot plan a speaker.
+- **A TALK'S TOPIC IS ITS WORDS; THERE IS NO TOPIC LIBRARY — DECIDED 2026-09-29 (migration 086,
+  plans/sacrament-topics-screen-rebuild.md).** The user: not "a library of preselected topics", but
+  "a good usable history of topics that have been used". `assignments.topic_title` holds the words
+  (1–200 characters, blank stored as null); `/talks/topics` is the searchable **Topic history**,
+  read straight off the talks (`listTopicHistory()`, all time, cancelled talks skipped), with its
+  dashboard tile back. The library page, its AI candidate queue and four routes are **deleted**;
+  `topic_id`, `topics` and `topic_candidates` are **kept for their data and read by nothing** —
+  dropping them is a later migration held back until after a deploy. Scriptures for a confirmation
+  message come from the talk's own references now. Do not re-propose a library "for suggestions":
+  AI topic ideas are drafts that are never stored (rule 3).
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

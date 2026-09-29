@@ -6,6 +6,8 @@ tags: [talks, sacrament, music, full, finalize, permissions]
 prerequisites: none
 ---
 
+> **PARTLY RETIRED 2026-09-29.** The "Recently used" panel and the library below it were replaced by the **Topic history** (plans/sacrament-topics-screen-rebuild.md `t2`); scenario 084 walks it. The finalize and un-finalize checks still stand.
+
 ## Purpose
 
 `sundays.topics_finalized_at` says a member of the bishopric decided what a Sunday's talks are

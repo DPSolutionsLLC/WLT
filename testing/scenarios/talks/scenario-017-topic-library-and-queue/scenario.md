@@ -6,6 +6,8 @@ tags: [talks, full, topics, ai-boundary]
 prerequisites: none
 ---
 
+> **RETIRED 2026-09-29.** The topic library and its AI candidate queue were removed (migration 086, plans/sacrament-topics-screen-rebuild.md `t2`): a talk's topic is its words, and `/talks/topics` is now the Topic history. Kept as a record; do not walk it.
+
 ## Purpose
 
 Proves the accept/reject boundary is real **before Phase 5 can put anything through it** — the

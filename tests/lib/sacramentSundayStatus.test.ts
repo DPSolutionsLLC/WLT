@@ -351,9 +351,9 @@ describe("sundayPillHrefs", () => {
     expect(hrefs.topics).toBe(`/assignments/${SUNDAY_ID}`);
     expect(hrefs.talks).toBe(`/assignments/${SUNDAY_ID}`);
 
-    // The negative, asserted explicitly. /talks/topics is the ward-level topic LIBRARY a slot's
-    // topic is chosen FROM; the two names are one word apart and module-map.md §2.1 calls this
-    // the single most likely thing to get backwards.
+    // The negative, asserted explicitly. /talks/topics is the ward's topic HISTORY, not a
+    // per-Sunday view; the two names are one word apart and module-map.md §2.1 calls this the
+    // single most likely thing to get backwards.
     expect(hrefs.topics).not.toContain("/talks/topics");
     expect(hrefs.talks).not.toContain("/talks/topics");
   });

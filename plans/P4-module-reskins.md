@@ -159,8 +159,17 @@ land first.
 > reverses "reverted to plan": lost talks — and, when the meeting goes, its prayers and music — are
 > cancelled, kept as records and skipped by every reader, so planning starts over. Speaker history
 > records `cancelled`; whoever asked each person gets a "Let ___ know it's cancelled" to-do with
-> Told them. f2b's "back on" rule is retired. Walked as scenario 081. **`f3` is next** (its
-> migration is now 086): the conductor window and the assistant.
+> Told them. f2b's "back on" rule is retired. Walked as scenario 081. **`f3`** (the conductor
+> window and the assistant) is still to come; migration 086 went to the Topics rebuild, so f3's
+> migration is the next free number.
+>
+> **Topics screen rebuild (2026-09-29)** — plans/sacrament-topics-screen-rebuild.md, five
+> sub-slices. **The user retired the topic library:** a talk's topic is its words, and what the
+> ward keeps is a history. **`t1`** — `assignments.topic_title` (migration 086, backfilled); every
+> reader leaves `topic_id`. **`t2`** — `/talks/topics` becomes the searchable **Topic history** with
+> its dashboard tile back; the library page, its AI candidate queue and four routes are deleted.
+> This reverses `b1`'s "the queue keeps its home" and `b3`'s six-month window. `t3`–`t5` rebuild the
+> per-Sunday screen and its speaker and topic windows.
 >
 > **Module 1 now has `d`, `e` left**, and `f`/`g` wait on **P5**. The INDEX argues P5 should
 > come early for exactly that reason.

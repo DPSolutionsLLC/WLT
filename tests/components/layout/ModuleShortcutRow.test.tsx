@@ -35,7 +35,7 @@ describe("ModuleShortcutRow", () => {
   it("renders one link per item, at its own href", () => {
     render(<ModuleShortcutRow items={[TOPICS, MUSIC]} label="Related modules" />);
 
-    expect(screen.getByRole("link", { name: "Topics" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Topic history" })).toHaveAttribute(
       "href",
       "/talks/topics",
     );
@@ -52,7 +52,7 @@ describe("ModuleShortcutRow", () => {
 
     const labels = screen.getAllByRole("link").map((link) => link.textContent);
 
-    expect(labels).toEqual(["Program", "Topics", "Music"]);
+    expect(labels).toEqual(["Program", "Topic history", "Music"]);
   });
 
   // NAMED, because a page may eventually carry more than one <nav> and "navigation" twice over
@@ -68,7 +68,7 @@ describe("ModuleShortcutRow", () => {
   it("gives each link an accessible name of exactly its label", () => {
     render(<ModuleShortcutRow items={[TOPICS]} label="Related modules" />);
 
-    expect(screen.getByRole("link", { name: "Topics" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Topic history" })).toBeInTheDocument();
     expect(screen.getAllByRole("link")).toHaveLength(1);
   });
 

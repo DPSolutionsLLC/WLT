@@ -6,6 +6,8 @@ tags: [talks, sacrament, references, ai, full, finalize, permissions]
 prerequisites: none
 ---
 
+> **PARTLY RETIRED 2026-09-29.** The **Suggested for this topic** picks are gone — they came from the retired topic library (migration 086, `t1`). Step 7 now ticks two search results instead. Everything else still stands.
+
 ## Purpose
 
 This slice adds a **References** pill to every Sunday with speaking slots. It opens a modal where

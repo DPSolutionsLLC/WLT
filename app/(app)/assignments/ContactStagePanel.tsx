@@ -88,8 +88,8 @@ export type ContactStagePanelProps = {
   speakerFirstName: string | null;
   speakerPhone: string | null;
   topicTitle: string | null;
-  // From the topic library (talks-c). An empty list omits the scripture sentence rather than
-  // emitting a placeholder — buildConfirmationMessage's signature is unchanged.
+  // The talk's own scripture references (migration 086 retired the library's list). An empty list
+  // omits the scripture sentence rather than emitting a placeholder.
   suggestedScriptures: readonly string[];
   // The assignment's own comment thread, oldest first. `buildThankYouMessage` has always taken
   // this parameter and this panel has always passed `[]` — the template had the input and

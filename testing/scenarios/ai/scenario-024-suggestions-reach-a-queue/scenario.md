@@ -6,6 +6,8 @@ tags: [ai, talks, topics, full]
 prerequisites: none
 ---
 
+> **RETIRED 2026-09-29.** The topic library and its AI candidate queue were removed (migration 086, plans/sacrament-topics-screen-rebuild.md `t2`). AI topic ideas now come back as drafts in the topic window and are never stored (`t5`). Kept as a record; do not walk it.
+
 ## Purpose
 
 CLAUDE.md rule 3 — *no AI output reaches a human or a database row without explicit approval* — is

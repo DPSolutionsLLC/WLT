@@ -237,27 +237,23 @@ describe("role-filtered navigation", () => {
     expect(hrefs).not.toContain("/prayers");
   });
 
-  // KEPT AS A ROW, AND NO LONGER A TILE — p4-sacrament-b1. /talks/topics is the ward-level topic
-  // LIBRARY a slot's topic is chosen FROM — not a per-Sunday view — so the hub links to it rather
-  // than absorbing it (plans/prototype/module-map.md §2.1, correction b). The user decided on
-  // 2026-09-23 that the link belongs in the hub's shortcut row rather than on the dashboard.
-  //
-  // THE ROW ITSELF IS ASSERTED TO SURVIVE, because deleting it is the instinct `onDashboard`
-  // exists to head off: the label, the icon and the permission would then be re-typed into the
-  // component that links to it.
-  it("keeps the topic library in the list, gated on topics.view, and off the dashboard", () => {
+  // A TILE AGAIN — REVERSED 2026-09-29. p4-sacrament-b1 kept Topics as a row but withheld the tile,
+  // because /talks/topics was then the only home of the AI topic candidate queue. There is no topic
+  // library or queue any more (migration 086): the page is the ward's topic HISTORY, and the user
+  // asked for it to have its own dashboard tile. Written as an inversion so it reads as a decision.
+  it("keeps the topic history in the list, gated on topics.view, and on the dashboard", () => {
     const topics = NAVIGATION_ITEMS.find((item) => item.href === "/talks/topics");
 
     expect(topics).toBeDefined();
+    expect(topics?.label).toBe("Topic history");
     expect(topics?.permission).toBe("topics.view");
     expect(topics?.built).toBe(true);
-    expect(topics?.onDashboard).toBe(false);
+    expect(topics?.onDashboard).not.toBe(false);
   });
 
-  it("offers the topic library to nobody on the dashboard, not even a bishop", () => {
-    for (const role of ROLES) {
-      expect(hrefsFor(role)).not.toContain("/talks/topics");
-    }
+  it("offers the topic history tile to a bishop and not to a music coordinator", () => {
+    expect(hrefsFor("bishop")).toContain("/talks/topics");
+    expect(hrefsFor("music_coordinator")).not.toContain("/talks/topics");
   });
 
   // The bishopric, and the super admin — who reaches it for the ordinary reason that they hold
@@ -334,15 +330,15 @@ describe("shortcut navigation", () => {
     );
   }
 
-  // The whole point of the slice: Topics left the dashboard and has exactly one entry point now.
-  it("offers the topic library to a bishop", () => {
+  // The hub's row still links the topic history, alongside its dashboard tile.
+  it("offers the topic history to a bishop", () => {
     expect(shortcutsFor("bishop")).toContain("/talks/topics");
   });
 
   // THE OFFERED-THEN-REFUSED NEGATIVE. A music_coordinator holds `talks.view`, so they open the
   // Sacrament hub, and does NOT hold `topics.view`, which is bishopric-only — so the link must be
   // ABSENT rather than rendered and refused on arrival (youth-a-D1).
-  it("withholds the topic library from a music coordinator, who can open the hub", () => {
+  it("withholds the topic history from a music coordinator, who can open the hub", () => {
     expect(can(sessionUser("music_coordinator"), "talks.view", ROLE_PERMISSIONS)).toBe(true);
     expect(can(sessionUser("music_coordinator"), "topics.view", ROLE_PERMISSIONS)).toBe(false);
 

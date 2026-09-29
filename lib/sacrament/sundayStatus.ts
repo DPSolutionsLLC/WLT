@@ -306,9 +306,9 @@ export function sundayHasPills(type: SundayType): boolean {
 //
 // TOPICS AND TALKS BOTH GO TO /assignments/[id], AND THAT IS CORRECT. The prototype's "Topics"
 // pill is the PER-DATE editor — the speaker-count stepper, the day category, every talk slot —
-// which is the page WLT already has. It is NOT /talks/topics, which is the ward-level topic
-// LIBRARY a slot's topic is chosen FROM (module-map.md §2.1, correction 2). The near-collision
-// in the two names is the single most likely thing to get backwards here.
+// which is the page WLT already has. It is NOT /talks/topics, which is the ward's topic HISTORY
+// (it was the topic library until 2026-09-29, migration 086). The near-collision in the two names
+// is the single most likely thing to get backwards here.
 //
 // `/music` IS A ROLLING LIST THAT INSERTS THE SUNDAY YOU JUMPED TO, so the Music pill names the
 // SUNDAY rather than its month. It used to name neither: /music was a rolling six-Sunday horizon

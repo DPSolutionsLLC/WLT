@@ -45,6 +45,10 @@ Prototype: `SacramentPage` 4820, `HomeCalendar` 5490.
 
 ## 3. Topics & Talks — the biggest gap
 
+> **Planned and being built in [sacrament-topics-screen-rebuild.md](sacrament-topics-screen-rebuild.md)**
+> (2026-09-29). That plan **overrides decision 2 below**: the user retired the topic library, so a
+> topic is free text checked against a topic history, not free text with library hints.
+
 Prototype: both pills open `ModuleView` (6372) **in place of the calendar**. WLT: both link to
 `/assignments/[sunday_id]`, which is still the Phase 4 talk-pipeline page.
 

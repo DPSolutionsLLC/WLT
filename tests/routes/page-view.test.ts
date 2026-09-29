@@ -107,4 +107,25 @@ describe("/api/session/page-view", () => {
 
     expect(status).toBe(400);
   });
+
+  // The Topic history page (Topics rebuild t2) remembers its sort, and only its sort.
+  it("saves the Topic history sort beside the other pages' views", async () => {
+    await actAs(fixtures, "eqPresident");
+
+    const { status } = await putPageView({ page: "topic_history", view: { sort: "speaker" } });
+    expect(status).toBe(200);
+
+    const { createServerSupabaseClient } = await import("@/lib/supabase/server");
+    const client = await createServerSupabaseClient();
+    expect(await readPageView(selfId, "topic_history", client)).toEqual({ sort: "speaker" });
+    expect(await readPageView(selfId, "appointments", client)).toBeDefined();
+  });
+
+  it("refuses a Topic history sort that does not exist", async () => {
+    await actAs(fixtures, "eqPresident");
+
+    const { status } = await putPageView({ page: "topic_history", view: { sort: "loudest" } });
+
+    expect(status).toBe(400);
+  });
 });

@@ -1358,19 +1358,11 @@ Migration 028's unique index on `(ward_id, sunday_id, prayer_type)` is what make
 and one benediction per Sunday" true rather than merely intended.
 
 ### Topics
-```
-GET    /api/topics               List topics, filtered by category and status
-POST   /api/topics               Create topic (source is set to 'manual' server-side)
-PATCH  /api/topics/[id]          Update topic, or archive it. NO DELETE
-GET    /api/topic-candidates     The pending AI accept/reject queue
-PATCH  /api/topic-candidates     Accept or reject ONE candidate
-POST   /api/topics/ai-suggest    Generate candidates. Writes to topic_candidates, NEVER topics
-```
-
-`POST /api/topics` sets `source: 'manual'` itself and does not read it from the request: a caller
-that could name its own source could launder an AI suggestion into the library as if a person had
-typed it. `PATCH /api/topic-candidates` is the only path that writes a topic with
-`source: 'ai_generated'`.
+**The topic library's routes were removed on 2026-09-29** (`GET/POST /api/topics`,
+`PATCH /api/topics/[id]`, `GET/PATCH /api/topic-candidates`, `POST /api/topics/ai-suggest`). A
+talk's topic is the words typed for it (`assignments.topic_title`, migration 086), written through
+`POST /api/assignments` and `PATCH /api/assignments/[id]`. The ward's topic history is read by the
+`/talks/topics` page directly (`listTopicHistory()`), and has no route of its own.
 
 ### Goals
 ```
@@ -1666,10 +1658,9 @@ PATCH  /api/admin/ward-settings  Update ward settings (with bishopric notificati
                                is nine stages, not nine screens, and /assignments is the surface
                                a bishopric actually works in. The sidebar's Talks link points at
                                /assignments
-    /topics/page.tsx           BUILT in talks-c. Topic library (Server Component)
-    /topics/TopicList.tsx      "use client" — filters, add, edit, archive
-    /topics/TopicForm.tsx      The manual add path; Phase 5 reuses it for an accepted candidate
-    /topics/CandidateQueue.tsx "use client" — accept/reject, one candidate at a time
+    /topics/page.tsx           Topic history (Server Component) — replaced the topic library
+                               2026-09-29. Every topic a talk has carried, when, and by whom
+    /topics/TopicHistoryList.tsx "use client" — search, sort (remembered on the account)
     /history/page.tsx          Speaker history
   /prayers/
     /page.tsx                  BUILT in talks-c. Prayer tracker (Server Component)

@@ -107,6 +107,17 @@ Each numbered item below is a candidate slice. "New" means no WLT route, table o
 > and does not absorb. Re-skinning it is in scope; folding it into a Sunday card is not. Its page
 > heading now reads *"Topic library"* for exactly this reason.
 >
+> **⚠️ (b)'s LIBRARY PREMISE IS REVERSED — 2026-09-29, the user's decision** (plans/sacrament-topics-screen-rebuild.md,
+> decision 1). There is **no topic library**: a talk's topic is the words typed for it
+> (`assignments.topic_title`, migration 086), which is what the prototype always did. `/talks/topics`
+> is now the ward's **Topic history** — searchable, sortable, with its own dashboard tile — and the
+> library page, its AI candidate queue and their routes are gone. What (b) got right still holds:
+> `/talks/topics` is not a per-Sunday view, and (c) is unchanged.
+>
+> **Topics screen rebuild — built so far:** `t1` a talk's topic is its words (migration 086);
+> `t2` the topic history replaces the library. `t3`–`t5` (the screen, the speaker window, the topic
+> window) follow.
+>
 > **(c) THE PROTOTYPE'S "Topics" PILL MAPS TO `/assignments/[sunday_id]`, NOT TO
 > `/talks/topics`.** In the prototype, *Topics* is the per-date editor holding the speaker-count
 > stepper, the day-category selector and every talk slot — which is the page WLT already has.
@@ -532,6 +543,11 @@ cold, and the prototype reaches it from exactly one place — this row.
 does not decide what the topic page should *show* — the user's ask is a view of **topics used
 recently and who spoke on them**, so a conductor planning a month can avoid repeating one. That is
 a real change to the page behind the link and is scoped with it, not assumed by it.
+
+> **SUPERSEDED 2026-09-29.** The library and its candidate queue were retired (see §2.1's note on
+> correction (b)), so the trap below no longer exists — there is no queue to rehome. `/talks/topics`
+> is the Topic history, it has a dashboard tile again at the user's request, and it keeps its place
+> on this shortcut row.
 
 **THE TRAP, and it is the reason this cannot be a one-line tile deletion.** `/talks/topics` is
 also the only home for the **AI topic candidate queue** — generated topics a bishop accepts or

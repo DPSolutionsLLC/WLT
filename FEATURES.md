@@ -281,7 +281,7 @@ Once a Sunday's **References** are finalized or skipped, its Talks pill offers *
 - **When a Sunday's work is cancelled** — the Sunday becomes a stake conference (or anything else without a sacrament meeting), becomes Fast Sunday, or loses a speaking slot — the lost work is **released and kept as a cancelled record**, never deleted: the talks, and when the meeting itself goes, the prayers, hymn choices and musical number too. The Sunday's topics and references decisions are cleared, and it reads as empty. The calendar's warning says what will be cancelled and who will be told before you apply it. Whoever asked each person gets a **"Let ___ know it's cancelled"** to-do with a **Cancelled** marker and a **Told them** button — the asker for a talk or an asked prayer, the person making the change for a musical number, nobody for a hymn. A ward member's speaking history shows **"Cancelled · Talk"**, which never counts as having spoken or as being asked recently. If the Sunday holds a meeting again, planning starts over; unfinished "let them know" to-dos stay open.
 - The Talks pill shows where the asks stand: dimmed until References is decided, "N not yet asked", **Asks sent** (gold), all accepted (green), or **N declined** (rust).
 
-**CONFIRM** — On acceptance, app generates an AI-assisted confirmation message with topic, suggested scriptures, and suggested General Conference talks. Counselor reviews, edits, and approves before sending.
+**CONFIRM** — On acceptance, app generates an AI-assisted confirmation message with the topic and the scriptures chosen for that talk in References. Counselor reviews, edits, and approves before sending.
 
 **NOTIFY** — Approved message opened via native SMS with recipient and text pre-filled. Counselor or secretary sends and marks as sent.
 
@@ -305,14 +305,12 @@ Each member has an assignment history tab visible to the bishopric:
 
 ---
 
-## Module 4: Topic Library
+## Module 4: Topic History
 
-- Pre-loaded base library of evergreen gospel topics at setup
-- Topics can be added manually, AI-generated, or edited/archived by any bishopric member
-- AI suggestions are proposed — not auto-added — and require bishopric acceptance before entering the library
-- Each topic includes: title, category, description, suggested scriptures, suggested General Conference talks
-- Categories: `Doctrinal`, `Scriptural`, `Conference Talk`, `Seasonal`, `Custom`
-- Rotation tracking: last assigned date shown alongside each topic when planning
+**There is no topic library** (decided 2026-09-29). A talk's topic is simply the words typed for it. What the ward keeps is a **history** of the topics it has used.
+
+- **Topic history** (its own dashboard tile, and a link on the Sacrament hub, bishopric only): every topic a talk has carried, with its date and who gave it. Search by topic or speaker; sort newest first, oldest first, topic A–Z or speaker A–Z (the sort is remembered). A topic already on the calendar for a future Sunday is marked **Coming up**. A cancelled talk's topic is not listed — it was never given.
+- **The topic window** (on a Sunday's Topics screen, coming with the screen rebuild): type any topic, up to 200 characters. While you type, **"Used before, most recent first"** shows similar topics from the history. **Check topic** says whether anything similar has been used. **Suggest topics** asks AI for ideas that avoid the ward's recent and upcoming topics; suggestions are drafts, and nothing is saved until you press Save.
 
 ---
 
