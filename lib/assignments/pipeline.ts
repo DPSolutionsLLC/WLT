@@ -21,7 +21,7 @@ export type PipelineAssignment = {
   stage: PipelineStage;
   memberId: string | null;
   externalSpeakerName: string | null;
-  topicId: string | null;
+  topicTitle: string | null;
   slotNumber: number | null;
   requestOutcome: RequestOutcome | null;
   notifyMessage: string | null;
@@ -74,7 +74,7 @@ export function isBackwardTransition(
 export function requiredFieldsFor(stage: PipelineStage): readonly string[] {
   switch (stage) {
     case "review":
-      return ["speaker", "topicId", "slotNumber"];
+      return ["speaker", "topicTitle", "slotNumber"];
     case "approve":
       return ["approvals"];
     case "confirm":
@@ -119,7 +119,7 @@ function planToReview(assignment: PipelineAssignment): TransitionResult {
   const missing: string[] = [];
 
   if (!hasSpeaker(assignment)) missing.push("a speaker");
-  if (assignment.topicId === null) missing.push("a topic");
+  if (assignment.topicTitle === null) missing.push("a topic");
   if (assignment.slotNumber === null) missing.push("a speaking slot");
 
   if (missing.length > 0) {

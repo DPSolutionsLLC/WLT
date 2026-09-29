@@ -33,7 +33,6 @@ import {
   resolveAsksForAssignment,
 } from "@/lib/todos/askLinks";
 import { topicShapeChanged, unfinalizeTopicsIfNeeded } from "@/lib/topics/finalize";
-import { stampTopicAssigned } from "@/lib/topics/queries";
 import { updateAssignmentSchema } from "@/lib/validation/assignment";
 import type { Database } from "@/types/database";
 import {
@@ -101,7 +100,7 @@ function toPipelineAssignment(assignment: Assignment): PipelineAssignment {
     stage: assignment.stage,
     memberId: assignment.memberId,
     externalSpeakerName: assignment.externalSpeakerName,
-    topicId: assignment.topicId,
+    topicTitle: assignment.topicTitle,
     slotNumber: assignment.slotNumber,
     requestOutcome: assignment.requestOutcome,
     notifyMessage: assignment.notifyMessage,
@@ -458,25 +457,6 @@ export async function PATCH(
       );
     }
 
-    // The topic is stamped as used at APPROVE, and at no other stage.
-    //
-    // Not at `plan`: a plan that never gets approved should not burn the topic. Not at
-    // `complete`: the whole point is to stop the bishopric PLANNING a repeat, which happens
-    // weeks before the talk is given, so a signal that arrives afterwards arrives too late to
-    // be worth anything (04-talks-pipeline.md).
-    //
-    // A BACKWARD move deliberately does not un-stamp it. The topic genuinely was chosen for a
-    // Sunday, and rolling the stamp back would re-offer a topic the bishopric had just
-    // discussed. The stamp records consideration, not completion.
-    //
-    // A stamp failure logs and continues — it must not fail the transition. Same contract as
-    // writeAuditLog (lib/topics/queries.ts).
-    let topicStamped = false;
-
-    if (to === "approve" && assignment.topicId !== null) {
-      topicStamped = await stampTopicAssigned(user.wardId, assignment.topicId, supabase);
-    }
-
     await writeAuditLog(
       {
         wardId: user.wardId,
@@ -492,7 +472,6 @@ export async function PATCH(
           reason: input.reason ?? null,
           declined: isDecline,
           historyWritten,
-          topicStamped,
         },
       },
       supabase,

@@ -15,7 +15,6 @@ import {
   type TalksAskStateInput,
 } from "@/lib/sacrament/talkAsks";
 import { countOpenAsksByAssignment, type AskToCreate } from "@/lib/todos/askLinks";
-import { getTopic } from "@/lib/topics/queries";
 import type { Database } from "@/types/database";
 
 // One Sunday's talks with their ask state, for GET and POST /api/sundays/[id]/asks. SERVER-ONLY:
@@ -103,13 +102,9 @@ export async function buildAsksForTalks(params: {
   const memberIds = [
     ...new Set(talks.flatMap((talk) => (talk.memberId === null ? [] : [talk.memberId]))),
   ];
-  const topicIds = [
-    ...new Set(talks.flatMap((talk) => (talk.topicId === null ? [] : [talk.topicId]))),
-  ];
 
-  const [members, topics, references] = await Promise.all([
+  const [members, references] = await Promise.all([
     Promise.all(memberIds.map((memberId) => getMember(wardId, memberId, client))),
-    Promise.all(topicIds.map((topicId) => getTopic(wardId, topicId, client))),
     listReferencesForAssignments(
       wardId,
       talks.map((talk) => talk.id),
@@ -125,9 +120,6 @@ export async function buildAsksForTalks(params: {
       (member) => [member.id, `${member.firstName} ${member.lastName}`.trim()] as const,
     ),
   );
-  const topicTitles = new Map(
-    topics.flatMap((topic) => (topic === null ? [] : [[topic.id, topic.title] as const])),
-  );
 
   return talks.map((talk) => {
     const speakerName = speakerDisplayName(talk, memberNames) ?? "a speaker";
@@ -140,7 +132,7 @@ export async function buildAsksForTalks(params: {
         speakerName,
         onRoster: talk.memberId !== null,
         phone: member?.phone ?? null,
-        topicTitle: talk.topicId === null ? null : (topicTitles.get(talk.topicId) ?? null),
+        topicTitle: talk.topicTitle,
         sundayDate: params.sundayDate,
         references: references
           .filter((reference) => reference.assignmentId === talk.id)

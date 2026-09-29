@@ -8,10 +8,10 @@ import { FormError } from "@/components/ui/FormError";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import type { Assignment } from "@/lib/assignments/queries";
-import type { TopicOption } from "@/lib/topics/queries";
 import {
   ASSIGNMENT_TYPE_LABELS,
   ASSIGNMENT_TYPES,
+  MAX_TOPIC_TITLE,
   type AssignmentType,
   type MemberCategory,
   type SessionUser,
@@ -39,7 +39,6 @@ export type AssignmentModalProps = {
   sundayLabel: string;
   slotNumber: number;
   assignment: Assignment | null;
-  topics: TopicOption[];
   approvedCount: number;
   // Who loses their approval, when the caller knows. The month read carries counts only, so the
   // planner passes nothing and the warning counts; the Sunday detail page has the approval rows
@@ -102,7 +101,6 @@ export function AssignmentModal({
   sundayLabel,
   slotNumber,
   assignment,
-  topics,
   approvedCount,
   approvedNames,
   speakerFlags,
@@ -111,7 +109,7 @@ export function AssignmentModal({
   const [assignmentType, setAssignmentType] = useState<AssignmentType>(
     assignment?.assignmentType ?? "sacrament_talk",
   );
-  const [topicId, setTopicId] = useState<string>(assignment?.topicId ?? "");
+  const [topicTitle, setTopicTitle] = useState<string>(assignment?.topicTitle ?? "");
   const [slotLength, setSlotLength] = useState<string>(
     assignment?.slotLengthMinutes === null || assignment?.slotLengthMinutes === undefined
       ? ""
@@ -195,7 +193,7 @@ export function AssignmentModal({
                 slotLengthMinutes: minutes.value,
                 memberId: speakerFields.memberId,
                 externalSpeaker: speakerFields.externalSpeaker,
-                topicId: topicId === "" ? null : topicId,
+                topicTitle: topicTitle.trim() === "" ? null : topicTitle,
               },
             }),
           })
@@ -209,7 +207,7 @@ export function AssignmentModal({
               slotLengthMinutes: minutes.value,
               memberId: speakerFields.memberId,
               externalSpeaker: speakerFields.externalSpeaker,
-              topicId: topicId === "" ? null : topicId,
+              topicTitle: topicTitle.trim() === "" ? null : topicTitle,
             }),
           });
 
@@ -280,31 +278,15 @@ export function AssignmentModal({
           </select>
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="assignment-topic" className="text-sm font-medium text-foreground">
-            Topic
-          </label>
-          <select
-            id="assignment-topic"
-            value={topicId}
-            disabled={isSaving}
-            onChange={(event) => setTopicId(event.target.value)}
-            className={SELECT_CLASSES}
-          >
-            <option value="">No topic yet</option>
-            {topics.map((topic) => (
-              <option key={topic.id} value={topic.id}>
-                {topic.title}
-              </option>
-            ))}
-          </select>
-          {topics.length === 0 && (
-            <p className="text-sm text-muted">
-              There are no topics in the ward&apos;s library yet, and an assignment needs one
-              before it can go for review.
-            </p>
-          )}
-        </div>
+        <Input
+          id="assignment-topic"
+          label="Topic"
+          value={topicTitle}
+          maxLength={MAX_TOPIC_TITLE}
+          placeholder="Type a topic…"
+          disabled={isSaving}
+          onChange={(event) => setTopicTitle(event.target.value)}
+        />
 
         <Input
           id="slot-length"

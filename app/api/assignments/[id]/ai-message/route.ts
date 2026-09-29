@@ -12,7 +12,7 @@ import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { getSunday } from "@/lib/calendar/queries";
 import { getMember } from "@/lib/roster/queries";
-import { getTopic } from "@/lib/topics/queries";
+import { listReferencesForAssignments } from "@/lib/references/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { aiMessageSchema, type AiMessageType } from "@/lib/validation/aiRequests";
 import type { KnownPermission } from "@/lib/auth/permissions";
@@ -124,19 +124,25 @@ export async function POST(request: Request, context: AiMessageRouteContext) {
     let retrievedChunks: Awaited<ReturnType<typeof retrieveChunks>> = [];
 
     if (input.type === "confirmation") {
-      const topic =
-        assignment.topicId === null
-          ? null
-          : await getTopic(user.wardId, assignment.topicId, supabase);
+      const topicTitle = assignment.topicTitle;
 
-      const suggestedScriptures = topic?.suggestedScriptures ?? [];
+      // The scriptures the planner actually chose for THIS talk (migration 079). They replaced
+      // the topic library's `suggested_scriptures` when the library was retired (migration 086).
+      const references = await listReferencesForAssignments(
+        user.wardId,
+        [assignment.id],
+        supabase,
+      );
+      const suggestedScriptures = references
+        .filter((reference) => reference.kind === "scripture")
+        .map((reference) => reference.citation);
 
       // Retrieval ONLY for a confirmation, and only when there is a topic. A confirmation naming
       // a scripture the speaker can prepare from is better with the corpus behind it; a thank-you
       // for a talk that already happened is about what the bishopric observed, and retrieved
       // doctrine makes it preachy.
-      if (topic !== null) {
-        retrievedChunks = await retrieveChunks(topic.title, user.wardId, {
+      if (topicTitle !== null) {
+        retrievedChunks = await retrieveChunks(topicTitle, user.wardId, {
           limit: RETRIEVAL_LIMIT,
           client: supabase,
           // The settings row is ALREADY IN MEMORY from the Promise.all above. Passing it saves
@@ -150,7 +156,7 @@ export async function POST(request: Request, context: AiMessageRouteContext) {
       userPrompt = buildConfirmationPrompt({
         speakerFirstName,
         date: sunday.date,
-        topicTitle: topic?.title ?? null,
+        topicTitle,
         slotLengthMinutes: assignment.slotLengthMinutes,
         suggestedScriptures,
       });

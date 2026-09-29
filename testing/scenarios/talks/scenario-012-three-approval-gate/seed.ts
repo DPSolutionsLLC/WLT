@@ -109,7 +109,7 @@ export async function seed(): Promise<void> {
   });
 
   // --- Topics ---------------------------------------------------------------------------
-  // plan -> review refuses without a topic_id, so a month with no topics has nothing that can
+  // plan -> review refuses without a topic, so a month with no topics has nothing that can
   // move off the first stage at all.
   const faith = await createTopic({ title: "Faith in Jesus Christ" });
   const burdens = await createTopic({ title: "Bearing One Another's Burdens" });

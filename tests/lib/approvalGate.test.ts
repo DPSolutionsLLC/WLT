@@ -22,7 +22,7 @@ const IN_REVIEW: PipelineAssignment = {
   stage: "review",
   memberId: "member-1",
   externalSpeakerName: null,
-  topicId: "topic-1",
+  topicTitle: "topic-1",
   slotNumber: 1,
   requestOutcome: null,
   notifyMessage: null,

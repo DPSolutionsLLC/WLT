@@ -95,24 +95,13 @@ describe("GET /api/hymns/suggest", () => {
     // stake_conference holds no sacrament meeting (NO_MEETING_SUNDAY_TYPES), which is the 422 path.
     cancelledSundayId = await seedSunday("2027-09-12", "stake_conference");
 
-    const { data: topic, error: topicError } = await fixtures.service
-      .from("topics")
-      .insert({
-        ward_id: fixtures.wardAId,
-        title: `Gratitude in Every Season ${fixtures.runId}`,
-        source: "manual",
-      })
-      .select("id")
-      .single();
-    if (topicError) throw new Error(topicError.message);
-
     const { error: assignmentError } = await fixtures.service.from("assignments").insert({
       ward_id: fixtures.wardAId,
       sunday_id: sundayId,
       assignment_type: "sacrament_talk",
       slot_number: 1,
       pipeline_stage: "notify",
-      topic_id: topic.id,
+      topic_title: `Gratitude in Every Season ${fixtures.runId}`,
       external_speaker_name: "Mark Andersen",
     });
     if (assignmentError) throw new Error(assignmentError.message);

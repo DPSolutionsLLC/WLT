@@ -48,7 +48,9 @@ export type Assignment = {
   externalSpeakerTitle: string | null;
   assignmentType: AssignmentType | null;
   countsTowardRotation: boolean;
-  topicId: string | null;
+  // Migration 086: the words the speaker was asked to speak about. There is no topic library;
+  // `topic_id` is kept in the table for its data and is never read or written.
+  topicTitle: string | null;
   slotNumber: number | null;
   slotLengthMinutes: number | null;
   stage: PipelineStage;
@@ -125,7 +127,7 @@ type AssignmentRow = {
   external_speaker_title: string | null;
   assignment_type: string | null;
   counts_toward_rotation: boolean;
-  topic_id: string | null;
+  topic_title: string | null;
   slot_number: number | null;
   slot_length_minutes: number | null;
   pipeline_stage: string;
@@ -172,7 +174,7 @@ type AssignmentCommentRow = {
 // the select list and silently turns every mapped row into GenericStringError. It is also how a
 // column goes quietly missing from a built-up list (plans/retros/calendar-a-rules-and-api.md).
 const ASSIGNMENT_COLUMNS =
-  "id, sunday_id, member_id, external_speaker_name, external_speaker_title, assignment_type, counts_toward_rotation, topic_id, slot_number, slot_length_minutes, pipeline_stage, planned_by, plan_submitted_at, approved_at, requested_at, requested_by, request_outcome, request_notes, confirmed_at, notify_message, notify_sent_at, notify_sent_by, sunday_confirmed_at, thank_you_message, thank_you_sent_at, thank_you_sent_by, completed_at, contact_waived_at, contact_waived_by, cancelled_at, cancelled_reason, created_at";
+  "id, sunday_id, member_id, external_speaker_name, external_speaker_title, assignment_type, counts_toward_rotation, topic_title, slot_number, slot_length_minutes, pipeline_stage, planned_by, plan_submitted_at, approved_at, requested_at, requested_by, request_outcome, request_notes, confirmed_at, notify_message, notify_sent_at, notify_sent_by, sunday_confirmed_at, thank_you_message, thank_you_sent_at, thank_you_sent_by, completed_at, contact_waived_at, contact_waived_by, cancelled_at, cancelled_reason, created_at";
 
 const APPROVAL_COLUMNS = "id, assignment_id, user_id, approved, comment, created_at";
 
@@ -219,7 +221,7 @@ export function mapAssignmentRow(row: AssignmentRow): Assignment {
       "assignments.assignment_type",
     ),
     countsTowardRotation: row.counts_toward_rotation,
-    topicId: row.topic_id,
+    topicTitle: row.topic_title,
     slotNumber: row.slot_number,
     slotLengthMinutes: row.slot_length_minutes,
     stage: toEnumValue(row.pipeline_stage, PIPELINE_STAGES, "assignments.pipeline_stage"),
@@ -367,6 +369,13 @@ export async function getAssignment(
 // Always created at stage `plan`. There is no parameter for the stage, deliberately: an
 // assignment that starts anywhere else has skipped a gate.
 //
+// Blank is stored as null, never as an empty string, so "no topic" has one stored form and the
+// CHECK in migration 086 is never what refuses it.
+function normalizeTopicTitle(title: string | null | undefined): string | null {
+  const trimmed = title?.trim() ?? "";
+  return trimmed === "" ? null : trimmed;
+}
+
 // `counts_toward_rotation` is set from the TYPE, so the user never answers the same question
 // twice. It is STORED rather than derived at read time so that a later change to
 // COUNTS_TOWARD_ROTATION does not silently rewrite history — what a ward decided in 2026 stays
@@ -391,7 +400,7 @@ export async function createAssignment(
       member_id: input.memberId ?? null,
       external_speaker_name: input.externalSpeaker?.name ?? null,
       external_speaker_title: input.externalSpeaker?.title ?? null,
-      topic_id: input.topicId ?? null,
+      topic_title: normalizeTopicTitle(input.topicTitle),
       pipeline_stage: "plan",
       planned_by: plannedBy,
     })
@@ -440,7 +449,7 @@ export async function updateAssignmentFields(
   if (fields.slotLengthMinutes !== undefined) {
     patch.slot_length_minutes = fields.slotLengthMinutes;
   }
-  if (fields.topicId !== undefined) patch.topic_id = fields.topicId;
+  if (fields.topicTitle !== undefined) patch.topic_title = normalizeTopicTitle(fields.topicTitle);
   if (fields.requestNotes !== undefined) patch.request_notes = fields.requestNotes;
   if (fields.notifyMessage !== undefined) patch.notify_message = fields.notifyMessage;
   if (fields.notifySentAt !== undefined) patch.notify_sent_at = fields.notifySentAt;
@@ -1002,6 +1011,7 @@ export type SpeakerHistoryRow = SpeakerHistoryEntry & {
   memberId: string;
   assignmentId: string | null;
   assignmentType: AssignmentType | null;
+  topicTitle: string | null;
   notes: string | null;
   // Null for every outcome but a decline, and for a decline recorded before migration 083.
   declineReason: DeclineReason | null;
@@ -1040,12 +1050,15 @@ async function attachAssignmentContext(
     ...new Set(rows.flatMap((row) => (row.assignment_id === null ? [] : [row.assignment_id]))),
   ];
 
-  const context = new Map<string, { sundayId: string | null; type: AssignmentType | null }>();
+  const context = new Map<
+    string,
+    { sundayId: string | null; type: AssignmentType | null; topicTitle: string | null }
+  >();
 
   if (assignmentIds.length > 0) {
     const { data, error } = await supabase
       .from("assignments")
-      .select("id, sunday_id, assignment_type")
+      .select("id, sunday_id, assignment_type, topic_title")
       .eq("ward_id", wardId)
       .in("id", assignmentIds);
 
@@ -1064,6 +1077,7 @@ async function attachAssignmentContext(
           ASSIGNMENT_TYPES,
           "assignments.assignment_type",
         ),
+        topicTitle: assignment.topic_title,
       });
     }
   }
@@ -1106,6 +1120,7 @@ async function attachAssignmentContext(
       memberId: row.member_id,
       assignmentId: row.assignment_id,
       assignmentType: assignment?.type ?? null,
+      topicTitle: assignment?.topicTitle ?? null,
       outcome: toOptionalEnum(
         row.outcome,
         ASSIGNMENT_HISTORY_OUTCOMES,

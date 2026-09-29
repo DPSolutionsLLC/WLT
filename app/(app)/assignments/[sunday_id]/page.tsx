@@ -25,7 +25,7 @@ import {
   isMonthDismissed,
 } from "@/lib/goals/alertDismissal";
 import { listGoalsWithStatus } from "@/lib/goals/queries";
-import { listTopicOptions } from "@/lib/topics/queries";
+import { listReferencesForAssignments } from "@/lib/references/queries";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { formatSundayLabel, monthOf, parseDateOnly } from "@/lib/calendar/dates";
@@ -70,9 +70,8 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
   const canRequest = can(user, "talks.request", roleAccess);
   const canConfirm = can(user, "talks.confirm", roleAccess);
 
-  const [assignments, topics, bishopricUsers, members, monthComments] = await Promise.all([
+  const [assignments, bishopricUsers, members, monthComments] = await Promise.all([
     listAssignments(user.wardId, { sundayId: sunday.id }, supabase),
-    listTopicOptions(user.wardId, supabase),
     listBishopricUsers(user.wardId, supabase),
     listMembers(user.wardId, { statuses: MEMBER_STATUSES }, supabase),
     listComments(user.wardId, { sundayId: sunday.id }, supabase),
@@ -108,15 +107,22 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
   const memberNames = Object.fromEntries(
     members.map((member) => [member.id, `${member.firstName} ${member.lastName}`.trim()]),
   );
-  const topicTitles = new Map(topics.map((topic) => [topic.id, topic.title]));
 
-  // The topic's suggested scriptures, which talks-b recorded as missing: ContactStagePanel was
-  // passing an empty list because the stopgap topic read carried only id and title, so every
-  // confirmation message silently dropped its scripture sentence. listTopicOptions now returns
-  // them (lib/topics/queries.ts).
-  const topicScriptures = new Map(
-    topics.map((topic) => [topic.id, topic.suggestedScriptures ?? []]),
+  // The scriptures the planner chose for each talk, for the confirmation message's scripture
+  // sentence. They replaced the topic library's `suggested_scriptures` (migration 086). The read
+  // is bishopric-only (migration 080), so anybody else simply gets none.
+  const references = await listReferencesForAssignments(
+    user.wardId,
+    assignments.map((assignment) => assignment.id),
+    supabase,
   );
+  const scripturesByAssignment = new Map<string, string[]>();
+  for (const reference of references) {
+    if (reference.kind !== "scripture") continue;
+    const list = scripturesByAssignment.get(reference.assignmentId) ?? [];
+    list.push(reference.citation);
+    scripturesByAssignment.set(reference.assignmentId, list);
+  }
 
   // Bishopric names serve three purposes on this page: the approval sentence, the waiver's
   // "recorded by", and the request's "asked by". One map covers all three.
@@ -222,7 +228,6 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
                   slotNumber={slotNumber}
                   sundayId={sunday.id}
                   sundayLabel={formatSundayLabel(sunday.date)}
-                  topics={topics}
                   approvedNames={[]}
                 />
               )
@@ -249,9 +254,7 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <StageBadge stage={assignment.stage} />
                     <span className="text-sm text-muted">
-                      {assignment.topicId === null
-                        ? "No topic yet"
-                        : (topicTitles.get(assignment.topicId) ?? "A topic that has been archived")}
+                      {assignment.topicTitle ?? "No topic yet"}
                     </span>
                   </div>
                 </div>
@@ -263,7 +266,6 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
                     slotNumber={assignment.slotNumber ?? 1}
                     sundayId={sunday.id}
                     sundayLabel={formatSundayLabel(sunday.date)}
-                    topics={topics}
                     approvedNames={approvedNames}
                   />
                 )}
@@ -306,16 +308,8 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
                       // Only a ward member has a number on file. An external speaker has none by
                       // construction, which is what the waiver exists to say out loud.
                       speakerPhone={member?.phone ?? null}
-                      topicTitle={
-                        assignment.topicId === null
-                          ? null
-                          : (topicTitles.get(assignment.topicId) ?? null)
-                      }
-                      suggestedScriptures={
-                        assignment.topicId === null
-                          ? []
-                          : (topicScriptures.get(assignment.topicId) ?? [])
-                      }
+                      topicTitle={assignment.topicTitle}
+                      suggestedScriptures={scripturesByAssignment.get(assignment.id) ?? []}
                       // The same thread rendered below as Comments, as plain strings. It has
                       // always been the input buildThankYouMessage wanted and never had, so
                       // every thank-you has been generic since talks-b (ai-c).

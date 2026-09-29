@@ -15,7 +15,7 @@ function assignment(overrides: Partial<Assignment> & { id: string }): Assignment
     externalSpeakerTitle: null,
     assignmentType: null,
     countsTowardRotation: true,
-    topicId: null,
+    topicTitle: null,
     slotNumber: null,
     slotLengthMinutes: null,
     stage: "plan",

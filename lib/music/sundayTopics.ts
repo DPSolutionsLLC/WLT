@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { listAssignments } from "@/lib/assignments/queries";
-import { listTopicOptions } from "@/lib/topics/queries";
 import type { Database } from "@/types/database";
 
 // What a Sunday's talks are ABOUT, and nothing else about them.
@@ -20,8 +19,7 @@ import type { Database } from "@/types/database";
 //
 // SERVER-ONLY. It reads through modules that import next/headers.
 //
-// EVERY READ GOES THROUGH AN EXISTING QUERY MODULE — no `.from("assignments")` and no
-// `.from("topics")` here. talks-c asked for exactly that: a second reader of a table is a second
+// EVERY READ GOES THROUGH AN EXISTING QUERY MODULE — no `.from("assignments")` here. talks-c asked for exactly that: a second reader of a table is a second
 // place for the ward scope and the stage rules to drift.
 
 export type SundayTopics = Map<string, string[]>;
@@ -45,23 +43,16 @@ export async function listSundayTopicTitles(
 
   const dates = sundays.map((sunday) => sunday.date).sort();
 
-  const [assignments, topics] = await Promise.all([
-    listAssignments(wardId, { from: dates[0], to: dates[dates.length - 1] }, client),
-    listTopicOptions(wardId, client),
-  ]);
-
-  const titleById = new Map(topics.map((topic) => [topic.id, topic.title]));
+  const assignments = await listAssignments(
+    wardId,
+    { from: dates[0], to: dates[dates.length - 1] },
+    client,
+  );
 
   for (const assignment of assignments) {
-    if (assignment.sundayId === null || assignment.topicId === null) continue;
-
-    const title = titleById.get(assignment.topicId);
-    // A topic that has been ARCHIVED since the assignment was made resolves to nothing here,
-    // because listTopicOptions returns active topics only. Skipping it is right: the coordinator
-    // is choosing hymns for a subject, and an archived topic is still the subject — but its title
-    // is not reachable through this path, and inventing a placeholder would be worse than an
-    // honestly shorter list. talks-b's Sunday detail page is where an archived topic is visible.
-    if (title === undefined) continue;
+    // Migration 086: the talk carries its own topic words, so there is nothing to resolve.
+    const title = assignment.topicTitle;
+    if (assignment.sundayId === null || title === null) continue;
 
     const existing = bySunday.get(assignment.sundayId);
     if (existing === undefined) continue;

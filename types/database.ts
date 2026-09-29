@@ -954,6 +954,7 @@ export type Database = {
           thank_you_sent_at: string | null
           thank_you_sent_by: string | null
           topic_id: string | null
+          topic_title: string | null
           ward_id: string
         }
         Insert: {
@@ -989,6 +990,7 @@ export type Database = {
           thank_you_sent_at?: string | null
           thank_you_sent_by?: string | null
           topic_id?: string | null
+          topic_title?: string | null
           ward_id: string
         }
         Update: {
@@ -1024,6 +1026,7 @@ export type Database = {
           thank_you_sent_at?: string | null
           thank_you_sent_by?: string | null
           topic_id?: string | null
+          topic_title?: string | null
           ward_id?: string
         }
         Relationships: [

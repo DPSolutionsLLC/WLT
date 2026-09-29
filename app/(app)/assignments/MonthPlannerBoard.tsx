@@ -15,7 +15,6 @@ import { Card } from "@/components/ui/Card";
 // passing both lint and typecheck (plans/retros/roster-b-picker-and-orgs.md). Same shape as
 // MemberPicker's import of lib/roster/queries.
 import type { Assignment } from "@/lib/assignments/queries";
-import type { TopicOption } from "@/lib/topics/queries";
 import { formatSundayLabel, lastDayOfMonth, type DateOnly } from "@/lib/calendar/dates";
 import type { Sunday } from "@/lib/calendar/queries";
 import type { SessionUser } from "@/types/domain";
@@ -34,7 +33,6 @@ export type MonthPlannerBoardProps = {
   initialAssignments: Assignment[];
   approvalCounts: Record<string, number>;
   memberNames: Record<string, string>;
-  topics: TopicOption[];
   bishopricCount: number;
   canPlan: boolean;
   // Reliability flags per member id, built once by the page from ONE bishopric-only read and
@@ -111,7 +109,6 @@ export function MonthPlannerBoard({
   initialAssignments,
   approvalCounts,
   memberNames,
-  topics,
   bishopricCount,
   canPlan,
   speakerFlags,
@@ -257,7 +254,6 @@ export function MonthPlannerBoard({
           sundayLabel={formatSundayLabel(openSlot.sunday.date)}
           slotNumber={openSlot.slotNumber}
           assignment={openSlot.assignment}
-          topics={topics}
           approvedCount={openSlot.assignment ? (counts[openSlot.assignment.id] ?? 0) : 0}
           speakerFlags={speakerFlags}
         />

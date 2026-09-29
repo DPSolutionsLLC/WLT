@@ -1,16 +1,15 @@
 // @vitest-environment node
 //
-// `topics.last_assigned_at` moves at exactly ONE moment: an assignment reaching `approve`. This
-// suite drives the real PATCH /api/assignments/[id] route against the hosted project and
-// re-reads the topic row afterwards, because the whole value of the stamp is that a bishopric
-// planning next month can see what they have used — and a stamp that fires at the wrong stage is
-// invisible until somebody notices a repeat.
+// `topics.last_assigned_at` NO LONGER MOVES — REVERSED 2026-09-29 (migration 086, user decision 1
+// in plans/sacrament-topics-screen-rebuild.md). It used to be stamped when an assignment reached
+// `approve`, so the topic LIBRARY could show what had been used. There is no library any more: a
+// talk's topic is its words, and "what has been used" is read straight off the talks. This suite
+// used to prove the stamp fired at approve; it is kept, inverted, so the reversal reads as a
+// decision rather than a disappearance.
 //
-// Three claims, each of which has to hold on its own:
-//   1. `review` -> `approve` stamps it.
-//   2. No other transition stamps it — `plan` -> `review` and `speak` -> `appreciate` prove the
-//      two ends of that.
-//   3. A revert does NOT un-stamp it. The topic genuinely was chosen for a Sunday.
+// Two claims:
+//   1. `review` -> `approve` leaves the topic row untouched.
+//   2. Approve still succeeds on a talk with no topic at all.
 //
 // See tests/helpers/routeClient.ts for why this needs no server and what exactly is mocked.
 
@@ -36,7 +35,7 @@ async function callPatch(assignmentId: string, body: unknown) {
   );
 }
 
-describe("topics.last_assigned_at", () => {
+describe("topics.last_assigned_at is retired", () => {
   let fixtures: Fixtures;
 
   let sundayId = "";
@@ -73,6 +72,7 @@ describe("topics.last_assigned_at", () => {
         assignment_type: "sacrament_talk",
         slot_number: slotNumber,
         topic_id: topicId,
+        topic_title: `Topic ${fixtures.runId}`,
         pipeline_stage: stage,
         // `speak` -> `appreciate` needs this; harmless on the others.
         sunday_confirmed_at: new Date().toISOString(),
@@ -153,11 +153,9 @@ describe("topics.last_assigned_at", () => {
     await fixtures.cleanup();
   });
 
-  it("stamps the topic when an assignment reaches approve", async () => {
-    const topicId = await seedTopic("Stamped at approve");
+  it("does NOT stamp the topic when an assignment reaches approve", async () => {
+    const topicId = await seedTopic("Not stamped at approve");
     const assignmentId = await seedAssignment(topicId, "review");
-
-    expect(await readStamp(topicId), "seeded topic already had a stamp").toBeNull();
 
     await approveWithEveryone(assignmentId);
 
@@ -167,65 +165,11 @@ describe("topics.last_assigned_at", () => {
     });
 
     expect(status).toBe(200);
-    expect(await readStamp(topicId)).not.toBeNull();
-  });
-
-  // Not at `plan`. A plan that never gets approved should not burn the topic — the bishopric
-  // would stop offering something they only ever considered.
-  it("does NOT stamp on plan -> review", async () => {
-    const topicId = await seedTopic("Not stamped at review");
-    const assignmentId = await seedAssignment(topicId, "plan");
-
-    const { status } = await callPatch(assignmentId, {
-      action: "transition",
-      to: "review",
-    });
-
-    expect(status).toBe(200);
     expect(await readStamp(topicId)).toBeNull();
   });
 
-  // Not at `complete` either. The signal is needed while the bishopric is still CHOOSING, which
-  // is weeks before the talk is given — one that arrives afterwards arrives too late to be worth
-  // anything (04-talks-pipeline.md).
-  it("does NOT stamp on a later transition when approve was skipped in the fixture", async () => {
-    const topicId = await seedTopic("Not stamped at appreciate");
-    const assignmentId = await seedAssignment(topicId, "speak");
-
-    const { status } = await callPatch(assignmentId, {
-      action: "transition",
-      to: "appreciate",
-    });
-
-    expect(status).toBe(200);
-    expect(await readStamp(topicId)).toBeNull();
-  });
-
-  // The topic genuinely WAS chosen for a Sunday. Rolling the stamp back would re-offer a topic
-  // the bishopric had just discussed, so the stamp records consideration rather than completion.
-  it("leaves the stamp in place when the assignment is sent back to plan", async () => {
-    const topicId = await seedTopic("Stamp survives a revert");
-    const assignmentId = await seedAssignment(topicId, "review");
-
-    await approveWithEveryone(assignmentId);
-
-    await callPatch(assignmentId, { action: "transition", to: "approve" });
-
-    const stamped = await readStamp(topicId);
-    expect(stamped).not.toBeNull();
-
-    const { status } = await callPatch(assignmentId, {
-      action: "transition",
-      to: "plan",
-      reason: "The speaker is out of town that week.",
-    });
-
-    expect(status).toBe(200);
-    expect(await readStamp(topicId)).toBe(stamped);
-  });
-
-  // A stamp failure must not fail the transition. There is no topic to stamp here at all, so the
-  // approve has to succeed on its own — the same contract writeAuditLog has.
+  // Approve's gate is the approvals, never the topic, so a talk whose topic was cleared after review
+  // still approves.
   it("approves an assignment that carries no topic at all", async () => {
     const topicId = await seedTopic("Detached before approve");
     const assignmentId = await seedAssignment(topicId, "review");
@@ -234,7 +178,7 @@ describe("topics.last_assigned_at", () => {
     // approvals this fixture is about to need.
     const { error } = await fixtures.service
       .from("assignments")
-      .update({ topic_id: null })
+      .update({ topic_id: null, topic_title: null })
       .eq("id", assignmentId);
     if (error) throw new Error(error.message);
 

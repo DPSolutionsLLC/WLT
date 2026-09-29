@@ -34,7 +34,7 @@ function assignment(
   overrides: Partial<SundayStatusAssignment> = {},
 ): SundayStatusAssignment {
   return {
-    topicId: null,
+    topicTitle: null,
     memberId: null,
     externalSpeakerName: null,
     stage: "plan",
@@ -99,8 +99,8 @@ describe("sundayPills", () => {
     const pills = sundayPills(
       input({
         assignments: [
-          assignment({ topicId: "topic-1" }),
-          assignment({ topicId: "topic-2" }),
+          assignment({ topicTitle: "topic-1" }),
+          assignment({ topicTitle: "topic-2" }),
           assignment(),
         ],
       }),
@@ -121,7 +121,7 @@ describe("sundayPills", () => {
 
   it("counts a slot with both toward both", () => {
     const pills = sundayPills(
-      input({ assignments: [assignment({ topicId: "topic-1", memberId: "member-1" })] }),
+      input({ assignments: [assignment({ topicTitle: "topic-1", memberId: "member-1" })] }),
     );
 
     expect(pillFor(pills, "topics").filled).toBe(1);
@@ -134,7 +134,7 @@ describe("sundayPills", () => {
     const pills = sundayPills(
       input({
         assignments: [
-          assignment({ topicId: "topic-1", externalSpeakerName: "Brother Hale" }),
+          assignment({ topicTitle: "topic-1", externalSpeakerName: "Brother Hale" }),
         ],
       }),
     );
@@ -144,7 +144,7 @@ describe("sundayPills", () => {
 
   it("does not count a whitespace-only external speaker name", () => {
     const pills = sundayPills(
-      input({ assignments: [assignment({ topicId: "topic-1", externalSpeakerName: "   " })] }),
+      input({ assignments: [assignment({ topicTitle: "topic-1", externalSpeakerName: "   " })] }),
     );
 
     expect(pillFor(pills, "talks").filled).toBe(0);
@@ -154,9 +154,9 @@ describe("sundayPills", () => {
     const pills = sundayPills(
       input({
         assignments: [
-          assignment({ topicId: "a", memberId: "m1" }),
-          assignment({ topicId: "b", memberId: "m2" }),
-          assignment({ topicId: "c", externalSpeakerName: "Sister Vance" }),
+          assignment({ topicTitle: "a", memberId: "m1" }),
+          assignment({ topicTitle: "b", memberId: "m2" }),
+          assignment({ topicTitle: "c", externalSpeakerName: "Sister Vance" }),
         ],
       }),
     );
@@ -172,7 +172,7 @@ describe("sundayPills", () => {
     const pills = sundayPills(
       input({
         speakingSlots: 3,
-        assignments: [assignment({ topicId: "a", memberId: "m1" })],
+        assignments: [assignment({ topicTitle: "a", memberId: "m1" })],
       }),
     );
 
@@ -184,10 +184,10 @@ describe("sundayPills", () => {
       input({
         speakingSlots: 3,
         assignments: [
-          assignment({ topicId: "a", memberId: "m1" }),
-          assignment({ topicId: "b", memberId: "m2" }),
-          assignment({ topicId: "c", memberId: "m3" }),
-          assignment({ topicId: "d", memberId: "m4" }),
+          assignment({ topicTitle: "a", memberId: "m1" }),
+          assignment({ topicTitle: "b", memberId: "m2" }),
+          assignment({ topicTitle: "c", memberId: "m3" }),
+          assignment({ topicTitle: "d", memberId: "m4" }),
         ],
       }),
     );
@@ -304,7 +304,7 @@ describe("sundayPills", () => {
   it("emits no programme pill and no conducting pill", () => {
     const keys = sundayPills(
       input({
-        assignments: [assignment({ topicId: "a", memberId: "m1" })],
+        assignments: [assignment({ topicTitle: "a", memberId: "m1" })],
         hymnSelectionCount: 3,
       }),
     ).map((pill) => pill.key);
@@ -326,7 +326,7 @@ describe("sundayPills", () => {
   // No clock anywhere in the module, so the same input is the same answer whenever it is read.
   it("is deterministic — two calls with one input agree", () => {
     const given = input({
-      assignments: [assignment({ topicId: "a", memberId: "m1" })],
+      assignments: [assignment({ topicTitle: "a", memberId: "m1" })],
       hymnSelectionCount: 1,
     });
 
@@ -469,7 +469,7 @@ describe("the References pill — p4-sacrament-c", () => {
   it("leaves every counted pill reading filled/total", () => {
     const pills = sundayPills(
       input({
-        assignments: [assignment({ topicId: "t1", memberId: "m1" })],
+        assignments: [assignment({ topicTitle: "t1", memberId: "m1" })],
         hymnSelectionCount: 2,
       }),
     ).filter((pill) => pill.key !== "references");

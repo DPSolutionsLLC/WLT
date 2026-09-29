@@ -147,7 +147,7 @@ describe("the waiver satisfies exactly four gates", () => {
       stage: "plan",
       memberId: null,
       externalSpeakerName: "Mark Andersen",
-      topicId: "topic-1",
+      topicTitle: "topic-1",
       slotNumber: 1,
       requestOutcome: null,
       notifyMessage: null,
@@ -195,7 +195,7 @@ describe("the waiver opens nothing else", () => {
       stage: "plan",
       memberId: null,
       externalSpeakerName: "Mark Andersen",
-      topicId: "topic-1",
+      topicTitle: "topic-1",
       slotNumber: 1,
       requestOutcome: null,
       notifyMessage: null,
@@ -209,7 +209,7 @@ describe("the waiver opens nothing else", () => {
 
   it("does not let plan → review pass without a topic", () => {
     const result = canTransition("plan", "review", {
-      assignment: waived({ topicId: null }),
+      assignment: waived({ topicTitle: null }),
       approvals: [],
       bishopricUserIds: bishopric,
       actorIsBishopric: true,

@@ -96,7 +96,7 @@ export type SundayPill = {
 };
 
 export type SundayStatusAssignment = {
-  topicId: string | null;
+  topicTitle: string | null;
   memberId: string | null;
   externalSpeakerName: string | null;
   // NOT READ BY ANY COUNT BELOW. It was required in anticipation of p4-sacrament-f's four-state
@@ -181,12 +181,12 @@ function hasSpeaker(assignment: SundayStatusAssignment): boolean {
 }
 
 function countTopics(input: SundayStatusInput): number {
-  return input.assignments.filter((assignment) => assignment.topicId !== null).length;
+  return input.assignments.filter((assignment) => assignment.topicTitle !== null).length;
 }
 
 function countTalks(input: SundayStatusInput): number {
   return input.assignments.filter(
-    (assignment) => assignment.topicId !== null && hasSpeaker(assignment),
+    (assignment) => assignment.topicTitle !== null && hasSpeaker(assignment),
   ).length;
 }
 

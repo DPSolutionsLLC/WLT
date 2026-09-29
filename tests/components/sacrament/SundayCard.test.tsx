@@ -241,8 +241,8 @@ describe("SundayCard", () => {
           pills: sundayPills(
             statusInput({
               assignments: [
-                { topicId: "t1", memberId: "m1", externalSpeakerName: null, stage: "plan" },
-                { topicId: "t2", memberId: null, externalSpeakerName: null, stage: "plan" },
+                { topicTitle: "t1", memberId: "m1", externalSpeakerName: null, stage: "plan" },
+                { topicTitle: "t2", memberId: null, externalSpeakerName: null, stage: "plan" },
               ],
             }),
           ),
@@ -427,9 +427,9 @@ describe("SundayCard — the topics finalize checkmark", () => {
           pills: sundayPills(
             statusInput({
               assignments: [
-                { topicId: "t1", memberId: "m1", externalSpeakerName: null, stage: "plan" },
-                { topicId: "t2", memberId: "m2", externalSpeakerName: null, stage: "plan" },
-                { topicId: "t3", memberId: "m3", externalSpeakerName: null, stage: "plan" },
+                { topicTitle: "t1", memberId: "m1", externalSpeakerName: null, stage: "plan" },
+                { topicTitle: "t2", memberId: "m2", externalSpeakerName: null, stage: "plan" },
+                { topicTitle: "t3", memberId: "m3", externalSpeakerName: null, stage: "plan" },
               ],
             }),
           ),

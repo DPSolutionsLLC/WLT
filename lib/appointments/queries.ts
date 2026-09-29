@@ -34,7 +34,7 @@ const VISIT_COLUMNS =
 // `ask` is the talk a scheduled ask was created for (Sacrament slice f1), so the row can show its
 // topic and contact details and answer it here. The embed is lib/todos/askSource.ts's, verbatim.
 const TODO_COLUMNS =
-  "id, title, scheduled_for, completed_at, scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number, cancelled_at, sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), topics!assignments_topic_id_ward_id_fkey (title))";
+  "id, title, scheduled_for, completed_at, scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number, cancelled_at, topic_title, sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone))";
 const YOUTH_COLUMNS =
   "id, activity_events!activity_attendees_event_id_ward_id_fkey (id, title, event_date, all_day, status, youth_activity_profiles!activity_events_profile_id_ward_id_fkey (activity_name))";
 

@@ -272,7 +272,7 @@ export async function loadSundayTalks(
 
   const assignments = await listAssignments(wardId, { sundayId }, supabase);
   const talksWithTopics = assignments
-    .filter((assignment) => assignment.topicId !== null)
+    .filter((assignment) => assignment.topicTitle !== null)
     .sort(bySlot);
 
   return { sunday, assignments, talksWithTopics };

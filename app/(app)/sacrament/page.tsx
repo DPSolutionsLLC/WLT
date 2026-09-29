@@ -161,8 +161,8 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
   const assignmentsBySunday = groupBySunday(
     assignments,
     (assignment) => assignment.sundayId,
-    ({ topicId, memberId, externalSpeakerName, stage }): SundayStatusAssignment => ({
-      topicId,
+    ({ topicTitle, memberId, externalSpeakerName, stage }): SundayStatusAssignment => ({
+      topicTitle,
       memberId,
       externalSpeakerName,
       stage,
@@ -187,7 +187,7 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
 
   // AFTER the assignments, because it needs their ids. Only talks WITH a topic are counted — the
   // References modal lists only those, and the pill must count what the modal shows.
-  const talksWithTopics = assignments.filter((assignment) => assignment.topicId !== null);
+  const talksWithTopics = assignments.filter((assignment) => assignment.topicTitle !== null);
   const referenceCounts = canPlanTalks
     ? await countReferencesByAssignment(
         user.wardId,

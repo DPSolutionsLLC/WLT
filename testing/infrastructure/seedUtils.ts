@@ -976,6 +976,29 @@ export async function createTopicCandidate(options: {
   });
 }
 
+// Migration 086: a talk's topic is its words, in `topic_title`. A seed written before then passes a
+// library `topicId`; its title is copied onto the talk, exactly as the migration's backfill did,
+// so every older scenario still shows its topics. `topicTitle` wins when both are given.
+async function resolveSeedTopicTitle(options: {
+  topicId?: string;
+  topicTitle?: string;
+}): Promise<string | null> {
+  if (options.topicTitle !== undefined) return options.topicTitle;
+  if (options.topicId === undefined) return null;
+
+  const { data, error } = await getAdminClient()
+    .from("topics")
+    .select("title")
+    .eq("id", options.topicId)
+    .single();
+
+  if (error) {
+    throw new Error(`Could not read seeded topic ${options.topicId}: ${error.message}`);
+  }
+
+  return (data as { title: string }).title;
+}
+
 // A speaker is a ward member OR somebody invited from outside, never both — the
 // assignments_speaker_exactly_one CHECK (migration 025) refuses a row with two, and a seed that
 // sets both fails loudly rather than producing a state the app can never reach (ITER-004).
@@ -986,6 +1009,7 @@ export async function createAssignment(options: {
   externalSpeakerName?: string;
   externalSpeakerTitle?: string;
   topicId?: string;
+  topicTitle?: string;
   assignmentType?: AssignmentType;
   pipelineStage?: PipelineStage;
   slotNumber?: number;
@@ -1010,6 +1034,7 @@ export async function createAssignment(options: {
     external_speaker_name: options.externalSpeakerName ?? null,
     external_speaker_title: options.externalSpeakerTitle ?? null,
     topic_id: options.topicId ?? null,
+    topic_title: await resolveSeedTopicTitle(options),
     assignment_type: options.assignmentType ?? "sacrament_talk",
     pipeline_stage: options.pipelineStage ?? "plan",
     slot_number: options.slotNumber ?? 1,

@@ -38,7 +38,7 @@ function assignment(overrides: Partial<Assignment> = {}): Assignment {
     externalSpeakerTitle: "President",
     assignmentType: "sacrament_talk",
     countsTowardRotation: true,
-    topicId: null,
+    topicTitle: null,
     slotNumber: 2,
     slotLengthMinutes: 12,
     stage: "approve",

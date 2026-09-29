@@ -14,7 +14,7 @@ const REQUESTED: PipelineAssignment = {
   stage: "request",
   memberId: "member-1",
   externalSpeakerName: null,
-  topicId: "topic-1",
+  topicTitle: "topic-1",
   slotNumber: 2,
   requestOutcome: "pending",
   notifyMessage: null,

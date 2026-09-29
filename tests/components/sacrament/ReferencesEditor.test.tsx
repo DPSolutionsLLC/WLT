@@ -45,14 +45,12 @@ function payload(overrides: Partial<SundayReferences> = {}): SundayReferences {
         slotNumber: 1,
         topicTitle: "Faith",
         speakerName: "Sarah Whitfield",
-        suggestedScriptures: ["Hebrews 11:1", "Alma 32:21"],
       },
       {
         assignmentId: "talk-2",
         slotNumber: 2,
         topicTitle: "Hope",
         speakerName: null,
-        suggestedScriptures: [],
       },
     ],
     references: [],
@@ -221,6 +219,13 @@ describe("ReferencesEditor — the list", () => {
 describe("ReferencesEditor — the search window", () => {
   const RESULTS = [
     {
+      kind: "scripture",
+      citation: "Hebrews 11:1",
+      documentId: "doc-1",
+      snippet: "Now faith is the substance of things hoped for",
+      similarity: 0.44,
+    },
+    {
       kind: "talk",
       citation: "The Power of Covenants — Elder Example, April 2025",
       documentId: "doc-2",
@@ -245,20 +250,22 @@ describe("ReferencesEditor — the search window", () => {
     expect(search?.body).toEqual({ assignmentId: "talk-1", query: "Faith" });
   });
 
-  it("offers the topic's suggested scriptures, and marks one already on the talk as Added", async () => {
-    stubFetch(payload({ references: [reference({ citation: "Alma 32:21" })] }), RESULTS);
+  // Retired with the topic library (migration 086): the picks came from a library topic's
+  // `suggested_scriptures`, and a talk's topic is now only its words.
+  it("offers no suggested-scripture picks, and marks a result already on the talk as Added", async () => {
+    stubFetch(payload({ references: [reference({ citation: "Hebrews 11:1" })] }), RESULTS);
     renderEditor();
 
     fireEvent.click(await screen.findByRole("button", { name: "Search — Talk 1: Faith" }));
     const dialog = openDialog();
+    await within(dialog).findByText("General conference talks");
 
-    const suggested = within(dialog).getByRole("group", { name: "Suggested for this topic" });
-    expect(within(suggested).getByText("Hebrews 11:1")).toBeInTheDocument();
-    expect(within(suggested).getByText("Added")).toBeInTheDocument();
-    expect(within(suggested).getAllByRole("checkbox")[1]).toBeDisabled();
+    expect(within(dialog).queryByRole("group", { name: "Suggested for this topic" })).toBeNull();
+    expect(within(dialog).getByText("Added")).toBeInTheDocument();
+    expect(within(dialog).getByRole("checkbox", { name: /Hebrews 11:1/ })).toBeDisabled();
   });
 
-  it("adds every ticked item, suggested and found, in one press", async () => {
+  it("adds every ticked item in one press", async () => {
     const calls = stubFetch(payload(), RESULTS);
     renderEditor();
 
@@ -281,7 +288,8 @@ describe("ReferencesEditor — the search window", () => {
       assignmentId: "talk-1",
       kind: "scripture",
       citation: "Hebrews 11:1",
-      source: "manual",
+      source: "search",
+      documentId: "doc-1",
     });
     expect(posted).toContainEqual({
       assignmentId: "talk-1",

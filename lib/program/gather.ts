@@ -13,7 +13,6 @@ import {
 } from "@/lib/music/queries";
 import { listPrayers, type Prayer } from "@/lib/prayers/queries";
 import { listMembers } from "@/lib/roster/queries";
-import { listTopicOptions } from "@/lib/topics/queries";
 import type { Database } from "@/types/database";
 import { MEMBER_STATUSES, type HymnType } from "@/types/domain";
 
@@ -75,7 +74,6 @@ export type ProgramSources = {
   assignments: Assignment[];
   prayers: Prayer[];
   memberNames: Record<string, string>;
-  topicTitles: Record<string, string>;
   hymnSelections: HymnSelection[];
   musicalNumber: MusicalNumber | null;
   bishopName: string | null;
@@ -225,14 +223,6 @@ async function readMemberNames(
   );
 }
 
-async function readTopicTitles(
-  wardId: string,
-  supabase: SupabaseClient<Database>,
-): Promise<Record<string, string>> {
-  const topics = await listTopicOptions(wardId, supabase);
-  return Object.fromEntries(topics.map((topic) => [topic.id, topic.title]));
-}
-
 // Returns null when the Sunday is not in this ward — the route turns that into a 404. It does not
 // throw: a row that is not in this ward and a row RLS refused are indistinguishable here, and both
 // mean "not yours" (plans/retros/foundation-c-services.md).
@@ -250,7 +240,6 @@ export async function gatherProgramSources(
     assignments,
     prayers,
     memberNames,
-    topicTitles,
     hymnSelections,
     musicalNumber,
     bishopric,
@@ -259,7 +248,6 @@ export async function gatherProgramSources(
     listAssignments(wardId, { sundayId }, supabase),
     listPrayers(wardId, { sundayId }, supabase),
     readMemberNames(supabase, wardId),
-    readTopicTitles(wardId, supabase),
     readHymnSelections(wardId, sundayId, supabase),
     readMusicalNumber(wardId, sundayId, supabase),
     listBishopricUsers(wardId, supabase),
@@ -277,7 +265,6 @@ export async function gatherProgramSources(
     assignments,
     prayers,
     memberNames,
-    topicTitles,
     hymnSelections,
     musicalNumber,
     bishopName: bishop === null ? null : bishopricDisplayName(bishop),

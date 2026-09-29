@@ -187,13 +187,6 @@ describe("Talk asks — Sacrament slice f1", () => {
     noPhoneMemberId = await seedMember("Tomas", null);
     replacementMemberId = await seedMember("Ana", "801-555-0199");
 
-    const { data: topic, error: topicError } = await service
-      .from("topics")
-      .insert({ ward_id: fixtures.wardAId, title: `Faith ${fixtures.runId}`, source: "manual" })
-      .select("id")
-      .single();
-    if (topicError) throw new Error(topicError.message);
-
     const seedTalk = async (
       sunday: string,
       slotNumber: number,
@@ -207,7 +200,7 @@ describe("Talk asks — Sacrament slice f1", () => {
           sunday_id: sunday,
           assignment_type: "sacrament_talk",
           slot_number: slotNumber,
-          topic_id: topic.id,
+          topic_title: `Faith ${fixtures.runId}`,
           member_id: "memberId" in speaker ? speaker.memberId : null,
           external_speaker_name: "externalName" in speaker ? speaker.externalName : null,
           pipeline_stage: stage,

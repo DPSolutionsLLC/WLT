@@ -32,8 +32,8 @@ describe("PATCH /api/sundays/[id]/topics-finalized", () => {
   let sundayId = "";
   let otherSundayId = "";
   let memberId = "";
-  let topicId = "";
-  let otherTopicId = "";
+  let topicTitle = "";
+  let otherTopicTitle = "";
   let assignmentId = "";
 
   const callFinalize = async (id: string, finalized: boolean) => {
@@ -86,7 +86,7 @@ describe("PATCH /api/sundays/[id]/topics-finalized", () => {
   const resetAssignment = async () => {
     const { error } = await fixtures.service
       .from("assignments")
-      .update({ pipeline_stage: "plan", topic_id: topicId })
+      .update({ pipeline_stage: "plan", topic_title: topicTitle })
       .eq("id", assignmentId);
 
     if (error) throw new Error(error.message);
@@ -126,18 +126,8 @@ describe("PATCH /api/sundays/[id]/topics-finalized", () => {
     if (memberError) throw new Error(memberError.message);
     memberId = member.id;
 
-    const seedTopic = async (title: string) => {
-      const { data, error } = await fixtures.service
-        .from("topics")
-        .insert({ ward_id: fixtures.wardAId, title, source: "manual" })
-        .select("id")
-        .single();
-      if (error) throw new Error(error.message);
-      return data.id;
-    };
-
-    topicId = await seedTopic(`Fixture topic ${fixtures.runId}`);
-    otherTopicId = await seedTopic(`Second fixture topic ${fixtures.runId}`);
+    topicTitle = `Fixture topic ${fixtures.runId}`;
+    otherTopicTitle = `Second fixture topic ${fixtures.runId}`;
 
     const { data: assignment, error: assignmentError } = await fixtures.service
       .from("assignments")
@@ -147,7 +137,7 @@ describe("PATCH /api/sundays/[id]/topics-finalized", () => {
         member_id: memberId,
         assignment_type: "sacrament_talk",
         slot_number: 1,
-        topic_id: topicId,
+        topic_title: topicTitle,
         pipeline_stage: "plan",
       })
       .select("id")
@@ -300,7 +290,7 @@ describe("PATCH /api/sundays/[id]/topics-finalized", () => {
 
       const { status } = await callAssignmentPatch(assignmentId, {
         action: "update",
-        fields: { topicId: otherTopicId },
+        fields: { topicTitle: otherTopicTitle },
       });
 
       expect(status).toBe(200);
@@ -314,7 +304,7 @@ describe("PATCH /api/sundays/[id]/topics-finalized", () => {
 
       const { status } = await callAssignmentPatch(assignmentId, {
         action: "update",
-        fields: { topicId: null },
+        fields: { topicTitle: null },
       });
 
       expect(status).toBe(200);
@@ -337,7 +327,7 @@ describe("PATCH /api/sundays/[id]/topics-finalized", () => {
               sundayId: otherSundayId,
               assignmentType: "sacrament_talk",
               slotNumber: 1,
-              topicId,
+              topicTitle,
             },
           }),
         ),

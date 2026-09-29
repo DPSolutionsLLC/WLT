@@ -57,8 +57,8 @@ describe("References routes", () => {
   let slotTwoId = "";
   let noTopicId = "";
   let otherSundayTalkId = "";
-  let topicId = "";
-  let otherTopicId = "";
+  let topicTitle = "";
+  let otherTopicTitle = "";
   let documentId = "";
 
   const url = (id: string, suffix = "") => `http://localhost/api/sundays/${id}/references${suffix}`;
@@ -181,18 +181,8 @@ describe("References routes", () => {
     otherSundayId = await seedSunday("2027-06-13");
     emptySundayId = await seedSunday("2027-06-20");
 
-    const seedTopic = async (title: string) => {
-      const { data, error } = await fixtures.service
-        .from("topics")
-        .insert({ ward_id: fixtures.wardAId, title, source: "manual" })
-        .select("id")
-        .single();
-      if (error) throw new Error(error.message);
-      return data.id;
-    };
-
-    topicId = await seedTopic(`Faith ${fixtures.runId}`);
-    otherTopicId = await seedTopic(`Hope ${fixtures.runId}`);
+    topicTitle = `Faith ${fixtures.runId}`;
+    otherTopicTitle = `Hope ${fixtures.runId}`;
 
     const { data: member, error: memberError } = await fixtures.service
       .from("members")
@@ -219,7 +209,7 @@ describe("References routes", () => {
           sunday_id: sunday,
           assignment_type: "sacrament_talk",
           slot_number: slotNumber,
-          topic_id: topic,
+          topic_title: topic,
           member_id: memberId,
           pipeline_stage: "plan",
         })
@@ -230,12 +220,12 @@ describe("References routes", () => {
     };
 
     // Slot 2 is inserted FIRST, so the GET's slot ordering cannot pass by insertion order.
-    slotTwoId = await seedAssignment(sundayId, 2, otherTopicId);
-    slotOneId = await seedAssignment(sundayId, 1, topicId, member.id);
+    slotTwoId = await seedAssignment(sundayId, 2, otherTopicTitle);
+    slotOneId = await seedAssignment(sundayId, 1, topicTitle, member.id);
     noTopicId = await seedAssignment(sundayId, 3, null);
-    otherSundayTalkId = await seedAssignment(otherSundayId, 1, topicId);
+    otherSundayTalkId = await seedAssignment(otherSundayId, 1, topicTitle);
     // A talk WITH a topic and no references, so the 409 is about the count, not an empty Sunday.
-    await seedAssignment(emptySundayId, 1, topicId);
+    await seedAssignment(emptySundayId, 1, topicTitle);
 
     const { data: document, error: documentError } = await fixtures.service
       .from("knowledge_documents")
@@ -281,9 +271,8 @@ describe("References routes", () => {
       expect(talks[0].topicTitle).toBe(`Faith ${fixtures.runId}`);
       expect(talks[0].speakerName).toBe(`Speaker Fixture${fixtures.runId}`);
       expect(talks.map((talk) => talk.assignmentId)).not.toContain(noTopicId);
-      expect(Array.isArray((talks[0] as { suggestedScriptures?: unknown }).suggestedScriptures)).toBe(
-        true,
-      );
+      // Retired with the topic library (migration 086).
+      expect(talks[0]).not.toHaveProperty("suggestedScriptures");
     });
 
     it("lets a counselor read — the whole bishopric, whoever is conducting", async () => {
@@ -497,7 +486,7 @@ describe("References routes", () => {
     const resetSlotOne = async () => {
       const { error } = await fixtures.service
         .from("assignments")
-        .update({ pipeline_stage: "plan", topic_id: topicId })
+        .update({ pipeline_stage: "plan", topic_title: topicTitle })
         .eq("id", slotOneId);
       if (error) throw new Error(error.message);
     };
@@ -509,7 +498,7 @@ describe("References routes", () => {
 
       const { status } = await callAssignmentPatch(slotOneId, {
         action: "update",
-        fields: { topicId: otherTopicId },
+        fields: { topicTitle: otherTopicTitle },
       });
 
       expect(status).toBe(200);
@@ -523,7 +512,7 @@ describe("References routes", () => {
 
       const { status } = await callAssignmentPatch(slotOneId, {
         action: "update",
-        fields: { topicId: otherTopicId },
+        fields: { topicTitle: otherTopicTitle },
       });
 
       expect(status).toBe(200);

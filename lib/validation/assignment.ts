@@ -5,6 +5,7 @@ import {
   ASSIGNMENT_TYPES,
   MAX_EXTERNAL_SPEAKER_NAME,
   MAX_EXTERNAL_SPEAKER_TITLE,
+  MAX_TOPIC_TITLE,
   PIPELINE_STAGES,
 } from "@/types/domain";
 
@@ -26,6 +27,16 @@ export const externalSpeakerSchema = z.object({
     .optional(),
 });
 export type ExternalSpeakerInput = z.infer<typeof externalSpeakerSchema>;
+
+// Migration 086: a talk's topic is the words typed for it. There is no library to choose from.
+// A blank topic arrives as null, so clearing the field clears the topic.
+const topicTitleSchema = z
+  .string()
+  .trim()
+  .max(MAX_TOPIC_TITLE, `Keep the topic to ${MAX_TOPIC_TITLE} characters.`)
+  .transform((title) => (title === "" ? null : title))
+  .nullable()
+  .optional();
 
 const SPEAKER_BOTH =
   "Choose a ward member or type an outside speaker's name, not both.";
@@ -54,7 +65,7 @@ export const createAssignmentSchema = z
     slotLengthMinutes: z.number().int().min(1).max(60).nullable().optional(),
     memberId: z.uuid("Choose someone from the roster.").nullable().optional(),
     externalSpeaker: externalSpeakerSchema.nullable().optional(),
-    topicId: z.uuid("Choose a topic from the library.").nullable().optional(),
+    topicTitle: topicTitleSchema,
   })
   .superRefine(refuseBothSpeakers);
 export type CreateAssignmentInput = z.infer<typeof createAssignmentSchema>;
@@ -72,7 +83,7 @@ export const assignmentFieldsSchema = z
     slotLengthMinutes: z.number().int().min(1).max(60).nullable().optional(),
     memberId: z.uuid("Choose someone from the roster.").nullable().optional(),
     externalSpeaker: externalSpeakerSchema.nullable().optional(),
-    topicId: z.uuid("Choose a topic from the library.").nullable().optional(),
+    topicTitle: topicTitleSchema,
     requestNotes: z.string().trim().max(2000).nullable().optional(),
     notifyMessage: z.string().trim().max(4000).nullable().optional(),
     notifySentAt: z.iso.datetime().nullable().optional(),

@@ -43,7 +43,6 @@ describe("PATCH /api/assignments/[id]", () => {
   let sundayId = "";
   let wardBSundayId = "";
   let memberId = "";
-  let topicId = "";
   let wardBAssignmentId = "";
 
   // Slots are handed out sequentially so no two fixtures in this file collide on the Sunday.
@@ -71,7 +70,7 @@ describe("PATCH /api/assignments/[id]", () => {
           seed.speaker === "external" ? "President Visitor" : null,
         assignment_type: "sacrament_talk",
         slot_number: slotNumber,
-        topic_id: topicId,
+        topic_title: `Fixture topic ${fixtures.runId}`,
         pipeline_stage: seed.stage,
         request_notes: "seeded",
         contact_waived_at: seed.waived ? new Date().toISOString() : null,
@@ -156,19 +155,6 @@ describe("PATCH /api/assignments/[id]", () => {
     }
     memberId = member.id;
 
-    const { data: topic, error: topicError } = await fixtures.service
-      .from("topics")
-      .insert({
-        ward_id: fixtures.wardAId,
-        title: `Fixture topic ${fixtures.runId}`,
-        source: "manual",
-      })
-      .select("id")
-      .single();
-    if (topicError) {
-      throw new Error(`Could not seed a topic: ${topicError.message}`);
-    }
-    topicId = topic.id;
 
     const { data: wardB, error: wardBError } = await fixtures.service
       .from("assignments")

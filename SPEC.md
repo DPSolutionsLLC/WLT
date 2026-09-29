@@ -261,11 +261,11 @@ it does not start writing a second shape into the same column.
 **There is no delete route for a topic.** Archiving is how a topic leaves the library, because a
 topic referenced by an assignment must not vanish from that assignment's history.
 
-**`last_assigned_at` is stamped at `approve`, and at no other stage.** Not at `plan` — a plan that
-never gets approved should not burn the topic. Not at `complete` — the bishopric needs the signal
-while they are still choosing, which is weeks before the talk is given. A backward move does NOT
-un-stamp it: the topic genuinely was chosen for a Sunday, and rolling the stamp back would
-re-offer something they had just discussed. `tests/db/topic-last-assigned.test.ts` pins all three.
+**`last_assigned_at` NO LONGER MOVES — retired 2026-09-29 (migration 086).** It used to be stamped
+at `approve` so the library could show what had been used. A talk's topic is now the words typed
+for it (`assignments.topic_title`), so nothing writes to `topics` any more; the table and its data
+are kept, unread, until a later migration drops them. `tests/db/topic-last-assigned.test.ts` now
+pins that approve leaves the stamp alone.
 
 ### `topic_candidates`
 ```sql
@@ -305,7 +305,8 @@ external_speaker_name   text  -- ITER-004: a speaker who is not on the ward rost
 external_speaker_title  text  -- an honorific the planner TYPED, e.g. 'President'. Never derived
 assignment_type text  -- 'sacrament_talk' | 'organizational' | 'returning_missionary' | 'new_member' | 'youth_speaker' | 'high_council' | 'other'
 counts_toward_rotation  boolean DEFAULT true
-topic_id        uuid REFERENCES topics(id)
+topic_id        uuid REFERENCES topics(id)  -- RETIRED by migration 086: kept for its data, never read or written
+topic_title     text  -- migration 086: the words the speaker was asked to speak about. 1–200 chars after trimming, or null
 slot_number     integer
 slot_length_minutes integer
 pipeline_stage  text DEFAULT 'plan'  -- 'plan'|'review'|'approve'|'request'|'confirm'|'notify'|'speak'|'appreciate'|'complete'

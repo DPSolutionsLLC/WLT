@@ -32,7 +32,7 @@ function readyAssignment(
     stage,
     memberId: "member-1",
     externalSpeakerName: null,
-    topicId: "topic-1",
+    topicTitle: "topic-1",
     slotNumber: 1,
     requestOutcome: "accepted",
     notifyMessage: "Brother Andersen, you are speaking on the third.",
@@ -104,7 +104,7 @@ describe("stage ordering", () => {
 
 describe("requiredFieldsFor", () => {
   it("names a field for every stage that has a gate", () => {
-    expect(requiredFieldsFor("review")).toEqual(["speaker", "topicId", "slotNumber"]);
+    expect(requiredFieldsFor("review")).toEqual(["speaker", "topicTitle", "slotNumber"]);
     expect(requiredFieldsFor("approve")).toEqual(["approvals"]);
     expect(requiredFieldsFor("confirm")).toEqual(["requestOutcome"]);
     expect(requiredFieldsFor("notify")).toEqual(["notifyMessage"]);
@@ -240,7 +240,7 @@ describe("each forward gate names what is missing", () => {
     const result = canTransition(
       "plan",
       "review",
-      context(readyAssignment("plan", { topicId: null })),
+      context(readyAssignment("plan", { topicTitle: null })),
     );
 
     expect(result.ok).toBe(false);
@@ -266,7 +266,7 @@ describe("each forward gate names what is missing", () => {
         readyAssignment("plan", {
           memberId: null,
           externalSpeakerName: null,
-          topicId: null,
+          topicTitle: null,
           slotNumber: null,
         }),
       ),

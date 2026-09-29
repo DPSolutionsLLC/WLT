@@ -31,12 +31,12 @@ function patch(body: unknown): UpdateAssignmentInput {
   return updateAssignmentSchema.parse(body);
 }
 
-const TOPIC_ID = "00000000-0000-4000-8000-000000000001";
+const TOPIC = "Faith in Jesus Christ";
 const MEMBER_ID = "00000000-0000-4000-8000-000000000002";
 
 describe("topicShapeChanged — what un-finalizes a Sunday", () => {
   it("un-finalizes when a topic is SET", () => {
-    expect(topicShapeChanged(patch({ action: "update", fields: { topicId: TOPIC_ID } }))).toBe(
+    expect(topicShapeChanged(patch({ action: "update", fields: { topicTitle: TOPIC } }))).toBe(
       true,
     );
   });
@@ -44,13 +44,22 @@ describe("topicShapeChanged — what un-finalizes a Sunday", () => {
   // THE CASE A TRUTHINESS CHECK WOULD MISS. Removing a topic changes the day's shape exactly as
   // much as adding one, and a finalized Sunday with a topic taken off it is not finalized.
   it("un-finalizes when a topic is CLEARED", () => {
-    expect(topicShapeChanged(patch({ action: "update", fields: { topicId: null } }))).toBe(true);
+    expect(topicShapeChanged(patch({ action: "update", fields: { topicTitle: null } }))).toBe(
+      true,
+    );
+  });
+
+  // A blank field is how a person clears a typed topic, and the schema turns it into null.
+  it("un-finalizes when a topic is cleared by blanking it", () => {
+    expect(topicShapeChanged(patch({ action: "update", fields: { topicTitle: "  " } }))).toBe(
+      true,
+    );
   });
 
   it("un-finalizes when the topic changes alongside other fields", () => {
     const input = patch({
       action: "update",
-      fields: { topicId: TOPIC_ID, memberId: MEMBER_ID, requestNotes: "Called on Tuesday" },
+      fields: { topicTitle: TOPIC, memberId: MEMBER_ID, requestNotes: "Called on Tuesday" },
     });
 
     expect(topicShapeChanged(input)).toBe(true);

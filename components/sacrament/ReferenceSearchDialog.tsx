@@ -23,9 +23,9 @@ import type { ReferenceKind, ReferencesTalk, TalkReference } from "@/types/domai
 // one edit away rather than a different screen. Each further search is a press, never a keystroke:
 // every search spends an embedding call.
 //
-// THE TOPIC'S OWN SUGGESTED SCRIPTURES come first, as picks (user decision, Q5). They are the
-// topic library's `suggested_scriptures`, typed by a person, so they are added as `manual` — no
-// document claims them.
+// There are no suggested-scripture picks any more. They came from the topic library's
+// `suggested_scriptures`, and the library was retired (migration 086, 2026-09-29): a talk's topic
+// is now just its words. The references a planner chooses here are the better source anyway.
 //
 // PICK ONE OR SEVERAL, THEN ADD. A checkbox per item and one Add button, so choosing three
 // passages is three ticks and one save. Nothing is added until that button is pressed (rule 3).
@@ -172,13 +172,6 @@ export function ReferenceSearchDialog({
     onClose();
   }
 
-  const suggestedPicks: Pick[] = (free ? [] : talk.suggestedScriptures).map((citation) => ({
-    key: `suggested:${normalizeCitation(citation)}`,
-    kind: "scripture",
-    citation,
-    snippet: null,
-  }));
-
   const resultPicks: Pick[] =
     searchQuery.isSuccess
       ? searchQuery.data.map((suggestion) => ({
@@ -240,16 +233,6 @@ export function ReferenceSearchDialog({
         </form>
 
         <p className="text-sm text-muted">{PICK_HINT}</p>
-
-        {suggestedPicks.length > 0 && (
-          <PickGroup
-            heading="Suggested for this topic"
-            picks={suggestedPicks}
-            selected={selected}
-            addedCitations={addedCitations}
-            onToggle={toggle}
-          />
-        )}
 
         {isSearching && (
           <p className="text-sm text-muted" role="status">

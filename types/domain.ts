@@ -508,6 +508,9 @@ export type SpeakerKind = (typeof SPEAKER_KINDS)[number];
 export const MAX_EXTERNAL_SPEAKER_NAME = 120;
 export const MAX_EXTERNAL_SPEAKER_TITLE = 60;
 
+// A talk's topic is the words typed for it (migration 086's CHECK holds the same number).
+export const MAX_TOPIC_TITLE = 200;
+
 export const REQUEST_OUTCOMES = ["accepted", "declined", "pending"] as const;
 export type RequestOutcome = (typeof REQUEST_OUTCOMES)[number];
 
@@ -1517,9 +1520,6 @@ export type ReferencesTalk = {
   slotNumber: number | null;
   topicTitle: string;
   speakerName: string | null;
-  // The topic's own `suggested_scriptures`, offered as one-tap picks in the search window. Never
-  // null — a topic with none is an empty list.
-  suggestedScriptures: string[];
 };
 
 // GET /api/sundays/[id]/references. Bishopric-only (migration 080), so there is no read-only

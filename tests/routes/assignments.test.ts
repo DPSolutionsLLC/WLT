@@ -36,13 +36,21 @@ async function callPost(body: unknown) {
   return readResponse(await POST(jsonRequest(ROUTE, { method: "POST", body })));
 }
 
+async function callPatch(assignmentId: string, body: unknown) {
+  const { PATCH } = await import("@/app/api/assignments/[id]/route");
+  return readResponse(
+    await PATCH(jsonRequest(`${ROUTE}/${assignmentId}`, { method: "PATCH", body }), {
+      params: Promise.resolve({ id: assignmentId }),
+    }),
+  );
+}
+
 describe("/api/assignments", () => {
   let fixtures: Fixtures;
 
   let fullSundayId = "";
   let noSlotsSundayId = "";
   let memberId = "";
-  let topicId = "";
   let seededAssignmentId = "";
 
   // Counted with the SERVICE client. This is a fact-check on what the route wrote, not an RLS
@@ -103,20 +111,6 @@ describe("/api/assignments", () => {
     }
     memberId = member.id;
 
-    const { data: topic, error: topicError } = await fixtures.service
-      .from("topics")
-      .insert({
-        ward_id: fixtures.wardAId,
-        title: `Fixture topic ${fixtures.runId}`,
-        source: "manual",
-      })
-      .select("id")
-      .single();
-    if (topicError) {
-      throw new Error(`Could not seed a topic: ${topicError.message}`);
-    }
-    topicId = topic.id;
-
     const { data: assignment, error: assignmentError } = await fixtures.service
       .from("assignments")
       .insert({
@@ -125,7 +119,7 @@ describe("/api/assignments", () => {
         member_id: memberId,
         assignment_type: "sacrament_talk",
         slot_number: 1,
-        topic_id: topicId,
+        topic_title: `Fixture topic ${fixtures.runId}`,
         pipeline_stage: "plan",
       })
       .select("id")
@@ -468,6 +462,63 @@ describe("/api/assignments", () => {
       });
 
       expect(await auditRowCount()).toBe(before);
+    });
+  });
+
+  // Migration 086: there is no topic library. A talk's topic is the words typed for it.
+  describe("a topic is the words typed for it", () => {
+    async function readTopicTitle(assignmentId: string): Promise<string | null> {
+      const { data, error } = await fixtures.service
+        .from("assignments")
+        .select("topic_title")
+        .eq("id", assignmentId)
+        .single();
+      if (error) throw new Error(`Could not re-read the assignment: ${error.message}`);
+      return data.topic_title;
+    }
+
+    it("stores the typed words, trimmed", async () => {
+      await actAs(fixtures, "bishop");
+
+      const { status, body } = await callPost({
+        sundayId: fullSundayId,
+        assignmentType: "sacrament_talk",
+        slotNumber: 3,
+        memberId,
+        topicTitle: "  Faith in Jesus Christ  ",
+      });
+
+      expect(status).toBe(201);
+      const assignment = body.assignment as { id: string; topicTitle: string | null };
+      expect(assignment.topicTitle).toBe("Faith in Jesus Christ");
+      expect(await readTopicTitle(assignment.id)).toBe("Faith in Jesus Christ");
+    });
+
+    it("refuses a topic over 200 characters, and writes nothing", async () => {
+      await actAs(fixtures, "bishop");
+      const before = await readTopicTitle(seededAssignmentId);
+
+      const { status, body } = await callPatch(seededAssignmentId, {
+        action: "update",
+        fields: { topicTitle: "a".repeat(201) },
+      });
+
+      expect(status).toBe(400);
+      expect(errorMessage(body)).toContain("200 characters");
+      expect(await readTopicTitle(seededAssignmentId)).toBe(before);
+    });
+
+    it("stores a blank topic as null", async () => {
+      await actAs(fixtures, "bishop");
+      expect(await readTopicTitle(seededAssignmentId)).not.toBeNull();
+
+      const { status } = await callPatch(seededAssignmentId, {
+        action: "update",
+        fields: { topicTitle: "   " },
+      });
+
+      expect(status).toBe(200);
+      expect(await readTopicTitle(seededAssignmentId)).toBeNull();
     });
   });
 });

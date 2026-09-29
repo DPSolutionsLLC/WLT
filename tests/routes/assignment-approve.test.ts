@@ -44,7 +44,6 @@ describe("POST /api/assignments/[id]/approve", () => {
 
   let sundayId = "";
   let memberId = "";
-  let topicId = "";
   let nextSlot = 1;
 
   async function seedAssignment(stage: string): Promise<string> {
@@ -59,7 +58,7 @@ describe("POST /api/assignments/[id]/approve", () => {
         member_id: memberId,
         assignment_type: "sacrament_talk",
         slot_number: slotNumber,
-        topic_id: topicId,
+        topic_title: `Fixture topic ${fixtures.runId}`,
         pipeline_stage: stage,
       })
       .select("id")
@@ -150,19 +149,6 @@ describe("POST /api/assignments/[id]/approve", () => {
     }
     memberId = member.id;
 
-    const { data: topic, error: topicError } = await fixtures.service
-      .from("topics")
-      .insert({
-        ward_id: fixtures.wardAId,
-        title: `Fixture topic ${fixtures.runId}`,
-        source: "manual",
-      })
-      .select("id")
-      .single();
-    if (topicError) {
-      throw new Error(`Could not seed a topic: ${topicError.message}`);
-    }
-    topicId = topic.id;
   });
 
   afterAll(async () => {

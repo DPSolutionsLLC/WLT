@@ -14,10 +14,9 @@ import { SUNDAY_TYPES, type SundayType, type TodoAskSource } from "@/types/domai
 //
 // The embed both files carry, verbatim:
 //   ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number,
-//     cancelled_at,
+//     cancelled_at, topic_title,
 //     sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots),
-//     members!assignments_member_id_ward_id_fkey (first_name, last_name, phone),
-//     topics!assignments_topic_id_ward_id_fkey (title))
+//     members!assignments_member_id_ward_id_fkey (first_name, last_name, phone))
 
 export type AskSourceRow = {
   id: string;
@@ -25,9 +24,9 @@ export type AskSourceRow = {
   external_speaker_name: string | null;
   slot_number: number | null;
   cancelled_at: string | null;
+  topic_title: string | null;
   sundays: { date: string; type: string; speaking_slots: number } | null;
   members: { first_name: string | null; last_name: string | null; phone: string | null } | null;
-  topics: { title: string } | null;
 } | null;
 
 // `sundays.type` arrives as plain text. Its CHECK admits only SUNDAY_TYPES, so anything else means
@@ -58,7 +57,7 @@ export function mapAskSource(row: AskSourceRow, completedAt: string | null): Tod
     speakerMemberId: row.member_id,
     onRoster: row.member_id !== null,
     phone: phone === "" ? null : phone,
-    topicTitle: row.topics?.title ?? null,
+    topicTitle: row.topic_title,
     isOpen: completedAt === null,
     // Off when the talk was CANCELLED (Sacrament slice f2c), or when its Sunday lost the meeting or
     // the slot without cancelling it (f2b; calendar generation can do that).

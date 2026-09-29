@@ -14,7 +14,6 @@ import {
 } from "@/lib/references/queries";
 import { getMember } from "@/lib/roster/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getTopic } from "@/lib/topics/queries";
 import { addReferenceSchema } from "@/lib/validation/references";
 import type { ReferencesTalk, SundayReferences } from "@/types/domain";
 
@@ -62,7 +61,6 @@ export async function GET(
 
     const { sunday, talksWithTopics } = loaded;
 
-    const topicIds = [...new Set(talksWithTopics.map((talk) => talk.topicId as string))];
     const memberIds = [
       ...new Set(
         talksWithTopics
@@ -71,10 +69,8 @@ export async function GET(
       ),
     ];
 
-    // Per id rather than the whole library or the whole roster: a Sunday has three or four talks,
-    // and an archived topic still assigned to a slot must keep its title here.
-    const [topics, members, references] = await Promise.all([
-      Promise.all(topicIds.map((topicId) => getTopic(user.wardId, topicId, supabase))),
+    // Per id rather than the whole roster: a Sunday has three or four talks.
+    const [members, references] = await Promise.all([
       Promise.all(memberIds.map((memberId) => getMember(user.wardId, memberId, supabase))),
       listReferencesForAssignments(
         user.wardId,
@@ -83,9 +79,6 @@ export async function GET(
       ),
     ]);
 
-    const topicsById = new Map(
-      topics.flatMap((topic) => (topic === null ? [] : [[topic.id, topic] as const])),
-    );
     const memberNames = Object.fromEntries(
       members.flatMap((member) =>
         member === null
@@ -94,16 +87,13 @@ export async function GET(
       ),
     );
 
-    const talks: ReferencesTalk[] = talksWithTopics.map((talk) => {
-      const topic = topicsById.get(talk.topicId as string);
-      return {
-        assignmentId: talk.id,
-        slotNumber: talk.slotNumber,
-        topicTitle: topic?.title ?? "A topic that is no longer available",
-        speakerName: speakerDisplayName(talk, memberNames),
-        suggestedScriptures: topic?.suggestedScriptures ?? [],
-      };
-    });
+    // loadSundayTalks() keeps only talks whose topic is set, so the title is never null here.
+    const talks: ReferencesTalk[] = talksWithTopics.map((talk) => ({
+      assignmentId: talk.id,
+      slotNumber: talk.slotNumber,
+      topicTitle: talk.topicTitle as string,
+      speakerName: speakerDisplayName(talk, memberNames),
+    }));
 
     const payload: SundayReferences = {
       decision: referencesDecisionOf(sunday),

@@ -85,7 +85,7 @@ describe("POST /api/assignments/[id]/ai-message", () => {
   let sundayId = "";
   let wardBSundayId = "";
   let memberId = "";
-  let topicId = "";
+  const topicTitle = () => `Bearing One Another's Burdens ${fixtures.runId}`;
 
   let confirmId = "";
   let appreciateWithCommentsId = "";
@@ -120,7 +120,7 @@ describe("POST /api/assignments/[id]/ai-message", () => {
         assignment_type: "sacrament_talk",
         slot_number: slotNumber,
         slot_length_minutes: 12,
-        topic_id: topicId,
+        topic_title: topicTitle(),
         pipeline_stage: seed.stage,
         contact_waived_at: seed.waived ? new Date().toISOString() : null,
         contact_waived_by: seed.waived ? fixtures.user("bishop").id : null,
@@ -183,20 +183,27 @@ describe("POST /api/assignments/[id]/ai-message", () => {
     if (memberError) throw new Error(`Could not seed a member: ${memberError.message}`);
     memberId = member.id;
 
-    const { data: topic, error: topicError } = await fixtures.service
-      .from("topics")
-      .insert({
-        ward_id: fixtures.wardAId,
-        title: `Bearing One Another's Burdens ${fixtures.runId}`,
-        source: "manual",
-        suggested_scriptures: ["Mosiah 18:8-9"],
-      })
-      .select("id")
-      .single();
-    if (topicError) throw new Error(`Could not seed a topic: ${topicError.message}`);
-    topicId = topic.id;
-
     confirmId = await seedAssignment({ stage: "confirm", speaker: "member" });
+
+    // The talk's own references (migration 079). Only the SCRIPTURE belongs in the confirmation's
+    // scripture sentence; the conference talk is there to prove the filter.
+    const { error: referenceError } = await fixtures.service.from("talk_references").insert([
+      {
+        ward_id: fixtures.wardAId,
+        assignment_id: confirmId,
+        kind: "scripture",
+        citation: "Mosiah 18:8-9",
+        source: "manual",
+      },
+      {
+        ward_id: fixtures.wardAId,
+        assignment_id: confirmId,
+        kind: "talk",
+        citation: "Ministering — Elder Example, April 2025",
+        source: "manual",
+      },
+    ]);
+    if (referenceError) throw new Error(`Could not seed references: ${referenceError.message}`);
     appreciateWithCommentsId = await seedAssignment({
       stage: "appreciate",
       speaker: "member",
@@ -353,8 +360,9 @@ describe("POST /api/assignments/[id]/ai-message", () => {
     expect(prompt).toContain("Sunday, May 2");
     expect(prompt).toContain("12 minutes");
     expect(prompt).toContain("Sarah");
-    // From the topic's own suggested_scriptures, which talks-b recorded as missing.
+    // From the talk's own SCRIPTURE references (migration 086 retired the library's list).
     expect(prompt).toContain("Mosiah 18:8-9");
+    expect(prompt).not.toContain("Ministering — Elder Example");
   });
 
   // A confirmation naming a scripture the speaker can prepare from is better with the corpus

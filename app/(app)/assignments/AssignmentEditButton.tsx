@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { AssignmentModal } from "@/app/(app)/assignments/AssignmentModal";
 import { Button } from "@/components/ui/Button";
 import type { Assignment } from "@/lib/assignments/queries";
-import type { TopicOption } from "@/lib/topics/queries";
 import type { SessionUser } from "@/types/domain";
 
 // The detail page is a Server Component and cannot hand AssignmentModal its open state, so the
@@ -26,7 +25,6 @@ export type AssignmentEditButtonProps = {
   slotNumber: number;
   sundayId: string;
   sundayLabel: string;
-  topics: TopicOption[];
   approvedNames: string[];
 };
 
@@ -36,7 +34,6 @@ export function AssignmentEditButton({
   slotNumber,
   sundayId,
   sundayLabel,
-  topics,
   approvedNames,
 }: AssignmentEditButtonProps) {
   const router = useRouter();
@@ -61,7 +58,6 @@ export function AssignmentEditButton({
           sundayLabel={sundayLabel}
           slotNumber={slotNumber}
           assignment={assignment}
-          topics={topics}
           approvedCount={approvedNames.length}
           approvedNames={approvedNames}
         />

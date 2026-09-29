@@ -153,7 +153,7 @@ function assembleSpeakers(sources: ProgramSources): ProgramSpeaker[] {
       return { slotNumber, kind: "empty" as const, printedName: null, publicName: null, topic: null };
     }
 
-    const topic = assignment.topicId === null ? null : (sources.topicTitles[assignment.topicId] ?? null);
+    const topic = assignment.topicTitle;
 
     // Read through speakerFrom(), NEVER by branching on member_id. Two callers that reach their
     // own conclusion is how an external speaker vanishes from a printed program while still

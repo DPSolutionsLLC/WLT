@@ -62,7 +62,7 @@ import type { Database } from "@/types/database";
 // to call it. `action: "transition"` is every stage move including a decline;
 // `action: "waive_contact"` is a fact about how an outside speaker was reached.
 //
-// `"topicId" in fields` rather than a truthiness check, because CLEARING a topic (`topicId: null`)
+// `"topicTitle" in fields` rather than a truthiness check, because CLEARING a topic (`topicTitle: null`)
 // changes the day's shape exactly as much as setting one does — a finalized Sunday with a topic
 // removed is not finalized any more. Zod strips unknown keys, so the key is present only when the
 // caller actually sent it.
@@ -75,13 +75,13 @@ import type { Database } from "@/types/database";
 export function topicShapeChanged(patch: UpdateAssignmentInput): boolean {
   if (patch.action !== "update") return false;
 
-  return "topicId" in patch.fields;
+  return "topicTitle" in patch.fields;
 }
 
 // ---------------------------------------------------------------------------
 // NEVER THROWS
 // ---------------------------------------------------------------------------
-// Same contract as stampTopicAssigned() and writeAuditLog(): a readiness signal failing to clear
+// Same contract as writeAuditLog(): a readiness signal failing to clear
 // must not fail the edit that earned it. The assignment genuinely was changed, and refusing the
 // change because a flag could not be cleared would be the tail wagging the dog. It logs with
 // context; it does not swallow silently (CLAUDE.md rule 7's two sanctioned exceptions are the

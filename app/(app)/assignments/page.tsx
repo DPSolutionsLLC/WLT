@@ -8,7 +8,6 @@ import {
   listSpeakerHistoryByMember,
 } from "@/lib/assignments/queries";
 import { reliabilityFlags, type ReliabilityFlagKind } from "@/lib/assignments/reliabilityFlags";
-import { listTopicOptions } from "@/lib/topics/queries";
 import { BISHOPRIC_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import {
@@ -57,9 +56,8 @@ export default async function AssignmentsPage({ searchParams }: AssignmentsPageP
   // to do it (calendar-c's half-generated months).
   const sundays = await listSundays(user.wardId, range, supabase);
 
-  const [assignments, topics, bishopricUsers, members] = await Promise.all([
+  const [assignments, bishopricUsers, members] = await Promise.all([
     listAssignments(user.wardId, range, supabase),
-    listTopicOptions(user.wardId, supabase),
     listBishopricUsers(user.wardId, supabase),
     // Every status, not only the active ones: an assignment can name somebody who has since
     // moved out, and dropping their name would render the slot as open.
@@ -123,7 +121,6 @@ export default async function AssignmentsPage({ searchParams }: AssignmentsPageP
           approvalCounts={Object.fromEntries(approvalCounts)}
           memberNames={memberNames}
           speakerFlags={speakerFlags}
-          topics={topics}
           bishopricCount={bishopricUsers.length}
           canPlan={canPlan}
         />

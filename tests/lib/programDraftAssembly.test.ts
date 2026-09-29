@@ -20,7 +20,6 @@ const SUNDAY_DATE = "2026-09-06";
 const MEMBER_SARAH = "member-sarah";
 const MEMBER_DAVID = "member-david";
 const MEMBER_RUTH = "member-ruth";
-const TOPIC_ID = "topic-1";
 
 function sunday(overrides: Partial<Sunday> = {}): Sunday {
   return {
@@ -50,7 +49,7 @@ function assignment(overrides: Partial<Assignment> & { slotNumber: number }): As
     externalSpeakerTitle: null,
     assignmentType: "sacrament_talk",
     countsTowardRotation: true,
-    topicId: null,
+    topicTitle: null,
     slotLengthMinutes: 10,
     stage: "notify" as PipelineStage,
     plannedBy: null,
@@ -99,7 +98,7 @@ function sources(overrides: Partial<ProgramSources> = {}): ProgramSources {
   return {
     sunday: sunday(),
     assignments: [
-      assignment({ slotNumber: 1, memberId: MEMBER_SARAH, topicId: TOPIC_ID }),
+      assignment({ slotNumber: 1, memberId: MEMBER_SARAH, topicTitle: "Charity Never Faileth" }),
       assignment({
         slotNumber: 2,
         externalSpeakerName: "Mark Andersen",
@@ -112,7 +111,6 @@ function sources(overrides: Partial<ProgramSources> = {}): ProgramSources {
       [MEMBER_DAVID]: "David Brooks",
       [MEMBER_RUTH]: "Ruth Okonkwo",
     },
-    topicTitles: { [TOPIC_ID]: "Charity Never Faileth" },
     hymnSelections: [
       { hymnType: "opening", hymnNumber: 19, hymnTitle: "We Thank Thee, O God, for a Prophet" },
       { hymnType: "closing", hymnNumber: 152, hymnTitle: "God Be with You Till We Meet Again" },
