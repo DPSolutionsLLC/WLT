@@ -115,8 +115,12 @@ Each numbered item below is a candidate slice. "New" means no WLT route, table o
 > `/talks/topics` is not a per-Sunday view, and (c) is unchanged.
 >
 > **Topics screen rebuild — built so far:** `t1` a talk's topic is its words (migration 086);
-> `t2` the topic history replaces the library. `t3`–`t5` (the screen, the speaker window, the topic
-> window) follow.
+> `t2` the topic history replaces the library; `t3` the screen — the prototype's ModuleView at
+> `/assignments/[sunday_id]`: the Speakers this week stepper, a compact row per talk with its own
+> speaker and topic windows and tags, Details in a window, Delete = cancel and shift up (migration
+> 087), Finalize at the bottom. The talk row checks **Declined before "no speaker"**, the reverse of
+> the prototype's order, because WLT's decline clears the speaker. `t4`–`t5` (the speaker window's
+> ordered list and history, the topic window's hints and AI suggestions) follow.
 >
 > **(c) THE PROTOTYPE'S "Topics" PILL MAPS TO `/assignments/[sunday_id]`, NOT TO
 > `/talks/topics`.** In the prototype, *Topics* is the per-date editor holding the speaker-count

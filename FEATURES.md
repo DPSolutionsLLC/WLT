@@ -255,6 +255,19 @@ Each speaking assignment is tagged to determine rotation eligibility:
 | Youth Speaker | Separate youth rotation |
 | High Council | ❌ No |
 
+### The Topics screen — one Sunday
+
+The Sacrament hub's **Topics** and **Talks** pills both open one Sunday's **"What still needs to happen"** screen:
+
+- **Speakers this week** — − / + / Save. − stops at a slot with a speaker in it ("Clear one speaker slot to go lower."). If a change would cancel work, the screen says what and asks before applying it. After a save, somebody who manages the ward is offered to make the new number the default for Sundays added from then on.
+- **One row per talk.** The speaker line and the topic line each open their own window and carry their own tag — *Needs speaker / Speaker selected / Ask sent / Accepted / Declined*, and *Needs topic / Topic selected* — with **Clear** beside each. Clearing or saving on a talk that has approvals first says who approved and that their approvals will be reset.
+- **Details** opens a window with the talk's slot length, approvals, contacting the speaker and comments.
+- **Delete** cancels the talk (kept as a record), moves the later talks up one, and gives the Sunday one fewer speaker. Whoever asked the speaker is left to let them know. A Sunday's only talk cannot be deleted — clear it instead.
+- **Finalize topics** at the bottom tells the music coordinator the day is ready; any change un-finalizes it.
+- **Comments on this Sunday**, and **View the full program for this date →**.
+
+Without talk-planning permission the screen reads the same, with nothing to press.
+
 ### Talk Assignment Pipeline
 
 ```

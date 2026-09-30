@@ -51,30 +51,23 @@ export function TopicsFinalizedPanel({
 }: TopicsFinalizedPanelProps) {
   const finalized = topicsFinalizedAt !== null;
 
+  // THE PROTOTYPE'S WORDS (Topics rebuild t3), at the BOTTOM of the Topics screen, where the
+  // decision is made once the talks above it are settled. They still name the person the work sits
+  // with, which is the user's 2026-09-23 framing: the music coordinator is waiting, or can start.
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
-      <div className="min-w-0">
-        <p className="text-sm text-foreground">
-          {finalized
-            ? `Topics decided on ${formatStamp(topicsFinalizedAt)}.`
-            : "The topics for this Sunday are not decided yet."}
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border px-3 py-3">
+      <div className="min-w-0 flex-1">
+        <p className={`text-sm font-medium ${finalized ? "text-success" : "text-foreground"}`}>
+          {finalized ? "✓ Finalized" : "Not finalized yet"}
         </p>
-        {/* ---------------------------------------------------------------------------
-            IT NAMES WHO IS WAITING, NOT WHO BENEFITS — the user's decision, 2026-09-23
-            ---------------------------------------------------------------------------
-            A flag whose only consequence is on somebody else's screen gets pressed at random, so
-            this line says where it lands. It first read "the music coordinator CAN SEE this
-            Sunday is ready", and the user asked for the other framing: name the person the work
-            now sits with, "that way if it's not getting done they can reach out to them and say
-            hey did you miss this".
-            So the un-finalized sentence names somebody who is BLOCKED, and the finalized one
-            names somebody who can now act. Both are about a person, which is what makes the line
-            worth its space — a sentence about a database column would not be. */}
         <p className="mt-0.5 text-xs text-muted">
           {finalized
-            ? "The music coordinator can choose hymns for this Sunday now."
-            : "The music coordinator is waiting on this before they can choose hymns."}
+            ? "Ready for the music coordinator to work on. Any change you make here will un-finalize it again."
+            : "Once you’re done deciding speakers and topics for this day, finalize it — that’s what tells the music coordinator it’s ready to work on, even before speakers accept."}
         </p>
+        {finalized && (
+          <p className="mt-0.5 text-xs text-muted">Finalized on {formatStamp(topicsFinalizedAt)}.</p>
+        )}
       </div>
 
       {canFinalize && (
@@ -83,6 +76,7 @@ export function TopicsFinalizedPanel({
           finalized={finalized}
           sundayLabel={sundayLabel}
           variant="panel"
+          panelLabels={{ pressed: "Undo", unpressed: "Finalize topics" }}
         />
       )}
     </div>

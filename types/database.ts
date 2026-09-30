@@ -4136,6 +4136,7 @@ export type Database = {
         }[]
       }
       refresh_goal_status: { Args: never; Returns: number }
+      remove_talk: { Args: { p_assignment_id: string }; Returns: Json }
       session_context: {
         Args: never
         Returns: {

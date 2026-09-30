@@ -70,6 +70,9 @@ export type FinalizeTopicsButtonProps = {
   // "Topics are decided — Sunday, March 1" is what a screen reader needs, not "Finalize" six times.
   sundayLabel: string;
   variant?: FinalizeTopicsVariant;
+  // The panel variant's visible words. The Topics screen uses the prototype's "Finalize topics" /
+  // "Undo"; the accessible name stays the stateful aria-label either way.
+  panelLabels?: { pressed: string; unpressed: string };
 };
 
 export function FinalizeTopicsButton({
@@ -77,6 +80,7 @@ export function FinalizeTopicsButton({
   finalized,
   sundayLabel,
   variant = "pill",
+  panelLabels = { pressed: "Topics are decided", unpressed: "Mark topics decided" },
 }: FinalizeTopicsButtonProps) {
   return (
     <FinalizeToggle
@@ -86,7 +90,7 @@ export function FinalizeTopicsButton({
       unpressedBody={{ finalized: false }}
       ariaLabel={`Topics are decided — ${sundayLabel}`}
       variant={variant}
-      panelLabels={{ pressed: "Topics are decided", unpressed: "Mark topics decided" }}
+      panelLabels={panelLabels}
     />
   );
 }

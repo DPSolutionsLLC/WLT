@@ -6,6 +6,8 @@ tags: [sacrament, talks, calendar, P4]
 prerequisites: none
 ---
 
+> **PARTLY RETIRED 2026-09-29.** The Sunday page's "Slot N — open" + **Plan** and full cards with **Edit** were replaced by the Topics screen (plans/sacrament-topics-screen-rebuild.md `t3`); scenario 083 walks it. The hub-creates-Sundays checks still stand.
+
 ## Purpose
 
 Two dead ends on the way to planning a speaker, fixed together on 2026-09-28:

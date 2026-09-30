@@ -1898,6 +1898,9 @@ export async function createTodo(options: {
   assignedBy?: string;
   actionItemId?: string;
   sourceCompletedAt?: string;
+  // A talk ask (migration 083): the to-do asks somebody to speak on this talk. Seeded directly the
+  // way Send asks writes it; the app is what normally creates one.
+  askAssignmentId?: string;
   createdAt?: string;
 }): Promise<string> {
   return insertRow("todos", {
@@ -1915,6 +1918,7 @@ export async function createTodo(options: {
     completed_at: options.completedAt ?? null,
     action_item_id: options.actionItemId ?? null,
     source_completed_at: options.sourceCompletedAt ?? null,
+    ask_assignment_id: options.askAssignmentId ?? null,
     ...(options.createdAt === undefined ? {} : { created_at: options.createdAt }),
   });
 }

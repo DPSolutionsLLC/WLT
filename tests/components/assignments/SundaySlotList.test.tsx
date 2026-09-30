@@ -1,6 +1,5 @@
-import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { SundaySlotList, sundaySlotEntries } from "@/app/(app)/assignments/SundaySlotList";
+import { sundaySlotEntries } from "@/app/(app)/assignments/SundaySlotList";
 import type { Assignment } from "@/lib/assignments/queries";
 
 // The page's dead end was "nothing planned → no way to plan". What is asserted here is that every
@@ -44,23 +43,6 @@ function assignment(overrides: Partial<Assignment> & { id: string }): Assignment
   };
 }
 
-function renderList(
-  speakingSlots: number,
-  assignments: Assignment[],
-  canPlan: boolean,
-) {
-  return render(
-    <SundaySlotList
-      speakingSlots={speakingSlots}
-      assignments={assignments}
-      renderAssignment={(planned) => <p>Planned {planned.id}</p>}
-      renderPlanButton={
-        canPlan ? (slotNumber) => <button type="button">Plan slot {slotNumber}</button> : null
-      }
-    />,
-  );
-}
-
 describe("sundaySlotEntries", () => {
   it("lists every slot as open when nothing is planned", () => {
     expect(sundaySlotEntries(3, [])).toEqual([
@@ -97,33 +79,5 @@ describe("sundaySlotEntries", () => {
     expect(sundaySlotEntries(0, [leftover])).toEqual([
       { kind: "planned", assignment: leftover },
     ]);
-  });
-});
-
-describe("SundaySlotList", () => {
-  it("offers Plan on each open slot to a planner", () => {
-    renderList(2, [assignment({ id: "talk-1", slotNumber: 1 })], true);
-
-    expect(screen.getByText("Planned talk-1")).toBeInTheDocument();
-    expect(screen.getByText(/Slot 2/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Plan slot 2" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Plan slot 1" })).not.toBeInTheDocument();
-  });
-
-  it("shows open slots without a Plan control to somebody who cannot plan", () => {
-    renderList(2, [], false);
-
-    expect(screen.getByText(/Slot 1/)).toBeInTheDocument();
-    expect(screen.getByText(/Slot 2/)).toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
-  });
-
-  it("says there is nothing to plan on a Sunday with no slots and no talks", () => {
-    renderList(0, [], true);
-
-    expect(
-      screen.getByText("This Sunday has no speaking slots, so there are no talks to plan."),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });

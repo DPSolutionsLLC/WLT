@@ -168,8 +168,11 @@ land first.
 > ward keeps is a history. **`t1`** — `assignments.topic_title` (migration 086, backfilled); every
 > reader leaves `topic_id`. **`t2`** — `/talks/topics` becomes the searchable **Topic history** with
 > its dashboard tile back; the library page, its AI candidate queue and four routes are deleted.
-> This reverses `b1`'s "the queue keeps its home" and `b3`'s six-month window. `t3`–`t5` rebuild the
-> per-Sunday screen and its speaker and topic windows.
+> This reverses `b1`'s "the queue keeps its home" and `b3`'s six-month window. **`t3`** — the
+> per-Sunday screen becomes the prototype's "What still needs to happen": stepper, compact talk rows
+> with their own windows, Details in a window, and **Delete that cancels a talk and moves the rest
+> up** (migration 087, `remove_talk()`). Walked as scenario 083. `t4`–`t5` upgrade the speaker and
+> topic windows.
 >
 > **Module 1 now has `d`, `e` left**, and `f`/`g` wait on **P5**. The INDEX argues P5 should
 > come early for exactly that reason.

@@ -1,5 +1,3 @@
-import { Fragment, type ReactNode } from "react";
-import { Card } from "@/components/ui/Card";
 import type { Assignment } from "@/lib/assignments/queries";
 
 // EVERY SLOT, not every assignment. The page used to list only the talks that already existed, so
@@ -11,8 +9,8 @@ import type { Assignment } from "@/lib/assignments/queries";
 // slots rather than dropped. Hiding a talk somebody planned because the numbers no longer line up
 // would lose it from the one page that shows it in full.
 //
-// No "use client": the filled card is rendered by the page, which holds the approvals, comments
-// and contact data this list has no business knowing about.
+// The Topics screen (Topics rebuild t3) renders one TalkRow per entry. The list component that used
+// to live here went with the old per-Sunday page; this ordering rule did not.
 
 export type SundaySlotEntry =
   | { kind: "planned"; assignment: Assignment }
@@ -50,51 +48,4 @@ export function sundaySlotEntries(
   entries.push(...outsideSlots.map((assignment) => ({ kind: "planned" as const, assignment })));
 
   return entries;
-}
-
-export type SundaySlotListProps = {
-  speakingSlots: number;
-  assignments: Assignment[];
-  renderAssignment: (assignment: Assignment) => ReactNode;
-  // Null for somebody without `talks.plan`: they see which slots are open and are offered nothing
-  // the API would refuse.
-  renderPlanButton: ((slotNumber: number) => ReactNode) | null;
-};
-
-export function SundaySlotList({
-  speakingSlots,
-  assignments,
-  renderAssignment,
-  renderPlanButton,
-}: SundaySlotListProps) {
-  const entries = sundaySlotEntries(speakingSlots, assignments);
-
-  if (entries.length === 0) {
-    return (
-      <Card>
-        <p className="text-sm text-muted">
-          This Sunday has no speaking slots, so there are no talks to plan.
-        </p>
-      </Card>
-    );
-  }
-
-  return (
-    <>
-      {entries.map((entry) =>
-        entry.kind === "planned" ? (
-          <Fragment key={entry.assignment.id}>{renderAssignment(entry.assignment)}</Fragment>
-        ) : (
-          <Card key={`open-${entry.slotNumber}`}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-foreground">
-                Slot {entry.slotNumber} — <span className="font-normal text-muted">open</span>
-              </h2>
-              {renderPlanButton?.(entry.slotNumber)}
-            </div>
-          </Card>
-        ),
-      )}
-    </>
-  );
 }

@@ -2,47 +2,72 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { ApprovalPanel } from "@/app/(app)/assignments/ApprovalPanel";
-import { AssignmentEditButton } from "@/app/(app)/assignments/AssignmentEditButton";
 import { CommentThread } from "@/app/(app)/assignments/CommentThread";
 import { ContactStagePanel } from "@/app/(app)/assignments/ContactStagePanel";
-import { SundaySlotList } from "@/app/(app)/assignments/SundaySlotList";
-import { SpeakerLine, speakerDisplayName } from "@/components/assignments/SpeakerLine";
+import { sundaySlotEntries } from "@/app/(app)/assignments/SundaySlotList";
+import { speakerDisplayName } from "@/components/assignments/SpeakerLine";
+import { SundayTypeBadge } from "@/components/calendar/SundayTypeBadge";
 import { GoalAlertBanner } from "@/components/goals/GoalAlertBanner";
 import type { GoalAlert } from "@/components/goals/GoalAlerts";
-import { StageBadge } from "@/components/assignments/StageBadge";
+import type { ReliabilityFlagKind } from "@/components/roster/ReliabilityFlag";
+import { SpeakerCountStepper } from "@/components/sacrament/SpeakerCountStepper";
+import { SundayCommentsButton } from "@/components/sacrament/SundayCommentsButton";
+import { TalkRow } from "@/components/sacrament/TalkRow";
 import { TopicsFinalizedPanel } from "@/components/sacrament/TopicsFinalizedPanel";
-import { SundayTypeBadge } from "@/components/calendar/SundayTypeBadge";
 import { Card } from "@/components/ui/Card";
 import { NotPermitted } from "@/components/ui/NotPermitted";
 import {
   listApprovals,
-  listAssignments,
   listComments,
+  listSpeakerHistoryByMember,
   type Assignment,
 } from "@/lib/assignments/queries";
+import { reliabilityFlags } from "@/lib/assignments/reliabilityFlags";
+import { BISHOPRIC_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions";
+import { requireSessionUser } from "@/lib/auth/session";
+import { formatSundayLabel, monthOf, parseDateOnly } from "@/lib/calendar/dates";
+import { conductingNameMap, getSunday, listBishopricUsers } from "@/lib/calendar/queries";
+import { readDefaultSpeakingSlots } from "@/lib/calendar/wardCalendarSettings";
 import {
   GOAL_ALERT_DISMISSAL_COOKIE,
   isMonthDismissed,
 } from "@/lib/goals/alertDismissal";
 import { listGoalsWithStatus } from "@/lib/goals/queries";
 import { listReferencesForAssignments } from "@/lib/references/queries";
-import { can, resolveRoleAccess } from "@/lib/auth/permissions";
-import { requireSessionUser } from "@/lib/auth/session";
-import { formatSundayLabel, monthOf, parseDateOnly } from "@/lib/calendar/dates";
-import { conductingNameMap, getSunday, listBishopricUsers } from "@/lib/calendar/queries";
 import { listMembers } from "@/lib/roster/queries";
+import { hasSpeaker, loadSundayAsks } from "@/lib/sacrament/sundayAsks";
+import type { TalkAskInput } from "@/lib/sacrament/talkAsks";
+import { whoLetsThemKnow } from "@/lib/sacrament/talkRowStatus";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { listLatestAskOwners, listOpenAsks } from "@/lib/todos/askLinks";
 import { MEMBER_STATUSES } from "@/types/domain";
 
-// The SECONDARY surface: one Sunday, every assignment on it, expanded. Approvals, comments, the
-// contact stages and the confirmation message all live here because none of them fit in a modal
-// — and the modal is where the planning itself happens, so this page never becomes the only way
-// to use the pipeline (04-talks-pipeline.md's last pitfall).
+// THE TOPICS SCREEN — "What still needs to happen" for one Sunday (Topics rebuild t3, the
+// prototype's ModuleView). Both the Topics and the Talks pill on the Sacrament hub land here.
 //
-// params is a Promise in Next 16, typed explicitly rather than with the generated PageProps
-// helper — that only exists after a build (plans/retros/foundation-a-scaffold.md).
+// A compact row per talk: the speaker line and the topic line each open their own window and carry
+// their own tag. Everything the pipeline needs beyond that — slot length, approvals, contacting,
+// comments — is in each talk's Details window (the user's decision, 2026-09-29), and the nine
+// stages are unchanged (decision U5). Finalize sits at the BOTTOM, where the decision is made.
+//
+// EVERY SLOT, not every talk: an open slot is a row with "Nobody yet" / "No topic yet", and its
+// first save creates the talk. A talk outside the slots is listed after them, never dropped
+// (sundaySlotEntries()).
+//
+// The row tags read the talks and ask inputs from loadSundayAsks() — the same reader the hub's
+// Talks pill uses — so the two cannot disagree.
+//
+// params is a Promise in Next 16, typed explicitly rather than with the generated PageProps helper
+// — that only exists after a build (plans/retros/foundation-a-scaffold.md).
 export type SundayAssignmentsPageProps = {
   params: Promise<{ sunday_id: string }>;
+};
+
+const OPEN_SLOT_ASK: TalkAskInput = {
+  hasSpeaker: false,
+  requestOutcome: null,
+  openAskCount: 0,
+  isOff: false,
 };
 
 export default async function SundayAssignmentsPage({ params }: SundayAssignmentsPageProps) {
@@ -69,53 +94,56 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
   const canApprove = can(user, "talks.approve", roleAccess);
   const canRequest = can(user, "talks.request", roleAccess);
   const canConfirm = can(user, "talks.confirm", roleAccess);
+  const canManageCalendar = can(user, "calendar.manage", roleAccess);
+  // What the remove action asserts: it changes the talk AND the Sunday's speaking slots.
+  const canRemove = canPlan && canManageCalendar;
+  // Speaker history is bishopric-only (migration 019), so it is never read on anybody else's
+  // behalf (talks-d) — the same test app/(app)/assignments/page.tsx makes.
+  const isBishopric = (BISHOPRIC_ROLES as readonly string[]).includes(user.role);
 
-  const [assignments, bishopricUsers, members, monthComments] = await Promise.all([
-    listAssignments(user.wardId, { sundayId: sunday.id }, supabase),
-    listBishopricUsers(user.wardId, supabase),
-    listMembers(user.wardId, { statuses: MEMBER_STATUSES }, supabase),
-    listComments(user.wardId, { sundayId: sunday.id }, supabase),
-  ]);
+  const [asks, bishopricUsers, members, monthComments, wardDefault, historyByMember] =
+    await Promise.all([
+      loadSundayAsks(user.wardId, sunday.id, supabase),
+      listBishopricUsers(user.wardId, supabase),
+      // Every status: a talk can name somebody who has since moved out.
+      listMembers(user.wardId, { statuses: MEMBER_STATUSES }, supabase),
+      listComments(user.wardId, { sundayId: sunday.id }, supabase),
+      readDefaultSpeakingSlots(user.wardId, supabase),
+      isBishopric ? listSpeakerHistoryByMember(user.wardId, supabase) : Promise.resolve(null),
+    ]);
 
-  // The approval ROWS, not a count — this is the page that names who is still to decide, and the
-  // month planner deliberately carries only the counts (talks-a).
-  const approvalsByAssignment = new Map(
-    await Promise.all(
-      assignments.map(
-        async (assignment) =>
-          [
-            assignment.id,
-            await listApprovals(user.wardId, assignment.id, supabase),
-          ] as const,
-      ),
-    ),
-  );
+  if (!asks) notFound();
+  const assignments = asks.talks;
+  const assignmentIds = assignments.map((assignment) => assignment.id);
 
-  const assignmentComments = new Map(
-    await Promise.all(
-      assignments.map(
-        async (assignment) =>
-          [
-            assignment.id,
-            await listComments(user.wardId, { assignmentId: assignment.id }, supabase),
-          ] as const,
-      ),
-    ),
-  );
+  const [approvalsByAssignment, assignmentComments, references, openAsks, latestAskOwners] =
+    await Promise.all([
+      // The approval ROWS, not a count — the Details window names who is still to decide.
+      Promise.all(
+        assignments.map(
+          async (assignment) =>
+            [assignment.id, await listApprovals(user.wardId, assignment.id, supabase)] as const,
+        ),
+      ).then((entries) => new Map(entries)),
+      Promise.all(
+        assignments.map(
+          async (assignment) =>
+            [
+              assignment.id,
+              await listComments(user.wardId, { assignmentId: assignment.id }, supabase),
+            ] as const,
+        ),
+      ).then((entries) => new Map(entries)),
+      // The scriptures the planner chose for each talk, for the confirmation message.
+      // Bishopric-only (migration 080), so anybody else simply gets none.
+      listReferencesForAssignments(user.wardId, assignmentIds, supabase),
+      // Who holds each open ask, and who last asked each speaker — the people Delete's confirm
+      // names as the one who will let the speaker know (whoLetsThemKnow()). Read the way
+      // loadSundayAsks() reads the ask count, so it does not depend on whose list they are on.
+      listOpenAsks({ wardId: user.wardId, assignmentIds }),
+      listLatestAskOwners({ wardId: user.wardId, assignmentIds }),
+    ]);
 
-  const memberById = new Map(members.map((member) => [member.id, member]));
-  const memberNames = Object.fromEntries(
-    members.map((member) => [member.id, `${member.firstName} ${member.lastName}`.trim()]),
-  );
-
-  // The scriptures the planner chose for each talk, for the confirmation message's scripture
-  // sentence. They replaced the topic library's `suggested_scriptures` (migration 086). The read
-  // is bishopric-only (migration 080), so anybody else simply gets none.
-  const references = await listReferencesForAssignments(
-    user.wardId,
-    assignments.map((assignment) => assignment.id),
-    supabase,
-  );
   const scripturesByAssignment = new Map<string, string[]>();
   for (const reference of references) {
     if (reference.kind !== "scripture") continue;
@@ -124,8 +152,22 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
     scripturesByAssignment.set(reference.assignmentId, list);
   }
 
-  // Bishopric names serve three purposes on this page: the approval sentence, the waiver's
-  // "recorded by", and the request's "asked by". One map covers all three.
+  const speakerFlags: Record<string, readonly ReliabilityFlagKind[]> = {};
+  if (historyByMember !== null) {
+    const asOf = new Date();
+    for (const [memberId, history] of historyByMember) {
+      const flags = reliabilityFlags(history, asOf);
+      if (flags.length > 0) speakerFlags[memberId] = flags;
+    }
+  }
+
+  const memberById = new Map(members.map((member) => [member.id, member]));
+  const memberNames = Object.fromEntries(
+    members.map((member) => [member.id, `${member.firstName} ${member.lastName}`.trim()]),
+  );
+
+  // Bishopric names serve three purposes: the approval sentence, the waiver's "recorded by", and
+  // the request's "asked by". One map covers all three.
   const bishopricNames = conductingNameMap(bishopricUsers);
   const bishopric = bishopricUsers.map((member) => ({
     id: member.id,
@@ -135,25 +177,16 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
   const currentUserName =
     [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || "You";
 
-  // THE DISMISSAL IS READ HERE, on the server, before anything renders. It used to live in
-  // localStorage, which the server cannot see — so the banner was rendered for everybody and
-  // hidden after hydration, flashing a dismissed banner for 268 ms to 3.8 s depending on the
-  // device. A cookie travels with the request, so the HTML is right the first time
-  // (lib/goals/alertDismissal.ts).
+  // THE DISMISSAL IS READ HERE, on the server, before anything renders — a cookie travels with the
+  // request, so the HTML is right the first time (lib/goals/alertDismissal.ts).
   const monthKey = monthOf(sunday.date);
   const alertsDismissed = isMonthDismissed(
     (await cookies()).get(GOAL_ALERT_DISMISSAL_COOKIE)?.value,
     monthKey,
   );
 
-  // The goal alerts, computed AS OF THIS SUNDAY rather than as of today. That is the question a
-  // planner is actually asking here: by the time this meeting happens, what is outstanding?
-  //
-  // Gated on `goals.view` separately from talks.view — they are different modules and a viewer can
-  // hold one without the other. Skipped entirely rather than fetched and hidden, and skipped again
-  // when the month is already dismissed — there is nothing to show, so there is nothing to read.
-  //
-  // Overdue and due-soon only; an on-track goal is not a warning. Overdue sorts first.
+  // The goal alerts AS OF THIS SUNDAY: by the time this meeting happens, what is outstanding?
+  // Gated on `goals.view`, and skipped entirely when there is nothing to show.
   const goalAlerts: GoalAlert[] = can(user, "goals.view", roleAccess) && !alertsDismissed
     ? (await listGoalsWithStatus(user.wardId, {}, parseDateOnly(sunday.date), supabase))
         .flatMap((goal) =>
@@ -172,202 +205,201 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
         .filter((approval) => approval.approved === true)
         .map((approval) => approval.userId),
     );
-
     return bishopric.filter((member) => approved.has(member.id)).map((member) => member.name);
   }
 
+  const sundayDate = sunday.date;
+
+  function tellerNameFor(assignment: Assignment, ask: TalkAskInput): string | null {
+    const teller = whoLetsThemKnow({
+      ask,
+      openAskOwnerIds: openAsks
+        .filter((openAsk) => openAsk.assignmentId === assignment.id)
+        .map((openAsk) => openAsk.ownerUserId),
+      latestAskOwnerId: latestAskOwners.get(assignment.id) ?? null,
+      currentUserId: user.id,
+    });
+    if (teller === null) return null;
+    if (teller.kind === "you") return "You";
+    return bishopricNames[teller.userId] ?? "Whoever holds the ask";
+  }
+
+  function detailsFor(assignment: Assignment) {
+    const approvedNames = approvedNamesFor(assignment);
+    const member =
+      assignment.memberId === null ? null : (memberById.get(assignment.memberId) ?? null);
+    const comments = assignmentComments.get(assignment.id) ?? [];
+
+    return {
+      approvals: (
+        <ApprovalPanel
+          assignmentId={assignment.id}
+          stage={assignment.stage}
+          approvals={approvalsByAssignment.get(assignment.id) ?? []}
+          bishopric={bishopric}
+          currentUserId={user.id}
+          canApprove={canApprove}
+          // The same rule reviewToApprove() applies, for the first paint. The gate is re-evaluated
+          // when the transition is requested, so a stale value cannot approve anything.
+          readyToApprove={bishopric.length > 0 && approvedNames.length === bishopric.length}
+        />
+      ),
+      contacting: (
+        <ContactStagePanel
+          assignment={assignment}
+          sundayDate={sundayDate}
+          speakerFirstName={
+            member?.firstName ??
+            speakerDisplayName(assignment, memberNames)?.split(" ")[0] ??
+            null
+          }
+          // Only a ward member has a number on file; the waiver exists for everybody else.
+          speakerPhone={member?.phone ?? null}
+          topicTitle={assignment.topicTitle}
+          suggestedScriptures={scripturesByAssignment.get(assignment.id) ?? []}
+          assignmentComments={comments.map((entry) => entry.comment)}
+          waivedByName={
+            assignment.contactWaivedBy === null
+              ? null
+              : (bishopricNames[assignment.contactWaivedBy] ?? null)
+          }
+          requestedByName={
+            assignment.requestedBy === null
+              ? null
+              : (bishopricNames[assignment.requestedBy] ?? null)
+          }
+          canPlan={canPlan}
+          canRequest={canRequest}
+          canConfirm={canConfirm}
+        />
+      ),
+      comments: (
+        <CommentThread
+          wardId={user.wardId}
+          target={{ level: "assignment", assignmentId: assignment.id }}
+          initialComments={comments}
+          currentUserName={currentUserName}
+          canComment={canPlan}
+        />
+      ),
+    };
+  }
+
+  const entries = sundaySlotEntries(sunday.speakingSlots, assignments);
+  const slotHasSpeaker = Array.from({ length: sunday.speakingSlots }, (_unused, index) =>
+    assignments.some(
+      (assignment) => assignment.slotNumber === index + 1 && hasSpeaker(assignment),
+    ),
+  );
+  const sundayLabel = formatSundayLabel(sunday.date);
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <div>
         <Link
-          href={`/assignments?month=${monthOf(sunday.date)}`}
-          className="text-sm text-primary underline underline-offset-4"
+          href={`/sacrament?month=${monthKey}`}
+          className="inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-4"
         >
-          Back to the month
+          ← Back to calendar
         </Link>
-        <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <h1 className="text-xl font-semibold text-foreground">
-            {formatSundayLabel(sunday.date)}
+        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted">
+          Topics · {sundayLabel}
+        </p>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+          <h1 className="font-display text-xl font-semibold text-foreground">
+            What still needs to happen
           </h1>
           <SundayTypeBadge type={sunday.type} />
         </div>
-        <p className="mt-1 text-sm text-muted">
-          {sunday.speakingSlots === 0
-            ? "No speaking slots"
-            : `${sunday.speakingSlots} speaking ${sunday.speakingSlots === 1 ? "slot" : "slots"}`}
-        </p>
       </div>
 
-      {/* Above the assignments, because it is context for the choices below it rather than a
-          footnote to them. Dismissible for the month — see components/goals/GoalAlertBanner.tsx
-          for why these are here and not on the calendar. */}
+      {/* Context for the choices below it rather than a footnote to them. Dismissible for the
+          month — see components/goals/GoalAlertBanner.tsx. */}
       <GoalAlertBanner alerts={goalAlerts} monthKey={monthKey} />
 
-      {/* ONLY WHERE THERE ARE TOPICS TO DECIDE. A Sunday with no speaking slots — a fast Sunday,
-          a stake conference — has no talks, so "are the topics decided" has no referent. The hub
-          omits its talk pills on the same test and for the same reason, keyed on `speaking_slots`
-          rather than on the Sunday's TYPE (lib/sacrament/sundayStatus.ts). */}
-      {sunday.speakingSlots > 0 && (
-        <TopicsFinalizedPanel
-          sundayId={sunday.id}
-          sundayLabel={formatSundayLabel(sunday.date)}
-          topicsFinalizedAt={sunday.topicsFinalizedAt}
-          canFinalize={canFinalizeTopics}
-        />
+      {sunday.speakingSlots === 0 ? (
+        <Card>
+          <p className="text-sm text-muted">
+            This Sunday has no speaking slots, so there are no talks to plan.
+          </p>
+        </Card>
+      ) : (
+        <>
+          {canManageCalendar ? (
+            <SpeakerCountStepper
+              sundayId={sunday.id}
+              count={sunday.speakingSlots}
+              wardDefault={wardDefault}
+              slotHasSpeaker={slotHasSpeaker}
+              canSetDefault={can(user, "admin.manage_ward", roleAccess)}
+            />
+          ) : (
+            <p className="text-sm text-foreground">
+              Speakers this week: {sunday.speakingSlots}
+              {sunday.speakingSlots === wardDefault ? " (default)" : ""}
+            </p>
+          )}
+
+          <Card>
+            {entries.map((entry, index) => {
+              const assignment = entry.kind === "planned" ? entry.assignment : null;
+              const slotNumber =
+                entry.kind === "open"
+                  ? entry.slotNumber
+                  : (entry.assignment.slotNumber ?? index + 1);
+              const ask =
+                assignment === null
+                  ? OPEN_SLOT_ASK
+                  : (asks.inputs.get(assignment.id) ?? OPEN_SLOT_ASK);
+
+              return (
+                <TalkRow
+                  key={assignment?.id ?? `open-${slotNumber}`}
+                  user={user}
+                  sundayId={sunday.id}
+                  slotNumber={slotNumber}
+                  totalTalks={sunday.speakingSlots}
+                  assignment={assignment}
+                  speakerName={
+                    assignment === null ? null : speakerDisplayName(assignment, memberNames)
+                  }
+                  ask={ask}
+                  tellerName={assignment === null ? null : tellerNameFor(assignment, ask)}
+                  approvedNames={assignment === null ? [] : approvedNamesFor(assignment)}
+                  speakerFlags={speakerFlags}
+                  canPlan={canPlan}
+                  canRemove={canRemove}
+                  details={assignment === null ? null : detailsFor(assignment)}
+                />
+              );
+            })}
+          </Card>
+
+          <TopicsFinalizedPanel
+            sundayId={sunday.id}
+            sundayLabel={sundayLabel}
+            topicsFinalizedAt={sunday.topicsFinalizedAt}
+            canFinalize={canFinalizeTopics}
+          />
+        </>
       )}
 
-      <SundaySlotList
-        speakingSlots={sunday.speakingSlots}
-        assignments={assignments}
-        renderPlanButton={
-          canPlan
-            ? (slotNumber) => (
-                <AssignmentEditButton
-                  user={user}
-                  assignment={null}
-                  slotNumber={slotNumber}
-                  sundayId={sunday.id}
-                  sundayLabel={formatSundayLabel(sunday.date)}
-                  approvedNames={[]}
-                />
-              )
-            : null
-        }
-        renderAssignment={(assignment) => {
-          const approvals = approvalsByAssignment.get(assignment.id) ?? [];
-          const approvedNames = approvedNamesFor(assignment);
-          const member =
-            assignment.memberId === null ? null : (memberById.get(assignment.memberId) ?? null);
+      <SundayCommentsButton count={monthComments.length}>
+        <CommentThread
+          wardId={user.wardId}
+          target={{ level: "month", sundayId: sunday.id }}
+          initialComments={monthComments}
+          currentUserName={currentUserName}
+          canComment={canPlan}
+        />
+      </SundayCommentsButton>
 
-          return (
-            <Card key={assignment.id}>
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <h2 className="text-base font-semibold text-foreground">
-                    Slot {assignment.slotNumber ?? "?"} —{" "}
-                    <SpeakerLine
-                      speaker={assignment}
-                      memberNames={memberNames}
-                      emptyLabel="No speaker yet"
-                    />
-                  </h2>
-                  <div className="mt-1 flex flex-wrap items-center gap-2">
-                    <StageBadge stage={assignment.stage} />
-                    <span className="text-sm text-muted">
-                      {assignment.topicTitle ?? "No topic yet"}
-                    </span>
-                  </div>
-                </div>
-
-                {canPlan && (
-                  <AssignmentEditButton
-                    user={user}
-                    assignment={assignment}
-                    slotNumber={assignment.slotNumber ?? 1}
-                    sundayId={sunday.id}
-                    sundayLabel={formatSundayLabel(sunday.date)}
-                    approvedNames={approvedNames}
-                  />
-                )}
-              </div>
-
-              <div className="mt-4 flex flex-col gap-4">
-                <section>
-                  <h3 className="text-sm font-semibold text-foreground">Approvals</h3>
-                  <div className="mt-2">
-                    <ApprovalPanel
-                      assignmentId={assignment.id}
-                      stage={assignment.stage}
-                      approvals={approvals}
-                      bishopric={bishopric}
-                      currentUserId={user.id}
-                      canApprove={canApprove}
-                      // The same rule reviewToApprove() applies, computed here for the first
-                      // paint. The gate is re-evaluated when the transition is actually
-                      // requested, so a stale value cannot approve anything.
-                      readyToApprove={
-                        bishopric.length > 0 && approvedNames.length === bishopric.length
-                      }
-                    />
-                  </div>
-                </section>
-
-                <section>
-                  <h3 className="text-sm font-semibold text-foreground">
-                    Contacting the speaker
-                  </h3>
-                  <div className="mt-2">
-                    <ContactStagePanel
-                      assignment={assignment}
-                      sundayDate={sunday.date}
-                      speakerFirstName={
-                        member?.firstName ??
-                        speakerDisplayName(assignment, memberNames)?.split(" ")[0] ??
-                        null
-                      }
-                      // Only a ward member has a number on file. An external speaker has none by
-                      // construction, which is what the waiver exists to say out loud.
-                      speakerPhone={member?.phone ?? null}
-                      topicTitle={assignment.topicTitle}
-                      suggestedScriptures={scripturesByAssignment.get(assignment.id) ?? []}
-                      // The same thread rendered below as Comments, as plain strings. It has
-                      // always been the input buildThankYouMessage wanted and never had, so
-                      // every thank-you has been generic since talks-b (ai-c).
-                      assignmentComments={(assignmentComments.get(assignment.id) ?? []).map(
-                        (entry) => entry.comment,
-                      )}
-                      waivedByName={
-                        assignment.contactWaivedBy === null
-                          ? null
-                          : (bishopricNames[assignment.contactWaivedBy] ?? null)
-                      }
-                      requestedByName={
-                        assignment.requestedBy === null
-                          ? null
-                          : (bishopricNames[assignment.requestedBy] ?? null)
-                      }
-                      canPlan={canPlan}
-                      canRequest={canRequest}
-                      canConfirm={canConfirm}
-                    />
-                  </div>
-                </section>
-
-                <section>
-                  <h3 className="text-sm font-semibold text-foreground">Comments</h3>
-                  <div className="mt-2">
-                    <CommentThread
-                      wardId={user.wardId}
-                      target={{ level: "assignment", assignmentId: assignment.id }}
-                      initialComments={assignmentComments.get(assignment.id) ?? []}
-                      currentUserName={currentUserName}
-                      canComment={canPlan}
-                    />
-                  </div>
-                </section>
-              </div>
-            </Card>
-          );
-        }}
-      />
-
-      <Card>
-        <h2 className="text-base font-semibold text-foreground">
-          Comments on this Sunday
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          About the meeting as a whole, rather than about one speaker.
-        </p>
-        <div className="mt-3">
-          <CommentThread
-            wardId={user.wardId}
-            target={{ level: "month", sundayId: sunday.id }}
-            initialComments={monthComments}
-            currentUserName={currentUserName}
-            canComment={canPlan}
-          />
-        </div>
-      </Card>
+      <Link
+        href={`/program/${sunday.id}`}
+        className="inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-4"
+      >
+        View the full program for this date →
+      </Link>
     </div>
   );
 }

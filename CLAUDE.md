@@ -1406,6 +1406,11 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   dropping them is a later migration held back until after a deploy. Scriptures for a confirmation
   message come from the talk's own references now. Do not re-propose a library "for suggestions":
   AI topic ideas are drafts that are never stored (rule 3).
+  **The per-Sunday page is now the prototype's Topics screen (t3)** — a compact row per talk
+  (open slots included) whose speaker and topic lines each open their own window; everything else
+  is in its Details window. **Delete on a talk CANCELS it and shifts the rest up** (migration 087's
+  `remove_talk()`, one transaction, `talks.plan` + `calendar.manage`), then the f2c reconcile tells
+  people — never a hard delete, and never on a Sunday's only talk.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

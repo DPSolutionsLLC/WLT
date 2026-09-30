@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/FormError";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { describeInvalidation } from "@/lib/assignments/invalidation";
 import type { Assignment } from "@/lib/assignments/queries";
+import { saveAssignment } from "@/lib/assignments/saveAssignment";
 import {
   ASSIGNMENT_TYPE_LABELS,
   ASSIGNMENT_TYPES,
@@ -65,31 +67,6 @@ function initialSpeaker(assignment: Assignment | null): SpeakerValue {
     externalName: "",
     externalTitle: "",
   };
-}
-
-// A sentence naming the consequence, not the mechanism. roster-c shipped a confirm button whose
-// explanation was never announced with it; calendar-b's rule is that the button is
-// aria-describedby this exact text.
-export function describeInvalidation(
-  approvedCount: number,
-  approvedNames?: readonly string[],
-): string {
-  const who =
-    approvedNames && approvedNames.length > 0
-      ? approvedNames.length === 1
-        ? `${approvedNames[0]} has approved this plan.`
-        : `${approvedNames.slice(0, -1).join(", ")} and ${approvedNames[approvedNames.length - 1]} have approved this plan.`
-      : `${approvedCount} ${approvedCount === 1 ? "member has" : "members have"} approved this plan.`;
-
-  return `${who} Saving clears those approvals and asks them again.`;
-}
-
-async function readJson(response: Response): Promise<Record<string, unknown>> {
-  try {
-    return (await response.json()) as Record<string, unknown>;
-  } catch {
-    throw new Error("The server sent a response this page could not read.");
-  }
 }
 
 export function AssignmentModal({
@@ -180,56 +157,30 @@ export function AssignmentModal({
 
     setIsSaving(true);
 
-    try {
-      const response = assignment
-        ? await fetch(`/api/assignments/${assignment.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "update",
-              fields: {
-                assignmentType,
-                slotNumber,
-                slotLengthMinutes: minutes.value,
-                memberId: speakerFields.memberId,
-                externalSpeaker: speakerFields.externalSpeaker,
-                topicTitle: topicTitle.trim() === "" ? null : topicTitle,
-              },
-            }),
-          })
-        : await fetch("/api/assignments", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sundayId,
-              assignmentType,
-              slotNumber,
-              slotLengthMinutes: minutes.value,
-              memberId: speakerFields.memberId,
-              externalSpeaker: speakerFields.externalSpeaker,
-              topicTitle: topicTitle.trim() === "" ? null : topicTitle,
-            }),
-          });
+    const fields = {
+      assignmentType,
+      slotNumber,
+      slotLengthMinutes: minutes.value,
+      memberId: speakerFields.memberId,
+      externalSpeaker: speakerFields.externalSpeaker,
+      topicTitle: topicTitle.trim() === "" ? null : topicTitle,
+    };
 
-      const payload = await readJson(response);
+    const result = await saveAssignment(
+      assignment
+        ? { kind: "update", assignmentId: assignment.id, fields }
+        : { kind: "create", sundayId, slotNumber, assignmentType, fields },
+    );
 
-      if (!response.ok) {
-        setFormError(
-          typeof payload.error === "string"
-            ? payload.error
-            : "Could not save that assignment. Please try again.",
-        );
-        return;
-      }
+    setIsSaving(false);
 
-      setIsConfirmingSave(false);
-      await onSaved();
-    } catch (error) {
-      console.error("Could not save an assignment", error);
-      setFormError("Could not reach the server. Check your connection and try again.");
-    } finally {
-      setIsSaving(false);
+    if (!result.ok) {
+      setFormError(result.message);
+      return;
     }
+
+    setIsConfirmingSave(false);
+    await onSaved();
   }
 
   function handleSaveClicked(): void {

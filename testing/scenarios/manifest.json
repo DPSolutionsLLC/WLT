@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 80,
+  "scenarioCount": 82,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -1752,7 +1752,7 @@
         "p4"
       ],
       "prerequisites": "none",
-      "purpose": "The Sacrament hub's whole value is that **a pill's count matches the page behind it**. That needs\r\na month of Sundays in deliberately different states of completeness, which is tedious to build by\r\nhand and is exactly the mismatch a green suite cannot see: ITER-022 shipped a summary reading\r\n`Covered · 0` directly above an event card reading `Covered · 1`, because the summary type carried\r\nthe state and the date but not the **count**. Both numbers were correct; they only disagreed once\r\nthey were on screen together.\r\n\r\n`p3-shell-and-tile-dashboard` is the second reason. **All four of its walk defects lived in the\r\nseam between a layout and a page, and 3798 passing tests saw none of them** — route tests call\r\nhandlers directly and never render a layout. This slice adds a page under `app/(app)/`, moves a\r\npage out of `app/(youth)/`, and changes what the dashboard offers. Every one of those is a seam.",
+      "purpose": "The Sacrament hub's whole value is that **a pill's count matches the page behind it**. That needs\na month of Sundays in deliberately different states of completeness, which is tedious to build by\nhand and is exactly the mismatch a green suite cannot see: ITER-022 shipped a summary reading\n`Covered · 0` directly above an event card reading `Covered · 1`, because the summary type carried\nthe state and the date but not the **count**. Both numbers were correct; they only disagreed once\nthey were on screen together.\n\n`p3-shell-and-tile-dashboard` is the second reason. **All four of its walk defects lived in the\nseam between a layout and a page, and 3798 passing tests saw none of them** — route tests call\nhandlers directly and never render a layout. This slice adds a page under `app/(app)/`, moves a\npage out of `app/(youth)/`, and changes what the dashboard offers. Every one of those is a seam.",
       "checklist": [
         "The dashboard shows **one Sacrament tile, not three** — the separate Talks and Prayers",
         "`/assignments` and `/prayers` typed directly **still work** — the routes were not touched,",
@@ -2079,6 +2079,70 @@
         "`audit_log`: the save carries `workCancelled` and `talkAsks` with the history, marked and"
       ],
       "seedCommand": "npm run seed -- talks/scenario-081-a-cancelled-sunday"
+    },
+    {
+      "id": "talks:scenario-082-plan-a-speaker-from-the-hub",
+      "path": "talks/scenario-082-plan-a-speaker-from-the-hub",
+      "name": "Plan a speaker from the hub",
+      "scope": "sacrament-speaker-planning",
+      "part": 1,
+      "tags": [
+        "sacrament",
+        "talks",
+        "calendar",
+        "P4"
+      ],
+      "prerequisites": "none",
+      "purpose": "Two dead ends on the way to planning a speaker, fixed together on 2026-09-28:\n\n1. **A Sunday's page could not plan a speaker.** The hub's Talks pill opens\n   `/assignments/[sunday_id]`, which listed only existing talks and said \"Plan a slot from the\n   month view.\" with no link. It now lists **every slot**: a filled one keeps its full card and\n   **Edit**, an open one reads **\"Slot N — open\"** with **Plan**.\n2. **The hub showed no upcoming Sundays** until somebody opened `/calendar`. It now creates them\n   exactly as `/calendar` does — the rolling year plus the viewed month — and only for somebody\n   holding `calendar.manage`. This reverses the hub's earlier \"reads only\" rule (CLAUDE.md §9).\n\n**Already automated:**\n- `tests/components/assignments/SundaySlotList.test.tsx`: every slot listed, open ones with Plan\n  for a planner and without it for anybody else, a talk outside the slots still listed (proved able\n  to fail)",
+      "checklist": [
+        "Step 3: the empty month shows **no Sunday cards** for `music` — opening it created nothing",
+        "Step 4: the same month now shows **every Sunday** for `counselor1`, the first one a Fast Sunday",
+        "Step 4: the months between also have Sundays (the rolling year was created)",
+        "Step 6: the page shows **Slot 1 — Maria Lopez** with **Edit**, then **Slot 2 — open** and",
+        "Step 6: the sentence \"Plan a slot from the month view.\" is **gone**",
+        "Step 6: **Plan** opens the planning window for **slot 2**",
+        "Step 7: slot 2 is now a full card — **Ana Silva**, **The Power of Covenants**, with Approvals,",
+        "Step 8: `music` sees the same three slots, **slot 3 open with no Plan button**, and no Edit",
+        "`audit_log`: one insert for Ana Silva's assignment, slot 2"
+      ],
+      "seedCommand": "npm run seed -- talks/scenario-082-plan-a-speaker-from-the-hub"
+    },
+    {
+      "id": "talks:scenario-083-the-topics-screen",
+      "path": "talks/scenario-083-the-topics-screen",
+      "name": "The Topics screen",
+      "scope": "sacrament-topics-screen-rebuild",
+      "part": 1,
+      "tags": [
+        "sacrament",
+        "talks",
+        "full"
+      ],
+      "prerequisites": "none",
+      "purpose": "Topics rebuild `t3` (plans/sacrament-topics-screen-rebuild.md) replaced the per-Sunday talk page\nwith the prototype's **\"What still needs to happen\"** screen: a compact row per talk whose speaker\nand topic lines each open their own window and carry their own tag, a **Speakers this week**\nstepper, **Details** in a window, **Delete** that cancels a talk and moves the rest up, and Finalize\nat the bottom. The states that matter — an accepted speaker, an open ask, a decline, approvals to\nlose, a middle talk to delete — take many clicks to reach by hand, so they are seeded.\n\n**Already automated:**\n- `tests/lib/talkRowStatus.test.ts` — every speaker and topic tag, declined before \"no speaker\"\n- `tests/components/sacrament/TalkRow.test.tsx` — who is offered what, the approvals warning before\n  a Clear, the Delete confirm's sentence\n- `tests/components/sacrament/SpeakerCountStepper.test.tsx` — the 1–6 bounds, − stopping at a\n  speaker, the warn-then-confirm protocol, the default offer\n- `tests/routes/assignment-remove.test.ts` — Delete's cancel, shift, count, un-finalize, history,\n  ask marked off and audit row, and every refusal (all proved able to fail)",
+      "checklist": [
+        "Step 4: **← Back to calendar**, the eyebrow **Topics · {A's date}** and the heading **What still needs to happen** are shown",
+        "Step 4: the rows read — talk 1 *Maria Lopez* **Accepted** / *Faith in Jesus Christ* **Topic selected**; talk 2 *Ana Silva* **Ask sent** / *No topic yet* **Needs topic**; talk 3 *Nobody yet* **Declined** / *Gratitude* **Topic selected**; talk 4 *Nobody yet* **Needs speaker** / *No topic yet* **Needs topic**",
+        "Step 4: talk 4 (open) has no Details, Delete or Clear; talks 1–3 each have **Details** and **Delete**",
+        "Step 4: the stepper reads **Speakers this week 4**, and the finalize panel at the bottom reads **✓ Finalized**",
+        "Step 4: **← Back to calendar** returns to the hub showing A's month",
+        "Step 5: nothing is saved at the first press — the row says *Mark Andersen and Peter Nakamura have approved this plan…* and the button reads **Clear and reset approvals**; after the reload the topic is still there",
+        "Step 6: the window is titled **Talk 1 — details** and holds **Slot length**, **Approvals**, **Contacting the speaker** and **Comments**, in that order",
+        "Step 7: the confirm reads **Remove talk 2? Ana Silva will be told it's cancelled. Later talks move up.** and is in the row, not a second window",
+        "Step 7: after Remove there are **3** rows — the declined talk is now **Talk 2** and the open one **Talk 3**; the stepper reads **3**; the panel reads **Not finalized yet**",
+        "Step 7: `assignments` — Ana's talk has `cancelled_reason = slot_removed` and still exists; `sundays.speaking_slots` for A is 3",
+        "Step 8: Ana's ask is still on `counselor1`'s list, marked that the talk is off, with **Told them**",
+        "Step 9: **−** stops at **1** — slot 1 is Maria's — and the hint **Clear one speaker slot to go lower.** appears; nothing is saved by the stepper alone",
+        "Step 9: saving **4** succeeds with no warning (adding a slot cancels nothing), the stepper reads **4**, and **Make 4 the default for Sundays added from now on?** is offered with **Yes** / **No** (`counselor1` holds `admin.manage_ward`); press **No**",
+        "Step 10: the link opens `/program/{A's id}`",
+        "Step 11: as `music` the page reads the same rows, with **no** windows, Clear, Delete, Details-save or stepper — only \"Speakers this week: 3\"",
+        "`audit_log`: one `assignment_removed` row naming the Sunday and slot 2, with no name or topic in it",
+        "375px: no horizontal scroll; every button is at least 44px tall",
+        "The screen reads as the prototype's \"what still needs to happen\" — compact, each line obviously tappable, tags readable at a glance",
+        "The Details window fits its content on a phone and does not feel like a second page",
+        "Light and dark both read well"
+      ],
+      "seedCommand": "npm run seed -- talks/scenario-083-the-topics-screen"
     },
     {
       "id": "todos:scenario-075-a-todo-that-became-a-project",

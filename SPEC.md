@@ -1338,8 +1338,18 @@ POST   /api/assignment-comments  Post a comment at either level
 `assignment_comments` is ONE table serving both an assignment-level thread and a month-level one,
 so one route serves both rather than splitting month comments awkwardly under
 `/api/sundays/[id]`. `PATCH /api/assignments/[id]` takes a discriminated union —
-`{ action: 'update' }`, `{ action: 'transition' }` or `{ action: 'waive_contact' }` — never a
-field update and a stage move in one request.
+`{ action: 'update' }`, `{ action: 'transition' }`, `{ action: 'waive_contact' }`,
+`{ action: 'record_outcome' }` or `{ action: 'remove' }` — never a field update and a stage move in
+one request.
+
+**`remove` is Delete on a talk (Topics rebuild t3, migration 087).** It needs `talks.plan` AND
+`calendar.manage`, and calls `remove_talk()`, a `security invoker` SQL function that in one
+transaction CANCELS the talk (`cancelled_reason = 'slot_removed'`, kept as a record), moves every
+later talk up one slot, lowers the Sunday's `speaking_slots` by one and clears its topics and
+references finalized stamps. The save-time reconcile then tells people, as for any cancelled talk.
+Refused: another ward's talk (404), an already-removed talk (409), and the Sunday's only talk (409,
+naming Clear as the alternative). A talk outside the Sunday's slots is cancelled without shifting
+anything.
 
 ### Prayers
 ```
@@ -1649,10 +1659,12 @@ PATCH  /api/admin/ward-settings  Update ward settings (with bishopric notificati
     /AssignmentModal.tsx       Plan or edit one assignment; where most of the work happens
     /SpeakerField.tsx          The ward-member / outside-speaker switch (ITER-004)
     /ApprovalPanel.tsx         n-of-n approvals, approve, request changes
-    /AssignmentEditButton.tsx  "use client" — opens the modal from the Server-rendered detail page
     /ContactStagePanel.tsx     REQUEST → CONFIRM → NOTIFY → APPRECIATE, or the waiver
     /CommentThread.tsx         "use client" — realtime, both comment levels
-    /[sunday_id]/page.tsx      Single Sunday assignment detail
+    /[sunday_id]/page.tsx      The Topics screen — "What still needs to happen" for one Sunday
+                               (Topics rebuild t3): components/sacrament/TalkRow per slot, with
+                               SpeakerWindow, TopicWindow and TalkDetailsWindow; the Speakers this
+                               week stepper; Finalize at the bottom
   /talks/
     /pipeline/page.tsx         NOT BUILT. A kanban by stage was dropped in talks-b: the pipeline
                                is nine stages, not nine screens, and /assignments is the surface

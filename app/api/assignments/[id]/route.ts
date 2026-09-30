@@ -14,6 +14,7 @@ import {
   writeRequestOutcome,
   type Assignment,
 } from "@/lib/assignments/queries";
+import { removeTalk, type RemoveTalkRefusal } from "@/lib/assignments/removeTalk";
 import { recordRequestOutcome, speakerChanged } from "@/lib/assignments/requestOutcome";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
 import {
@@ -62,6 +63,20 @@ const CANCELLED_TALK =
 // A row that vanished between the read and the write. Both mean "not yours"
 // (plans/retros/foundation-c-services.md).
 const WRITE_REFUSED = "That assignment could not be saved. Reload and try again.";
+
+// Delete's refusals. None discloses anything about the talk beyond what the caller can already see.
+const REMOVE_REFUSALS: Record<RemoveTalkRefusal, { status: number; error: string }> = {
+  not_found: { status: 404, error: NOT_FOUND },
+  already_cancelled: { status: 409, error: "This talk has already been removed." },
+  last_talk: {
+    status: 409,
+    error:
+      "This is the Sunday's only talk, so it cannot be removed. Clear its speaker and topic instead.",
+  },
+};
+
+const REMOVED_BUT_NOT_TOLD =
+  "The talk was removed, but not everybody could be told yet. Reload the page to finish.";
 
 // The talk change is saved; closing (or resolving) its ask to-dos was not. p5-b's order — source
 // write, link write, audit — with the audit written EITHER WAY, because the change happened
@@ -153,6 +168,53 @@ export async function PATCH(
     }
     if (existing.cancelledAt !== null) {
       return NextResponse.json({ error: CANCELLED_TALK }, { status: 409 });
+    }
+
+    // ---------------------------------------------------------------------------
+    // DELETE — CANCEL THE TALK AND MOVE THE REST UP (migration 087)
+    // ---------------------------------------------------------------------------
+    // BOTH permissions: it changes the talk (`talks.plan`) AND the Sunday's speaking slots
+    // (`calendar.manage`, what PATCH /api/sundays/[id] asserts for the same column).
+    // No name and no topic in the audit detail — only where the talk was and what moved.
+    if (input.action === "remove") {
+      assertCan(user, "talks.plan", roleAccess);
+      assertCan(user, "calendar.manage", roleAccess);
+
+      const removed = await removeTalk({
+        wardId: user.wardId,
+        assignmentId,
+        actingUserId: user.id,
+        client: supabase,
+      });
+
+      if (!removed.ok) {
+        const refusal = REMOVE_REFUSALS[removed.refusal];
+        return NextResponse.json({ error: refusal.error }, { status: refusal.status });
+      }
+
+      await writeAuditLog(
+        {
+          wardId: user.wardId,
+          userId: user.id,
+          action: "assignment_removed",
+          module: "talks",
+          detail: {
+            assignmentId,
+            sundayId: removed.sundayId,
+            slotNumber: removed.slotNumber,
+            shiftedCount: removed.shiftedCount,
+            tellTodoIds: removed.reconciled?.tellTodoIds ?? [],
+            historyWritten: removed.reconciled?.historyWrittenAssignmentIds ?? [],
+            reconcileIncomplete: removed.reconcileIncomplete,
+          },
+        },
+        supabase,
+      );
+
+      return NextResponse.json({
+        removed: { sundayId: removed.sundayId, shiftedCount: removed.shiftedCount },
+        warning: removed.reconcileIncomplete ? REMOVED_BUT_NOT_TOLD : null,
+      });
     }
 
     if (input.action === "update") {

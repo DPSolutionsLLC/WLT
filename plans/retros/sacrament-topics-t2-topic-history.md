@@ -2,7 +2,7 @@
 id: sacrament-topics-t2-topic-history
 type: feature
 iter: null
-commits: ["0100400"]
+commits: ["004c963"]
 date: 2026-09-29
 files:
   - lib/topics/topicHistory.ts

@@ -120,6 +120,10 @@ export const updateAssignmentSchema = z.discriminatedUnion("action", [
     note: z.string().trim().max(300).optional(),
   }),
   recordOutcomeSchema,
+  // Delete on a talk: it is CANCELLED and kept, and the later talks move up one slot (migration
+  // 087, lib/assignments/removeTalk.ts). Its own action rather than a field, because it changes the
+  // Sunday as well as the talk.
+  z.object({ action: z.literal("remove") }),
 ]);
 export type UpdateAssignmentInput = z.infer<typeof updateAssignmentSchema>;
 
