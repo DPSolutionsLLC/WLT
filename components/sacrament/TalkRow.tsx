@@ -3,18 +3,19 @@
 import { useId, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { ReliabilityFlagKind } from "@/components/roster/ReliabilityFlag";
-import { SpeakerWindow } from "@/components/sacrament/SpeakerWindow";
+import { SpeakerWindow, type SpeakerDirectoryEntry } from "@/components/sacrament/SpeakerWindow";
 import { TalkDetailsWindow } from "@/components/sacrament/TalkDetailsWindow";
 import { TopicWindow } from "@/components/sacrament/TopicWindow";
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/FormError";
 import { Pill } from "@/components/ui/Pill";
 import { describeInvalidation } from "@/lib/assignments/invalidation";
-import type { Assignment } from "@/lib/assignments/queries";
+import type { Assignment, SpeakerHistoryRow } from "@/lib/assignments/queries";
+import type { DateOnly } from "@/lib/calendar/dates";
 import { saveAssignment } from "@/lib/assignments/saveAssignment";
 import type { TalkAskInput } from "@/lib/sacrament/talkAsks";
 import { speakerTag, topicTag } from "@/lib/sacrament/talkRowStatus";
-import { ASSIGNMENT_TYPE_LABELS, type SessionUser } from "@/types/domain";
+import { ASSIGNMENT_TYPE_LABELS } from "@/types/domain";
 
 // ONE TALK ON THE TOPICS SCREEN (Topics rebuild t3) — the prototype's ModuleView row. A title line
 // with Details and Delete, then a SPEAKER line and a TOPIC line, each opening its own window and
@@ -32,7 +33,13 @@ import { ASSIGNMENT_TYPE_LABELS, type SessionUser } from "@/types/domain";
 // Small visible buttons keep 44px tap targets through `min-h-11` (the StatusPill pattern).
 
 export type TalkRowProps = {
-  user: SessionUser;
+  // The speaker window's list: active members (slim), their speaking history (null unless the reader
+  // is in the bishopric, talks-d) and the day "last spoke …" is measured to.
+  speakerDirectory: {
+    members: readonly SpeakerDirectoryEntry[];
+    historyByMember: Readonly<Record<string, readonly SpeakerHistoryRow[]>> | null;
+    today: DateOnly;
+  };
   sundayId: string;
   slotNumber: number;
   totalTalks: number;
@@ -63,7 +70,7 @@ type Window = "speaker" | "topic" | "details" | null;
 type Clearing = "speaker" | "topic" | null;
 
 export function TalkRow({
-  user,
+  speakerDirectory,
   sundayId,
   slotNumber,
   totalTalks,
@@ -270,13 +277,16 @@ export function TalkRow({
 
       {openWindow === "speaker" && (
         <SpeakerWindow
-          user={user}
           sundayId={sundayId}
           slotNumber={slotNumber}
           totalTalks={totalTalks}
           assignment={assignment}
+          speakerName={speakerName}
           approvedNames={approvedNames}
+          members={speakerDirectory.members}
+          historyByMember={speakerDirectory.historyByMember}
           speakerFlags={speakerFlags}
+          today={speakerDirectory.today}
           onClose={() => setOpenWindow(null)}
           onSaved={saved}
         />

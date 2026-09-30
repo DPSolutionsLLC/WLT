@@ -25,7 +25,7 @@ import {
 import { reliabilityFlags } from "@/lib/assignments/reliabilityFlags";
 import { BISHOPRIC_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
-import { formatSundayLabel, monthOf, parseDateOnly } from "@/lib/calendar/dates";
+import { formatDateOnly, formatSundayLabel, monthOf, parseDateOnly } from "@/lib/calendar/dates";
 import { conductingNameMap, getSunday, listBishopricUsers } from "@/lib/calendar/queries";
 import { readDefaultSpeakingSlots } from "@/lib/calendar/wardCalendarSettings";
 import {
@@ -160,6 +160,22 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
       if (flags.length > 0) speakerFlags[memberId] = flags;
     }
   }
+
+  // The speaker window's list, built ONCE for every row. Slim — a name and a category, never a phone
+  // or an address — and ACTIVE members only, the roster's own rule for who may be offered in a
+  // picker (MemberPicker's resolvePickerFilter). The history rides along only for the bishopric.
+  const speakerDirectory = {
+    members: members
+      .filter((member) => member.status === "active")
+      .map((member) => ({
+        id: member.id,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        category: member.category,
+      })),
+    historyByMember: historyByMember === null ? null : Object.fromEntries(historyByMember),
+    today: formatDateOnly(new Date()),
+  };
 
   const memberById = new Map(members.map((member) => [member.id, member]));
   const memberNames = Object.fromEntries(
@@ -355,7 +371,6 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
               return (
                 <TalkRow
                   key={assignment?.id ?? `open-${slotNumber}`}
-                  user={user}
                   sundayId={sunday.id}
                   slotNumber={slotNumber}
                   totalTalks={sunday.speakingSlots}
@@ -367,6 +382,7 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
                   tellerName={assignment === null ? null : tellerNameFor(assignment, ask)}
                   approvedNames={assignment === null ? [] : approvedNamesFor(assignment)}
                   speakerFlags={speakerFlags}
+                  speakerDirectory={speakerDirectory}
                   canPlan={canPlan}
                   canRemove={canRemove}
                   details={assignment === null ? null : detailsFor(assignment)}

@@ -2,7 +2,6 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { TalkRow, type TalkRowProps } from "@/components/sacrament/TalkRow";
 import type { Assignment } from "@/lib/assignments/queries";
-import type { SessionUser } from "@/types/domain";
 
 // ONE TALK ROW ON THE TOPICS SCREEN (Topics rebuild t3). What is asserted is who is offered what:
 // the lines are buttons only with `talks.plan`, Clear appears only when there is something to
@@ -22,23 +21,6 @@ beforeAll(() => {
     this.open = false;
   };
 });
-
-const BISHOP: SessionUser = {
-  id: "00000000-0000-4000-8000-000000000001",
-  wardId: "00000000-0000-4000-8000-000000000002",
-  homeWardId: "00000000-0000-4000-8000-000000000002",
-  activeWardId: null,
-  callingId: "00000000-0000-4000-8000-00000000ca11",
-  role: "bishop",
-  orgId: null,
-  orgType: null,
-  counselorPosition: null,
-  firstName: "Test",
-  lastName: "Bishop",
-  username: null,
-  themePreference: "system",
-  isActive: true,
-};
 
 function assignment(overrides: Partial<Assignment> = {}): Assignment {
   return {
@@ -80,7 +62,7 @@ function assignment(overrides: Partial<Assignment> = {}): Assignment {
 
 function renderRow(overrides: Partial<TalkRowProps> = {}) {
   const props: TalkRowProps = {
-    user: BISHOP,
+    speakerDirectory: { members: [], historyByMember: null, today: "2026-09-29" },
     sundayId: "sunday-1",
     slotNumber: 2,
     totalTalks: 3,

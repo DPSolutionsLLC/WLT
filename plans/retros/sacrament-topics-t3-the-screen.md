@@ -2,7 +2,7 @@
 id: sacrament-topics-t3-the-screen
 type: feature
 iter: null
-commits: ["d9dabf8"]
+commits: ["7acfb5b"]
 date: 2026-09-29
 files:
   - app/(app)/assignments/[sunday_id]/page.tsx

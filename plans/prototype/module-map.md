@@ -119,8 +119,12 @@ Each numbered item below is a candidate slice. "New" means no WLT route, table o
 > `/assignments/[sunday_id]`: the Speakers this week stepper, a compact row per talk with its own
 > speaker and topic windows and tags, Details in a window, Delete = cancel and shift up (migration
 > 087), Finalize at the bottom. The talk row checks **Declined before "no speaker"**, the reverse of
-> the prototype's order, because WLT's decline clears the speaker. `t4`–`t5` (the speaker window's
-> ordered list and history, the topic window's hints and AI suggestions) follow.
+> the prototype's order, because WLT's decline clears the speaker. `t4` the speaker window — the
+> prototype's AssignSpeakerModal: members never spoken first, then longest since speaking, each with
+> "last spoke …" and the reliability flags; **History** (bishopric only) replaces the list rather
+> than stacking a window; "Use … as typed" makes an outside speaker. The prototype's household
+> grouping is slice `d`'s (it hangs off the "Household" day category). `t5` (the topic window's
+> hints and AI suggestions) follows.
 >
 > **(c) THE PROTOTYPE'S "Topics" PILL MAPS TO `/assignments/[sunday_id]`, NOT TO
 > `/talks/topics`.** In the prototype, *Topics* is the per-date editor holding the speaker-count
