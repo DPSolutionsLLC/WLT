@@ -21,6 +21,7 @@ function row(overrides: Partial<TopicHistoryRow> = {}): TopicHistoryRow {
     slot_number: 1,
     topic_title: "Faith",
     external_speaker_name: null,
+    external_speaker_title: null,
     sunday: { date: "2027-03-07" },
     speaker: { first_name: "Sarah", last_name: "Bennett" },
     ...overrides,
@@ -93,6 +94,15 @@ describe("mapTopicHistoryRows — who gave it", () => {
     );
 
     expect(entry.speakerName).toBe("Elder Wright");
+  });
+
+  it("puts an outside speaker's title before their name", () => {
+    const [entry] = mapTopicHistoryRows(
+      [row({ speaker: null, external_speaker_name: "Hale", external_speaker_title: "President" })],
+      TODAY,
+    );
+
+    expect(entry.speakerName).toBe("President Hale");
   });
 
   it("returns null for a talk with a topic and no speaker", () => {

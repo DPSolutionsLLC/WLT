@@ -123,8 +123,10 @@ Each numbered item below is a candidate slice. "New" means no WLT route, table o
 > prototype's AssignSpeakerModal: members never spoken first, then longest since speaking, each with
 > "last spoke …" and the reliability flags; **History** (bishopric only) replaces the list rather
 > than stacking a window; "Use … as typed" makes an outside speaker. The prototype's household
-> grouping is slice `d`'s (it hangs off the "Household" day category). `t5` (the topic window's
-> hints and AI suggestions) follows.
+> grouping is slice `d`'s (it hangs off the "Household" day category). `t5` the topic window — the
+> prototype's AssignTopicModal: "Used before, most recent first" while typing, Check topic, and
+> Suggest topics (AI, never stored, filtered by the same similarity rule as the hint). Walked as
+> scenario 084. **The rebuild is complete.**
 >
 > **(c) THE PROTOTYPE'S "Topics" PILL MAPS TO `/assignments/[sunday_id]`, NOT TO
 > `/talks/topics`.** In the prototype, *Topics* is the per-date editor holding the speaker-count

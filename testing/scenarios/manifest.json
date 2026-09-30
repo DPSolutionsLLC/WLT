@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 82,
+  "scenarioCount": 83,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -2126,16 +2126,16 @@
         "Step 4: talk 4 (open) has no Details, Delete or Clear; talks 1–3 each have **Details** and **Delete**",
         "Step 4: the stepper reads **Speakers this week 4**, and the finalize panel at the bottom reads **✓ Finalized**",
         "Step 4: **← Back to calendar** returns to the hub showing A's month",
-        "Step 5: nothing is saved at the first press — the row says *Mark Andersen and Peter Nakamura have approved this plan…* and the button reads **Clear and reset approvals**; after the reload the topic is still there",
+        "Step 5: nothing is saved at the first press — the row says *Mark Andersen and Peter Nakamura have approved this plan. Clearing this resets their approvals and asks them again.* and the button reads **Clear and reset approvals**; after the reload the topic is still there",
         "Step 6: the window is titled **Talk 1 — details** and holds **Slot length**, **Approvals**, **Contacting the speaker** and **Comments**, in that order",
-        "Step 7: the confirm reads **Remove talk 2? Ana Silva will be told it's cancelled. Later talks move up.** and is in the row, not a second window",
-        "Step 7: after Remove there are **3** rows — the declined talk is now **Talk 2** and the open one **Talk 3**; the stepper reads **3**; the panel reads **Not finalized yet**",
+        "Step 7: the confirm reads **Remove talk 2? You will be asked to let Ana Silva know. Later talks move up.** (`counselor1` holds Ana's ask) and is in the row, not a second window",
+        "Step 7: after Remove there are **3** rows — the declined talk is now **Talk 2** and the open one **Talk 3**; the stepper reads **3** with **Save** disabled; the panel reads **Not finalized yet**",
         "Step 7: `assignments` — Ana's talk has `cancelled_reason = slot_removed` and still exists; `sundays.speaking_slots` for A is 3",
-        "Step 8: Ana's ask is still on `counselor1`'s list, marked that the talk is off, with **Told them**",
+        "Step 8: Ana's ask is still on `counselor1`'s list, marked **Talk Cancelled** — *\"Let them know they're not needed.\"* — with **Told them**",
         "Step 9: **−** stops at **1** — slot 1 is Maria's — and the hint **Clear one speaker slot to go lower.** appears; nothing is saved by the stepper alone",
         "Step 9: saving **4** succeeds with no warning (adding a slot cancels nothing), the stepper reads **4**, and **Make 4 the default for Sundays added from now on?** is offered with **Yes** / **No** (`counselor1` holds `admin.manage_ward`); press **No**",
         "Step 10: the link opens `/program/{A's id}`",
-        "Step 11: as `music` the page reads the same rows, with **no** windows, Clear, Delete, Details-save or stepper — only \"Speakers this week: 3\"",
+        "Step 11: as `music` the page reads the same rows, with **no** speaker or topic windows, no Clear, no Delete, no stepper and no Finalize control — the count as text, \"Speakers this week: N\" (N is what step 9 left, 4). **Details** stays: it opens read-only",
         "`audit_log`: one `assignment_removed` row naming the Sunday and slot 2, with no name or topic in it",
         "375px: no horizontal scroll; every button is at least 44px tall",
         "The screen reads as the prototype's \"what still needs to happen\" — compact, each line obviously tappable, tags readable at a glance",
@@ -2143,6 +2143,38 @@
         "Light and dark both read well"
       ],
       "seedCommand": "npm run seed -- talks/scenario-083-the-topics-screen"
+    },
+    {
+      "id": "talks:scenario-084-topic-history-and-the-two-windows",
+      "path": "talks/scenario-084-topic-history-and-the-two-windows",
+      "name": "Topic history and the two windows",
+      "scope": "sacrament-topics-screen-rebuild",
+      "part": 1,
+      "tags": [
+        "sacrament",
+        "topics",
+        "ai",
+        "full"
+      ],
+      "prerequisites": "none",
+      "purpose": "Topics rebuild `t2`, `t4` and `t5` (plans/sacrament-topics-screen-rebuild.md): the **Topic\nhistory** page that replaced the topic library, the **speaker window**'s \"who to ask next\" order and\nHistory, and the **topic window**'s \"Used before\" hint, Check topic and AI suggestions. All of these\ndepend on history measured from **today**, which cannot be typed in by hand, so it is seeded\nrelative to the run date (scenario 073's lesson).\n\n**Already automated:**\n- `tests/lib/topicHistory.test.ts` — similarity (prefix, common words ignored), dedupe, time-ago\n  boundaries, search and every sort\n- `tests/lib/speakerOrder.test.ts` — never spoken first, then longest since; only completed talks count\n- `tests/components/sacrament/SpeakerWindow.test.tsx`, `TopicWindow.test.tsx` — the list, History in\n  place, \"as typed\", the hint, Check topic, suggestions filling the box without saving\n- `tests/routes/topic-suggestions.test.ts` — suggestions filtered against recent and upcoming topics,\n  and no row written to `assignments`, `topics` or `topic_candidates` on success or failure",
+      "checklist": [
+        "Step 3: the dashboard has a **Topic history** tile, and the Sacrament hub's shortcut row links it too",
+        "Step 3: by default (**6** months) the list holds only the upcoming *Faith in Jesus Christ* — marked **Coming up**, speaker **President Hale** — and July's *Faith in Jesus Christ*; after **48** it holds all five seeded topics, newest first; *Tithing blessings* never appears",
+        "Step 4: *grat* leaves only *Gratitude*; **Speaker A–Z** reorders the list; after the reload the sort is still **Speaker A–Z** and the window still **48** (read back: `users.settings.page_views.topic_history`)",
+        "Step 6: under the box, **Used before, most recent first** lists the upcoming *Faith in Jesus Christ* (\"coming up …\") once, then *Faith and works* — no topic twice",
+        "Step 7: **No similar topic found in the ward's history.** Typing *grat* shows no \"Used before\" box either: *Gratitude* was 14 months ago, and the window looks back one year",
+        "Step 8: ideas appear, none resembling *Faith…* or *Gratitude*; tapping one fills the box; after Cancel the talk still has no topic (read back); `audit_log` has one `topic_ideas_suggested` row with counts and no words",
+        "Step 9: the list starts **Emma Clark** (*Never spoken*), then **Oliver Brooks** (*last spoke 3 years ago*), and ends with **Maria Lopez**; Oliver's flags never squeeze his name — at 375px they stack in a column",
+        "Step 10: History shows *Faith in Jesus Christ* under **Speaking history — 1 talk**, then **Declined asks — 2, for pattern-spotting** with both reasons and notes; only one dialog is open",
+        "Step 11: talk 1 reads **Sister Jane Porter**; read back `external_speaker_name = \"Jane Porter\"`, `external_speaker_title = \"Sister\"`, `member_id` null",
+        "Step 12: `music` has no Topic history tile, and `/talks/topics` answers *Not permitted*",
+        "375px: no horizontal scroll on the history page or in either window",
+        "The history page reads as a useful record — easy to scan for \"have we done this lately?\"",
+        "The Used before box and the suggestions read as help, not as a warning or an error",
+        "Both windows fit a phone, in light and dark"
+      ],
+      "seedCommand": "npm run seed -- talks/scenario-084-topic-history-and-the-two-windows"
     },
     {
       "id": "todos:scenario-075-a-todo-that-became-a-project",

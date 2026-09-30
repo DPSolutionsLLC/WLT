@@ -38,7 +38,7 @@ import type { Database } from "@/types/database";
 //
 // ONLY THE NAME COMES BACK FROM `members`. Not a phone, not an address, not a birth date.
 const TOPIC_HISTORY_COLUMNS =
-  "id, sunday_id, slot_number, topic_title, external_speaker_name, sunday:sundays!assignments_sunday_id_ward_id_fkey (date), speaker:members!assignments_member_id_ward_id_fkey (first_name, last_name)";
+  "id, sunday_id, slot_number, topic_title, external_speaker_name, external_speaker_title, sunday:sundays!assignments_sunday_id_ward_id_fkey (date), speaker:members!assignments_member_id_ward_id_fkey (first_name, last_name)";
 
 export type TopicHistoryRow = {
   id: string;
@@ -46,6 +46,7 @@ export type TopicHistoryRow = {
   slot_number: number | null;
   topic_title: string | null;
   external_speaker_name: string | null;
+  external_speaker_title: string | null;
   sunday: { date: string } | null;
   speaker: { first_name: string | null; last_name: string | null } | null;
 };
@@ -121,6 +122,10 @@ function speakerNameOf(row: TopicHistoryRow): string | null {
   const memberName = `${row.speaker?.first_name ?? ""} ${row.speaker?.last_name ?? ""}`.trim();
   if (memberName !== "") return memberName;
 
+  // With the title the planner typed, as the program prints it: "President Hale", never "Hale"
+  // (walking scenario 084).
   const external = row.external_speaker_name?.trim();
-  return external === undefined || external === "" ? null : external;
+  if (external === undefined || external === "") return null;
+  const title = row.external_speaker_title?.trim();
+  return title ? `${title} ${external}` : external;
 }

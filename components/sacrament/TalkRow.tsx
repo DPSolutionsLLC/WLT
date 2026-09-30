@@ -12,6 +12,7 @@ import { Pill } from "@/components/ui/Pill";
 import { describeInvalidation } from "@/lib/assignments/invalidation";
 import type { Assignment, SpeakerHistoryRow } from "@/lib/assignments/queries";
 import type { DateOnly } from "@/lib/calendar/dates";
+import type { TopicHistoryEntry } from "@/lib/topics/topicHistory";
 import { saveAssignment } from "@/lib/assignments/saveAssignment";
 import type { TalkAskInput } from "@/lib/sacrament/talkAsks";
 import { speakerTag, topicTag } from "@/lib/sacrament/talkRowStatus";
@@ -50,6 +51,9 @@ export type TalkRowProps = {
   ask: TalkAskInput;
   approvedNames: readonly string[];
   speakerFlags?: Readonly<Record<string, readonly ReliabilityFlagKind[]>>;
+  // The ward's topic history for the topic window's "Used before" hint and Check topic. Null
+  // without `topics.view` (bishopric-only), which leaves both absent.
+  topicHistory: readonly TopicHistoryEntry[] | null;
   // Who will find "let them know" on their To Do if this talk is deleted — "You", a name, or null
   // when nobody was ever asked. Resolved on the server through whoLetsThemKnow().
   tellerName: string | null;
@@ -80,6 +84,7 @@ export function TalkRow({
   approvedNames,
   speakerFlags,
   tellerName,
+  topicHistory,
   canPlan,
   canRemove,
   details,
@@ -298,6 +303,8 @@ export function TalkRow({
           totalTalks={totalTalks}
           assignment={assignment}
           approvedNames={approvedNames}
+          history={topicHistory}
+          today={speakerDirectory.today}
           onClose={() => setOpenWindow(null)}
           onSaved={saved}
         />

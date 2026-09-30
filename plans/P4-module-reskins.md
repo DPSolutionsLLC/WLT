@@ -173,7 +173,9 @@ land first.
 > with their own windows, Details in a window, and **Delete that cancels a talk and moves the rest
 > up** (migration 087, `remove_talk()`). Walked as scenario 083. **`t4`** — the speaker window
 > lists who to ask next (never spoken, then longest since speaking), with History for the bishopric
-> and "Use … as typed" for an outside speaker. `t5` upgrades the topic window.
+> and "Use … as typed" for an outside speaker. **`t5`** — the topic window checks what is typed
+> against the topic history and asks Claude for ideas (`POST /api/assignments/topic-suggestions`,
+> drafts only, stored nowhere). Walked as scenario 084. Slices `d` and `e` build on this screen.
 >
 > **Module 1 now has `d`, `e` left**, and `f`/`g` wait on **P5**. The INDEX argues P5 should
 > come early for exactly that reason.

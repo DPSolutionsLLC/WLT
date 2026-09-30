@@ -1374,6 +1374,15 @@ talk's topic is the words typed for it (`assignments.topic_title`, migration 086
 `POST /api/assignments` and `PATCH /api/assignments/[id]`. The ward's topic history is read by the
 `/talks/topics` page directly (`listTopicHistory()`), and has no route of its own.
 
+```
+POST   /api/assignments/topic-suggestions   Talk topic ideas for the topic window. Writes NOTHING but its audit row
+```
+
+`talks.plan`. Body `{ sundayId, context?, alreadyOffered? }`. The ward's recent (`RECENT_MONTHS`)
+and upcoming topics go in the prompt, and whatever still resembles one is filtered out with the
+topic window's own similarity rule. Returns `{ suggestions: [{ title, why }], filteredCount }`.
+Suggestions are drafts: one reaches a talk only when the planner saves it (rule 3).
+
 ### Goals
 ```
 GET    /api/goals                List goals with a COMPUTED status, filtered by target type

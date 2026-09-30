@@ -249,6 +249,18 @@ describe("callClaudeStructured", () => {
     expect(result.outputTokens).toBe(20);
   });
 
+  // The topic window's "Suggest topics" (Topics rebuild t5) goes through this path.
+  it("sends adaptive thinking, nested effort and the format, and no budget_tokens", async () => {
+    parse.mockResolvedValue({ ...textResponse("ignored"), parsed_output: { topics: ["Faith"] } });
+
+    await callStructured();
+
+    const params = parse.mock.calls[0][0];
+    expect(params.thinking).toEqual({ type: "adaptive" });
+    expect(params.thinking).not.toHaveProperty("budget_tokens");
+    expect(params.output_config).toEqual({ effort: "high", format: { type: "json_schema" } });
+  });
+
   // A null parse is a schema mismatch, not an answer.
   it("refuses a null parsed_output", async () => {
     parse.mockResolvedValue({ ...textResponse("ignored"), parsed_output: null });

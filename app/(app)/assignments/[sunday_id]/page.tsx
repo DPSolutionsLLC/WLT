@@ -40,6 +40,7 @@ import type { TalkAskInput } from "@/lib/sacrament/talkAsks";
 import { whoLetsThemKnow } from "@/lib/sacrament/talkRowStatus";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { listLatestAskOwners, listOpenAsks } from "@/lib/todos/askLinks";
+import { listTopicHistory } from "@/lib/topics/queries";
 import { MEMBER_STATUSES } from "@/types/domain";
 
 // THE TOPICS SCREEN — "What still needs to happen" for one Sunday (Topics rebuild t3, the
@@ -100,8 +101,12 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
   // Speaker history is bishopric-only (migration 019), so it is never read on anybody else's
   // behalf (talks-d) — the same test app/(app)/assignments/page.tsx makes.
   const isBishopric = (BISHOPRIC_ROLES as readonly string[]).includes(user.role);
+  // The topic window's "Used before" hint reads the ward's topic history, which is bishopric-only
+  // (`topics.view`, the Topic history page's own gate).
+  const canReadTopicHistory = can(user, "topics.view", roleAccess);
+  const today = formatDateOnly(new Date());
 
-  const [asks, bishopricUsers, members, monthComments, wardDefault, historyByMember] =
+  const [asks, bishopricUsers, members, monthComments, wardDefault, historyByMember, topicHistory] =
     await Promise.all([
       loadSundayAsks(user.wardId, sunday.id, supabase),
       listBishopricUsers(user.wardId, supabase),
@@ -110,6 +115,9 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
       listComments(user.wardId, { sundayId: sunday.id }, supabase),
       readDefaultSpeakingSlots(user.wardId, supabase),
       isBishopric ? listSpeakerHistoryByMember(user.wardId, supabase) : Promise.resolve(null),
+      canReadTopicHistory
+        ? listTopicHistory(user.wardId, { today }, supabase)
+        : Promise.resolve(null),
     ]);
 
   if (!asks) notFound();
@@ -174,7 +182,7 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
         category: member.category,
       })),
     historyByMember: historyByMember === null ? null : Object.fromEntries(historyByMember),
-    today: formatDateOnly(new Date()),
+    today,
   };
 
   const memberById = new Map(members.map((member) => [member.id, member]));
@@ -383,6 +391,7 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
                   approvedNames={assignment === null ? [] : approvedNamesFor(assignment)}
                   speakerFlags={speakerFlags}
                   speakerDirectory={speakerDirectory}
+                  topicHistory={topicHistory}
                   canPlan={canPlan}
                   canRemove={canRemove}
                   details={assignment === null ? null : detailsFor(assignment)}

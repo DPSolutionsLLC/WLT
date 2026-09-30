@@ -1025,6 +1025,10 @@ export async function createAssignment(options: {
   // Both waiver columns move together or neither does — assignments_waiver_pair, migration 025.
   contactWaivedAt?: string;
   contactWaivedBy?: string;
+  // Sacrament slice f2c (migration 085): a cancelled talk is a record every reader skips. Both
+  // move together, as cancelSundayWork() writes them.
+  cancelledAt?: string;
+  cancelledReason?: "no_meeting" | "fast_sunday" | "slot_removed";
 }): Promise<string> {
   return insertRow("assignments", {
     id: options.id ?? testUuid(`assignment:${options.sundayId}:${options.slotNumber ?? 1}`),
@@ -1049,6 +1053,8 @@ export async function createAssignment(options: {
     thank_you_sent_at: options.thankYouSentAt ?? null,
     contact_waived_at: options.contactWaivedAt ?? null,
     contact_waived_by: options.contactWaivedBy ?? null,
+    cancelled_at: options.cancelledAt ?? null,
+    cancelled_reason: options.cancelledReason ?? null,
   });
 }
 
@@ -1823,6 +1829,8 @@ export async function createAssignmentHistory(options: {
   outcome?: "accepted" | "declined" | "cancelled" | "completed";
   cancellationDaysNotice?: number;
   notes?: string;
+  // Only for a decline (migration 083).
+  declineReason?: "not_available" | "other";
 }): Promise<string> {
   return insertRow("assignment_history", {
     ward_id: TEST_WARD_ID,
@@ -1831,6 +1839,7 @@ export async function createAssignmentHistory(options: {
     outcome: options.outcome ?? "completed",
     cancellation_days_notice: options.cancellationDaysNotice ?? null,
     notes: options.notes ?? null,
+    decline_reason: options.declineReason ?? null,
   });
 }
 

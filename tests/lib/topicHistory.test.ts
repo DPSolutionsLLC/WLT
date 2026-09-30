@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { DateOnly } from "@/lib/calendar/dates";
 import {
   filterAndSortTopicHistory,
+  parseTopicHistoryView,
+  withinMonths,
   similarTopicUses,
   timeAgoLabel,
   topicSimilarity,
@@ -40,6 +42,13 @@ describe("topicSimilarity", () => {
   // "in", "of", "to" must not make every topic resemble every other.
   it("ignores words of two letters or fewer", () => {
     expect(topicSimilarity("in of to", "Faith in Jesus Christ")).toBe(false);
+  });
+
+  // "the" is three letters, so length alone lets it through.
+  it("ignores common words like the and and", () => {
+    expect(topicSimilarity("The Sabbath", "The Atonement")).toBe(false);
+    expect(topicSimilarity("the", "The Atonement")).toBe(false);
+    expect(topicSimilarity("Faith and hope", "Charity and service")).toBe(false);
   });
 
   it("does not match unrelated topics", () => {
@@ -181,5 +190,47 @@ describe("filterAndSortTopicHistory", () => {
     filterAndSortTopicHistory(history, { query: "", sort: "topic" });
 
     expect(history).toEqual(copy);
+  });
+});
+
+describe("withinMonths", () => {
+  const history = [
+    entry({ assignmentId: "ahead", date: "2027-08-01", isUpcoming: true }),
+    entry({ assignmentId: "edge", date: "2026-12-15" }),
+    entry({ assignmentId: "before", date: "2026-12-14" }),
+  ];
+
+  it("keeps the last N months, counting the boundary day", () => {
+    expect(withinMonths(history, 6, TODAY).map((item) => item.assignmentId)).toEqual([
+      "ahead",
+      "edge",
+    ]);
+  });
+
+  // Something already planned is always worth knowing about.
+  it("always keeps upcoming uses", () => {
+    expect(withinMonths(history, 1, TODAY).map((item) => item.assignmentId)).toEqual(["ahead"]);
+  });
+
+  it("reaches further back when asked", () => {
+    expect(withinMonths(history, 12, TODAY)).toHaveLength(3);
+  });
+});
+
+describe("parseTopicHistoryView", () => {
+  it("defaults the window to six months", () => {
+    expect(parseTopicHistoryView(undefined)).toEqual({ sort: "date_desc", months: 6 });
+  });
+
+  // Saved before the window existed: the sort survives and the window takes its default.
+  it("reads a view saved without a window", () => {
+    expect(parseTopicHistoryView({ sort: "speaker" })).toEqual({ sort: "speaker", months: 6 });
+  });
+
+  it("falls back on a window it cannot read", () => {
+    expect(parseTopicHistoryView({ sort: "topic", months: 0 })).toEqual({
+      sort: "date_desc",
+      months: 6,
+    });
   });
 });

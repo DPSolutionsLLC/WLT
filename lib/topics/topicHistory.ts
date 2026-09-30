@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MS_PER_DAY, parseDateOnly, type DateOnly } from "@/lib/calendar/dates";
+import { MS_PER_DAY, addMonths, parseDateOnly, type DateOnly } from "@/lib/calendar/dates";
 
 // THE WARD'S TOPIC HISTORY — every topic a talk has carried, when, and who gave it (the user's
 // decision, 2026-09-29: "a good usable history of topics that have been used", replacing the
@@ -34,10 +34,36 @@ export const TOPIC_HISTORY_SORT_LABELS: Record<TopicHistorySort, string> = {
 // How a leader LEFT the Topic history page, so it reopens that way (the user's standing rule,
 // 2026-09-24). Stored on the account through lib/users/userSettings.ts. Only the sort is kept: a
 // search is a question asked once, and reopening the page still filtered would hide topics.
-export const topicHistoryViewSchema = z.object({ sort: z.enum(TOPIC_HISTORY_SORTS) });
+// HOW FAR BACK — the user's decisions, 2026-09-29, walking scenario 084. The history page shows
+// the last N months (6 unless the leader asks for more or fewer), and the topic window's "Used
+// before" hint and Check topic look back one year. Both are windows on what is SHOWN: nothing is
+// filtered out of the data, and a topic already planned for a coming Sunday always counts.
+export const DEFAULT_HISTORY_MONTHS = 6;
+export const MAX_HISTORY_MONTHS = 600;
+export const HINT_LOOKBACK_MONTHS = 12;
+
+// `months` defaults, so a view saved before the window existed still reads rather than falling
+// back to the default sort.
+export const topicHistoryViewSchema = z.object({
+  sort: z.enum(TOPIC_HISTORY_SORTS),
+  months: z.number().int().min(1).max(MAX_HISTORY_MONTHS).default(DEFAULT_HISTORY_MONTHS),
+});
 export type TopicHistoryView = z.infer<typeof topicHistoryViewSchema>;
 
-export const DEFAULT_TOPIC_HISTORY_VIEW: TopicHistoryView = { sort: "date_desc" };
+export const DEFAULT_TOPIC_HISTORY_VIEW: TopicHistoryView = {
+  sort: "date_desc",
+  months: DEFAULT_HISTORY_MONTHS,
+};
+
+// Upcoming uses, plus everything on or after the day `months` months before today.
+export function withinMonths(
+  entries: readonly TopicHistoryEntry[],
+  months: number,
+  today: DateOnly,
+): TopicHistoryEntry[] {
+  const since = addMonths(today, -months);
+  return entries.filter((entry) => entry.isUpcoming || entry.date >= since);
+}
 
 // Falls back rather than throwing: a preference nobody can parse must not take the page down.
 export function parseTopicHistoryView(value: unknown): TopicHistoryView {
@@ -56,15 +82,25 @@ export function parseTopicHistoryView(value: unknown): TopicHistoryView {
 const MIN_WORD_LENGTH = 3;
 const MIN_TYPED_LENGTH = 2;
 
+// Common words that are three letters or longer and say nothing about a subject. Without them
+// "The Sabbath" and "The Atonement" read as similar, and typing "The" lists the whole history —
+// the prototype's own comment meant to exclude "the" and "and", and its length rule did not
+// (found building Topics rebuild t5, where the AI suggestions are filtered with this rule).
+const STOP_WORDS = new Set([
+  "the", "and", "for", "our", "you", "your", "with", "from", "that", "this", "these", "those",
+  "his", "her", "its", "their", "how", "why", "who", "what", "when", "are", "was", "were",
+  "into", "unto", "upon", "all", "not", "can", "has", "have", "about",
+]);
+
 function significantWords(text: string): string[] {
   return text
     .toLowerCase()
     .split(/\W+/)
-    .filter((word) => word.length >= MIN_WORD_LENGTH);
+    .filter((word) => word.length >= MIN_WORD_LENGTH && !STOP_WORDS.has(word));
 }
 
 // A port of the prototype's rule: two topics are similar when they share a word of three or more
-// letters, where either word may be a PREFIX of the other. The prefix is what lets "fai" surface
+// letters (common words aside), where either word may be a PREFIX of the other. The prefix is what lets "fai" surface
 // "Faith in Jesus Christ" while it is still being typed. Deliberately simple — a stand-in for real
 // semantic matching, and loud rather than clever, so a near miss is shown to a person.
 export function topicSimilarity(left: string, right: string): boolean {

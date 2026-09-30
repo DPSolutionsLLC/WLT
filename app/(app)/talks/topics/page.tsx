@@ -44,7 +44,11 @@ export default async function TopicHistoryPage() {
         </p>
       </div>
 
-      <TopicHistoryList entries={entries} initialView={parseTopicHistoryView(savedView)} />
+      <TopicHistoryList
+        entries={entries}
+        initialView={parseTopicHistoryView(savedView)}
+        today={today}
+      />
     </div>
   );
 }

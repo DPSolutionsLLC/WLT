@@ -323,8 +323,8 @@ Each member has an assignment history tab visible to the bishopric:
 
 **There is no topic library** (decided 2026-09-29). A talk's topic is simply the words typed for it. What the ward keeps is a **history** of the topics it has used.
 
-- **Topic history** (its own dashboard tile, and a link on the Sacrament hub, bishopric only): every topic a talk has carried, with its date and who gave it. Search by topic or speaker; sort newest first, oldest first, topic A–Z or speaker A–Z (the sort is remembered). A topic already on the calendar for a future Sunday is marked **Coming up**. A cancelled talk's topic is not listed — it was never given.
-- **The topic window** (on a Sunday's Topics screen, coming with the screen rebuild): type any topic, up to 200 characters. While you type, **"Used before, most recent first"** shows similar topics from the history. **Check topic** says whether anything similar has been used. **Suggest topics** asks AI for ideas that avoid the ward's recent and upcoming topics; suggestions are drafts, and nothing is saved until you press Save.
+- **Topic history** (its own dashboard tile, and a link on the Sacrament hub, bishopric only): every topic a talk has carried, with its date and who gave it. It shows the last **6 months** by default — type another number of months and press **Show** to look further back or less far. Search by topic or speaker; sort newest first, oldest first, topic A–Z or speaker A–Z. The window and the sort are remembered. A topic already on the calendar for a future Sunday is marked **Coming up**. A cancelled talk's topic is not listed — it was never given.
+- **The topic window** (on a Sunday's Topics screen): type any topic, up to 200 characters. While you type, **"Used before, most recent first"** shows similar topics from the last year of the history, plus any already planned. **Check topic** says whether anything similar has been used. **Suggest topics** asks AI for ideas that avoid the ward's recent and upcoming topics; suggestions are drafts, and nothing is saved until you press Save.
 
 ---
 

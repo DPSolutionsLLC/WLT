@@ -266,11 +266,11 @@ export function SpeakerWindow({
                   {listed.map((member) => {
                     const name = fullName(member);
                     return (
-                      <li key={member.id} className="flex items-center gap-2 px-2">
+                      <li key={member.id} className="flex items-center gap-2 px-2 py-1">
                         <button
                           type="button"
                           onClick={() => setChosen({ kind: "member", memberId: member.id, name })}
-                          className="flex min-h-11 min-w-0 flex-1 flex-col items-start justify-center py-1 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                          className="flex min-h-11 min-w-[9rem] flex-1 flex-col items-start justify-center py-1 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                         >
                           <span className="text-sm font-medium text-foreground">{name}</span>
                           {history !== null && (
@@ -279,7 +279,12 @@ export function SpeakerWindow({
                             </span>
                           )}
                         </button>
-                        <ReliabilityFlag flags={speakerFlags?.[member.id] ?? []} />
+                        {/* The flags never squeeze the name and "last spoke" line (walking scenario
+                            084): the name keeps a minimum width, and the flags stack in a column
+                            on a phone and wrap in a row on a wider screen. */}
+                        <div className="flex min-w-0 justify-end *:flex-col *:items-end sm:*:flex-row sm:*:flex-wrap sm:*:justify-end">
+                          <ReliabilityFlag flags={speakerFlags?.[member.id] ?? []} />
+                        </div>
                         {historyByMember !== null && (
                           <button
                             type="button"

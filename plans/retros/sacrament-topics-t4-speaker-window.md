@@ -2,7 +2,7 @@
 id: sacrament-topics-t4-speaker-window
 type: feature
 iter: null
-commits: ["a915343"]
+commits: ["856a2cf"]
 date: 2026-09-29
 files:
   - lib/assignments/speakerOrder.ts

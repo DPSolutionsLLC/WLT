@@ -117,7 +117,8 @@ describe("/api/session/page-view", () => {
 
     const { createServerSupabaseClient } = await import("@/lib/supabase/server");
     const client = await createServerSupabaseClient();
-    expect(await readPageView(selfId, "topic_history", client)).toEqual({ sort: "speaker" });
+    // The window was not sent, so it is stored at its default of six months.
+    expect(await readPageView(selfId, "topic_history", client)).toEqual({ sort: "speaker", months: 6 });
     expect(await readPageView(selfId, "appointments", client)).toBeDefined();
   });
 
