@@ -291,7 +291,7 @@ export function AppointmentList({
                 )}
               </span>
               {source.kind === "todo" && source.ask !== null && source.ask.isOpen ? (
-                <AskDetails ask={source.ask} />
+                <AskDetails ask={source.ask} wardZone={wardZone} />
               ) : null}
               {source.kind === "todo" &&
               source.ask?.isOpen === true &&

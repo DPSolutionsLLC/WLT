@@ -134,7 +134,7 @@ export function ScheduleDialog({
         }}
       >
         <p className="break-words text-sm text-muted">{todo.title}</p>
-        {todo.askSource !== null && todo.askSource.isOpen ? <AskDetails ask={todo.askSource} /> : null}
+        {todo.askSource !== null && todo.askSource.isOpen ? <AskDetails ask={todo.askSource} wardZone={wardZone} /> : null}
 
         {/* min-w-0 on the flex children so the two inputs share a 375px row without overflowing. */}
         <div className="flex flex-wrap gap-3">

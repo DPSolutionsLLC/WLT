@@ -1657,6 +1657,21 @@ export type TodoAskSource = {
   // Computed live from the Sunday. An open ask on a talk that is off shows "Told them" in place of
   // Accepted / Declined (Sacrament slice f2b).
   talkOff: boolean;
+  // When ANOTHER leader has a time set with this speaker for this talk — the conductor an assistant
+  // is helping, or the conductor who handed the Sunday over (Sacrament slice f3a, decision A1).
+  // Nobody inherits somebody else's appointment, so this is a note, never an entry in My
+  // Appointments. Null unless the ask is open and its owner has not scheduled their own.
+  timeElsewhere: AskTimeElsewhere | null;
+};
+
+export type AskTimeElsewhere = {
+  holderName: string;
+  // A timestamptz — format in the WARD's zone.
+  scheduledFor: string;
+  withName: string | null;
+  // True while the other copy is still open ("has this set"); false once it was handed over
+  // ("had this set").
+  stillHeld: boolean;
 };
 
 export type TodoStep = {

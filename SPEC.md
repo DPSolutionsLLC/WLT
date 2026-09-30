@@ -880,13 +880,19 @@ many open asks a re-shift moves to whom (`lib/sacrament/askWarnings.ts`).
 **The asks follow the conductor (slice f2).** After every Sunday save, `PATCH /api/sundays/[id]`
 reconciles that Sunday and every later Sunday its type change re-shifted
 (`lib/sacrament/conductorHandover.ts`): an open ask held by anybody but the current conductor gets
-a clean copy for the conductor (built from the talk, carrying `scheduled_for` and
-`scheduled_with_member_id`) and is closed with `closed_reason = 'handed_over'` and a `handed_over`
+a clean copy for the conductor (built from the talk, with **no** `scheduled_for` — slice f3a) and
+is closed with `closed_reason = 'handed_over'` and a `handed_over`
 line naming the new owner. Copy first, close second, so a half-finished run holds the work twice
 and the next save finishes it. A Sunday with no conductor keeps its asks. My Appointments leaves
 out a to-do with a `closed_reason`. The new copy gets a `taken_over` line naming the previous
 owner (slice f2b). `tests/lib/conductorHandoverSites.test.ts` fails if a new
 write of `conducting_user_id` skips the handover.
+**Nobody inherits another leader's appointment (slice f3a, 2026-09-30).** The old copy keeps its
+time as the record; the To Do read (`listTodos`/`getTodo`) fills `TodoAskSource.timeElsewhere` for
+an open, unscheduled ask on a talk that is on, from another holder's copy that is open or closed as
+`handed_over` (`lib/todos/timeElsewhere.ts`, over `listAskCopies()`), and the card reads "Peter
+Nakamura had this set for … with Maria Lopez". That read is the service role returning a time, a
+"with" name and a holder's name only — never another person's text.
 Progress and "overdue" are **computed**, never stored (`lib/todos/progress.ts`,
 `lib/todos/viewState.ts`).
 

@@ -397,8 +397,6 @@ async function handOverSunday(params: {
               fromTodoId: openAsk.todoId,
               fromName: nameOf.get(openAsk.ownerUserId) ?? "the previous conductor",
               ask,
-              scheduledFor: openAsk.scheduledFor,
-              scheduledWithMemberId: openAsk.scheduledWithMemberId,
             },
           ];
     }),

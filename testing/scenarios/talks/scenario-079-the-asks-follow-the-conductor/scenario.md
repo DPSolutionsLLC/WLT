@@ -11,8 +11,8 @@ prerequisites: none
 Sacrament slice `f2`. A Sunday's "Ask ___ to speak" to-dos belong to whoever **conducts** it. When
 the conductor changes, the open asks move: the new conductor gets a **clean copy** built from the
 talk, and the old copy is closed on the old conductor's list with a line naming who took it over.
-The scheduled time and the "With" person move with it. Whatever the old owner wrote on their copy
-stays with them.
+Whatever the old owner wrote on their copy stays with them, and so does their scheduled time: since
+slice f3a (2026-09-30) the new owner's card only says who had a time set.
 
 A conductor changes in two ways, and the walk does both: **by hand** in the Sunday editor, and
 through the **re-shift** a type change applies to later Sundays (turning a Sunday into a stake
@@ -76,9 +76,11 @@ The change by hand
       notes, and its timeline reads **"Handed over to David Okafor"**
 - [ ] Step 8: counselor1's My Appointments **no longer shows** Maria's appointment
 - [ ] Step 9: counselor2 has **both** asks, open, with Accepted and Declined
-- [ ] Step 9: Maria's ask shows the **same scheduled time** and **with Maria Lopez**, the phone and
-      topic, and **not** your own line from step 4
-- [ ] Step 9: counselor2's My Appointments shows Maria's appointment with **Accepted / Declined**
+- [ ] Step 9: Maria's ask is **not scheduled**, and reads **"Peter Nakamura had this set for <the
+      step 4 time> with Maria Lopez."**, with the phone and topic, and **not** your own line from
+      step 4 *(changed by slice f3a, 2026-09-30: nobody inherits an appointment)*
+- [ ] Step 9: counselor2's My Appointments is **empty** until they schedule Maria's ask themselves;
+      once they do, the "had this set" line goes
 - [ ] Step 9: Maria's ask's timeline reads **"Taken over from Peter Nakamura"** *(added by slice
       f2b; walked in scenario 080)*
 

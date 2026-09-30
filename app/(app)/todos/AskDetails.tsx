@@ -1,6 +1,7 @@
 import { Pill } from "@/components/ui/Pill";
 import { askContactLine } from "@/lib/sacrament/talkAsks";
-import type { TodoAskSource } from "@/types/domain";
+import { formatAppointmentInstant } from "@/lib/visits/visitDates";
+import type { AskTimeElsewhere, TodoAskSource } from "@/types/domain";
 
 // What a leader needs in hand to extend a talk's invitation: the topic and how to reach the
 // speaker. It is shown on the to-do card, in "Schedule this" and on My Appointments, so a hallway
@@ -13,8 +14,18 @@ import type { TodoAskSource } from "@/types/domain";
 //
 // A phone number is plain selectable text. Phones offer to call a number they recognise, and a
 // `tel:` link here would be a second, smaller tap target inside a card full of them.
+//
+// ANOTHER LEADER'S TIME (Sacrament slice f3a) is a line, never an appointment: an assistant, or a
+// conductor who took the Sunday over, reads who has a time set so they can fit it in or reach out
+// to reschedule. In the WARD's zone (rule 12) — it is a time somebody turns up at.
 
-export function AskDetails({ ask }: { ask: TodoAskSource }) {
+export function describeTimeElsewhere(time: AskTimeElsewhere, wardZone: string): string {
+  const when = formatAppointmentInstant(time.scheduledFor, wardZone);
+  const withWhom = time.withName === null ? "" : ` with ${time.withName}`;
+  return `${time.holderName} ${time.stillHeld ? "has" : "had"} this set for ${when}${withWhom}.`;
+}
+
+export function AskDetails({ ask, wardZone }: { ask: TodoAskSource; wardZone: string }) {
   const contact = askContactLine(ask);
 
   return (
@@ -35,6 +46,14 @@ export function AskDetails({ ask }: { ask: TodoAskSource }) {
         <div className="flex flex-wrap gap-x-1.5">
           <dt className="sr-only">Contact</dt>
           <dd className="min-w-0 break-words text-foreground">{contact}</dd>
+        </div>
+      )}
+      {ask.timeElsewhere === null ? null : (
+        <div className="flex flex-wrap gap-x-1.5">
+          <dt className="sr-only">Already scheduled</dt>
+          <dd className="min-w-0 break-words text-muted">
+            {describeTimeElsewhere(ask.timeElsewhere, wardZone)}
+          </dd>
         </div>
       )}
     </dl>

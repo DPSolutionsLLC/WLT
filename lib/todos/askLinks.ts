@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
+import type { AskCopy } from "@/lib/todos/timeElsewhere";
 import type { Database } from "@/types/database";
 import type { TodoClosedReason, TodoLogKind } from "@/types/domain";
 
@@ -301,6 +302,64 @@ export async function listOpenAsks(params: {
   );
 }
 
+// Every copy of an ask on these talks, open or closed, with who holds it and when they are meeting
+// the speaker — for "Peter Nakamura has this set for …" on another holder's card (f3a,
+// lib/todos/timeElsewhere.ts). Service role, because a to-do is owner-only (migration 081) and this
+// is the one thing about another leader's copy the holder is shown: a time, who it is with, and the
+// holder's name. NEVER a title, notes or steps — the select list is the guarantee.
+export async function listAskCopies(params: {
+  wardId: string;
+  assignmentIds: readonly string[];
+  client?: Client;
+}): Promise<AskCopy[]> {
+  if (params.assignmentIds.length === 0) return [];
+
+  const supabase = params.client ?? createServiceSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("todos")
+    .select(
+      "id, ask_assignment_id, user_id, scheduled_for, completed_at, closed_reason, created_at, owner:users!todos_user_id_fkey (first_name, last_name), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name)",
+    )
+    .eq("ward_id", params.wardId)
+    .in("ask_assignment_id", [...params.assignmentIds]);
+
+  if (error) {
+    console.error(`Could not read the other copies of an ask — ${error.message}`, {
+      wardId: params.wardId,
+    });
+    throw new Error(`Could not check whether another leader has a time set: ${error.message}`);
+  }
+
+  return (data ?? []).flatMap((row) =>
+    row.ask_assignment_id === null
+      ? []
+      : [
+          {
+            todoId: row.id,
+            assignmentId: row.ask_assignment_id,
+            ownerUserId: row.user_id,
+            ownerName: personName(row.owner),
+            scheduledFor: row.scheduled_for,
+            withName: personName(row.scheduled_member),
+            completedAt: row.completed_at,
+            closedReason: row.closed_reason,
+            createdAt: row.created_at,
+          },
+        ],
+  );
+}
+
+function personName(
+  row: { first_name: string | null; last_name: string | null } | null,
+): string | null {
+  if (row === null) return null;
+  const name = [row.first_name, row.last_name]
+    .filter((part) => part !== null && part !== "")
+    .join(" ");
+  return name === "" ? null : name;
+}
+
 // ---------------------------------------------------------------------------
 // HANDOVER — the work follows the conductor (f2, U3 and U6)
 // ---------------------------------------------------------------------------
@@ -310,16 +369,18 @@ export async function listOpenAsks(params: {
 // unique index (23505, already there) and the close is conditional on the old copy still being
 // open.
 //
-// The appointment follows the work (U3): `scheduled_for` and `scheduled_with_member_id` are
-// carried onto the new copy. The old owner's notes and steps are not — `ask` is built fresh from
-// the talk (buildAsksForTalks), and the old copy is closed, never deleted.
+// NOBODY INHERITS AN APPOINTMENT (f3a, decision A1, 2026-09-30 — reversing f2's "the appointment
+// follows the work"). The new copy carries no `scheduled_for`: a time the old conductor arranged
+// was arranged around THEIR week, and dropping it silently into the new conductor's My
+// Appointments made it look like theirs. The old copy keeps its time as the record, and the new
+// holder's card says who had one set (lib/todos/timeElsewhere.ts). The old owner's notes and steps
+// never move either — `ask` is built fresh from the talk (buildAsksForTalks), and the old copy is
+// closed, never deleted.
 export type AskHandover = {
   fromTodoId: string;
   // The previous owner's name, for the new copy's "Taken over from ___" line.
   fromName: string;
   ask: AskToCreate;
-  scheduledFor: string | null;
-  scheduledWithMemberId: string | null;
 };
 
 export async function handOverAsks(params: {
@@ -354,8 +415,6 @@ export async function handOverAsks(params: {
         tag: "Sacrament",
         do_date: params.today,
         ask_assignment_id: handover.ask.assignmentId,
-        scheduled_for: handover.scheduledFor,
-        scheduled_with_member_id: handover.scheduledWithMemberId,
       })
       .select("id")
       .single();

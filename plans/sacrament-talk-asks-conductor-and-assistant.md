@@ -117,7 +117,7 @@ answer resolves it for both.
 - `app/api/sundays/[id]/route.ts` and the rotation route(s) that apply a re-shift — modify — call `handOverSundayAsks` for every change
 - `tests/lib/conductorHandoverSites.test.ts` — create — source-reading guard
 
-**f3 — The conductor window and the assistant**
+**f3 — The conductor window and the assistant** *(superseded 2026-09-30: see the revised f3 section under Tasks)*
 - `supabase/migrations/086_sunday_assistant.sql` — create — `sundays.assistant_user_id` (renumbered twice: f2b took 084 and f2c took 085)
 - `types/database.ts`, `types/domain.ts`, `lib/calendar/queries.ts` (Sunday mapper and column list), `lib/validation/calendar.ts` — modify — `assistantUserId` (rule 9)
 - `lib/todos/askLinks.ts` — modify
@@ -438,63 +438,129 @@ comes back on.
 Planned and recorded in `plans/sacrament-cancelled-sunday-work.md`. It retires f2b's "back on"
 rule: cancelled work never comes back, so there is nothing to close when a meeting returns.
 
-### Sub-slice f3 — The conductor window and the assistant (commit 3)
+### Sub-slice f3 — The conductor window and the assistant — REVISED 2026-09-30
 
-#### Task 14: Migration 086
-**File:** `supabase/migrations/086_sunday_assistant.sql` (create) — renumbered from 084: slice
-f2b took 084 and slice f2c took 085
-```sql
-alter table sundays
-  add column assistant_user_id uuid references users (id) on delete set null,
-  add constraint sundays_assistant_not_conductor
-    check (assistant_user_id is null or assistant_user_id is distinct from conducting_user_id);
-```
-- A plain FK (ward-callings-model). No policy moves: `sundays` writes are already bishopric-scoped by migration 019.
-- The CHECK means a handover **to the assistant** must clear `assistant_user_id` in the same
-  update. `updateSunday()` does that when the new conductor equals the current assistant, and the
-  window says so ("Brother X was assisting — they now conduct, with no assistant").
+> **The original Tasks 14–18 (written 2026-09-24) are replaced by this section.** f2, f2b, f2c and
+> the Topics screen (t1–t5) landed in between, and re-checking the tasks against the code found:
+> - **Migration 086 is taken** (topic words), and 087 too (`remove_talk`). This is **088**, and it is
+>   smaller than planned: migration 083 already admits `assistant_released` as a close reason and a
+>   log kind, and `lib/todos/logLines.ts` already has its sentence.
+> - **"Mirror, then release" in the route is the pattern f2 replaced.** Every Sunday save runs
+>   `reconcileSundayAsks()`, which asks of the STATE who should hold each ask. The assistant goes
+>   there (the `// f3 adds the assistant here` marker in `conductorHandover.ts`), not beside it.
+> - **The re-shift would break on the new CHECK.** `applyConductingReshift()` batch-writes
+>   conductors across many Sundays; one that makes a later Sunday's assistant its conductor
+>   violated "assistant ≠ conductor" and answered 500. The plan only handled the hand change.
+> - **f2b/f2c were not in the plan.** Nothing new is needed for them: an assistant's copy on a talk
+>   that goes off is stamped like the conductor's, and Told them already closes every copy of a
+>   talk (`closeAsksForAssignment`). Mirroring only ever touches live talks that are on.
+>
+> **Decisions settled with the user, 2026-09-30:**
+>
+> | # | Decision |
+> |---|---|
+> | A1 | **Nobody inherits somebody else's appointment.** A copy made for a new conductor (handover) or for an assistant (mirror) carries **no** `scheduled_for`. Instead the card shows a line — *"Peter Nakamura has this set for Sat, Sep 26, 7:00 PM with Maria Lopez"* (or *had*, once that copy is closed by a handover) — so they can fit it in or reach out to reschedule. **This reverses f2's "the appointment follows the work" (U3's reading in Task 11).** |
+> | A2 | **No assistant without a conductor.** Setting the conductor to nobody, or the Sunday losing its meeting, clears the assistant in the same statement, and their open copies close as `assistant_released`. The CHECK enforces it. |
+> | A3 | **A re-shift that makes the assistant the conductor clears the assistant**, the same rule as a hand change, and the calendar warning says so before confirming. Their open copies simply become the conductor's copies. |
 
-#### Task 15: Types, schema, route
-**Files:** `types/database.ts` (regenerate), `types/domain.ts`, `lib/calendar/queries.ts`, `lib/validation/calendar.ts`, `app/api/sundays/[id]/route.ts` (modify)
-- `Sunday.assistantUserId` goes through the column list and the mapper (rule 9).
-- The schema accepts `assistantUserId: uuid | null`.
-- The route:
-  1. Validate with `findUsersOutsideWard` + `listBishopricUsers` (400: "An assistant must be in the bishopric.") and not-the-conductor (400).
-  2. On a change: `releaseAssistantAsks(old)`, then `mirrorAsksToAssistant(new)`.
-  3. `notifyOtherBishopric` ("Brother X is assisting on <date>" / "No assistant on <date>").
-  4. The audit detail gains the assistant ids.
+**Split into two commits**, because A1 changes f2's shipped behaviour on its own (the RESKIN+ rule:
+one behaviour, one commit):
 
-#### Task 16: Mirror and release
-**File:** `lib/todos/askLinks.ts` (modify)
-- `mirrorAsksToAssistant({ wardId, sundayId, assistantUserId, conductorUserId })`: a fresh copy of every **open conductor ask** on the Sunday (U6: never the conductor's notes).
-- `releaseAssistantAsks({ wardId, sundayId, assistantUserId })`: close each open copy with `assistant_released`.
-- `createAsksForSunday` (f1) already takes a list of owners. The asks route now passes the assistant too.
+#### f3a — Another person's time is a note, not your appointment (commit 1)
 
-#### Task 17: The conductor window
-**Files:** `components/sacrament/ConductorDialog.tsx` (create), `components/sacrament/SundayCard.tsx`, `app/(app)/sacrament/page.tsx` (modify)
-- Clicking the conducting name opens **"Who's conducting?"** (the prototype's title) for anyone
-  holding `calendar.manage`.
-  - **Conducting:** the three bishopric members as quick picks, current one marked, and a line:
-    "Their open asks for this Sunday move with them."
-  - **Assistant:** the other two as quick picks, **None**, and a line: "An assistant gets a copy of
-    every open ask. Whoever records the answer closes it for both."
-  - Save → `PATCH /api/sundays/[id]`. The route's sentence appears on error.
-- The card shows "Conducting: Bishop A · with Brother B" when there is an assistant.
-- The old link to the Sunday editor moves to a small "Edit Sunday" link inside the window, so the
-  override editor stays reachable (p4-sacrament-a's note).
-- The compact-ui preference applies: the window fits its content, with small grouped buttons.
+- **`lib/todos/askLinks.ts`** — `handOverAsks()` stops carrying `scheduled_for` /
+  `scheduled_with_member_id` onto the new copy. The old copy keeps both as its record (f2's walk
+  already relies on that). Header rewritten to say so and why (A1).
+- **`lib/todos/askElsewhere.ts`** (create) — `listAskTimesElsewhere({ wardId, userId, assignmentIds })`:
+  for each of this user's asks, the latest `scheduled_for` on **another person's** copy of the same
+  talk that is open, or closed as `handed_over`. **Service role, returning a time, a "with" name and
+  the holder's name — never a title, a note or a step** (the D2 rule `listOpenAsks` follows). A
+  to-do is owner-only under migration 081, so this cannot be read through the caller's client; it is
+  safe because it reveals only when somebody else plans to meet the same speaker about the same talk.
+  Pure part (`pickTimeElsewhere()`) chooses the row and the tense ("has" for an open copy, "had" for
+  a handed-over one) and is unit-tested.
+- **`lib/todos/queries.ts`** — the To Do read attaches `askSource.timeElsewhere` to each **open,
+  unscheduled** ask (once the owner schedules their own, the note has done its job).
+  **`types/domain.ts`** — `TodoAskSource.timeElsewhere: { holderName, scheduledFor, withName,
+  stillHeld } | null` (rule 9).
+- **`app/(app)/todos/AskDetails.tsx`** — renders the line in the **ward's** zone (rule 12), beside the
+  topic and contact line.
+- **Tests:** `tests/routes/conductor-handover.test.ts` — the new copy has no `scheduled_for`, and the
+  To Do read shows the old owner's time as "had … set"; `tests/lib/askElsewhere.test.ts` (pure).
+- **Scenario 079** checklist step 9 changes: the new owner sees the note, and their My Appointments
+  is empty until they schedule it.
 
-#### Task 18: Docs for f2/f3
-- SPEC: migration 086, the assistant field, the handover rule.
-- FEATURES.
-- module-map §2.1: the user's conductor/assistant model, marked as a deliberate extension beyond the prototype, whose `ConductingModal` only substitutes.
-- `CLAUDE.md` §9: one entry:
-  - ask to-dos follow the conductor on every conductor write, including re-shifts
-  - fresh copy on handover
-  - one assistant, sharing completion, as the named exception to p5-b's flag rule
-  - "a speaker change closes an ask; nothing else does"
-- P4 slice `f` done; slice `g` notes: it reuses `askLinks`, `talkAsks` and `requestOutcome` with a
-  `prayer_id` link column. Prayers are not gated on References.
+#### f3b — The assistant and the conductor window (commit 2)
+
+- **`supabase/migrations/088_sunday_assistant.sql`** (create):
+  ```sql
+  alter table sundays
+    add column assistant_user_id uuid references users (id) on delete set null,
+    add constraint sundays_assistant_needs_distinct_conductor
+      check (assistant_user_id is null
+             or (conducting_user_id is not null and assistant_user_id <> conducting_user_id));
+  ```
+  A plain FK (ward-callings-model). No policy moves: `sundays` writes stay migration 019's.
+  Deleting a user is safe under the CHECK: the conductor's FK (migration 004, kept by 069) has
+  no `on delete` action, so a user who conducts a Sunday cannot be deleted at all, and deleting an
+  assistant sets `assistant_user_id` null, which always satisfies it.
+- **`types/database.ts`** (regenerate), **`types/domain.ts`**, **`lib/calendar/queries.ts`** —
+  `Sunday.assistantUserId` through `SUNDAY_COLUMNS` and `mapSundayRow` (rule 9).
+- **`lib/calendar/queries.ts` — every conductor write keeps the CHECK true, in the SAME statement:**
+  - `updateSunday()`: the assistant is cleared when the conductor becomes null, when the meeting is
+    lost (`clearsConductor`), or when the new conductor IS the assistant (A2).
+    `assistantUserId` in the patch is validated with `findUsersOutsideWard` (a SUBJECT id from a
+    request body, CLAUDE.md §7) and against `listBishopricUsers` → `InvalidInputError` sentences:
+    "An assistant must be in the bishopric." / "The conductor cannot also be the assistant." /
+    "Choose who conducts before adding an assistant."
+  - `applyConductingReshift()`: per new conductor, first
+    `update({ conducting_user_id, assistant_user_id: null }).in(ids).eq('assistant_user_id', userId)`,
+    then the existing batch — each row is one atomic statement, so the CHECK never sees a bad row (A3).
+  - `planConductingReshift()` reports which re-shifted Sundays lose their assistant, and the
+    warning says "Bishop Andersen was assisting on Oct 18 — they will conduct instead, with no
+    assistant" (via `describeAskConsequences()`, keeping the calendar module free of to-dos).
+  - `populateConducting()` stays exempt: it only fills a null conductor, and A2 means such a Sunday
+    has no assistant.
+- **`lib/validation/calendar.ts`** — `assistantUserId: uuid | null` (optional).
+- **`lib/sacrament/conductorHandover.ts` — rule 2 becomes "each live talk has exactly one open copy
+  per HOLDER, where holders = conductor + assistant":**
+  - a holder with no copy gets a fresh one built from the talk (`buildAsksForTalks` +
+    `createAsksForSunday`), with no time (A1);
+  - a copy held by anybody else closes: `handed_over` naming the conductor, or `assistant_released`
+    when that person is the `previousAssistantId` the route passes. That id is **only a label hint**;
+    correctness comes from the state, so a retry without it still ends right.
+  - handover ordering is unchanged: create first, then close.
+  - **Tie-break for f2c's "last asker":** when the conductor and assistant hold equal copies,
+    `listLatestAskOwners` prefers the conductor, so one person, not two, gets the tell to-do.
+- **`app/api/sundays/[id]/asks/route.ts`** — Send asks passes `[conductorId, assistantId]`.
+- **`app/api/sundays/[id]/route.ts`** — passes `previousAssistantId` to the reconcile; on an
+  assistant change, `notifyOtherBishopric` ("Brother X is assisting on <date>" / "No assistant on
+  <date>"); the audit detail gains `assistantUserId` before/after (ids only).
+- **`components/sacrament/ConductorDialog.tsx`** (create) — "Who's conducting?", for
+  `calendar.manage`:
+  - **Conducting:** the bishopric as quick picks, current one marked; "Their open asks for this
+    Sunday move with them."
+  - **Assistant:** the other two, and **None**; "An assistant gets a copy of every open ask.
+    Whoever records the answer closes it for both."
+  - choosing the current assistant as conductor says "… was assisting — they will conduct, with no
+    assistant";
+  - a small **Edit Sunday** link keeps the override editor reachable; the window fits its content
+    (compact-ui). Save → `PATCH /api/sundays/[id]`; the route's sentence shows on error.
+- **`components/sacrament/SundayCard.tsx`, `app/(app)/sacrament/page.tsx`** — the conducting name
+  opens the window instead of linking to the editor; "Conducting: Bishop A · with Brother B".
+- **Docs:** SPEC (migration 088, the field, A1–A3), FEATURES, module-map §2.1 (the assistant is a
+  deliberate extension beyond the prototype's `ConductingModal`, which only substitutes),
+  P4 (slice `f` done; `g` notes below), CLAUDE.md §9 — one entry: asks follow the conductor on every
+  conductor write including re-shifts; fresh copy, no inherited appointment; one assistant sharing
+  completion as the named exception to p5-b's flag rule; a speaker change closes an ask and nothing
+  else does.
+- **Tests:** `conductor-handover.test.ts` (mirror, release, answer-from-either closes both, re-shift
+  onto the assistant, conductor → nobody clears the assistant, 400s for a non-bishopric assistant /
+  assistant = conductor / no conductor); `conductorHandoverSites.test.ts` extended to every
+  `assistant_user_id` write; `tests/rls/todos.test.ts` (the assistant cannot read the conductor's
+  copy and vice versa); `ConductorDialog` component test; `tests/db/migrations.test.ts` stays green.
+- **Scenario 085** ("A conductor and an assistant", `testing/scenarios/talks/`) replaces the
+  assistant half of the old scenario 079 outline below.
 
 ## Testing Strategy
 

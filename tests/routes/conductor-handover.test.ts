@@ -2,6 +2,8 @@
 //
 // Sacrament slice f2: when a Sunday's conductor changes, its open talk asks follow the new
 // conductor — by hand, and through the re-shift a type change applies to later Sundays.
+// Slice f3a: the old conductor's scheduled time does NOT follow; the new owner's card says who had
+// one set instead (decision A1).
 //
 // Only the client factory is mocked (tests/helpers/routeClient.ts), so every query runs as a
 // genuinely authenticated user against the hosted project. Every assertion about a write re-reads
@@ -11,6 +13,7 @@
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { listMyAppointmentSources } from "@/lib/appointments/queries";
+import { listTodos } from "@/lib/todos/queries";
 import {
   generateSundayRange,
   listSundays,
@@ -291,11 +294,11 @@ describe("Conductor handover — Sacrament slice f2", () => {
         });
       }
 
-      // The appointment follows the work; the old owner's words do not (U6).
+      // Neither the old owner's words (U6) nor their appointment (A1) moves.
       const [mariaCopy] = await openAsksFor(mariaTalkId);
       expect(mariaCopy.user_id).toBe(secondConductorId);
-      expect(mariaCopy.scheduled_for).toBe("2027-07-01T01:30:00+00:00");
-      expect(mariaCopy.scheduled_with_member_id).toBe(mariaId);
+      expect(mariaCopy.scheduled_for).toBeNull();
+      expect(mariaCopy.scheduled_with_member_id).toBeNull();
       expect(mariaCopy.notes).toContain("Phone: 801-555-0101");
       expect(mariaCopy.notes).not.toContain(OWNERS_OWN_WORDS);
 
@@ -303,6 +306,7 @@ describe("Conductor handover — Sacrament slice f2", () => {
         (row) => row.user_id === firstConductorId,
       )!;
       expect(oldMaria.notes).toBe(OWNERS_OWN_WORDS);
+      expect(oldMaria.scheduled_for).toBe("2027-07-01T01:30:00+00:00");
 
       const audit = await latestSundayAudit();
       expect(audit.asksHandedOver).toMatchObject({
@@ -317,9 +321,29 @@ describe("Conductor handover — Sacrament slice f2", () => {
       expect(handedOver.closedTodoIds).toHaveLength(2);
     });
 
+    it("tells the new owner who had a time set, without the old owner's words", async () => {
+      const handle = BISHOPRIC.find((role) => fixtures.user(role).id === secondConductorId)!;
+      await actAs(fixtures, handle);
+      const todos = await listTodos(wardId, { status: "open" }, actingClient());
+
+      const mariaAsk = todos.find((todo) => todo.askSource?.assignmentId === mariaTalkId)!;
+      expect(mariaAsk.askSource?.timeElsewhere).toEqual({
+        holderName: await nameOf(firstConductorId),
+        scheduledFor: "2027-07-01T01:30:00+00:00",
+        withName: `Maria Handover${fixtures.runId}`,
+        stillHeld: false,
+      });
+      expect(JSON.stringify(mariaAsk)).not.toContain(OWNERS_OWN_WORDS);
+
+      // Nobody had a time set for the visitor, so there is nothing to say.
+      const visitorAsk = todos.find((todo) => todo.askSource?.assignmentId === visitorTalkId)!;
+      expect(visitorAsk.askSource?.timeElsewhere).toBeNull();
+    });
+
     // Walking scenario 079 found the old copy still on the old owner's My Appointments, marked
-    // "Done", beside the new owner's copy of the same meeting.
-    it("moves the appointment off the old owner's My Appointments and onto the new owner's", async () => {
+    // "Done", beside the new owner's copy of the same meeting. Since f3a the new owner has no
+    // appointment either until they set their own time.
+    it("takes the appointment off the old owner's My Appointments and gives it to nobody", async () => {
       const appointmentIds = async (handle: FixtureHandle) => {
         await actAs(fixtures, handle);
         const sources = await listMyAppointmentSources(
@@ -333,8 +357,7 @@ describe("Conductor handover — Sacrament slice f2", () => {
       const handleOf = (userId: string) =>
         BISHOPRIC.find((role) => fixtures.user(role).id === userId)!;
 
-      const [mariaCopy] = await openAsksFor(mariaTalkId);
-      expect(await appointmentIds(handleOf(secondConductorId))).toEqual([mariaCopy.id]);
+      expect(await appointmentIds(handleOf(secondConductorId))).toEqual([]);
       expect(await appointmentIds(handleOf(firstConductorId))).toEqual([]);
     });
 

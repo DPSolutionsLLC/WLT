@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { InvalidInputError } from "@/lib/auth/errors";
+import { listAskCopies } from "@/lib/todos/askLinks";
 import { mapAskSource, type AskSourceRow } from "@/lib/todos/askSource";
+import { pickTimeElsewhere } from "@/lib/todos/timeElsewhere";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type {
   CreateTodoInput,
@@ -34,6 +36,10 @@ import {
 // p5-b), with the service role behind the source's own permission check. The one cross-table write
 // here is the REVERSE key — completing a linked to-do flags its action item — and it runs through
 // the caller's own client, because `action_items` is ward-wide under migration 019.
+//
+// ONE READ LOOKS PAST THE OWNER: withTimesElsewhere() asks the service role when ANOTHER leader
+// has a time set with an ask's speaker (Sacrament slice f3a). It returns a time, a "with" name and
+// the holder's name, never another person's text (lib/todos/askLinks.ts, listAskCopies).
 //
 // SERVER-ONLY — it imports createServerSupabaseClient. The client components import the pure
 // halves (progress.ts, viewState.ts, logLines.ts) and only TYPES from here.
@@ -292,9 +298,44 @@ export async function listTodos(
     throw new Error(`Could not load your to-dos: ${error.message}`);
   }
 
-  return (data ?? []).map((row) =>
-    mapTodoWithSteps(row as unknown as TodoSummaryRow),
+  return withTimesElsewhere(
+    wardId,
+    (data ?? []).map((row) => mapTodoWithSteps(row as unknown as TodoSummaryRow)),
   );
+}
+
+// An open ask its owner has not scheduled, on a talk that is on, is the only kind that can use the
+// note: once they set their own time it has done its job, and an answered or told ask needs no
+// meeting at all.
+function wantsTimeElsewhere(todo: TodoSummary): boolean {
+  return (
+    todo.askSource !== null &&
+    todo.askSource.isOpen &&
+    !todo.askSource.talkOff &&
+    todo.scheduledFor === null
+  );
+}
+
+async function withTimesElsewhere(
+  wardId: string,
+  todos: TodoSummary[],
+): Promise<TodoSummary[]> {
+  const asking = todos.filter(wantsTimeElsewhere);
+  if (asking.length === 0) return todos;
+
+  const copies = await listAskCopies({
+    wardId,
+    assignmentIds: [...new Set(asking.flatMap((todo) => todo.askSource?.assignmentId ?? []))],
+  });
+
+  return todos.map((todo) => {
+    if (!wantsTimeElsewhere(todo) || todo.askSource === null) return todo;
+    const timeElsewhere = pickTimeElsewhere(
+      { todoId: todo.id, assignmentId: todo.askSource.assignmentId },
+      copies,
+    );
+    return timeElsewhere === null ? todo : { ...todo, askSource: { ...todo.askSource, timeElsewhere } };
+  });
 }
 
 export async function getTodo(
@@ -316,9 +357,11 @@ export async function getTodo(
     throw new Error(`Could not load that to-do: ${error.message}`);
   }
 
-  return data === null
-    ? null
-    : mapTodoWithSteps(data as unknown as TodoSummaryRow);
+  if (data === null) return null;
+  const [todo] = await withTimesElsewhere(wardId, [
+    mapTodoWithSteps(data as unknown as TodoSummaryRow),
+  ]);
+  return todo;
 }
 
 // ONE TIMELINE, oldest first, so automatic lines and written notes interleave by time.
@@ -503,7 +546,11 @@ export async function updateTodo(
       ...mapTodoRow(data),
       steps: current.steps,
       agendaSource: current.agendaSource,
-      askSource: current.askSource,
+      // Scheduling their own time retires the note about somebody else's (f3a).
+      askSource:
+        current.askSource !== null && data.scheduled_for !== null
+          ? { ...current.askSource, timeElsewhere: null }
+          : current.askSource,
       // The name travels with the id it was read for; a changed member is re-read by the list.
       scheduledWithMemberName:
         data.scheduled_with_member_id === current.scheduledWithMemberId

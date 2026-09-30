@@ -277,7 +277,7 @@ export function TodoCard({
           )}
           {/* Everything needed to extend the invitation, on the card itself — for a hallway
               conversation as much as for a scheduled one. Only while the ask is open. */}
-          {todo.askSource !== null && isOpenAsk ? <AskDetails ask={todo.askSource} /> : null}
+          {todo.askSource !== null && isOpenAsk ? <AskDetails ask={todo.askSource} wardZone={wardZone} /> : null}
           {todo.askSource === null && isOpenAsk && needsTelling ? <CancelledNotice /> : null}
           {todo.agendaSource === null ? null : (
             <span className="text-xs text-muted">

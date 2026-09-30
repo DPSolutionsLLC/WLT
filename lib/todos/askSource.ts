@@ -69,5 +69,8 @@ export function mapAskSource(row: AskSourceRow, completedAt: string | null): Tod
           speakingSlots: row.sundays.speaking_slots,
           slotNumber: row.slot_number,
         })),
+    // Filled in by the To Do read (lib/todos/queries.ts), which alone may look at other people's
+    // copies. Everywhere else it stays null.
+    timeElsewhere: null,
   };
 }
