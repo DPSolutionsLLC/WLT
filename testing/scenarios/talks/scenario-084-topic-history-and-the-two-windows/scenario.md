@@ -136,3 +136,6 @@ page, the hint and the suggestions were confirmed as reading well.
   last spoke 3 years ago") at both 1280px and 375px. At 375px his two flags stacked in a column. No
   horizontal scroll.
 - D4 fixed: the audit detail no longer carries the blanked output size.
+
+**Live confirmation, 2026-09-30, by the user:** after the push of `791e335`, Suggest topics worked on
+the deployed site. Both AI keys are set in Vercel (plans/deployment.md).

@@ -226,6 +226,11 @@ public proves it would have caught a leak.
   references anywhere in the codebase** until Phases 5, 6 and 9. Set all six anyway, but when the
   deployed app misbehaves, the cause is one of the first three — the others cannot break anything
   because nothing reads them.
+  **Stale since the AI phases shipped — all three are read now.** Confirmed by the user on
+  **2026-09-30**: `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` are both set in the Vercel project, and
+  the topic window's **Suggest topics** (Topics rebuild t5, `POST /api/assignments/topic-suggestions`)
+  worked on the live site. A missing Anthropic key shows as "AI is not set up yet…" on any AI
+  control; a new or changed variable reaches only a NEW deployment, so redeploy after changing one.
 - **`NEXT_PUBLIC_` decides *where a value is available*, not whether it is secret.** Removing the
   prefix to "be safer" makes the browser read `undefined` and breaks sign-in, with no useful
   error because the clients use `!` assertions. Vercel will also warn that the prefix "exposes
