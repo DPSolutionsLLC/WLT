@@ -89,11 +89,16 @@ export type Sunday = {
   // referencesDecisionOf() below rather than testing either column directly.
   referencesFinalizedAt: string | null;
   referencesSkippedAt: string | null;
+  // WHEN somebody in the bishopric finalized this Sunday's speakers, or its prayers (migration 088,
+  // ITER-036). Finalizing is what sends the asks to the conductor; a change of person clears it
+  // (lib/sacrament/finalizePeople.ts). setTopicsFinalized()'s rules: a timestamp, never derived.
+  speakersFinalizedAt: string | null;
+  prayersFinalizedAt: string | null;
   createdAt: string;
 };
 
-// THE ONLY PLACE THE TWO COLUMNS BECOME ONE VALUE. Slice `f`'s Talks-finalize gate reads
-// `referencesDecisionOf(sunday) !== null`, and the hub's pill reads the same answer.
+// THE ONLY PLACE THE TWO COLUMNS BECOME ONE VALUE. The hub's References pill reads it. It no longer
+// gates the speakers' asks (ITER-036, D5): the ask card reads the references live instead.
 export function referencesDecisionOf(
   sunday: Pick<Sunday, "referencesFinalizedAt" | "referencesSkippedAt">,
 ): ReferencesDecision {
@@ -241,6 +246,8 @@ type SundayRow = {
   topics_finalized_at: string | null;
   references_finalized_at: string | null;
   references_skipped_at: string | null;
+  speakers_finalized_at: string | null;
+  prayers_finalized_at: string | null;
   created_at: string;
 };
 
@@ -258,7 +265,7 @@ type RotationRow = {
 // mapped row into GenericStringError. lib/roster/queries.ts keeps its column lists on one line
 // for the same reason.
 const SUNDAY_COLUMNS =
-  "id, date, type, notes, conducting_user_id, speaking_slots, slot_config, presiding_override, fast_sunday_pinned, topics_finalized_at, references_finalized_at, references_skipped_at, created_at";
+  "id, date, type, notes, conducting_user_id, speaking_slots, slot_config, presiding_override, fast_sunday_pinned, topics_finalized_at, references_finalized_at, references_skipped_at, speakers_finalized_at, prayers_finalized_at, created_at";
 
 // One string literal on ONE line, however long it gets, and never a `+` concatenation.
 // Concatenation widens the type to `string`, which defeats supabase-js's literal-type parsing of
@@ -377,6 +384,8 @@ export function mapSundayRow(row: SundayRow): Sunday {
     topicsFinalizedAt: row.topics_finalized_at,
     referencesFinalizedAt: row.references_finalized_at,
     referencesSkippedAt: row.references_skipped_at,
+    speakersFinalizedAt: row.speakers_finalized_at,
+    prayersFinalizedAt: row.prayers_finalized_at,
     createdAt: row.created_at,
   };
 }
@@ -528,6 +537,68 @@ export async function setTopicsFinalized(
   // A denied UPDATE is a ZERO-ROW SUCCESS, not an error (plans/retros/foundation-c-services.md),
   // so the absence of a row is the real signal rather than `error`.
   return data ? mapSundayRow(data) : null;
+}
+
+// ---------------------------------------------------------------------------
+// "THIS SUNDAY'S SPEAKERS (OR PRAYERS) ARE DECIDED" — ITER-036, migration 088
+// ---------------------------------------------------------------------------
+// setTopicsFinalized()'s rules exactly: idempotent so the stamp stays the instant somebody decided,
+// the server picks the instant, and null covers "not yours" and "refused". Sending or withdrawing
+// the asks is NOT here — lib/sacrament/finalizePeople.ts does that around these.
+export type PeopleKind = "speakers" | "prayers";
+
+export async function setPeopleFinalized(
+  wardId: string,
+  sundayId: string,
+  kind: PeopleKind,
+  finalized: boolean,
+  client?: SupabaseClient<Database>,
+): Promise<Sunday | null> {
+  const supabase = await resolveClient(client);
+
+  const before = await getSunday(wardId, sundayId, supabase);
+  if (!before) return null;
+
+  const stamp = kind === "speakers" ? before.speakersFinalizedAt : before.prayersFinalizedAt;
+  if (finalized === (stamp !== null)) return before;
+
+  const value = finalized ? new Date().toISOString() : null;
+  const { data, error } = await supabase
+    .from("sundays")
+    .update(kind === "speakers" ? { speakers_finalized_at: value } : { prayers_finalized_at: value })
+    .eq("ward_id", wardId)
+    .eq("id", sundayId)
+    .select(SUNDAY_COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`Could not set a Sunday's ${kind}-finalized stamp — ${error.message}`, {
+      wardId,
+      sundayId,
+      finalized,
+    });
+    throw new Error(`Could not update that Sunday: ${error.message}`);
+  }
+
+  return data ? mapSundayRow(data) : null;
+}
+
+export async function setSpeakersFinalized(
+  wardId: string,
+  sundayId: string,
+  finalized: boolean,
+  client?: SupabaseClient<Database>,
+): Promise<Sunday | null> {
+  return setPeopleFinalized(wardId, sundayId, "speakers", finalized, client);
+}
+
+export async function setPrayersFinalized(
+  wardId: string,
+  sundayId: string,
+  finalized: boolean,
+  client?: SupabaseClient<Database>,
+): Promise<Sunday | null> {
+  return setPeopleFinalized(wardId, sundayId, "prayers", finalized, client);
 }
 
 // ---------------------------------------------------------------------------
@@ -1649,6 +1720,7 @@ async function cancelSundayWork(
         topics_finalized_at: null,
         references_finalized_at: null,
         references_skipped_at: null,
+        speakers_finalized_at: null,
       })
       .eq("ward_id", wardId)
       .eq("id", sunday.id);

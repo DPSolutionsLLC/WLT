@@ -90,8 +90,9 @@ export type SundayPill = {
   //
   // THE PROTOTYPE ADDS TWO MORE LATER — Talks and Prayers each gain their own finalize on the
   // same `FinalizablePill` (build notes §talks-finalize-todo-accept-decline,
-  // §prayers-finalize-todo-accept-decline). References arrived in p4-sacrament-c; the other two
-  // are not built and should not be inferred.
+  // §prayers-finalize-todo-accept-decline). References arrived in p4-sacrament-c. Talks' finalize
+  // arrived with ITER-036 but is NOT this field: its checkmark is TalkAsksCheck, attached through
+  // StatusPill's `trailing`, because it also shows where the asks stand. Prayers' is still to come.
   finalized: boolean | null;
 };
 

@@ -19,6 +19,7 @@ import {
 } from "@/lib/calendar/dates";
 import { listBishopricUsers, listSundays } from "@/lib/calendar/queries";
 import { listMembers } from "@/lib/roster/queries";
+import { loadChangeWarnings } from "@/lib/sacrament/finalizePeople";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { MEMBER_STATUSES } from "@/types/domain";
 
@@ -67,11 +68,23 @@ export default async function AssignmentsPage({ searchParams }: AssignmentsPageP
   // The approval COUNT for the whole month in one query, never the rows. Who approved and what
   // they said belongs on the detail page; shipping it here would put every approval comment in
   // every response (talks-a).
-  const approvalCounts = await countApprovalsFor(
-    user.wardId,
-    assignments.map((assignment) => assignment.id),
-    supabase,
-  );
+  const [approvalCounts, changeWarnings] = await Promise.all([
+    countApprovalsFor(
+      user.wardId,
+      assignments.map((assignment) => assignment.id),
+      supabase,
+    ),
+    // Who a speaker or topic change would affect (ITER-036, D4). Only for a planner — nobody else
+    // opens the modal that warns — and GET /api/assignments answers the same question the same way.
+    canPlan
+      ? loadChangeWarnings({
+          wardId: user.wardId,
+          talks: assignments,
+          viewerUserId: user.id,
+          client: supabase,
+        })
+      : Promise.resolve({}),
+  ]);
 
   const memberNames = Object.fromEntries(
     members.map((member) => [member.id, `${member.firstName} ${member.lastName}`.trim()]),
@@ -119,6 +132,7 @@ export default async function AssignmentsPage({ searchParams }: AssignmentsPageP
           sundays={sundays}
           initialAssignments={assignments}
           approvalCounts={Object.fromEntries(approvalCounts)}
+          changeWarnings={changeWarnings}
           memberNames={memberNames}
           speakerFlags={speakerFlags}
           bishopricCount={bishopricUsers.length}

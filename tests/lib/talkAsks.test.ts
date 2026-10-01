@@ -11,6 +11,7 @@ import {
   buildPrayerTellTitle,
   buildTellTitle,
   countTalksNeedingAsk,
+  speakersSettled,
   talkIsOff,
   talkNeedsAsk,
   talksAskState,
@@ -55,7 +56,7 @@ describe("talkNeedsAsk", () => {
     expect(talkNeedsAsk(talk({ hasSpeaker: false }))).toBe(false);
   });
 
-  it("does not ask somebody who already holds an open ask — a second Send sends nothing", () => {
+  it("does not ask somebody who already holds an open ask — a second finalize asks nothing", () => {
     expect(talkNeedsAsk(talk({ openAskCount: 1 }))).toBe(false);
   });
 
@@ -72,27 +73,41 @@ describe("talkNeedsAsk", () => {
 });
 
 describe("talksAskState", () => {
-  const decided = { referencesDecided: true, hasConductor: true };
+  // ITER-036: the state follows the speakers-finalized stamp. References no longer lock it (D5).
+  const finalized = { speakersFinalized: true, hasConductor: true };
+  const open = { speakersFinalized: false, hasConductor: true };
 
-  it("is locked until References is finalized or skipped", () => {
-    expect(talksAskState({ referencesDecided: false, hasConductor: true, talks: [talk()] })).toEqual(
-      { kind: "locked", reason: "references_open" },
-    );
+  it("is not finalized, with the count to ask, until somebody finalizes — references play no part", () => {
+    expect(talksAskState({ ...open, talks: [talk(), talk()] })).toEqual({
+      kind: "not_finalized",
+      count: 2,
+    });
+  });
+
+  it("has no References lock reason any more", () => {
+    expect(Object.keys(TALKS_LOCK_REASON_TEXT).sort()).toEqual(["no_conductor", "no_speaker"]);
+  });
+
+  it("is not finalized with a count of 0 when every speaker still holds an ask after an un-finalize", () => {
+    expect(talksAskState({ ...open, talks: [talk({ openAskCount: 1 })] })).toEqual({
+      kind: "not_finalized",
+      count: 0,
+    });
   });
 
   it("is locked with no speaker to ask", () => {
-    expect(talksAskState({ ...decided, talks: [talk({ hasSpeaker: false })] })).toEqual({
+    expect(talksAskState({ ...open, talks: [talk({ hasSpeaker: false })] })).toEqual({
       kind: "locked",
       reason: "no_speaker",
     });
-    expect(talksAskState({ ...decided, talks: [] })).toEqual({
+    expect(talksAskState({ ...finalized, talks: [] })).toEqual({
       kind: "locked",
       reason: "no_speaker",
     });
   });
 
-  it("is locked with speakers to ask and nobody conducting", () => {
-    expect(talksAskState({ ...decided, hasConductor: false, talks: [talk()] })).toEqual({
+  it("is locked when it needs finalizing and nobody is conducting", () => {
+    expect(talksAskState({ ...open, hasConductor: false, talks: [talk()] })).toEqual({
       kind: "locked",
       reason: "no_conductor",
     });
@@ -100,20 +115,20 @@ describe("talksAskState", () => {
 
   it("keeps an already-sent state when the conductor is cleared", () => {
     expect(
-      talksAskState({ ...decided, hasConductor: false, talks: [talk({ openAskCount: 1 })] }),
+      talksAskState({ ...finalized, hasConductor: false, talks: [talk({ openAskCount: 1 })] }),
     ).toEqual({ kind: "pending" });
   });
 
-  it("counts the speakers not yet asked", () => {
+  it("reads a finalized Sunday with speakers still to ask as not finalized — pressing asks them", () => {
     expect(
-      talksAskState({ ...decided, talks: [talk(), talk(), talk({ openAskCount: 1 })] }),
-    ).toEqual({ kind: "not_asked", count: 2 });
+      talksAskState({ ...finalized, talks: [talk(), talk({ openAskCount: 1 })] }),
+    ).toEqual({ kind: "not_finalized", count: 1 });
   });
 
-  it("is pending once everyone is asked and not everyone has accepted", () => {
+  it("is pending once finalized and everyone is asked, not everyone accepted", () => {
     expect(
       talksAskState({
-        ...decided,
+        ...finalized,
         talks: [talk({ openAskCount: 1 }), talk({ requestOutcome: "accepted" })],
       }),
     ).toEqual({ kind: "pending" });
@@ -122,17 +137,17 @@ describe("talksAskState", () => {
   it("is accepted when every speaker has accepted, ignoring empty slots", () => {
     expect(
       talksAskState({
-        ...decided,
+        ...finalized,
         talks: [talk({ requestOutcome: "accepted" }), talk({ hasSpeaker: false })],
       }),
     ).toEqual({ kind: "accepted" });
   });
 
-  describe("precedence: declined > not asked > pending > accepted", () => {
+  describe("precedence: declined > not finalized > pending > accepted", () => {
     it("puts a decline above speakers not yet asked", () => {
       expect(
         talksAskState({
-          ...decided,
+          ...open,
           talks: [talk({ requestOutcome: "declined", hasSpeaker: false }), talk()],
         }),
       ).toEqual({ kind: "declined", count: 1 });
@@ -143,26 +158,16 @@ describe("talksAskState", () => {
     it("shows a decline even when it left the Sunday with no speaker at all", () => {
       expect(
         talksAskState({
-          ...decided,
+          ...finalized,
           talks: [talk({ requestOutcome: "declined", hasSpeaker: false })],
         }),
       ).toEqual({ kind: "declined", count: 1 });
     });
 
-    it("puts speakers not yet asked above pending ones", () => {
-      expect(
-        talksAskState({ ...decided, talks: [talk({ openAskCount: 1 }), talk()] }),
-      ).toEqual({ kind: "not_asked", count: 1 });
-    });
-
-    it("keeps the References lock above everything, a decline included", () => {
-      expect(
-        talksAskState({
-          referencesDecided: false,
-          hasConductor: true,
-          talks: [talk({ requestOutcome: "declined" })],
-        }),
-      ).toEqual({ kind: "locked", reason: "references_open" });
+    it("puts not finalized above pending", () => {
+      expect(talksAskState({ ...open, talks: [talk({ openAskCount: 1 })] }).kind).toBe(
+        "not_finalized",
+      );
     });
   });
 
@@ -170,6 +175,17 @@ describe("talksAskState", () => {
     for (const text of Object.values(TALKS_LOCK_REASON_TEXT)) {
       expect(text.trim()).not.toBe("");
     }
+  });
+});
+
+describe("speakersSettled", () => {
+  it("is true only when finalized AND nobody is left to ask", () => {
+    const talks = [talk({ openAskCount: 1 })];
+    expect(speakersSettled({ speakersFinalized: true, hasConductor: true, talks })).toBe(true);
+    expect(speakersSettled({ speakersFinalized: false, hasConductor: true, talks })).toBe(false);
+    expect(
+      speakersSettled({ speakersFinalized: true, hasConductor: true, talks: [...talks, talk()] }),
+    ).toBe(false);
   });
 });
 

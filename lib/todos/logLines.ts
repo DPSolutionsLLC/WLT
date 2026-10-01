@@ -31,7 +31,7 @@ export function describeLogEntry(entry: Pick<TodoLogEntry, "kind" | "body">): st
     case "assistant_released":
       return "No longer assisting this Sunday";
     case "speaker_changed":
-      return "Speaker changed — this ask is closed";
+      return "Speaker changed — this ask is no longer needed";
     case "taken_over":
       return entry.body === null ? "Taken over" : `Taken over from ${entry.body}`;
     // Worded for a talk, a prayer or a musical number alike (Sacrament slice f2c).
@@ -42,7 +42,9 @@ export function describeLogEntry(entry: Pick<TodoLogEntry, "kind" | "body">): st
     case "told_not_needed":
       return "Told them they're not needed";
     case "talk_back_on":
-      return "The talk is back on — ask again with Send asks";
+      return "The talk is back on — finalize speakers to ask again";
+    case "unfinalized":
+      return "The decision was reopened — this ask is closed";
     default: {
       const unhandled: never = entry.kind;
       throw new Error(`No sentence for to-do log kind "${String(unhandled)}".`);

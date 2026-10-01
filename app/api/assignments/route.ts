@@ -5,10 +5,11 @@ import {
   listAssignments,
 } from "@/lib/assignments/queries";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
-import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
+import { assertCan, can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { getSunday } from "@/lib/calendar/queries";
+import { loadChangeWarnings, unfinalizeSpeakersIfNeeded } from "@/lib/sacrament/finalizePeople";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { unfinalizeTopicsIfNeeded } from "@/lib/topics/finalize";
 import {
@@ -51,18 +52,30 @@ export async function GET(request: Request) {
 
     // The approval COUNT, never the approvals themselves — one query for the whole month, not
     // one per card.
-    const counts = await countApprovalsFor(
-      user.wardId,
-      assignments.map((assignment) => assignment.id),
-      supabase,
-    );
+    // The D4 warnings (ITER-036) only for a planner — the month planner's modal is theirs alone,
+    // and the sentences carry the conductor's appointment times.
+    const [counts, changeWarnings] = await Promise.all([
+      countApprovalsFor(
+        user.wardId,
+        assignments.map((assignment) => assignment.id),
+        supabase,
+      ),
+      can(user, "talks.plan", roleAccess)
+        ? loadChangeWarnings({
+            wardId: user.wardId,
+            talks: assignments,
+            viewerUserId: user.id,
+            client: supabase,
+          })
+        : Promise.resolve({}),
+    ]);
 
     const approvalCounts = assignments.map((assignment) => ({
       assignmentId: assignment.id,
       approvedCount: counts.get(assignment.id) ?? 0,
     }));
 
-    return NextResponse.json({ assignments, approvalCounts });
+    return NextResponse.json({ assignments, approvalCounts, changeWarnings });
   } catch (error) {
     return respondToRouteError(error, {
       route: "GET /api/assignments",
@@ -141,6 +154,15 @@ export async function POST(request: Request) {
     // day is not settled. lib/topics/finalize.ts holds the whole rule and never throws.
     await unfinalizeTopicsIfNeeded(user.wardId, assignment.sundayId, supabase);
 
+    // A new talk WITH a speaker is a new person to ask, so the Sunday's speakers are no longer
+    // finalized (ITER-036, D2). An empty slot changes nobody and leaves the stamp alone.
+    const speakersUnfinalized = await unfinalizeSpeakersIfNeeded({
+      wardId: user.wardId,
+      before: null,
+      after: assignment,
+      client: supabase,
+    });
+
     await writeAuditLog(
       {
         wardId: user.wardId,
@@ -158,6 +180,7 @@ export async function POST(request: Request) {
             : assignment.externalSpeakerName
               ? "external"
               : "empty",
+          speakersUnfinalized,
         },
       },
       supabase,

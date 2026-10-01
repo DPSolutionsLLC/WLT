@@ -6,7 +6,8 @@ import type { AskTimeElsewhere, TodoAskSource } from "@/types/domain";
 // What a leader needs in hand to extend a talk's invitation: the topic and how to reach the
 // speaker. It is shown on the to-do card, in "Schedule this" and on My Appointments, so a hallway
 // conversation, a phone call or a scheduled meeting all have it without opening the notes (the
-// user's request walking scenario 078). Read live from the talk (lib/todos/askSource.ts).
+// user's request walking scenario 078). Read live from the talk (lib/todos/askSource.ts), and so are
+// its references (ITER-036, D5): one added after the ask was sent still shows.
 //
 // WHEN THE TALK IS OFF OR CANCELLED (Sacrament slices f2b and f2c) the same details are what the
 // leader needs to tell the speaker they are not needed, so they stay, under a "Cancelled" marker.
@@ -42,6 +43,12 @@ export function AskDetails({ ask, wardZone }: { ask: TodoAskSource; wardZone: st
         <dt className="text-muted">Topic</dt>
         <dd className="min-w-0 break-words text-foreground">{ask.topicTitle ?? "No topic yet"}</dd>
       </div>
+      {ask.references.length === 0 ? null : (
+        <div className="flex flex-wrap gap-x-1.5">
+          <dt className="text-muted">References</dt>
+          <dd className="min-w-0 break-words text-foreground">{ask.references.join("; ")}</dd>
+        </div>
+      )}
       {contact === null ? null : (
         <div className="flex flex-wrap gap-x-1.5">
           <dt className="sr-only">Contact</dt>

@@ -8,6 +8,7 @@ import { FormError } from "@/components/ui/FormError";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { describeInvalidation } from "@/lib/assignments/invalidation";
+import type { TalkChangeWarnings } from "@/lib/sacrament/askImpact";
 import type { Assignment } from "@/lib/assignments/queries";
 import { saveAssignment } from "@/lib/assignments/saveAssignment";
 import {
@@ -49,6 +50,9 @@ export type AssignmentModalProps = {
   // Reliability flags per member id, for the picker. Empty for a non-bishopric planner — the page
   // that builds this reads bishopric-only history (talks-d).
   speakerFlags?: Readonly<Record<string, readonly ReliabilityFlagKind[]>>;
+  // Who changing this talk's speaker or topic would affect — scheduled or accepted (ITER-036, D4).
+  // Built on the server; absent for a talk nobody would be affected by.
+  changeWarnings?: TalkChangeWarnings;
 };
 
 function initialSpeaker(assignment: Assignment | null): SpeakerValue {
@@ -81,6 +85,7 @@ export function AssignmentModal({
   approvedCount,
   approvedNames,
   speakerFlags,
+  changeWarnings,
 }: AssignmentModalProps) {
   const [speaker, setSpeaker] = useState<SpeakerValue>(() => initialSpeaker(assignment));
   const [assignmentType, setAssignmentType] = useState<AssignmentType>(
@@ -94,6 +99,7 @@ export function AssignmentModal({
   );
 
   const [isConfirmingSave, setIsConfirmingSave] = useState(false);
+  const [confirmWarning, setConfirmWarning] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string>();
 
@@ -183,12 +189,30 @@ export function AssignmentModal({
     await onSaved();
   }
 
+  // Which D4 warning this save earns: the speaker's when the speaker moves, else the topic's.
+  function changeWarningForSave(): string | null {
+    if (assignment === null || changeWarnings === undefined) return null;
+    const speakerFields = readSpeakerFields();
+    const speakerMoved =
+      speakerFields.ok &&
+      (speakerFields.memberId !== assignment.memberId ||
+        (speakerFields.externalSpeaker?.name ?? "") !== (assignment.externalSpeakerName ?? ""));
+    if (speakerMoved) return changeWarnings.speaker;
+    const topic = topicTitle.trim() === "" ? null : topicTitle.trim();
+    return topic !== (assignment.topicTitle ?? null) ? changeWarnings.topic : null;
+  }
+
   function handleSaveClicked(): void {
     // The warning arrives BEFORE the write, not as a report afterwards. A counselor must never
-    // find they approved something that was changed underneath them (04-talks-pipeline.md §Step 3).
-    if (willInvalidate && !isConfirmingSave) {
-      setIsConfirmingSave(true);
-      return;
+    // find they approved something that was changed underneath them (04-talks-pipeline.md §Step 3),
+    // and a scheduled or accepted speaker is never changed without a word (ITER-036, D4).
+    if (!isConfirmingSave) {
+      const warning = changeWarningForSave();
+      if (willInvalidate || warning !== null) {
+        setConfirmWarning(warning);
+        setIsConfirmingSave(true);
+        return;
+      }
     }
 
     void save();
@@ -255,7 +279,9 @@ export function AssignmentModal({
 
         {isConfirmingSave && (
           <p id={invalidationId} role="alert" className="text-sm text-warning">
-            {describeInvalidation(approvedCount, approvedNames)}
+            {[willInvalidate ? describeInvalidation(approvedCount, approvedNames) : null, confirmWarning]
+              .filter((sentence) => sentence !== null)
+              .join(" ")}
           </p>
         )}
 
@@ -275,9 +301,11 @@ export function AssignmentModal({
           >
             {isSaving
               ? "Saving…"
-              : isConfirmingSave
-                ? "Save and clear the approvals"
-                : "Save"}
+              : !isConfirmingSave
+                ? "Save"
+                : willInvalidate
+                  ? "Save and clear the approvals"
+                  : "Save anyway"}
           </Button>
         </div>
       </div>

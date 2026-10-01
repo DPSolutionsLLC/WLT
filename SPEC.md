@@ -216,6 +216,8 @@ slot_config     jsonb  -- array of {slot_number, length_minutes, type}
 presiding_override  text  -- if not the bishop, free text name/title
 references_finalized_at  timestamptz  -- migration 079. "These references are ready"
 references_skipped_at    timestamptz  -- migration 079. "Not giving references this round"
+speakers_finalized_at    timestamptz  -- migration 088 (ITER-036). Finalizing sends the speakers' asks
+prayers_finalized_at     timestamptz  -- migration 088 (ITER-036). Used by the prayers slice (fb)
 created_at      timestamptz DEFAULT now()
 ```
 `references_finalized_at` and `references_skipped_at` are never both set (CHECK
@@ -223,6 +225,10 @@ created_at      timestamptz DEFAULT now()
 an empty list. A topic change clears `references_finalized_at` and leaves a skip standing
 (`lib/topics/finalize.ts`); adding a reference clears either, removing one clears only a finalize
 (`lib/references/finalize.ts`).
+`speakers_finalized_at` is set by `PATCH /api/sundays/[id]/speakers-finalized` and cleared by it, by
+a speaker set, changed or cleared on a talk, and by a new talk with a speaker
+(`lib/sacrament/finalizePeople.ts`). A decline never clears it. Migration 088 backfilled it on every
+Sunday that already had an ask, so no live Sunday moved.
 
 ### `conducting_rotation`
 ```sql
@@ -841,20 +847,29 @@ source_completed_at      timestamptz  -- P5 migration 082: the meeting completed
 ask_assignment_id        uuid REFERENCES assignments(id) ON DELETE SET NULL  -- migration 083: a talk's ask
 closed_reason            text  -- migration 083: 'handed_over' | 'assistant_released' | 'speaker_changed'
                                -- | 'told_not_needed' | 'talk_back_on'  (migration 084)
+                               -- | 'unfinalized'  (migration 088)
 talk_off_at              timestamptz  -- migration 084: when the owner was told the talk is off
 created_at               timestamptz DEFAULT now()
 updated_at               timestamptz DEFAULT now()
 -- UNIQUE (action_item_id, user_id) WHERE action_item_id IS NOT NULL
 -- UNIQUE (ask_assignment_id, user_id) WHERE ask_assignment_id IS NOT NULL AND completed_at IS NULL
 ```
-**A talk's ask (Sacrament slice f, migration 083).** *Send asks* on a Sunday creates one "Ask ___
-to speak" to-do per speaker not yet asked, on the list of that Sunday's **conducting** leader,
+**A talk's ask (Sacrament slice f, migration 083; ITER-036, migration 088).** *Finalizing the
+speakers* on a Sunday (it replaced *Send asks*) creates one "Ask ___ to speak" to-do per speaker not
+yet asked, on the list of that Sunday's **conducting** leader,
 written with the service role (`lib/todos/askLinks.ts`). "Not yet asked" is **computed**: a speaker,
 no open ask, and no recorded answer (`lib/sacrament/talkAsks.ts`). An open ask is **answered, never
 ticked or deleted** — Accepted / Declined record the outcome on the talk through
 `lib/assignments/requestOutcome.ts` and close every open copy with an `ask_accepted` /
-`ask_declined` line. An answered ask is done, never deleted. A **speaker change** on the talk closes
-its open asks (`closed_reason = 'speaker_changed'`) and clears the outcome; nothing else does.
+`ask_declined` line. An answered ask is done, never deleted. A **speaker change** on the talk
+withdraws the old person's open ask and clears the outcome, then clears `speakers_finalized_at`;
+nothing else does, a decline included. **Withdrawing** (`withdrawAsks()`, ITER-036 D3/D4): an ask
+its holder never touched is deleted; a touched one is closed (`speaker_changed`, or `unfinalized`
+when the speakers are un-finalized) with a line; a **scheduled** one stays — unlinked from the talk
+with a `speaker_changed` line on a speaker change, so the new speaker can be asked, and linked on an
+un-finalize. Every window that changes a scheduled or accepted speaker, or their topic, warns first
+naming them (`lib/sacrament/askImpact.ts`). The ask card reads the talk's references live
+(`talk_references`, embedded), so References need not be decided before asking (D5).
 **A Sunday's cancelled work (slice f2c, migration 085).** `cancelled_at` + `cancelled_reason`
 (`no_meeting | fast_sunday | slot_removed`) on `assignments`, `prayer_assignments`,
 `hymn_selections` and `musical_numbers`. `updateSunday()` cancels — never reverts, never deletes —
@@ -919,7 +934,7 @@ kind            text NOT NULL  -- 'note' | 'step_done' | 'step_undone' | 'comple
                                -- | 'ask_accepted' | 'ask_declined' | 'handed_over'
                                -- | 'assistant_released' | 'speaker_changed'  (migration 083)
                                -- | 'taken_over' | 'talk_off' | 'told_not_needed' | 'talk_back_on'
-                               --   (migration 084)
+                               --   (migration 084) | 'unfinalized'  (migration 088)
 body            text           -- the note; the step label SNAPSHOT for step kinds; the decline
                                -- reason's LABEL for ask_declined; the new owner's name for handed_over
 created_at      timestamptz DEFAULT now()
@@ -1322,9 +1337,12 @@ DELETE /api/sundays/[id]/references/[referenceId]  Remove one (talks.plan)
 POST   /api/sundays/[id]/references/search      Semantic search of the ward's library; writes nothing (talks.plan)
 PATCH  /api/sundays/[id]/references-decision    { decision: 'finalized' | 'skipped' | null } (talks.plan)
 GET    /api/sundays/[id]/asks                   Where the Sunday's asks stand — the Talks pill's check (talks.request)
-POST   /api/sundays/[id]/asks                   Send asks: one to-do per speaker not yet asked, to the conductor (talks.request).
-                                                400 with a sentence before References is decided, with no speaker,
-                                                with nobody conducting, or when everyone has been asked
+GET    /api/sundays/[id]/speakers-finalized     The finalize confirm: whose To Do, how many to ask, and who is
+                                                scheduled or accepted (the un-finalize warning) (talks.request)
+PATCH  /api/sundays/[id]/speakers-finalized     { finalized }. true stamps and asks every speaker not yet asked, on
+                                                the conductor's To Do; 400 with a sentence with no speaker or nobody
+                                                conducting. false clears the stamp and withdraws the asks (talks.request).
+                                                Replaced POST /api/sundays/[id]/asks ("Send asks"), removed by ITER-036
 ```
 The References routes check that the talk is on THE SUNDAY IN THE URL, not merely in the ward —
 the composite key proves only the second. Finalizing with no references is a 409 naming the

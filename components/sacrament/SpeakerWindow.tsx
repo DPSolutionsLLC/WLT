@@ -70,6 +70,8 @@ export type SpeakerWindowProps = {
   // The talk's current speaker, resolved on the server — they may no longer be on the active list.
   speakerName: string | null;
   approvedNames: readonly string[];
+  // Who changing the speaker would affect — scheduled or accepted (ITER-036, D4). Null for nobody.
+  changeWarning: string | null;
   members: readonly SpeakerDirectoryEntry[];
   historyByMember: Readonly<Record<string, readonly SpeakerHistoryRow[]>> | null;
   speakerFlags?: Readonly<Record<string, readonly ReliabilityFlagKind[]>>;
@@ -103,6 +105,7 @@ export function SpeakerWindow({
   assignment,
   speakerName,
   approvedNames,
+  changeWarning,
   members,
   historyByMember,
   speakerFlags,
@@ -333,6 +336,7 @@ export function SpeakerWindow({
               saveDisabled={chosen === null}
               approvedCount={approvedNames.length}
               approvedNames={approvedNames}
+              extraWarning={changeWarning}
             />
           </>
         )}

@@ -39,6 +39,8 @@ export type TopicWindowProps = {
   totalTalks: number;
   assignment: Assignment | null;
   approvedNames: readonly string[];
+  // Who changing the topic would affect — scheduled or accepted (ITER-036, D4). Null for nobody.
+  changeWarning: string | null;
   // Null for a reader without `topics.view`: no hint and no Check topic.
   history: readonly TopicHistoryEntry[] | null;
   today: DateOnly;
@@ -95,6 +97,7 @@ export function TopicWindow({
   totalTalks,
   assignment,
   approvedNames,
+  changeWarning,
   history,
   today,
   onClose,
@@ -284,6 +287,7 @@ export function TopicWindow({
           saveDisabled={topic.trim() === ""}
           approvedCount={approvedNames.length}
           approvedNames={approvedNames}
+          extraWarning={changeWarning}
         />
       </div>
     </Modal>

@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 83,
+  "scenarioCount": 84,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -1998,15 +1998,15 @@
         "P4"
       ],
       "prerequisites": "none",
-      "purpose": "Sacrament slice `f2`. A Sunday's \"Ask ___ to speak\" to-dos belong to whoever **conducts** it. When\nthe conductor changes, the open asks move: the new conductor gets a **clean copy** built from the\ntalk, and the old copy is closed on the old conductor's list with a line naming who took it over.\nThe scheduled time and the \"With\" person move with it. Whatever the old owner wrote on their copy\nstays with them.\n\nA conductor changes in two ways, and the walk does both: **by hand** in the Sunday editor, and\nthrough the **re-shift** a type change applies to later Sundays (turning a Sunday into a stake\nconference moves everybody after it one place in the rotation).\n\n**Already automated:**\n- `tests/routes/conductor-handover.test.ts`: a change by hand (clean copy, old copy closed with its\n  line, time and \"With\" carried, the old owner's words left behind, audit ids), My Appointments\n  following the work, a retry repairing a half-finished move without a second copy, no audit key\n  when nothing moved, a Sunday with nobody conducting keeping its asks, and the re-shift\n- `tests/lib/conductorHandoverSites.test.ts`: reads the source and fails if a new write of\n  `sundays.conducting_user_id` skips the handover (proved able to fail)",
+      "purpose": "Sacrament slice `f2`. A Sunday's \"Ask ___ to speak\" to-dos belong to whoever **conducts** it. When\nthe conductor changes, the open asks move: the new conductor gets a **clean copy** built from the\ntalk, and the old copy is closed on the old conductor's list with a line naming who took it over.\nWhatever the old owner wrote on their copy stays with them, and so does their scheduled time: since\nslice f3a (2026-09-30) the new owner's card only says who had a time set.\n\nA conductor changes in two ways, and the walk does both: **by hand** in the Sunday editor, and\nthrough the **re-shift** a type change applies to later Sundays (turning a Sunday into a stake\nconference moves everybody after it one place in the rotation).\n\n**Already automated:**\n- `tests/routes/conductor-handover.test.ts`: a change by hand (clean copy, old copy closed with its\n  line, time and \"With\" carried, the old owner's words left behind, audit ids), My Appointments\n  following the work, a retry repairing a half-finished move without a second copy, no audit key\n  when nothing moved, a Sunday with nobody conducting keeping its asks, and the re-shift\n- `tests/lib/conductorHandoverSites.test.ts`: reads the source and fails if a new write of\n  `sundays.conducting_user_id` skips the handover (proved able to fail)",
       "checklist": [
         "Step 5: the editor says **Saved.** A is still an **ordinary** Sunday, not a Fast Sunday",
         "Step 6: A's card reads **Conducting: David Okafor**, and its Talks check still reads **Asks",
         "Step 7: counselor1 has **no open** asks. In Done, Maria's ask still has your own line in its",
         "Step 8: counselor1's My Appointments **no longer shows** Maria's appointment",
         "Step 9: counselor2 has **both** asks, open, with Accepted and Declined",
-        "Step 9: Maria's ask shows the **same scheduled time** and **with Maria Lopez**, the phone and",
-        "Step 9: counselor2's My Appointments shows Maria's appointment with **Accepted / Declined**",
+        "Step 9: Maria's ask is **not scheduled**, and reads **\"Peter Nakamura had this set for <the",
+        "Step 9: counselor2's My Appointments is **empty** until they schedule Maria's ask themselves;",
         "Step 9: Maria's ask's timeline reads **\"Taken over from Peter Nakamura\"** *(added by slice",
         "Step 10: C's Talks check turns to **Asks sent**",
         "Step 11: the warning says who conducts will change on later Sundays, and **\"1 open ask moves",
@@ -2175,6 +2175,39 @@
         "Both windows fit a phone, in light and dark"
       ],
       "seedCommand": "npm run seed -- talks/scenario-084-topic-history-and-the-two-windows"
+    },
+    {
+      "id": "talks:scenario-085-finalize-speakers-reaches-todo",
+      "path": "talks/scenario-085-finalize-speakers-reaches-todo",
+      "name": "Finalize speakers and they reach To Do",
+      "scope": "sacrament-finalize-hands-off-asks",
+      "part": 1,
+      "tags": [
+        "sacrament",
+        "todos",
+        "full",
+        "P4"
+      ],
+      "prerequisites": "none",
+      "purpose": "ITER-036 `fa` (plans/sacrament-finalize-hands-off-asks.md). The user tested the live site, chose\ntopics and speakers, and nothing reached To Do: asks came only from a small **Send asks** button that\nappeared after References was decided. Now **finalizing the speakers** sends the asks to the\n**conductor's** To Do (D1, D6), References need not be decided first (D5), a speaker change\nun-finalizes (D2), an unscheduled ask is withdrawn (D3), and a scheduled or accepted person is never\nchanged without a warning naming them (D4).\n\nThe walker finalizes as the **bishop**, who is NOT the conductor, so the confirm must name somebody\nelse's To Do.\n\n**Already automated:**\n- `tests/routes/speakers-finalized.test.ts` — finalize to the conductor with References undecided; a\n  second finalize asks nobody; no conductor refused; a speaker change deletes an untouched ask and\n  closes a touched one; re-finalize asks only the new person; GET names who is scheduled and who\n  accepted; un-finalize keeps a scheduled ask; a decline does not un-finalize; a scheduled ask is\n  unlinked on a speaker change; a new talk with a speaker un-finalizes; audit rows carry ids only\n- `tests/lib/askImpact.test.ts` — every warning sentence, the time in Denver, no pronoun guessed\n- `tests/lib/talkAsks.test.ts` — the Talks check's states without a References lock\n- `tests/lib/speakersFinalizeSites.test.ts` — every speaker write path un-finalizes; a decline never does",
+      "checklist": [
+        "Step 3: before finalizing, A's check reads **3 to ask** — not dimmed, though References is undecided",
+        "Step 3: the confirm says **\"The 3 asks go to Peter Nakamura's To Do.\"**; afterwards the check reads **Asks sent**, and read back `sundays.speakers_finalized_at` is set for A",
+        "Step 3: there is no **Send asks** button anywhere on the hub or the Topics screen",
+        "Step 5: Peter's To Do has three asks — *Ask Maria Lopez to speak*, *Ask Tomas Reyes to speak*, *Ask Brother Kent Walker to speak* — each showing its topic; Maria's shows *Phone: 801-555-0142* and no References line yet",
+        "Step 7: Maria's ask now shows **References** *Alma 32:21* — without anything being re-sent (read back: still one ask row for that talk)",
+        "Step 8: the first Save **warns instead of saving**: *\"Peter Nakamura has an appointment with Maria Lopez on Sat, …, 7:00 PM to ask them to speak — it stays on the list, so cancel it or use it for something else.\"* — Peter's name, not \"You\", because the bishop is reading; the time in Denver; the button reads **Save anyway**",
+        "Step 8: after the second press, talk 1 is Lucas Moreno; read back: Maria's to-do is still open with its time, `ask_assignment_id` null, and a *Speaker changed* line; `speakers_finalized_at` is null for A",
+        "Step 9: A's check reads **1 to ask**; the confirm says one ask goes to Peter; afterwards Peter has a new *Ask Lucas Moreno to speak*, and Tomas's and Brother Walker's asks are the same rows as before",
+        "Step 10: the un-finalize confirm says asks only on To Do are removed, with no warning (nobody on B is scheduled or accepted)",
+        "Step 11: David's To Do has no asks for Ana or Rosa (read back: the two to-dos are deleted, not closed); B's check reads **2 to ask**",
+        "`audit_log` has `sunday_speakers_finalized` and `sunday_speakers_unfinalized` rows with ids only — no title, no names",
+        "375px: the Talks check stays attached to its pill; the confirm fits without horizontal scroll",
+        "Is \"finalized = I've prayed about it and decided\" clear from the control and the confirm's wording?",
+        "Does the D4 warning read as a helpful heads-up rather than an error?",
+        "Does the kept appointment on My Appointments (Maria, after the change) make sense to Peter?"
+      ],
+      "seedCommand": "npm run seed -- talks/scenario-085-finalize-speakers-reaches-todo"
     },
     {
       "id": "todos:scenario-075-a-todo-that-became-a-project",

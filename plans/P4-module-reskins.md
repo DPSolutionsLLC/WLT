@@ -177,6 +177,15 @@ land first.
 > against the topic history and asks Claude for ideas (`POST /api/assignments/topic-suggestions`,
 > drafts only, stored nowhere). Walked as scenario 084. Slices `d` and `e` build on this screen.
 >
+> **Slice `f` amended by ITER-036 (2026-09-30)** — plans/sacrament-finalize-hands-off-asks.md.
+> **`fa`** — *Finalize speakers* replaces *Send asks* (migration 088, `sundays.speakers_finalized_at`;
+> `lib/sacrament/finalizePeople.ts`). The References gate is gone: the ask card reads the talk's
+> references live. A speaker change un-finalizes and withdraws the old person's ask (deleted if
+> untouched, closed if touched, kept and unlinked if scheduled); every window that would affect a
+> scheduled or accepted speaker warns first, naming them. A decline never un-finalizes. **`fb`**
+> (prayers) gives prayers the same finalize; it uses 088's `prayers_finalized_at`. **f3** moves to
+> migration **089**.
+>
 > **Module 1 now has `d`, `e` left**, and `f`/`g` wait on **P5**. The INDEX argues P5 should
 > come early for exactly that reason.
 

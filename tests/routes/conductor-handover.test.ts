@@ -43,12 +43,17 @@ const RESHIFTED_DATE = "2027-08-22";
 const OWNERS_OWN_WORDS = "OWNER'S OWN WORDS — call after 6pm";
 const SCHEDULED_FOR = "2027-07-01T01:30:00.000Z";
 
+// "Send asks" became finalizing the speakers (ITER-036): PATCH { finalized: true }.
 async function sendAsks(sundayId: string) {
-  const { POST } = await import("@/app/api/sundays/[id]/asks/route");
+  const { PATCH } = await import("@/app/api/sundays/[id]/speakers-finalized/route");
   return readResponse(
-    await POST(jsonRequest(`${BASE}/sundays/${sundayId}/asks`, { method: "POST" }), {
-      params: Promise.resolve({ id: sundayId }),
-    }),
+    await PATCH(
+      jsonRequest(`${BASE}/sundays/${sundayId}/speakers-finalized`, {
+        method: "PATCH",
+        body: { finalized: true },
+      }),
+      { params: Promise.resolve({ id: sundayId }) },
+    ),
   );
 }
 
@@ -242,7 +247,7 @@ describe("Conductor handover — Sacrament slice f2", () => {
       expect(firstConductorId).toBeTruthy();
 
       await actAs(fixtures, "bishop");
-      expect((await sendAsks(manualSundayId)).status).toBe(201);
+      expect((await sendAsks(manualSundayId)).status).toBe(200);
 
       const [ask] = await openAsksFor(mariaTalkId);
       expect(ask.user_id).toBe(firstConductorId);
@@ -420,7 +425,7 @@ describe("Conductor handover — Sacrament slice f2", () => {
       const before = (await conductorOf(reshiftedSundayId))!;
 
       await actAs(fixtures, "bishop");
-      expect((await sendAsks(reshiftedSundayId)).status).toBe(201);
+      expect((await sendAsks(reshiftedSundayId)).status).toBe(200);
       expect((await openAsksFor(reshiftedTalkId)).map((row) => row.user_id)).toEqual([before]);
 
       // The warning says the ask will move before anybody confirms (Sacrament slice f2b).

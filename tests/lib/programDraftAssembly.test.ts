@@ -35,6 +35,8 @@ function sunday(overrides: Partial<Sunday> = {}): Sunday {
     topicsFinalizedAt: null,
     referencesFinalizedAt: null,
     referencesSkippedAt: null,
+    speakersFinalizedAt: null,
+    prayersFinalizedAt: null,
     createdAt: "2026-08-01T00:00:00.000Z",
     ...overrides,
   };

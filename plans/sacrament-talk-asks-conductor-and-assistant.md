@@ -442,7 +442,8 @@ rule: cancelled work never comes back, so there is nothing to close when a meeti
 
 > **The original Tasks 14–18 (written 2026-09-24) are replaced by this section.** f2, f2b, f2c and
 > the Topics screen (t1–t5) landed in between, and re-checking the tasks against the code found:
-> - **Migration 086 is taken** (topic words), and 087 too (`remove_talk`). This is **088**, and it is
+> - **Migration 086 is taken** (topic words), and 087 too (`remove_talk`). This is **089** — ITER-036
+>   (`plans/sacrament-finalize-hands-off-asks.md`) took **088** on 2026-09-30 — and it is
 >   smaller than planned: migration 083 already admits `assistant_released` as a close reason and a
 >   log kind, and `lib/todos/logLines.ts` already has its sentence.
 > - **"Mirror, then release" in the route is the pattern f2 replaced.** Every Sunday save runs
@@ -492,7 +493,7 @@ one behaviour, one commit):
 
 #### f3b — The assistant and the conductor window (commit 2)
 
-- **`supabase/migrations/088_sunday_assistant.sql`** (create):
+- **`supabase/migrations/089_sunday_assistant.sql`** (create):
   ```sql
   alter table sundays
     add column assistant_user_id uuid references users (id) on delete set null,
@@ -548,7 +549,7 @@ one behaviour, one commit):
     (compact-ui). Save → `PATCH /api/sundays/[id]`; the route's sentence shows on error.
 - **`components/sacrament/SundayCard.tsx`, `app/(app)/sacrament/page.tsx`** — the conducting name
   opens the window instead of linking to the editor; "Conducting: Bishop A · with Brother B".
-- **Docs:** SPEC (migration 088, the field, A1–A3), FEATURES, module-map §2.1 (the assistant is a
+- **Docs:** SPEC (migration 089, the field, A1–A3), FEATURES, module-map §2.1 (the assistant is a
   deliberate extension beyond the prototype's `ConductingModal`, which only substitutes),
   P4 (slice `f` done; `g` notes below), CLAUDE.md §9 — one entry: asks follow the conductor on every
   conductor write including re-shifts; fresh copy, no inherited appointment; one assistant sharing

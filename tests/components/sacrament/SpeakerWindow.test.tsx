@@ -57,6 +57,7 @@ function renderWindow(overrides: Partial<SpeakerWindowProps> = {}) {
     assignment: null,
     speakerName: null,
     approvedNames: [],
+    changeWarning: null,
     members: MEMBERS,
     historyByMember: HISTORY,
     today: "2026-09-29",

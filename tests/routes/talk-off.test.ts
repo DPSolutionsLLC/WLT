@@ -27,12 +27,17 @@ const FAST_DATE = "2027-07-04";
 const SUNDAY_DATE = "2027-07-18";
 const SUNDAY_LABEL = "Sunday, July 18, 2027";
 
+// "Send asks" became finalizing the speakers (ITER-036): PATCH { finalized: true }.
 async function sendAsks(sundayId: string) {
-  const { POST } = await import("@/app/api/sundays/[id]/asks/route");
+  const { PATCH } = await import("@/app/api/sundays/[id]/speakers-finalized/route");
   return readResponse(
-    await POST(jsonRequest(`${BASE}/sundays/${sundayId}/asks`, { method: "POST" }), {
-      params: Promise.resolve({ id: sundayId }),
-    }),
+    await PATCH(
+      jsonRequest(`${BASE}/sundays/${sundayId}/speakers-finalized`, {
+        method: "PATCH",
+        body: { finalized: true },
+      }),
+      { params: Promise.resolve({ id: sundayId }) },
+    ),
   );
 }
 
@@ -291,7 +296,7 @@ describe("A Sunday's work is cancelled — Sacrament slices f2b and f2c", () => 
     // Three asks for the conductor; Ana accepts hers.
     await actAs(fixtures, "bishop");
     const sent = await sendAsks(sundayId);
-    if (sent.status !== 201) throw new Error(`Send asks answered ${sent.status}`);
+    if (sent.status !== 200) throw new Error(`Finalize speakers answered ${sent.status}`);
 
     await actAs(fixtures, "counselor1");
     const [anaAsk] = await openFor(anaTalkId);
@@ -348,13 +353,16 @@ describe("A Sunday's work is cancelled — Sacrament slices f2b and f2c", () => 
 
       const { data: sunday } = await fixtures.service
         .from("sundays")
-        .select("topics_finalized_at, references_finalized_at, references_skipped_at")
+        .select(
+          "topics_finalized_at, references_finalized_at, references_skipped_at, speakers_finalized_at",
+        )
         .eq("id", sundayId)
         .single();
       expect(sunday).toEqual({
         topics_finalized_at: null,
         references_finalized_at: null,
         references_skipped_at: null,
+        speakers_finalized_at: null,
       });
     });
 
@@ -527,7 +535,7 @@ describe("A Sunday's work is cancelled — Sacrament slices f2b and f2c", () => 
         .update({ references_skipped_at: new Date().toISOString() })
         .eq("id", sundayId);
       if (error) throw new Error(error.message);
-      expect((await sendAsks(sundayId)).status).toBe(201);
+      expect((await sendAsks(sundayId)).status).toBe(200);
 
       const { data: tomasTalk } = await fixtures.service
         .from("assignments")

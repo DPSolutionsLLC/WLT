@@ -2783,10 +2783,12 @@ export type Database = {
           fast_sunday_pinned: boolean
           id: string
           notes: string | null
+          prayers_finalized_at: string | null
           presiding_override: string | null
           references_finalized_at: string | null
           references_skipped_at: string | null
           slot_config: Json | null
+          speakers_finalized_at: string | null
           speaking_slots: number
           topics_finalized_at: string | null
           type: string
@@ -2799,10 +2801,12 @@ export type Database = {
           fast_sunday_pinned?: boolean
           id?: string
           notes?: string | null
+          prayers_finalized_at?: string | null
           presiding_override?: string | null
           references_finalized_at?: string | null
           references_skipped_at?: string | null
           slot_config?: Json | null
+          speakers_finalized_at?: string | null
           speaking_slots?: number
           topics_finalized_at?: string | null
           type?: string
@@ -2815,10 +2819,12 @@ export type Database = {
           fast_sunday_pinned?: boolean
           id?: string
           notes?: string | null
+          prayers_finalized_at?: string | null
           presiding_override?: string | null
           references_finalized_at?: string | null
           references_skipped_at?: string | null
           slot_config?: Json | null
+          speakers_finalized_at?: string | null
           speaking_slots?: number
           topics_finalized_at?: string | null
           type?: string

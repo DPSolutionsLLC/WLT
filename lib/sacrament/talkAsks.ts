@@ -13,9 +13,10 @@ import { holdsSacramentMeeting, type RequestOutcome, type SundayType } from "@/t
 // "NOT YET ASKED" IS COMPUTED, NEVER STORED
 // ---------------------------------------------------------------------------
 // There is no `talks_asked_at` column. A talk needs an ask when it has a speaker, nobody holds an
-// open ask for it, and its outcome is not already decided. So pressing Send asks again later sends
-// only the talks that still need one (U9). A speaker change closes the old ask and clears the
-// outcome (PATCH /api/assignments/[id]), which puts the new speaker back on this list on its own.
+// open ask for it, and its outcome is not already decided. So finalizing speakers again later asks
+// only the talks that still need one (U9). A speaker change withdraws the old ask, clears the
+// outcome and un-finalizes the speakers (PATCH /api/assignments/[id], ITER-036 D2), which puts the
+// new speaker back on this list on its own.
 
 export type TalkAskInput = {
   hasSpeaker: boolean;
@@ -56,10 +57,11 @@ export function countTalksNeedingAsk(talks: readonly TalkAskInput[]): number {
   return talks.filter(talkNeedsAsk).length;
 }
 
-export type TalksLockReason = "references_open" | "no_speaker" | "no_conductor";
+// REFERENCES NO LONGER LOCK THE ASKS (ITER-036, D5). The ask card reads the topic's references
+// live, so speakers can be finalized before the references are decided.
+export type TalksLockReason = "no_speaker" | "no_conductor";
 
 export const TALKS_LOCK_REASON_TEXT: Record<TalksLockReason, string> = {
-  references_open: "Finalize or skip References first",
   no_speaker: "No speaker to ask yet",
   no_conductor: "Nobody is conducting yet",
 };
@@ -67,42 +69,49 @@ export const TALKS_LOCK_REASON_TEXT: Record<TalksLockReason, string> = {
 // The Talks pill's check on the hub, in five states.
 export type TalksAskState =
   | { kind: "locked"; reason: TalksLockReason }
-  | { kind: "not_asked"; count: number }
+  | { kind: "not_finalized"; count: number }
   | { kind: "pending" }
   | { kind: "accepted" }
   | { kind: "declined"; count: number };
 
 export type TalksAskStateInput = {
-  // referencesDecisionOf(sunday) !== null — finalized OR skipped.
-  referencesDecided: boolean;
+  // sunday.speakersFinalizedAt !== null (migration 088).
+  speakersFinalized: boolean;
   hasConductor: boolean;
   talks: readonly TalkAskInput[];
 };
 
-// PRECEDENCE: declined, then not asked, then pending, then all accepted. That is the prototype's
-// order with "not yet asked" added.
+// Whether the finalize control reads PRESSED: the stamp is set AND nobody is left to ask. A stamp
+// with speakers still to ask is a half-finished run (or a stamp a speaker change failed to clear),
+// and pressing the control again must ASK them — never un-finalize over their heads.
+export function speakersSettled(input: TalksAskStateInput): boolean {
+  return input.speakersFinalized && countTalksNeedingAsk(input.talks) === 0;
+}
+
+// PRECEDENCE: declined, then not finalized, then pending, then all accepted. That is the
+// prototype's order with "not finalized" added (ITER-036).
 //
 // A DECLINE OUTRANKS "NO SPEAKER". A decline clears the speaker, so a Sunday whose only speaker
 // said no has no speaker at all. Checking for a speaker first would dim the pill and hide the one
-// state that needs somebody to act. The References gate still comes first: until the talks are
-// ready, nothing about them has been asked.
+// state that needs somebody to act.
+//
+// NOT FINALIZED covers two cases with one meaning, "pressing this asks people": a Sunday nobody has
+// finalized (its count may be 0 after an un-finalize kept a scheduled ask), and a finalized Sunday
+// with speakers still to ask.
 //
 // NO CONDUCTOR LOCKS ONLY WHAT IT BLOCKS. Asks already sent keep their state when the conductor is
-// cleared (the open asks stay with the previous owner). Only a Sunday with speakers still to ask
-// is locked, because Send asks has nobody to give them to.
+// cleared (the open asks stay with the previous owner). Only a Sunday that still needs finalizing
+// is locked, because finalizing has nobody to give the asks to.
 export function talksAskState(input: TalksAskStateInput): TalksAskState {
-  if (!input.referencesDecided) return { kind: "locked", reason: "references_open" };
-
   const declined = input.talks.filter((talk) => talk.requestOutcome === "declined").length;
   if (declined > 0) return { kind: "declined", count: declined };
 
   const withSpeaker = input.talks.filter((talk) => talk.hasSpeaker);
   if (withSpeaker.length === 0) return { kind: "locked", reason: "no_speaker" };
 
-  const notAsked = countTalksNeedingAsk(withSpeaker);
-  if (notAsked > 0) {
+  if (!speakersSettled(input)) {
     return input.hasConductor
-      ? { kind: "not_asked", count: notAsked }
+      ? { kind: "not_finalized", count: countTalksNeedingAsk(withSpeaker) }
       : { kind: "locked", reason: "no_conductor" };
   }
 

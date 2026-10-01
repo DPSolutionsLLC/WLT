@@ -1411,6 +1411,20 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   is in its Details window. **Delete on a talk CANCELS it and shifts the rest up** (migration 087's
   `remove_talk()`, one transaction, `talks.plan` + `calendar.manage`), then the f2c reconcile tells
   people — never a hard delete, and never on a Sunday's only talk.
+- **FINALIZE IS THE TRIGGER; A SPEAKER CHANGE UN-FINALIZES; AN UNSCHEDULED ASK IS WITHDRAWN, A
+  SCHEDULED OR ACCEPTED ONE STAYS AND WARNS — DECIDED 2026-09-30 (ITER-036, migration 088,
+  plans/sacrament-finalize-hands-off-asks.md).** Finalizing means "I've prayed about it and
+  decided", separately for topics, references, speakers and prayers. **Finalizing speakers
+  (`sundays.speakers_finalized_at`) replaced "Send asks"**: it puts one ask per speaker not yet asked
+  on the **conductor's** To Do (`lib/sacrament/finalizePeople.ts`); References no longer gate it, and
+  the ask card reads the references live. **A speaker set, changed or cleared un-finalizes; a
+  decline does NOT** (it clears the speaker through `recordRequestOutcome()`), and
+  `tests/lib/speakersFinalizeSites.test.ts` reads the source to hold both. A withdrawn ask
+  (`withdrawAsks()`) is deleted when untouched, closed when touched, and **kept when scheduled** —
+  on a speaker change it is **unlinked** from the talk, because migration 083b's one-open-ask index
+  would otherwise stop the new speaker ever being asked. Every surface that would affect a scheduled
+  or accepted person warns first, naming them (`lib/sacrament/askImpact.ts`, soft, ward's zone).
+  Prayers (`fb`) follow on 088's `prayers_finalized_at`.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

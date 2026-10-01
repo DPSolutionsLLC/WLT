@@ -16,7 +16,13 @@ import { SUNDAY_TYPES, type SundayType, type TodoAskSource } from "@/types/domai
 //   ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number,
 //     cancelled_at, topic_title,
 //     sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots),
-//     members!assignments_member_id_ward_id_fkey (first_name, last_name, phone))
+//     members!assignments_member_id_ward_id_fkey (first_name, last_name, phone),
+//     talk_references!talk_references_assignment_id_ward_id_fkey (citation, created_at))
+//
+// THE REFERENCES ARE LIVE TOO (ITER-036, D5). Speakers can be finalized before the references are
+// decided, so a reference added afterwards must reach the card without re-sending the ask. The
+// notes keep their snapshot; this is the current list. `talk_references` is bishopric-readable
+// (migration 080), and an ask's holder is the conductor, so the embed reads through their client.
 
 export type AskSourceRow = {
   id: string;
@@ -27,6 +33,7 @@ export type AskSourceRow = {
   topic_title: string | null;
   sundays: { date: string; type: string; speaking_slots: number } | null;
   members: { first_name: string | null; last_name: string | null; phone: string | null } | null;
+  talk_references: { citation: string; created_at: string }[] | null;
 } | null;
 
 // `sundays.type` arrives as plain text. Its CHECK admits only SUNDAY_TYPES, so anything else means
@@ -58,6 +65,10 @@ export function mapAskSource(row: AskSourceRow, completedAt: string | null): Tod
     onRoster: row.member_id !== null,
     phone: phone === "" ? null : phone,
     topicTitle: row.topic_title,
+    // In the order they were added — the order the References editor lists them.
+    references: [...(row.talk_references ?? [])]
+      .sort((left, right) => left.created_at.localeCompare(right.created_at))
+      .map((reference) => reference.citation),
     isOpen: completedAt === null,
     // Off when the talk was CANCELLED (Sacrament slice f2c), or when its Sunday lost the meeting or
     // the slot without cancelling it (f2b; calendar generation can do that).

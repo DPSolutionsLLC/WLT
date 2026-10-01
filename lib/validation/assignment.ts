@@ -196,3 +196,8 @@ export const listCommentsQuerySchema = z.union(
   { error: "Ask for one assignment with ?assignmentId=, or one Sunday with ?sundayId=." },
 );
 export type ListCommentsQuery = z.infer<typeof listCommentsQuerySchema>;
+
+// PATCH /api/sundays/[id]/speakers-finalized (ITER-036). A boolean, never a timestamp: the server
+// picks the instant (setTopicsFinalizedSchema's rule).
+export const setPeopleFinalizedSchema = z.object({ finalized: z.boolean() });
+export type SetPeopleFinalizedInput = z.infer<typeof setPeopleFinalizedSchema>;

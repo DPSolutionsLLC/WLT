@@ -12,6 +12,7 @@ import type { GoalAlert } from "@/components/goals/GoalAlerts";
 import type { ReliabilityFlagKind } from "@/components/roster/ReliabilityFlag";
 import { SpeakerCountStepper } from "@/components/sacrament/SpeakerCountStepper";
 import { SundayCommentsButton } from "@/components/sacrament/SundayCommentsButton";
+import { SpeakersFinalizedPanel } from "@/components/sacrament/SpeakersFinalizedPanel";
 import { TalkRow } from "@/components/sacrament/TalkRow";
 import { TopicsFinalizedPanel } from "@/components/sacrament/TopicsFinalizedPanel";
 import { Card } from "@/components/ui/Card";
@@ -35,8 +36,14 @@ import {
 import { listGoalsWithStatus } from "@/lib/goals/queries";
 import { listReferencesForAssignments } from "@/lib/references/queries";
 import { listMembers } from "@/lib/roster/queries";
+import { NO_CHANGE_WARNINGS, type TalkChangeWarnings } from "@/lib/sacrament/askImpact";
+import { loadChangeWarnings } from "@/lib/sacrament/finalizePeople";
 import { hasSpeaker, loadSundayAsks } from "@/lib/sacrament/sundayAsks";
-import type { TalkAskInput } from "@/lib/sacrament/talkAsks";
+import {
+  countTalksNeedingAsk,
+  speakersSettled,
+  type TalkAskInput,
+} from "@/lib/sacrament/talkAsks";
 import { whoLetsThemKnow } from "@/lib/sacrament/talkRowStatus";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { listLatestAskOwners, listOpenAsks } from "@/lib/todos/askLinks";
@@ -124,8 +131,14 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
   const assignments = asks.talks;
   const assignmentIds = assignments.map((assignment) => assignment.id);
 
-  const [approvalsByAssignment, assignmentComments, references, openAsks, latestAskOwners] =
-    await Promise.all([
+  const [
+    approvalsByAssignment,
+    assignmentComments,
+    references,
+    openAsks,
+    latestAskOwners,
+    changeWarnings,
+  ] = await Promise.all([
       // The approval ROWS, not a count — the Details window names who is still to decide.
       Promise.all(
         assignments.map(
@@ -150,6 +163,17 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
       // loadSundayAsks() reads the ask count, so it does not depend on whose list they are on.
       listOpenAsks({ wardId: user.wardId, assignmentIds }),
       listLatestAskOwners({ wardId: user.wardId, assignmentIds }),
+      // Who a speaker or topic change would affect — scheduled or accepted (ITER-036, D4). Only
+      // for a planner: nobody else opens the windows that warn, and the sentences carry the
+      // conductor's appointment times.
+      canPlan
+        ? loadChangeWarnings({
+            wardId: user.wardId,
+            talks: assignments,
+            viewerUserId: user.id,
+            client: supabase,
+          })
+        : Promise.resolve<Record<string, TalkChangeWarnings>>({}),
     ]);
 
   const scripturesByAssignment = new Map<string, string[]>();
@@ -388,6 +412,11 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
                   }
                   ask={ask}
                   tellerName={assignment === null ? null : tellerNameFor(assignment, ask)}
+                  changeWarnings={
+                    assignment === null
+                      ? NO_CHANGE_WARNINGS
+                      : (changeWarnings[assignment.id] ?? NO_CHANGE_WARNINGS)
+                  }
                   approvedNames={assignment === null ? [] : approvedNamesFor(assignment)}
                   speakerFlags={speakerFlags}
                   speakerDirectory={speakerDirectory}
@@ -405,6 +434,15 @@ export default async function SundayAssignmentsPage({ params }: SundayAssignment
             sundayLabel={sundayLabel}
             topicsFinalizedAt={sunday.topicsFinalizedAt}
             canFinalize={canFinalizeTopics}
+          />
+
+          <SpeakersFinalizedPanel
+            sundayId={sunday.id}
+            sundayLabel={sundayLabel}
+            speakersFinalizedAt={sunday.speakersFinalizedAt}
+            settled={speakersSettled(asks.stateInput)}
+            toAsk={countTalksNeedingAsk(asks.stateInput.talks)}
+            canFinalize={canRequest}
           />
         </>
       )}

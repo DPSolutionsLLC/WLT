@@ -1,6 +1,6 @@
 // @vitest-environment node
 //
-// Sacrament slice f1: Send asks, answering an ask on the conductor's To Do, and what a speaker
+// Sacrament slice f1: sending asks (finalizing the speakers since ITER-036), answering an ask on the conductor's To Do, and what a speaker
 // change does to an ask.
 //
 // Only the client factory is mocked (tests/helpers/routeClient.ts), so every query runs as a
@@ -41,12 +41,17 @@ async function getAsks(sundayId: string) {
   );
 }
 
+// "Send asks" became finalizing the speakers (ITER-036): PATCH { finalized: true }.
 async function sendAsks(sundayId: string) {
-  const { POST } = await import("@/app/api/sundays/[id]/asks/route");
+  const { PATCH } = await import("@/app/api/sundays/[id]/speakers-finalized/route");
   return readResponse(
-    await POST(jsonRequest(`${BASE}/sundays/${sundayId}/asks`, { method: "POST" }), {
-      params: Promise.resolve({ id: sundayId }),
-    }),
+    await PATCH(
+      jsonRequest(`${BASE}/sundays/${sundayId}/speakers-finalized`, {
+        method: "PATCH",
+        body: { finalized: true },
+      }),
+      { params: Promise.resolve({ id: sundayId }) },
+    ),
   );
 }
 
@@ -232,20 +237,16 @@ describe("Talk asks — Sacrament slice f1", () => {
   });
 
   describe("sending", () => {
-    it("is refused, and says why, before References is decided", async () => {
+    // ITER-036, D5: References undecided no longer locks the asks. Only a missing conductor does.
+    it("is not locked by undecided References — only by nobody conducting", async () => {
       await actAs(fixtures, "bishop");
 
       const state = await getAsks(lockedSundayId);
       expect(state.status).toBe(200);
-      expect(state.body.state).toEqual({ kind: "locked", reason: "references_open" });
-
-      const { status, body } = await sendAsks(lockedSundayId);
-      expect(status).toBe(400);
-      expect(errorMessage(body)).toBe("Finalize or skip References first");
+      expect(state.body.state).toEqual({ kind: "locked", reason: "no_conductor" });
     });
 
     it("is refused while nobody is conducting", async () => {
-      await setSunday(sundayId, { references_skipped_at: new Date().toISOString() });
       await actAs(fixtures, "bishop");
 
       const { status, body } = await sendAsks(sundayId);
@@ -254,13 +255,13 @@ describe("Talk asks — Sacrament slice f1", () => {
       expect(await asksFor(withPhoneTalkId)).toHaveLength(0);
     });
 
-    it("gives the conductor one open ask per speaker, a visitor included", async () => {
+    it("gives the conductor one open ask per speaker, a visitor included, References undecided", async () => {
       await setSunday(sundayId, { conducting_user_id: fixtures.user("counselor1").id });
       await actAs(fixtures, "bishop");
 
       const { status, body } = await sendAsks(sundayId);
-      expect(status).toBe(201);
-      expect(body.sent).toBe(3);
+      expect(status).toBe(200);
+      expect(body.asked).toBe(3);
 
       const counselorId = fixtures.user("counselor1").id;
       const withPhone = await openAskFor(withPhoneTalkId);
@@ -285,8 +286,8 @@ describe("Talk asks — Sacrament slice f1", () => {
       await actAs(fixtures, "bishop");
 
       const { status, body } = await sendAsks(sundayId);
-      expect(status).toBe(400);
-      expect(errorMessage(body)).toBe("Everyone on this Sunday has been asked.");
+      expect(status).toBe(200);
+      expect(body.asked).toBe(0);
 
       expect(await asksFor(withPhoneTalkId)).toHaveLength(1);
       expect(await asksFor(noPhoneTalkId)).toHaveLength(1);
@@ -481,7 +482,7 @@ describe("Talk asks — Sacrament slice f1", () => {
 
       const { status, body } = await patchTodo(answered.id, { complete: false });
       expect(status).toBe(400);
-      expect(errorMessage(body)).toMatch(/change the speaker on the talk and press Send asks/);
+      expect(errorMessage(body)).toMatch(/change the speaker on the talk and finalize the speakers again/);
 
       const [still] = await asksFor(withPhoneTalkId);
       expect(still.completed_at).not.toBeNull();
@@ -521,14 +522,16 @@ describe("Talk asks — Sacrament slice f1", () => {
       expect(reset.request_notes).toBeNull();
 
       const { status, body } = await sendAsks(sundayId);
-      expect(status).toBe(201);
-      expect(body.sent).toBe(1);
+      expect(status).toBe(200);
+      expect(body.asked).toBe(1);
 
       const fresh = await openAskFor(noPhoneTalkId);
       expect(fresh.title).toBe(`Ask Ana Asks${fixtures.runId} to speak`);
     });
 
-    it("closes the open ask with a line, never deleting it, and clears the outcome", async () => {
+    // ITER-036, D3: an ask its holder never touched is removed; withdrawAsks()'s touched and
+    // scheduled cases are in tests/routes/speakers-finalized.test.ts.
+    it("removes an untouched open ask and clears the outcome", async () => {
       const ask = await openAskFor(noPhoneTalkId);
       await actAs(fixtures, "bishop");
 
@@ -538,15 +541,12 @@ describe("Talk asks — Sacrament slice f1", () => {
       });
       expect(changed.status).toBe(200);
 
-      const { data: closed, error } = await fixtures.service
+      const { data: gone, error } = await fixtures.service
         .from("todos")
-        .select("completed_at, closed_reason")
-        .eq("id", ask.id)
-        .single();
+        .select("id")
+        .eq("id", ask.id);
       if (error) throw new Error(error.message);
-      expect(closed.completed_at).not.toBeNull();
-      expect(closed.closed_reason).toBe("speaker_changed");
-      expect(await logLines(ask.id)).toEqual([{ kind: "speaker_changed", body: null }]);
+      expect(gone).toEqual([]);
 
       const state = await getAsks(sundayId);
       expect(state.body.state).toEqual({ kind: "declined", count: 1 });
@@ -554,7 +554,7 @@ describe("Talk asks — Sacrament slice f1", () => {
 
     it("leaves an ask alone when only the topic or a contact field changes", async () => {
       await actAs(fixtures, "bishop");
-      expect((await sendAsks(sundayId)).status).toBe(201);
+      expect((await sendAsks(sundayId)).status).toBe(200);
       const ask = await openAskFor(noPhoneTalkId);
 
       const changed = await patchAssignment(noPhoneTalkId, {
@@ -605,12 +605,12 @@ describe("Talk asks — Sacrament slice f1", () => {
         .from("audit_log")
         .select("action, detail")
         .eq("ward_id", fixtures.wardAId)
-        .in("action", ["talk_asks_sent", "talk_ask_answered", "assignment_outcome_recorded"]);
+        .in("action", ["sunday_speakers_finalized", "talk_ask_answered", "assignment_outcome_recorded"]);
       if (error) throw new Error(error.message);
 
       const actions = new Set((data ?? []).map((row) => row.action));
       expect(actions).toEqual(
-        new Set(["talk_asks_sent", "talk_ask_answered", "assignment_outcome_recorded"]),
+        new Set(["sunday_speakers_finalized", "talk_ask_answered", "assignment_outcome_recorded"]),
       );
 
       const serialized = JSON.stringify(data);

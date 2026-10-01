@@ -13,6 +13,7 @@ import { describeInvalidation } from "@/lib/assignments/invalidation";
 import type { Assignment, SpeakerHistoryRow } from "@/lib/assignments/queries";
 import type { DateOnly } from "@/lib/calendar/dates";
 import type { TopicHistoryEntry } from "@/lib/topics/topicHistory";
+import type { TalkChangeWarnings } from "@/lib/sacrament/askImpact";
 import { saveAssignment } from "@/lib/assignments/saveAssignment";
 import type { TalkAskInput } from "@/lib/sacrament/talkAsks";
 import { speakerTag, topicTag } from "@/lib/sacrament/talkRowStatus";
@@ -29,7 +30,8 @@ import { ASSIGNMENT_TYPE_LABELS } from "@/types/domain";
 // never disabled (StatusPill's rule).
 //
 // Every edit here clears the talk's approvals, so Clear and both windows WARN first when there are
-// any (describeInvalidation). Delete does not need to: the talk is cancelled whole.
+// any (describeInvalidation). Delete does not need to: the talk is cancelled whole. They also warn
+// first when a scheduled or accepted speaker would be affected (ITER-036, D4: `changeWarnings`).
 //
 // Small visible buttons keep 44px tap targets through `min-h-11` (the StatusPill pattern).
 
@@ -57,6 +59,8 @@ export type TalkRowProps = {
   // Who will find "let them know" on their To Do if this talk is deleted — "You", a name, or null
   // when nobody was ever asked. Resolved on the server through whoLetsThemKnow().
   tellerName: string | null;
+  // Who changing the speaker or the topic would affect, built on the server (ITER-036, D4).
+  changeWarnings: TalkChangeWarnings;
   canPlan: boolean;
   // `talks.plan` AND `calendar.manage` — what the remove action asserts.
   canRemove: boolean;
@@ -84,6 +88,7 @@ export function TalkRow({
   approvedNames,
   speakerFlags,
   tellerName,
+  changeWarnings,
   topicHistory,
   canPlan,
   canRemove,
@@ -103,6 +108,7 @@ export function TalkRow({
   const topic = topicTag(topicTitle);
   const hasSpeaker = speakerName !== null || ask.hasSpeaker;
   const hasApprovals = approvedNames.length > 0;
+  const confirmClearLabel = hasApprovals ? "Clear and reset approvals" : "Clear anyway";
   const category =
     assignment?.assignmentType && assignment.assignmentType !== "sacrament_talk"
       ? ASSIGNMENT_TYPE_LABELS[assignment.assignmentType]
@@ -115,7 +121,7 @@ export function TalkRow({
 
   async function clear(what: "speaker" | "topic"): Promise<void> {
     if (assignment === null) return;
-    if (hasApprovals && confirmingClear !== what) {
+    if ((hasApprovals || changeWarnings[what] !== null) && confirmingClear !== what) {
       setConfirmingClear(what);
       return;
     }
@@ -242,7 +248,7 @@ export function TalkRow({
         <Pill tone={speaker.tone}>{speaker.label}</Pill>
         {canPlan && assignment !== null && hasSpeaker && (
           <button type="button" className={SMALL_BUTTON} onClick={() => clear("speaker")} disabled={isBusy}>
-            {confirmingClear === "speaker" ? "Clear and reset approvals" : "Clear"}
+            {confirmingClear === "speaker" ? confirmClearLabel : "Clear"}
             {" "}
             <span className="sr-only">the speaker for talk {slotNumber}</span>
           </button>
@@ -261,7 +267,7 @@ export function TalkRow({
         <Pill tone={topic.tone}>{topic.label}</Pill>
         {canPlan && assignment !== null && topicTitle !== null && (
           <button type="button" className={SMALL_BUTTON} onClick={() => clear("topic")} disabled={isBusy}>
-            {confirmingClear === "topic" ? "Clear and reset approvals" : "Clear"}
+            {confirmingClear === "topic" ? confirmClearLabel : "Clear"}
             {" "}
             <span className="sr-only">the topic for talk {slotNumber}</span>
           </button>
@@ -270,7 +276,12 @@ export function TalkRow({
 
       {confirmingClear !== null && (
         <p className="text-sm text-warning" role="status">
-          {describeInvalidation(approvedNames.length, approvedNames, "clear")}
+          {[
+            hasApprovals ? describeInvalidation(approvedNames.length, approvedNames, "clear") : null,
+            changeWarnings[confirmingClear],
+          ]
+            .filter((sentence) => sentence !== null)
+            .join(" ")}
         </p>
       )}
       <FormError message={rowError} />
@@ -288,6 +299,7 @@ export function TalkRow({
           assignment={assignment}
           speakerName={speakerName}
           approvedNames={approvedNames}
+          changeWarning={changeWarnings.speaker}
           members={speakerDirectory.members}
           historyByMember={speakerDirectory.historyByMember}
           speakerFlags={speakerFlags}
@@ -303,6 +315,7 @@ export function TalkRow({
           totalTalks={totalTalks}
           assignment={assignment}
           approvedNames={approvedNames}
+          changeWarning={changeWarnings.topic}
           history={topicHistory}
           today={speakerDirectory.today}
           onClose={() => setOpenWindow(null)}

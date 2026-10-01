@@ -109,7 +109,7 @@ type LogRow = {
 const TODO_COLUMNS =
   "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, closed_reason, talk_off_at, created_at, updated_at";
 const TODO_WITH_STEPS_COLUMNS =
-  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, closed_reason, talk_off_at, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date)), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number, cancelled_at, topic_title, sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone)), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name)";
+  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, closed_reason, talk_off_at, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date)), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number, cancelled_at, topic_title, sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), talk_references!talk_references_assignment_id_ward_id_fkey (citation, created_at)), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name)";
 const STEP_COLUMNS = "id, todo_id, label, position, done_at";
 const LOG_COLUMNS = "id, todo_id, kind, body, created_at";
 
@@ -617,9 +617,9 @@ const OPEN_ASK_COMPLETE = "Record their answer — Accepted or Declined.";
 
 // AND AN ANSWERED OR CLOSED ASK STAYS DONE. Reopening one would let the same answer be recorded
 // twice (a second speaker-history row), or meet migration 083b's one-open-ask index as a 500. A
-// new ask comes from Send asks, which asks whoever is the speaker now.
+// new ask comes from finalizing the speakers, which asks whoever is the speaker now (ITER-036).
 const ANSWERED_ASK_REOPEN =
-  "This ask has been answered or closed. To ask again, change the speaker on the talk and press Send asks.";
+  "This ask has been answered or closed. To ask again, change the speaker on the talk and finalize the speakers again.";
 
 function isOpenAsk(todo: Todo): boolean {
   return todo.askAssignmentId !== null && todo.completedAt === null;

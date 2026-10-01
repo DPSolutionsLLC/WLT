@@ -1,44 +1,42 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Check } from "lucide-react";
+import {
+  FinalizeSpeakersDialog,
+  type FinalizeSpeakersMode,
+} from "@/components/sacrament/FinalizeSpeakersDialog";
 import { TALKS_LOCK_REASON_TEXT, type TalksAskState } from "@/lib/sacrament/talkAsks";
 
-// THE TALKS PILL'S CHECK, AND SEND ASKS — Sacrament slice f1.
+// THE TALKS PILL'S FINALIZE CHECK — Sacrament slice f1, made a finalize by ITER-036.
 //
 // The Topics and Refs pills each carry a finalize checkmark attached to their right edge
-// (FinalizeToggle). The Talks pill carries this instead: not a toggle, because nobody "finalizes"
-// talks. It is where the asks stand, computed by talksAskState() from the talks' outcomes and
-// their open ask to-dos:
-//   locked     dimmed, with the reason as a tooltip AND as screen-reader text
-//   not_asked  "N not yet asked"
-//   pending    gold, "Asks sent"
-//   accepted   green, a solid fill with a check — StatusPill's measured `complete` pair
-//   declined   rust, "N declined"
+// (FinalizeToggle). So does Talks now: finalizing the speakers is what sends their asks to the
+// conductor's To Do (D1), and it replaces the old "Send asks (N)" button. The tab shows where the
+// asks stand, computed by talksAskState():
+//   locked         dimmed, with the reason as a tooltip AND as screen-reader text
+//   not_finalized  "N to ask" — pressing finalizes and asks them
+//   pending        gold, "Asks sent"
+//   accepted       green, a solid fill with a check — StatusPill's measured `complete` pair
+//   declined       rust, "N declined"
 //
-// THE TAB GEOMETRY IS FinalizeToggle's pill variant: 22px high, `rounded-l-none rounded-r-full
-// border-l-0`, butted against the pill with no gap, so it reads as part of the pill
-// (sacrament-topics-finalize-and-history: a free-standing circle read as unattached).
+// PRESSING OPENS A CONFIRM (FinalizeSpeakersDialog): to finalize, it names whose To Do the asks go
+// to (D6); to un-finalize, who is already scheduled or accepted (D4). `settled` decides which —
+// a stamp with speakers still to ask finalizes again rather than un-finalizing over their heads.
 //
-// DIMMED IS ALLOWED HERE AND ONLY HERE. StatusPill's rule against a dimmed pill is about a LINK
-// that looks broken. This tab is a status and has no link, and the plan asks for the dim with its
-// reason visible.
+// THE TAB GEOMETRY IS FinalizeToggle's pill variant: a 44px button whose visible tab is 22px high,
+// `rounded-l-none rounded-r-full border-l-0`, butted against the pill with no gap, so it reads as
+// part of the pill (sacrament-topics-finalize-and-history: a free-standing circle read as
+// unattached).
 //
-// SEND ASKS (N) is a separate small button after the tab, shown only when there are speakers to ask
-// and the reader holds `talks.request`. It posts, then refreshes the page. There is no local copy
-// of the state that could drift from the server's.
-//
-// "SENDING…" LASTS UNTIL THE REFRESH HAS LANDED (defect 078-D1). The POST returns before the
-// re-rendered page arrives, and for those seconds the button read "Send asks (3)" again, enabled,
-// over asks that already existed. A second press was answered with a red "Everyone on this Sunday
-// has been asked." The refresh runs inside a transition, and the button stays busy while it is
-// pending.
+// DIMMED IS ALLOWED HERE. StatusPill's rule against a dimmed pill is about a LINK that looks
+// broken; this one carries its reason. A locked tab is disabled unless the Sunday is settled — a
+// finalized Sunday whose conductor was cleared can still be un-finalized.
 
 // WHOLE LITERALS, never interpolated (components/ui/Pill.tsx, rule 1).
 const TAB_TONES: Record<TalksAskState["kind"], string> = {
   locked: "border-border text-muted opacity-60",
-  not_asked: "border-stage-plan text-stage-plan",
+  not_finalized: "border-stage-plan text-stage-plan",
   pending: "border-gold text-gold",
   accepted: "border-stage-complete bg-stage-complete text-background",
   declined: "border-rust text-rust",
@@ -49,8 +47,8 @@ function tabText(state: TalksAskState): string | null {
     case "locked":
     case "accepted":
       return null;
-    case "not_asked":
-      return `${state.count} not yet asked`;
+    case "not_finalized":
+      return state.count > 0 ? `${state.count} to ask` : "Not finalized";
     case "pending":
       return "Asks sent";
     case "declined":
@@ -58,16 +56,16 @@ function tabText(state: TalksAskState): string | null {
   }
 }
 
-function spokenText(state: TalksAskState): string {
+function spokenState(state: TalksAskState): string {
   switch (state.kind) {
     case "locked":
-      return `Asks locked: ${TALKS_LOCK_REASON_TEXT[state.reason]}`;
-    case "not_asked":
-      return `${state.count} not yet asked`;
+      return TALKS_LOCK_REASON_TEXT[state.reason];
+    case "not_finalized":
+      return state.count > 0 ? `not finalized, ${state.count} to ask` : "not finalized";
     case "pending":
-      return "Asks sent, waiting for answers";
+      return "asks sent, waiting for answers";
     case "accepted":
-      return "Every speaker accepted";
+      return "every speaker accepted";
     case "declined":
       return `${state.count} declined`;
   }
@@ -75,80 +73,46 @@ function spokenText(state: TalksAskState): string {
 
 export type TalkAsksCheckProps = {
   state: TalksAskState;
+  // speakersSettled(): finalized AND nobody left to ask. Pressing then un-finalizes.
+  settled: boolean;
   sundayId: string;
   sundayLabel: string;
-  // Speakers Send asks would ask right now. Can be non-zero beside a `declined` state: a declined
-  // slot with a new speaker chosen still needs its ask.
-  asksToSend: number;
 };
 
-export function TalkAsksCheck({ state, sundayId, sundayLabel, asksToSend }: TalkAsksCheckProps) {
-  const router = useRouter();
-  const [isSending, setIsSending] = useState(false);
-  const [isRefreshing, startRefresh] = useTransition();
-  const isBusy = isSending || isRefreshing;
-  const [errorMessage, setErrorMessage] = useState<string>();
+export function TalkAsksCheck({ state, settled, sundayId, sundayLabel }: TalkAsksCheckProps) {
+  const [mode, setMode] = useState<FinalizeSpeakersMode | null>(null);
 
   const text = tabText(state);
-  const reason = state.kind === "locked" ? TALKS_LOCK_REASON_TEXT[state.reason] : undefined;
-
-  async function sendAsks(): Promise<void> {
-    setErrorMessage(undefined);
-    setIsSending(true);
-
-    try {
-      const response = await fetch(`/api/sundays/${sundayId}/asks`, { method: "POST" });
-
-      if (!response.ok) {
-        const payload: { error?: string } = await response.json().catch(() => ({}));
-        setErrorMessage(payload.error ?? "Could not send the asks. Please try again.");
-        return;
-      }
-
-      startRefresh(() => router.refresh());
-    } catch (error) {
-      console.error("Could not send a Sunday's asks", { sundayId, error });
-      setErrorMessage("Could not reach the server. Check your connection and try again.");
-    } finally {
-      setIsSending(false);
-    }
-  }
+  const isLocked = state.kind === "locked";
+  const disabled = isLocked && !settled;
+  const reason = isLocked ? TALKS_LOCK_REASON_TEXT[state.reason] : undefined;
 
   return (
     <>
-      <span className="inline-flex h-11 items-center" title={reason}>
+      <button
+        type="button"
+        onClick={() => setMode(settled ? "unfinalize" : "finalize")}
+        disabled={disabled}
+        aria-pressed={settled}
+        aria-label={`Finalize speakers — ${sundayLabel}: ${spokenState(state)}`}
+        title={reason}
+        className="inline-flex h-11 items-center justify-start focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      >
         <span
           aria-hidden="true"
           className={`inline-flex h-[22px] items-center gap-1 rounded-l-none rounded-r-full border border-l-0 px-2 text-xs font-medium ${TAB_TONES[state.kind]}`}
         >
           {text === null ? <Check className="h-3.5 w-3.5" /> : text}
         </span>
-        <span className="sr-only">
-          {spokenText(state)} — {sundayLabel}
-        </span>
-      </span>
+      </button>
 
-      {asksToSend > 0 && state.kind !== "locked" && (
-        <button
-          type="button"
-          onClick={sendAsks}
-          disabled={isBusy}
-          aria-label={`Send asks to ${asksToSend} ${asksToSend === 1 ? "speaker" : "speakers"} — ${sundayLabel}`}
-          className="group ml-1 inline-flex min-h-11 items-center focus-visible:outline-none disabled:opacity-60"
-        >
-          <span
-            aria-hidden="true"
-            className="inline-flex h-7 items-center rounded-md border border-border px-2 text-xs font-medium text-foreground group-hover:bg-surface group-focus-visible:outline-2 group-focus-visible:outline-offset-2 group-focus-visible:outline-primary"
-          >
-            {isBusy ? "Sending…" : `Send asks (${asksToSend})`}
-          </span>
-        </button>
-      )}
-
-      {errorMessage !== undefined && (
-        <span role="alert" className="text-xs text-danger">
-          {errorMessage}
-        </span>
+      {mode !== null && (
+        <FinalizeSpeakersDialog
+          sundayId={sundayId}
+          sundayLabel={sundayLabel}
+          mode={mode}
+          onClose={() => setMode(null)}
+        />
       )}
     </>
   );

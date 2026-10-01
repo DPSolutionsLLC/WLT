@@ -69,10 +69,11 @@ export type SundayCardProps = {
   // `talks.plan` — the bishopric. False withholds the References pill ENTIRELY: references are the
   // bishopric's planning material and nobody else reads them (migration 080, defect 074-D2).
   canPlanTalks: boolean;
-  // Where this Sunday's asks stand, and how many Send asks would send (Sacrament slice f1). Null
-  // for anybody without `talks.request`, which POST /api/sundays/[id]/asks asserts: the Talks pill
-  // then carries no check and no button, absent rather than disabled.
-  talkAsks: { state: TalksAskState; asksToSend: number } | null;
+  // Where this Sunday's asks stand, and whether its speakers are finalized with nobody left to ask
+  // (Sacrament slice f1, ITER-036). Null for anybody
+  // without `talks.request`, which PATCH /api/sundays/[id]/speakers-finalized asserts: the Talks
+  // pill then carries no check, absent rather than disabled.
+  talkAsks: { state: TalksAskState; settled: boolean } | null;
 };
 
 export function SundayCard({
@@ -160,9 +161,9 @@ export function SundayCard({
                       pill.key === "talks" && talkAsks !== null ? (
                         <TalkAsksCheck
                           state={talkAsks.state}
+                          settled={talkAsks.settled}
                           sundayId={sundayId}
                           sundayLabel={sundayLabel}
-                          asksToSend={talkAsks.asksToSend}
                         />
                       ) : undefined
                     }

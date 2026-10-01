@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { speakerDisplayName } from "@/components/assignments/SpeakerLine";
 import { speakerFrom } from "@/lib/assignments/speaker";
 import type { Assignment } from "@/lib/assignments/queries";
-import { referencesDecisionOf, type Sunday } from "@/lib/calendar/queries";
+import type { Sunday } from "@/lib/calendar/queries";
 import { listReferencesForAssignments, loadSundayTalks } from "@/lib/references/queries";
 import { getMember } from "@/lib/roster/queries";
 import {
@@ -17,7 +17,8 @@ import {
 import { countOpenAsksByAssignment, type AskToCreate } from "@/lib/todos/askLinks";
 import type { Database } from "@/types/database";
 
-// One Sunday's talks with their ask state, for GET and POST /api/sundays/[id]/asks. SERVER-ONLY:
+// One Sunday's talks with their ask state, for GET /api/sundays/[id]/asks, the speakers finalize
+// (lib/sacrament/finalizePeople.ts) and the Topics screen. SERVER-ONLY:
 // it reads through the caller's client, plus the service-role COUNT of open asks in
 // lib/todos/askLinks.ts. That count is read that way so it does not depend on whose list the asks
 // are on.
@@ -68,7 +69,7 @@ export async function loadSundayAsks(
   );
 
   const stateInput: TalksAskStateInput = {
-    referencesDecided: referencesDecisionOf(loaded.sunday) !== null,
+    speakersFinalized: loaded.sunday.speakersFinalizedAt !== null,
     hasConductor: loaded.sunday.conductingUserId !== null,
     talks: [...inputs.values()],
   };
@@ -82,7 +83,7 @@ export async function loadSundayAsks(
   };
 }
 
-// The title and text of each talk's ask, built from the talk as it stands now. Send asks uses it,
+// The title and text of each talk's ask, built from the talk as it stands now. Finalize uses it,
 // and so does a handover (Sacrament slice f2): the new conductor gets a CLEAN copy built here,
 // never the old owner's to-do copied, because whatever the old owner wrote on theirs stays with
 // them (U6).

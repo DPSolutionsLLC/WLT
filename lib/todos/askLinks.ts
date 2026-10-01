@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import type { AskCopy } from "@/lib/todos/timeElsewhere";
+import { isTodoUntouched } from "@/lib/todos/untouched";
 import type { Database } from "@/types/database";
 import type { TodoClosedReason, TodoLogKind } from "@/types/domain";
 
@@ -211,12 +212,152 @@ async function completeOpenAsks(
 }
 
 // ---------------------------------------------------------------------------
-// READS FOR THE HUB AND THE SEND ROUTE
+// WITHDRAWN — the decision was reopened, or the speaker changed (ITER-036, D3 and D4)
+// ---------------------------------------------------------------------------
+// Each OPEN ask on these talks, in one of three ways:
+//   - SCHEDULED: it stays (D4). The owner has an appointment with that person, and only they can
+//     undo it; the route warned before confirming. On a SPEAKER CHANGE it is UNLINKED from the talk
+//     with a "Speaker changed" line, so it stays on To Do and My Appointments as an ordinary to-do
+//     — left linked, migration 083b's one-open-ask-per-(talk, owner) index would stop the NEW
+//     speaker ever being asked (the user's decision, 2026-09-30). On an un-finalize it stays linked:
+//     the speaker is the same person and still needs their answer recorded.
+//   - UNTOUCHED (isTodoUntouched: no steps, no line the OWNER wrote, not scheduled): deleted. The
+//     owner never did anything with it, so nothing anybody wrote is lost.
+//   - TOUCHED: closed with `reason` and a line, never deleted — never destroy what somebody wrote.
+// An ask whose owner was told the talk is off (`talk_off_at`) is f2b's, and is left alone.
+//
+// "A line the OWNER wrote" leaves out the lines this file writes on the owner's behalf — a
+// handover's "Taken over from ___" must not make an ask the owner never opened count as touched.
+const OWNER_LOG_KINDS: readonly TodoLogKind[] = [
+  "note",
+  "step_done",
+  "step_undone",
+  "completed",
+  "reopened",
+  "scheduled",
+  "unscheduled",
+];
+
+export type WithdrawnAsks = { deletedIds: string[]; closedIds: string[]; keptIds: string[] };
+
+type WithdrawRow = {
+  id: string;
+  completed_at: string | null;
+  scheduled_for: string | null;
+  todo_steps: { count: number }[] | null;
+  todo_log_entries: { kind: string }[] | null;
+};
+
+export async function withdrawAsks(params: {
+  wardId: string;
+  assignmentIds: readonly string[];
+  reason: Extract<TodoClosedReason, "unfinalized" | "speaker_changed">;
+  client?: Client;
+}): Promise<WithdrawnAsks> {
+  const withdrawn: WithdrawnAsks = { deletedIds: [], closedIds: [], keptIds: [] };
+  if (params.assignmentIds.length === 0) return withdrawn;
+
+  const supabase = params.client ?? createServiceSupabaseClient();
+  const detail = { wardId: params.wardId, reason: params.reason };
+  const done = () => [...withdrawn.deletedIds, ...withdrawn.closedIds, ...withdrawn.keptIds];
+
+  const { data, error } = await supabase
+    .from("todos")
+    .select("id, completed_at, scheduled_for, todo_steps (count), todo_log_entries (kind)")
+    .eq("ward_id", params.wardId)
+    .in("ask_assignment_id", [...params.assignmentIds])
+    .is("completed_at", null)
+    .is("talk_off_at", null);
+  if (error) fail("Could not read the asks to withdraw", error, detail);
+
+  const rows = (data ?? []) as unknown as WithdrawRow[];
+  const scheduled: string[] = [];
+  const untouched: string[] = [];
+  const touched: string[] = [];
+
+  for (const row of rows) {
+    const ownerLines = (row.todo_log_entries ?? []).filter((line) =>
+      (OWNER_LOG_KINDS as readonly string[]).includes(line.kind),
+    ).length;
+    if (row.scheduled_for !== null) scheduled.push(row.id);
+    else if (
+      isTodoUntouched(
+        { completedAt: row.completed_at, scheduledFor: row.scheduled_for },
+        row.todo_steps?.[0]?.count ?? 0,
+        ownerLines,
+      )
+    ) {
+      untouched.push(row.id);
+    } else touched.push(row.id);
+  }
+
+  if (untouched.length > 0) {
+    const { data: deleted, error: deleteError } = await supabase
+      .from("todos")
+      .delete()
+      .eq("ward_id", params.wardId)
+      .in("id", untouched)
+      .is("completed_at", null)
+      .select("id");
+    if (deleteError) fail("Could not remove an untouched ask", deleteError, detail, done());
+    withdrawn.deletedIds.push(...(deleted ?? []).map((row) => row.id));
+  }
+
+  if (touched.length > 0) {
+    const now = new Date().toISOString();
+    const { data: closed, error: closeError } = await supabase
+      .from("todos")
+      .update({ completed_at: now, closed_reason: params.reason, updated_at: now })
+      .eq("ward_id", params.wardId)
+      .in("id", touched)
+      .is("completed_at", null)
+      .select("id");
+    if (closeError) fail("Could not close a withdrawn ask", closeError, detail, done());
+    const closedIds = (closed ?? []).map((row) => row.id);
+    await writeLines(supabase, params.wardId, closedIds, params.reason, detail, done());
+    withdrawn.closedIds.push(...closedIds);
+  }
+
+  if (scheduled.length > 0 && params.reason === "speaker_changed") {
+    const { data: unlinked, error: unlinkError } = await supabase
+      .from("todos")
+      .update({ ask_assignment_id: null, updated_at: new Date().toISOString() })
+      .eq("ward_id", params.wardId)
+      .in("id", scheduled)
+      .select("id");
+    if (unlinkError) fail("Could not unlink a scheduled ask", unlinkError, detail, done());
+    const unlinkedIds = (unlinked ?? []).map((row) => row.id);
+    await writeLines(supabase, params.wardId, unlinkedIds, "speaker_changed", detail, done());
+    withdrawn.keptIds.push(...unlinkedIds);
+  } else {
+    withdrawn.keptIds.push(...scheduled);
+  }
+
+  return withdrawn;
+}
+
+async function writeLines(
+  supabase: Client,
+  wardId: string,
+  todoIds: readonly string[],
+  kind: TodoLogKind,
+  detail: Record<string, unknown>,
+  completedIds: readonly string[],
+): Promise<void> {
+  if (todoIds.length === 0) return;
+  const { error } = await supabase
+    .from("todo_log_entries")
+    .insert(todoIds.map((todoId) => ({ ward_id: wardId, todo_id: todoId, kind, body: null })));
+  if (error) fail("Could not write the timeline line on a withdrawn ask", error, detail, completedIds);
+}
+
+// ---------------------------------------------------------------------------
+// READS FOR THE HUB AND THE FINALIZE ROUTE
 // ---------------------------------------------------------------------------
 // How many OPEN asks each talk has, across every owner, in one query. This read uses the SERVICE
 // role because the answer must not depend on who is looking: the conductor's asks are invisible to
 // the bishop under migration 081, so counted through the bishop's own client, every talk would
-// read "not yet asked" and Send asks would ask again. It returns a COUNT per talk id and never a
+// read "not yet asked" and finalizing would ask again. It returns a COUNT per talk id and never a
 // row. The caller has already read those talk ids through its own client.
 export async function countOpenAsksByAssignment(params: {
   wardId: string;

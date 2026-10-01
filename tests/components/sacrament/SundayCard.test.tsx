@@ -546,57 +546,56 @@ describe("SundayCard — the References pill", () => {
   });
 });
 
-// Sacrament slice f1. The state itself is talksAskState()'s, tested in tests/lib/talkAsks.test.ts;
-// these assert only what the card does with it.
-describe("SundayCard — the Talks pill's ask check", () => {
-  const SEND = /send asks to/i;
+// Sacrament slice f1, made a finalize by ITER-036. The state itself is talksAskState()'s, tested in
+// tests/lib/talkAsks.test.ts; these assert only what the card does with it.
+describe("SundayCard — the Talks pill's finalize check", () => {
+  const FINALIZE = /finalize speakers/i;
 
-  it("renders no check and no Send asks without talks.request", () => {
+  it("renders no check without talks.request", () => {
     render(<SundayCard {...props()} />);
 
-    expect(screen.queryByRole("button", { name: SEND })).toBeNull();
-    expect(screen.queryByText(/not yet asked/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: FINALIZE })).toBeNull();
+    expect(screen.queryByText(/to ask/i)).toBeNull();
   });
 
-  it("offers Send asks with its count when speakers are waiting to be asked", () => {
+  it("offers finalize with the count still to ask, and no Send asks button anywhere", () => {
     render(
       <SundayCard
-        {...props({ talkAsks: { state: { kind: "not_asked", count: 2 }, asksToSend: 2 } })}
+        {...props({ talkAsks: { state: { kind: "not_finalized", count: 2 }, settled: false } })}
       />,
     );
 
-    expect(screen.getByRole("button", { name: SEND })).toHaveTextContent("Send asks (2)");
-    expect(screen.getByText("2 not yet asked")).toBeInTheDocument();
+    const check = screen.getByRole("button", { name: FINALIZE });
+    expect(check).toHaveTextContent("2 to ask");
+    expect(check).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("button", { name: /send asks/i })).toBeNull();
   });
 
-  it("still offers Send asks beside a declined state when a new speaker needs asking", () => {
+  it("reads pressed once the speakers are settled", () => {
     render(
-      <SundayCard
-        {...props({ talkAsks: { state: { kind: "declined", count: 1 }, asksToSend: 1 } })}
-      />,
+      <SundayCard {...props({ talkAsks: { state: { kind: "pending" }, settled: true } })} />,
     );
 
-    expect(screen.getByText("1 declined")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: SEND })).toHaveTextContent("Send asks (1)");
+    expect(screen.getByRole("button", { name: FINALIZE })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("says why the check is locked, to a pointer and to a screen reader", () => {
     render(
       <SundayCard
         {...props({
-          talkAsks: { state: { kind: "locked", reason: "references_open" }, asksToSend: 0 },
+          talkAsks: { state: { kind: "locked", reason: "no_conductor" }, settled: false },
         })}
       />,
     );
 
-    expect(screen.queryByRole("button", { name: SEND })).toBeNull();
-    expect(screen.getByTitle("Finalize or skip References first")).toBeInTheDocument();
-    expect(screen.getByText(/Asks locked: Finalize or skip References first/)).toBeInTheDocument();
+    const check = screen.getByRole("button", { name: /Nobody is conducting yet/ });
+    expect(check).toBeDisabled();
+    expect(check).toHaveAttribute("title", "Nobody is conducting yet");
   });
 
   it("keeps the check a sibling of the Talks link, never inside it", () => {
     render(
-      <SundayCard {...props({ talkAsks: { state: { kind: "pending" }, asksToSend: 0 } })} />,
+      <SundayCard {...props({ talkAsks: { state: { kind: "pending" }, settled: true } })} />,
     );
 
     const talksLink = screen.getByRole("link", { name: /^Talks/ });

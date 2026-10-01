@@ -28,7 +28,7 @@ import { listPrayers } from "@/lib/prayers/queries";
 import { countReferencesByAssignment } from "@/lib/references/queries";
 import { hasSpeaker } from "@/lib/sacrament/sundayAsks";
 import {
-  countTalksNeedingAsk,
+  speakersSettled,
   talkIsOff,
   talksAskState,
   type TalkAskInput,
@@ -206,8 +206,8 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
     );
   }
 
-  // `talks.request`, which POST /api/sundays/[id]/asks asserts. Without it the Talks pill carries
-  // no ask check, so the open asks are not counted at all.
+  // `talks.request`, which PATCH /api/sundays/[id]/speakers-finalized asserts. Without it the Talks
+  // pill carries no finalize check, so the open asks are not counted at all.
   //
   // ONE QUERY FOR THE MONTH, never one per Sunday. It is a service-role COUNT per talk, so the
   // answer does not depend on whose list the asks sit on (lib/todos/askLinks.ts).
@@ -332,20 +332,19 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
   );
 }
 
-// The Talks pill's ask check (Sacrament slice f1). Computed by the same pure function the asks
-// route reads, so the pill and the route cannot disagree about who still needs asking.
+// The Talks pill's finalize check (Sacrament slice f1, ITER-036). Computed by the same pure
+// functions the finalize route reads, so the pill and the route cannot disagree about who still
+// needs asking.
 function talkAsksFor(
-  sunday: Parameters<typeof referencesDecisionOf>[0] & { conductingUserId: string | null },
+  sunday: { speakersFinalizedAt: string | null; conductingUserId: string | null },
   talks: readonly TalkAskInput[],
 ): SundayCardProps["talkAsks"] {
-  const state = talksAskState({
-    referencesDecided: referencesDecisionOf(sunday) !== null,
+  const input = {
+    speakersFinalized: sunday.speakersFinalizedAt !== null,
     hasConductor: sunday.conductingUserId !== null,
     talks,
-  });
-  const asksToSend =
-    state.kind === "locked" || sunday.conductingUserId === null ? 0 : countTalksNeedingAsk(talks);
-  return { state, asksToSend };
+  };
+  return { state: talksAskState(input), settled: speakersSettled(input) };
 }
 
 // A row whose `sunday_id` is null is SKIPPED rather than bucketed under a sentinel. Every one of

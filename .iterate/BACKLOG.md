@@ -1,11 +1,14 @@
 # Backlog
 
-_Last updated: 2026-09-20_
+_Last updated: 2026-09-30_
 
 ---
 
 ## In Progress
 Items currently being planned or actively worked.
+
+- [ ] ITER-036 — Finalize hands speakers and prayers to To Do → [scope](.iterate/scopes/ITER-036.md) | [plan](plans/sacrament-finalize-hands-off-asks.md)
+  _GROUP-02, planned first (2026-09-30): it fixes what the user hit on the live site and needs nothing unbuilt. Suggested order after it: ITER-038, Prayer Items (P7), ITER-035, ITER-037, then the paused f3b._
 
 - [ ] ITER-034 — Youth Support: the module the user actually wants → [scope](.iterate/scopes/ITER-034.md) — **PARKED 2026-08-31**
   _Raised by the user 2026-08-31 after walking 062 and 063, and **this is the destination Phase 8
@@ -43,8 +46,20 @@ Items currently being planned or actively worked.
 ## Grouped Work
 Items in each group belong together and should be planned and worked in a single session.
 
-_None. GROUP-01 (ITER-002 + ITER-003) shipped together on 2026-08-22 as one unified plan, which
-is what the grouping asked for._
+_GROUP-01 (ITER-002 + ITER-003) shipped together on 2026-08-22 as one unified plan, which is what
+the grouping asked for._
+
+### [GROUP-02] Sacrament planning flow
+_Raised 2026-09-30 after the user tested the live site and found picked topics, references and
+speakers reached no list at all. One user flow end to end: pick candidates → Prayer Items →
+finalize per kind → speakers and prayers to To Do; topics to the music coordinator and back to
+the conductor. **Plan in this order** — each builds on the one before — and **ITER-035 depends on
+Prayer Items (P7), which is not built.** The paused f3b (assistant / conductor window) sits on top
+of ITER-036. Too large for one session; one plan, sliced._
+- [ ] ITER-035 — Sacrament candidates and Prayer Items → [scope](.iterate/scopes/ITER-035.md)
+- ITER-036 — _moved to In Progress 2026-09-30_
+- [ ] ITER-037 — Leftover candidates fill the rest of the rotation → [scope](.iterate/scopes/ITER-037.md)
+- [ ] ITER-038 — Music coordinator handoff and conductor approval → [scope](.iterate/scopes/ITER-038.md)
 
 ---
 

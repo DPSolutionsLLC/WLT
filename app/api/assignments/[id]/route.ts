@@ -28,10 +28,12 @@ import { requireSessionUser } from "@/lib/auth/session";
 import { getSunday, listBishopricUsers } from "@/lib/calendar/queries";
 import { emitNotification } from "@/lib/notifications/emitNotification";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { unfinalizeSpeakersIfNeeded } from "@/lib/sacrament/finalizePeople";
 import {
   AskLinkWriteError,
-  closeAsksForAssignment,
   resolveAsksForAssignment,
+  withdrawAsks,
+  type WithdrawnAsks,
 } from "@/lib/todos/askLinks";
 import { topicShapeChanged, unfinalizeTopicsIfNeeded } from "@/lib/topics/finalize";
 import { updateAssignmentSchema } from "@/lib/validation/assignment";
@@ -253,29 +255,34 @@ export async function PATCH(
       );
 
       // ---------------------------------------------------------------------------
-      // A SPEAKER CHANGE CLOSES THE TALK'S OPEN ASKS — and nothing else here does
+      // A SPEAKER CHANGE WITHDRAWS THE OLD PERSON'S ASK AND UN-FINALIZES — nothing else here does
       // ---------------------------------------------------------------------------
-      // The ask named somebody who is no longer the speaker, so it is closed with a line on every
-      // holder's list, never deleted (U9). The outcome AND its note are cleared, so Send asks
-      // offers the NEW speaker and the old speaker's answer does not sit beside the new one's name
-      // (defect 078-D2, the user's decision 2026-09-24). Nothing is lost: a member's decline and
-      // its reason stay in speaker history. A topic, a slot or any contact field must NOT
-      // do this: the rule is about WHAT changed (lib/topics/finalize.ts's lesson).
+      // The ask named somebody who is no longer the speaker (ITER-036, D2–D4, withdrawAsks()):
+      // deleted if its holder never touched it, closed with a line if they did, and UNLINKED but
+      // kept if they have an appointment booked — the window warned before saving. The outcome AND
+      // its note are cleared, so finalizing again asks the NEW speaker and the old speaker's answer
+      // does not sit beside the new one's name (defect 078-D2). Nothing is lost: a member's decline
+      // and its reason stay in speaker history. Then the Sunday's speakers read "not finalized"
+      // until somebody finalizes again, which asks only the new person.
+      //
+      // A topic, a slot or any contact field must NOT do this — the rule is about WHAT changed
+      // (lib/sacrament/finalizePeople.ts). Nor does a decline, which clears the speaker through
+      // the `transition` and `record_outcome` branches below and never reaches this one.
       let current = assignment;
-      let asksClosed: string[] = [];
+      let asksWithdrawn: WithdrawnAsks = { deletedIds: [], closedIds: [], keptIds: [] };
       let askFailure: AskLinkWriteError | null = null;
       let outcomeReset = false;
 
       if (speakerChanged(existing, assignment)) {
-        const closing = await tryAskLinkWrite(() =>
-          closeAsksForAssignment({
+        const withdrawing = await tryAskLinkWrite(() =>
+          withdrawAsks({
             wardId: user.wardId,
-            assignmentId,
+            assignmentIds: [assignmentId],
             reason: "speaker_changed",
           }),
         );
-        asksClosed = closing.value ?? [];
-        askFailure = closing.failure;
+        asksWithdrawn = withdrawing.value ?? asksWithdrawn;
+        askFailure = withdrawing.failure;
 
         if (assignment.requestOutcome !== null || assignment.requestNotes !== null) {
           current =
@@ -284,6 +291,13 @@ export async function PATCH(
           outcomeReset = true;
         }
       }
+
+      const speakersUnfinalized = await unfinalizeSpeakersIfNeeded({
+        wardId: user.wardId,
+        before: existing,
+        after: assignment,
+        client: supabase,
+      });
 
       // Only the FIELD NAMES, never their values. request_notes and the two message columns can
       // carry a member's circumstances, and an audit row is bishopric-readable (CLAUDE.md rule 8).
@@ -301,8 +315,11 @@ export async function PATCH(
             changedFields,
             approvalsInvalidated: invalidated > 0,
             approvalsCleared: invalidated,
-            asksClosed,
+            asksDeleted: asksWithdrawn.deletedIds,
+            asksClosed: asksWithdrawn.closedIds,
+            asksKept: asksWithdrawn.keptIds,
             outcomeReset,
+            speakersUnfinalized,
           },
         },
         supabase,

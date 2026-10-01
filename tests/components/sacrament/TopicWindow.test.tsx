@@ -44,6 +44,7 @@ function renderWindow(overrides: Partial<TopicWindowProps> = {}) {
     totalTalks: 3,
     assignment: null,
     approvedNames: [],
+    changeWarning: null,
     history: HISTORY,
     today: TODAY,
     onClose: vi.fn(),

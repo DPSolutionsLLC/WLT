@@ -17,6 +17,7 @@ import { Card } from "@/components/ui/Card";
 import type { Assignment } from "@/lib/assignments/queries";
 import { formatSundayLabel, lastDayOfMonth, type DateOnly } from "@/lib/calendar/dates";
 import type { Sunday } from "@/lib/calendar/queries";
+import type { TalkChangeWarnings } from "@/lib/sacrament/askImpact";
 import type { SessionUser } from "@/types/domain";
 
 export const ASSIGNMENTS_QUERY_KEY = "assignments";
@@ -24,6 +25,8 @@ export const ASSIGNMENTS_QUERY_KEY = "assignments";
 export type MonthAssignments = {
   assignments: Assignment[];
   approvalCounts: Record<string, number>;
+  // Who changing each talk would affect (ITER-036, D4). Only talks somebody would be affected by.
+  changeWarnings: Record<string, TalkChangeWarnings>;
 };
 
 export type MonthPlannerBoardProps = {
@@ -32,6 +35,7 @@ export type MonthPlannerBoardProps = {
   sundays: Sunday[];
   initialAssignments: Assignment[];
   approvalCounts: Record<string, number>;
+  changeWarnings: Record<string, TalkChangeWarnings>;
   memberNames: Record<string, string>;
   bishopricCount: number;
   canPlan: boolean;
@@ -83,6 +87,7 @@ async function fetchMonthAssignments(month: DateOnly): Promise<MonthAssignments>
     approvalCounts: Object.fromEntries(
       counts.map((count) => [count.assignmentId, count.approvedCount]),
     ),
+    changeWarnings: (payload.changeWarnings ?? {}) as Record<string, TalkChangeWarnings>,
   };
 }
 
@@ -108,6 +113,7 @@ export function MonthPlannerBoard({
   sundays,
   initialAssignments,
   approvalCounts,
+  changeWarnings,
   memberNames,
   bishopricCount,
   canPlan,
@@ -122,10 +128,10 @@ export function MonthPlannerBoard({
   const monthQuery = useQuery({
     queryKey: [ASSIGNMENTS_QUERY_KEY, month],
     queryFn: () => fetchMonthAssignments(month),
-    initialData: { assignments: initialAssignments, approvalCounts },
+    initialData: { assignments: initialAssignments, approvalCounts, changeWarnings },
   });
 
-  const { assignments, approvalCounts: counts } = monthQuery.data;
+  const { assignments, approvalCounts: counts, changeWarnings: warnings } = monthQuery.data;
 
   const bySunday = new Map<string, Assignment[]>();
   for (const assignment of assignments) {
@@ -256,6 +262,9 @@ export function MonthPlannerBoard({
           assignment={openSlot.assignment}
           approvedCount={openSlot.assignment ? (counts[openSlot.assignment.id] ?? 0) : 0}
           speakerFlags={speakerFlags}
+          changeWarnings={
+            openSlot.assignment ? warnings[openSlot.assignment.id] : undefined
+          }
         />
       )}
     </div>

@@ -1561,6 +1561,9 @@ export const TODO_LOG_KINDS = [
   "talk_off",
   "told_not_needed",
   "talk_back_on",
+  // ITER-036 (migration 088): the owner had worked on an ask when its decision was reopened, so it
+  // was closed rather than deleted.
+  "unfinalized",
 ] as const;
 export type TodoLogKind = (typeof TODO_LOG_KINDS)[number];
 
@@ -1580,13 +1583,15 @@ export const CANCELLED_REASON_LABELS: Record<CancelledReason, string> = {
 // Why an OPEN ask left a list without being answered (`todos.closed_reason`, migrations 083 and
 // 084). A closed ask has `completedAt` set too, so every reader already treats it as done.
 // `told_not_needed`: its talk was off and the owner told the speaker. `talk_back_on`: the talk came
-// back before that, and the speaker is asked again from scratch.
+// back before that, and the speaker is asked again from scratch. `unfinalized` (migration 088): the
+// speakers or prayers were un-finalized after the owner had worked on the ask (ITER-036, D3).
 export const TODO_CLOSED_REASONS = [
   "handed_over",
   "assistant_released",
   "speaker_changed",
   "told_not_needed",
   "talk_back_on",
+  "unfinalized",
 ] as const;
 export type TodoClosedReason = (typeof TODO_CLOSED_REASONS)[number];
 
@@ -1652,6 +1657,8 @@ export type TodoAskSource = {
   // Read live from the talk (lib/todos/askSource.ts), so a later change shows.
   phone: string | null;
   topicTitle: string | null;
+  // The talk's references, read live (ITER-036, D5). Empty when none have been chosen.
+  references: string[];
   isOpen: boolean;
   // The talk is OFF: its Sunday holds no meeting, or its slot no longer exists (talkIsOff()).
   // Computed live from the Sunday. An open ask on a talk that is off shows "Told them" in place of

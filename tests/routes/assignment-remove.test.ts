@@ -40,12 +40,17 @@ async function removeTalk(assignmentId: string) {
   );
 }
 
+// "Send asks" became finalizing the speakers (ITER-036): PATCH { finalized: true }.
 async function sendAsks(sundayId: string) {
-  const { POST } = await import("@/app/api/sundays/[id]/asks/route");
+  const { PATCH } = await import("@/app/api/sundays/[id]/speakers-finalized/route");
   return readResponse(
-    await POST(jsonRequest(`${BASE}/sundays/${sundayId}/asks`, { method: "POST" }), {
-      params: Promise.resolve({ id: sundayId }),
-    }),
+    await PATCH(
+      jsonRequest(`${BASE}/sundays/${sundayId}/speakers-finalized`, {
+        method: "PATCH",
+        body: { finalized: true },
+      }),
+      { params: Promise.resolve({ id: sundayId }) },
+    ),
   );
 }
 
@@ -166,7 +171,7 @@ describe("Delete on a talk — cancel it and move the rest up", () => {
     // Maria is ASKED: the conductor holds an open ask for her talk.
     await actAs(fixtures, "bishop");
     const sent = await sendAsks(sundayId);
-    if (sent.status !== 201) throw new Error(`Send asks answered ${sent.status}`);
+    if (sent.status !== 200) throw new Error(`Finalize speakers answered ${sent.status}`);
   });
 
   afterAll(async () => {

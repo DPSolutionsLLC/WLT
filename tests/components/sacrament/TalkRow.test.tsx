@@ -71,6 +71,7 @@ function renderRow(overrides: Partial<TalkRowProps> = {}) {
     ask: { hasSpeaker: true, requestOutcome: null, openAskCount: 1, isOff: false },
     approvedNames: [],
     tellerName: "Peter Nakamura",
+    changeWarnings: { speaker: null, topic: null },
     topicHistory: null,
     canPlan: true,
     canRemove: true,

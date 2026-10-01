@@ -43,7 +43,7 @@ describe("describeLogEntry", () => {
       "No longer assisting this Sunday",
     );
     expect(describeLogEntry({ kind: "speaker_changed", body: null })).toBe(
-      "Speaker changed — this ask is closed",
+      "Speaker changed — this ask is no longer needed",
     );
   });
 
@@ -59,7 +59,14 @@ describe("describeLogEntry", () => {
       "Told them they're not needed",
     );
     expect(describeLogEntry({ kind: "talk_back_on", body: null })).toBe(
-      "The talk is back on — ask again with Send asks",
+      "The talk is back on — finalize speakers to ask again",
+    );
+  });
+
+  // ITER-036 (migration 088): an ask somebody had worked on, closed when its decision reopened.
+  it("says an ask was closed because its decision was reopened", () => {
+    expect(describeLogEntry({ kind: "unfinalized", body: null })).toBe(
+      "The decision was reopened — this ask is closed",
     );
   });
 });

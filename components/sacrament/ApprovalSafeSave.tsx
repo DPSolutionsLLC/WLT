@@ -9,6 +9,9 @@ import { describeInvalidation } from "@/lib/assignments/invalidation";
 // naming who approved — and the second press saves. The warning arrives before the write, never as
 // a report afterwards (04-talks-pipeline.md §Step 3). The button is aria-describedby the sentence,
 // not merely near it (calendar-b).
+//
+// `extraWarning` is the second reason to warn first (ITER-036, D4): somebody already scheduled or
+// accepted would be affected. Soft — the second press still saves.
 
 export type ApprovalSafeSaveProps = {
   onCancel: () => void;
@@ -18,6 +21,7 @@ export type ApprovalSafeSaveProps = {
   saveLabel?: string;
   approvedCount: number;
   approvedNames: readonly string[];
+  extraWarning?: string | null;
 };
 
 export function ApprovalSafeSave({
@@ -28,12 +32,13 @@ export function ApprovalSafeSave({
   saveLabel = "Save",
   approvedCount,
   approvedNames,
+  extraWarning = null,
 }: ApprovalSafeSaveProps) {
   const warningId = useId();
   const [isConfirming, setIsConfirming] = useState(false);
 
   function handleSave(): void {
-    if (approvedCount > 0 && !isConfirming) {
+    if ((approvedCount > 0 || extraWarning !== null) && !isConfirming) {
       setIsConfirming(true);
       return;
     }
@@ -44,7 +49,9 @@ export function ApprovalSafeSave({
     <div className="flex flex-col gap-2">
       {isConfirming && (
         <p id={warningId} role="status" className="text-sm text-warning">
-          {describeInvalidation(approvedCount, approvedNames)}
+          {[approvedCount > 0 ? describeInvalidation(approvedCount, approvedNames) : null, extraWarning]
+            .filter((sentence) => sentence !== null)
+            .join(" ")}
         </p>
       )}
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
@@ -57,7 +64,13 @@ export function ApprovalSafeSave({
           disabled={isSaving || saveDisabled}
           aria-describedby={isConfirming ? warningId : undefined}
         >
-          {isSaving ? "Saving…" : isConfirming ? `${saveLabel} and reset approvals` : saveLabel}
+          {isSaving
+            ? "Saving…"
+            : !isConfirming
+              ? saveLabel
+              : approvedCount > 0
+                ? `${saveLabel} and reset approvals`
+                : `${saveLabel} anyway`}
         </Button>
       </div>
     </div>
