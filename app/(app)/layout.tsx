@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { ChromeBar } from "@/components/layout/ChromeBar";
+import { VersionStamp } from "@/components/layout/VersionStamp";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { readCallingLabel } from "@/lib/callings/callingLabel";
 import { resolveRoleAccess } from "@/lib/auth/permissions";
@@ -77,6 +78,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <main className="flex-1 p-4">
         <QueryProvider>{children}</QueryProvider>
       </main>
+
+      <VersionStamp commitSha={process.env.APP_VERSION} />
     </div>
   );
 }

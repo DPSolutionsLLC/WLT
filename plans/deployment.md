@@ -135,6 +135,14 @@ Beyond "the page loads":
       honest way to trigger one was found; manufacturing a fake error proves nothing about
       how a real failure renders. Check this the first time a genuine 500 appears.
 
+**Which deploy am I looking at? (added 2026-09-30)** Every page in the app shell ends with
+"Version 4fcd059" — the first seven characters of the commit Vercel built, the same id a push
+reports. `next.config.ts` captures `VERCEL_GIT_COMMIT_SHA` into `APP_VERSION` at **build** time, so
+it does not depend on Vercel exposing system variables to functions at runtime. A local build has
+no such variable and reads "Version local". If a deployed page ever reads "local", the build did not
+see the variable — check the project's *Automatically expose System Environment Variables* setting.
+The sign-in, youth PIN and public programme pages deliberately carry no stamp.
+
 ---
 
 ## Step 6 — Add `next build` to the validation loop
