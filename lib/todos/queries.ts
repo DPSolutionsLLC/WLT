@@ -1,7 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { InvalidInputError } from "@/lib/auth/errors";
 import { listAskCopies } from "@/lib/todos/askLinks";
-import { mapAskSource, type AskSourceRow } from "@/lib/todos/askSource";
+import {
+  mapAskSource,
+  mapPrayerAskSource,
+  type AskSourceRow,
+  type PrayerAskSourceRow,
+} from "@/lib/todos/askSource";
 import { pickTimeElsewhere } from "@/lib/todos/timeElsewhere";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type {
@@ -23,6 +28,7 @@ import {
   type TodoLogKind,
   type TodoStep,
   type TodoSummary,
+  type TodoTalkAskSource,
 } from "@/types/domain";
 
 // To Do — reads and writes, always through the CALLER'S session client.
@@ -60,6 +66,7 @@ type TodoRow = {
   action_item_id: string | null;
   source_completed_at: string | null;
   ask_assignment_id: string | null;
+  ask_prayer_id: string | null;
   closed_reason: string | null;
   talk_off_at: string | null;
   created_at: string;
@@ -77,6 +84,7 @@ type TodoSummaryRow = TodoRow & {
   todo_steps: StepRow[] | null;
   action_items: AgendaSourceRow;
   ask: AskSourceRow;
+  prayer: PrayerAskSourceRow;
   scheduled_member: ScheduledMemberRow;
 };
 
@@ -107,9 +115,9 @@ type LogRow = {
 // `action_items` has TWO foreign keys to `agendas` (the agenda it is on, and the one it was carried
 // from), so the embed names its constraint — without the hint PostgREST refuses the ambiguity.
 const TODO_COLUMNS =
-  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, closed_reason, talk_off_at, created_at, updated_at";
+  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, ask_prayer_id, closed_reason, talk_off_at, created_at, updated_at";
 const TODO_WITH_STEPS_COLUMNS =
-  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, closed_reason, talk_off_at, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date)), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number, cancelled_at, topic_title, sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), talk_references!talk_references_assignment_id_ward_id_fkey (citation, created_at)), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name)";
+  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, ask_prayer_id, closed_reason, talk_off_at, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date)), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number, cancelled_at, topic_title, sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), talk_references!talk_references_assignment_id_ward_id_fkey (citation, created_at)), prayer:prayer_assignments!todos_ask_prayer_id_fkey (id, member_id, prayer_type, cancelled_at, sundays!prayer_assignments_sunday_id_ward_id_fkey (date), members!prayer_assignments_member_id_ward_id_fkey (first_name, last_name, phone)), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name)";
 const STEP_COLUMNS = "id, todo_id, label, position, done_at";
 const LOG_COLUMNS = "id, todo_id, kind, body, created_at";
 
@@ -179,6 +187,7 @@ function mapTodoRow(row: TodoRow): Todo {
     actionItemId: row.action_item_id,
     sourceCompletedAt: row.source_completed_at,
     askAssignmentId: row.ask_assignment_id,
+    askPrayerId: row.ask_prayer_id,
     closedReason: toClosedReason(row.closed_reason),
     talkOffAt: row.talk_off_at,
     createdAt: row.created_at,
@@ -237,7 +246,7 @@ function mapTodoWithSteps(row: TodoSummaryRow): TodoSummary {
     ...mapTodoRow(row),
     steps: (row.todo_steps ?? []).map(mapStepRow).sort(byPosition),
     agendaSource: mapAgendaSource(row.action_items),
-    askSource: mapAskSource(row.ask, row.completed_at),
+    askSource: mapAskSource(row.ask, row.completed_at) ?? mapPrayerAskSource(row.prayer, row.completed_at),
     scheduledWithMemberName: memberName(row.scheduled_member),
   };
 }
@@ -306,10 +315,11 @@ export async function listTodos(
 
 // An open ask its owner has not scheduled, on a talk that is on, is the only kind that can use the
 // note: once they set their own time it has done its job, and an answered or told ask needs no
-// meeting at all.
-function wantsTimeElsewhere(todo: TodoSummary): boolean {
+// meeting at all. Only a TALK has another holder (f3's assistant); a prayer ask has one owner.
+function wantsTimeElsewhere(todo: TodoSummary): todo is TodoSummary & { askSource: TodoTalkAskSource } {
   return (
     todo.askSource !== null &&
+    todo.askSource.kind === "talk" &&
     todo.askSource.isOpen &&
     !todo.askSource.talkOff &&
     todo.scheduledFor === null
@@ -325,11 +335,11 @@ async function withTimesElsewhere(
 
   const copies = await listAskCopies({
     wardId,
-    assignmentIds: [...new Set(asking.flatMap((todo) => todo.askSource?.assignmentId ?? []))],
+    assignmentIds: [...new Set(asking.map((todo) => todo.askSource.assignmentId))],
   });
 
   return todos.map((todo) => {
-    if (!wantsTimeElsewhere(todo) || todo.askSource === null) return todo;
+    if (!wantsTimeElsewhere(todo)) return todo;
     const timeElsewhere = pickTimeElsewhere(
       { todoId: todo.id, assignmentId: todo.askSource.assignmentId },
       copies,
@@ -479,7 +489,7 @@ export async function updateTodo(
   if (input.complete === true && isOpenAsk(current)) {
     throw new InvalidInputError(OPEN_ASK_COMPLETE);
   }
-  if (input.complete === false && current.askAssignmentId !== null && current.completedAt !== null) {
+  if (input.complete === false && isAsk(current) && current.completedAt !== null) {
     throw new InvalidInputError(ANSWERED_ASK_REOPEN);
   }
 
@@ -617,12 +627,19 @@ const OPEN_ASK_COMPLETE = "Record their answer — Accepted or Declined.";
 
 // AND AN ANSWERED OR CLOSED ASK STAYS DONE. Reopening one would let the same answer be recorded
 // twice (a second speaker-history row), or meet migration 083b's one-open-ask index as a 500. A
-// new ask comes from finalizing the speakers, which asks whoever is the speaker now (ITER-036).
+// new ask comes from finalizing again, which asks whoever is chosen now (ITER-036).
 const ANSWERED_ASK_REOPEN =
-  "This ask has been answered or closed. To ask again, change the speaker on the talk and finalize the speakers again.";
+  "This ask has been answered or closed. To ask again, change who is asked and finalize again.";
 
+// A PRAYER ASK too (ITER-036 fb) — but not a cancelled prayer's "let them know" to-do, stamped
+// `talk_off_at` from the start, which has no answer to record.
 function isOpenAsk(todo: Todo): boolean {
-  return todo.askAssignmentId !== null && todo.completedAt === null;
+  if (todo.completedAt !== null) return false;
+  return todo.askAssignmentId !== null || (todo.askPrayerId !== null && todo.talkOffAt === null);
+}
+
+function isAsk(todo: Todo): boolean {
+  return todo.askAssignmentId !== null || todo.askPrayerId !== null;
 }
 
 export type DeleteTodoResult = "deleted" | "not_found" | "linked_to_open_item" | "open_ask";

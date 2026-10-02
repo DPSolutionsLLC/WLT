@@ -31,7 +31,8 @@ export function describeLogEntry(entry: Pick<TodoLogEntry, "kind" | "body">): st
     case "assistant_released":
       return "No longer assisting this Sunday";
     case "speaker_changed":
-      return "Speaker changed — this ask is no longer needed";
+      // Worded for a talk or a prayer alike (ITER-036 fb): the person was replaced.
+      return "Somebody else was chosen — this ask is no longer needed";
     case "taken_over":
       return entry.body === null ? "Taken over" : `Taken over from ${entry.body}`;
     // Worded for a talk, a prayer or a musical number alike (Sacrament slice f2c).

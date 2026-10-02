@@ -1,6 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MyAppointmentSource } from "@/lib/appointments/myAppointments";
-import { mapAskSource, type AskSourceRow } from "@/lib/todos/askSource";
+import {
+  mapAskSource,
+  mapPrayerAskSource,
+  type AskSourceRow,
+  type PrayerAskSourceRow,
+} from "@/lib/todos/askSource";
 import { appointmentViewState } from "@/lib/visits/appointmentStatus";
 import type { Database } from "@/types/database";
 import { APPOINTMENT_STATUSES, type AppointmentStatus } from "@/types/domain";
@@ -32,9 +37,10 @@ type Client = SupabaseClient<Database>;
 const VISIT_COLUMNS =
   "id, scheduled_for, status, households!visit_appointments_household_id_ward_id_fkey (family_name)";
 // `ask` is the talk a scheduled ask was created for (Sacrament slice f1), so the row can show its
-// topic and contact details and answer it here. The embed is lib/todos/askSource.ts's, verbatim.
+// topic and contact details and answer it here; `prayer` is the same for a prayer ask (ITER-036
+// fb). Both embeds are lib/todos/askSource.ts's, verbatim.
 const TODO_COLUMNS =
-  "id, title, scheduled_for, completed_at, scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number, cancelled_at, topic_title, sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), talk_references!talk_references_assignment_id_ward_id_fkey (citation, created_at))";
+  "id, title, scheduled_for, completed_at, scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number, cancelled_at, topic_title, sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), talk_references!talk_references_assignment_id_ward_id_fkey (citation, created_at)), prayer:prayer_assignments!todos_ask_prayer_id_fkey (id, member_id, prayer_type, cancelled_at, sundays!prayer_assignments_sunday_id_ward_id_fkey (date), members!prayer_assignments_member_id_ward_id_fkey (first_name, last_name, phone))";
 const YOUTH_COLUMNS =
   "id, activity_events!activity_attendees_event_id_ward_id_fkey (id, title, event_date, all_day, status, youth_activity_profiles!activity_events_profile_id_ward_id_fkey (activity_name))";
 
@@ -52,6 +58,7 @@ type TodoRow = {
   completed_at: string | null;
   scheduled_member: { first_name: string | null; last_name: string | null } | null;
   ask: AskSourceRow;
+  prayer: PrayerAskSourceRow;
 };
 
 type YouthRow = {
@@ -152,7 +159,7 @@ async function readScheduledTodos(supabase: Client, wardId: string): Promise<MyA
         href: `/todos#todo-${row.id}`,
         // A completed scheduled to-do still appears — the commitment happened.
         completed: row.completed_at !== null,
-        ask: mapAskSource(row.ask, row.completed_at),
+        ask: mapAskSource(row.ask, row.completed_at) ?? mapPrayerAskSource(row.prayer, row.completed_at),
       };
     });
 }

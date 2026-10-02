@@ -249,6 +249,13 @@ export function AppointmentList({
     );
   }
 
+  // A prayer's decline records no reason — prayers keep no decline history (ITER-036 fb).
+  function declinePrayerAsk(source: MyAppointmentSource) {
+    void run(source.id, () =>
+      sendTodoRequest(`/api/todos/${source.id}/answer`, "POST", { outcome: "declined" }),
+    );
+  }
+
   function acceptAsk(source: MyAppointmentSource) {
     void run(source.id, () =>
       sendTodoRequest(`/api/todos/${source.id}/answer`, "POST", { outcome: "accepted" }),
@@ -316,7 +323,11 @@ export function AppointmentList({
                   <SmallButton
                     label="Declined"
                     accessibleName={`They declined — ${source.title}`}
-                    onClick={() => setDeclining({ id: source.id, title: source.title })}
+                    onClick={() =>
+                      source.ask?.kind === "prayer"
+                        ? declinePrayerAsk(source)
+                        : setDeclining({ id: source.id, title: source.title })
+                    }
                     disabled={busyId !== null}
                   />
                 </span>

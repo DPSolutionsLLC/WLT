@@ -4,8 +4,10 @@ import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { getSunday } from "@/lib/calendar/queries";
-import { listPrayers, upsertPrayer } from "@/lib/prayers/queries";
+import { findPrayerSlot, listPrayers, upsertPrayer } from "@/lib/prayers/queries";
+import { afterPrayerPersonChanged } from "@/lib/sacrament/finalizePeople";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { AskLinkWriteError, type WithdrawnAsks } from "@/lib/todos/askLinks";
 import { listPrayersQuerySchema, upsertPrayerSchema } from "@/lib/validation/prayer";
 
 // The session is resolved OUTSIDE the try block: requireSessionUser() redirects by throwing an
@@ -19,6 +21,9 @@ import { listPrayersQuerySchema, upsertPrayerSchema } from "@/lib/validation/pra
 const NOT_IN_WARD = "That Sunday is not on your ward's calendar.";
 
 const WRITE_REFUSED = "That prayer could not be saved. Reload and try again.";
+
+const ASK_NOT_WITHDRAWN =
+  "Who is praying was saved, but the earlier ask could not be taken off the conductor's To Do. Reload and check it.";
 
 export async function GET(request: Request) {
   const user = await requireSessionUser();
@@ -83,10 +88,30 @@ export async function POST(request: Request) {
     // an invocation and a benediction — the slot count is a fact about SPEAKERS, and gating
     // prayers on it would make the one Sunday a month with the most prayers the only one that
     // could not have any (04-talks-pipeline.md, lib/calendar/queries.ts).
+    // Read BEFORE the write: a change of person withdraws the old person's ask and un-finalizes
+    // the prayers (ITER-036 fb, D2 and D3), and only the slot as it was can say who that was.
+    const before = await findPrayerSlot(user.wardId, input.sundayId, input.prayerType, supabase);
     const prayer = await upsertPrayer(user.wardId, input, supabase);
 
     if (!prayer) {
       return NextResponse.json({ error: WRITE_REFUSED }, { status: 404 });
+    }
+
+    let withdrawn: WithdrawnAsks | null = null;
+    let prayersUnfinalized = false;
+    let askFailure: AskLinkWriteError | null = null;
+    try {
+      const changed = await afterPrayerPersonChanged({
+        wardId: user.wardId,
+        before,
+        after: prayer,
+        client: supabase,
+      });
+      withdrawn = changed.withdrawn;
+      prayersUnfinalized = changed.unfinalized;
+    } catch (error) {
+      if (!(error instanceof AskLinkWriteError)) throw error;
+      askFailure = error;
     }
 
     await writeAuditLog(
@@ -101,10 +126,24 @@ export async function POST(request: Request) {
           date: sunday.date,
           prayerType: prayer.prayerType,
           assigned: prayer.memberId !== null,
+          stage: prayer.stage,
+          prayersUnfinalized,
+          deletedTodoIds: withdrawn?.deletedIds ?? [],
+          closedTodoIds: withdrawn?.closedIds ?? [],
+          keptTodoIds: withdrawn?.keptIds ?? [...(askFailure?.completedIds ?? [])],
         },
       },
       supabase,
     );
+
+    if (askFailure !== null) {
+      console.error("POST /api/prayers saved the person but did not withdraw the old ask", {
+        wardId: user.wardId,
+        prayerId: prayer.id,
+        cause: askFailure.cause,
+      });
+      return NextResponse.json({ error: ASK_NOT_WITHDRAWN }, { status: 500 });
+    }
 
     return NextResponse.json({ prayer }, { status: 201 });
   } catch (error) {

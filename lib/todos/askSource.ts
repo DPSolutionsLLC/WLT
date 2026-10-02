@@ -1,5 +1,12 @@
 import { talkIsOff } from "@/lib/sacrament/talkAsks";
-import { SUNDAY_TYPES, type SundayType, type TodoAskSource } from "@/types/domain";
+import {
+  PRAYER_TYPES,
+  SUNDAY_TYPES,
+  type PrayerType,
+  type SundayType,
+  type TodoPrayerAskSource,
+  type TodoTalkAskSource,
+} from "@/types/domain";
 
 // WHAT AN ASK TO-DO SHOWS ABOUT ITS TALK, read LIVE from the talk (Sacrament slice f1, the user's
 // request walking scenario 078). A leader who catches a speaker in the hallway, calls them, or
@@ -18,6 +25,12 @@ import { SUNDAY_TYPES, type SundayType, type TodoAskSource } from "@/types/domai
 //     sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots),
 //     members!assignments_member_id_ward_id_fkey (first_name, last_name, phone),
 //     talk_references!talk_references_assignment_id_ward_id_fkey (citation, created_at))
+//   prayer:prayer_assignments!todos_ask_prayer_id_fkey (id, member_id, prayer_type, cancelled_at,
+//     sundays!prayer_assignments_sunday_id_ward_id_fkey (date),
+//     members!prayer_assignments_member_id_ward_id_fkey (first_name, last_name, phone))
+//
+// A PRAYER ASK (ITER-036 fb) is read the same way, from the prayer: who is down to pray and how to
+// reach them, live. `prayer_assignments` is ward-readable, so the owner's own client reads it.
 //
 // THE REFERENCES ARE LIVE TOO (ITER-036, D5). Speakers can be finalized before the references are
 // decided, so a reference added afterwards must reach the card without re-sending the ask. The
@@ -53,11 +66,12 @@ function memberName(row: { first_name: string | null; last_name: string | null }
 }
 
 // `completedAt` is the TO-DO's, so `isOpen` says whether the ask still waits for an answer.
-export function mapAskSource(row: AskSourceRow, completedAt: string | null): TodoAskSource | null {
+export function mapAskSource(row: AskSourceRow, completedAt: string | null): TodoTalkAskSource | null {
   if (row === null) return null;
   const external = row.external_speaker_name?.trim() ?? "";
   const phone = row.members?.phone?.trim() ?? "";
   return {
+    kind: "talk",
     assignmentId: row.id,
     sundayDate: row.sundays?.date ?? null,
     speakerName: memberName(row.members) ?? (external === "" ? null : external),
@@ -82,6 +96,46 @@ export function mapAskSource(row: AskSourceRow, completedAt: string | null): Tod
         })),
     // Filled in by the To Do read (lib/todos/queries.ts), which alone may look at other people's
     // copies. Everywhere else it stays null.
+    timeElsewhere: null,
+  };
+}
+
+export type PrayerAskSourceRow = {
+  id: string;
+  member_id: string | null;
+  prayer_type: string | null;
+  cancelled_at: string | null;
+  sundays: { date: string } | null;
+  members: { first_name: string | null; last_name: string | null; phone: string | null } | null;
+} | null;
+
+function toPrayerType(value: string | null): PrayerType | null {
+  if (value === null) return null;
+  const known = PRAYER_TYPES.find((type) => type === value);
+  if (known === undefined) {
+    throw new Error(`prayer_assignments.prayer_type holds "${value}", which is not a known type.`);
+  }
+  return known;
+}
+
+// A cancelled prayer is OFF (Sacrament slice f2c). Prayers survive a Fast Sunday, so nothing else is.
+export function mapPrayerAskSource(
+  row: PrayerAskSourceRow,
+  completedAt: string | null,
+): TodoPrayerAskSource | null {
+  if (row === null) return null;
+  const phone = row.members?.phone?.trim() ?? "";
+  return {
+    kind: "prayer",
+    prayerId: row.id,
+    prayerType: toPrayerType(row.prayer_type),
+    sundayDate: row.sundays?.date ?? null,
+    speakerName: memberName(row.members),
+    speakerMemberId: row.member_id,
+    onRoster: true,
+    phone: phone === "" ? null : phone,
+    isOpen: completedAt === null,
+    talkOff: row.cancelled_at !== null,
     timeElsewhere: null,
   };
 }

@@ -75,6 +75,7 @@ function props(overrides: Partial<SundayCardProps> = {}): SundayCardProps {
     canPlanTalks: false,
     // No `talks.request`: no ask check on the Talks pill. The ask tests turn it on explicitly.
     talkAsks: null,
+    prayerAsks: null,
     ...overrides,
   };
 }
@@ -601,5 +602,58 @@ describe("SundayCard — the Talks pill's finalize check", () => {
     const talksLink = screen.getByRole("link", { name: /^Talks/ });
     expect(within(talksLink).queryByText("Asks sent")).toBeNull();
     expect(screen.getByText("Asks sent")).toBeInTheDocument();
+  });
+});
+
+// ITER-036 fb: the Prayer pill carries the same finalize check. The state is prayersAskState()'s,
+// tested in tests/lib/prayerAsks.test.ts.
+describe("SundayCard — the Prayer pill's finalize check", () => {
+  const FINALIZE = /finalize prayers/i;
+
+  it("renders no check without talks.request", () => {
+    render(<SundayCard {...props()} />);
+
+    expect(screen.queryByRole("button", { name: FINALIZE })).toBeNull();
+  });
+
+  it("offers finalize with the count still to ask, beside the Talks check", () => {
+    render(
+      <SundayCard
+        {...props({
+          talkAsks: { state: { kind: "pending" }, settled: true },
+          prayerAsks: { state: { kind: "not_finalized", count: 2 }, settled: false },
+        })}
+      />,
+    );
+
+    const check = screen.getByRole("button", { name: FINALIZE });
+    expect(check).toHaveTextContent("2 to ask");
+    expect(check).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: /finalize speakers/i })).toBeInTheDocument();
+  });
+
+  it("says why it is locked when nobody is down to pray", () => {
+    render(
+      <SundayCard
+        {...props({
+          prayerAsks: { state: { kind: "locked", reason: "no_prayer" }, settled: false },
+        })}
+      />,
+    );
+
+    const check = screen.getByRole("button", { name: /Nobody is down to pray yet/ });
+    expect(check).toBeDisabled();
+  });
+
+  it("keeps the check a sibling of the Prayer link, never inside it", () => {
+    render(
+      <SundayCard
+        {...props({ prayerAsks: { state: { kind: "pending" }, settled: true } })}
+      />,
+    );
+
+    const prayerLink = screen.getByRole("link", { name: /^Prayer/ });
+    expect(within(prayerLink).queryByText("Asks sent")).toBeNull();
+    expect(screen.getByRole("button", { name: FINALIZE })).toHaveAttribute("aria-pressed", "true");
   });
 });

@@ -11,6 +11,7 @@ const SCHEDULED = "2026-09-27T01:00:00.000Z";
 function impact(overrides: Partial<AskImpact> = {}): AskImpact {
   return {
     personName: "Maria Lopez",
+    askedTo: "speak",
     scheduledFor: null,
     holderName: null,
     accepted: false,

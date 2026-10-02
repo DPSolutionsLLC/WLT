@@ -87,6 +87,7 @@ export function SpeakersFinalizedPanel({
 
       {mode !== null && (
         <FinalizeSpeakersDialog
+          kind="speakers"
           sundayId={sundayId}
           sundayLabel={sundayLabel}
           mode={mode}

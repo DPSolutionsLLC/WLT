@@ -2,7 +2,7 @@
 id: sacrament-finalize-hands-off-asks
 type: feature
 iter: [ITER-036]
-commits: []
+commits: ["3f4c835"]
 date: 2026-09-30
 files:
   - supabase/migrations/088_finalize_speakers_prayers.sql

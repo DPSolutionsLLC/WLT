@@ -10,7 +10,7 @@ import { DECLINE_REASONS, REQUEST_OUTCOMES } from "@/types/domain";
 
 export const MAX_ANSWER_NOTE = 2000;
 
-const DECLINE_NEEDS_REASON = "Choose why they declined.";
+export const DECLINE_NEEDS_REASON = "Choose why they declined.";
 
 const answerFields = {
   declineReason: z.enum(DECLINE_REASONS).optional(),
@@ -40,10 +40,12 @@ export type RecordOutcomeInput = z.infer<typeof recordOutcomeSchema>;
 // POST /api/todos/[id]/answer. `told` is "Told them": the talk is off and the owner has let the
 // speaker know they are not needed (Sacrament slice f2b). The route admits it only while the talk
 // is off, and admits Accepted / Declined only while it is on.
-export const answerAskSchema = z
-  .object({
-    outcome: z.enum(["accepted", "declined", "told"]),
-    ...answerFields,
-  })
-  .superRefine(requireReasonOnDecline);
+//
+// THE DECLINE REASON IS REQUIRED BY THE ROUTE, NOT HERE (ITER-036 fb). Only a TALK's decline needs
+// one — it reaches speaker history; a prayer keeps none. Which kind the ask is depends on the to-do
+// the URL names, which this schema cannot see.
+export const answerAskSchema = z.object({
+  outcome: z.enum(["accepted", "declined", "told"]),
+  ...answerFields,
+});
 export type AnswerAskInput = z.infer<typeof answerAskSchema>;

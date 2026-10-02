@@ -8,7 +8,8 @@ import {
 import { formatSundayLabelWithYear } from "@/lib/calendar/dates";
 import { getSunday, readConductorName, type Sunday } from "@/lib/calendar/queries";
 import { listMusicalNumbers, type MusicalNumber } from "@/lib/music/queries";
-import { listCancelledPrayers, type Prayer } from "@/lib/prayers/queries";
+import { listCancelledPrayers, listPrayers, type Prayer } from "@/lib/prayers/queries";
+import { buildPrayerAsks } from "@/lib/sacrament/finalizePeople";
 import { getMember } from "@/lib/roster/queries";
 import { buildAsksForTalks, hasSpeaker } from "@/lib/sacrament/sundayAsks";
 import {
@@ -24,11 +25,14 @@ import {
   handOverAsks,
   listLatestAskOwners,
   listOpenAsks,
+  listOpenPrayerAsks,
   listToldAssignmentIds,
   listToldMusicalNumberIds,
   listToldPrayerIds,
   markAsksTalkOff,
+  type AskHandover,
   type OpenAsk,
+  type OpenPrayerAsk,
   type TellToCreate,
 } from "@/lib/todos/askLinks";
 import { wardDateOnly } from "@/lib/ward/wardDate";
@@ -54,6 +58,9 @@ import { PRAYER_TYPE_LABELS } from "@/types/domain";
 //          cancelled" to-do;
 //        - a cancelled prayer somebody was ASKED to give gets whoever asked a to-do; one only
 //          assigned was never asked, so nobody is told;
+//        - an open ASK on a cancelled prayer (ITER-036 fb) stays with its owner, stamped, exactly
+//          as a talk's does — and that is then the only to-do about it, never a second "let them
+//          know" beside it;
 //        - a cancelled musical number gets the person making the change a to-do, because nothing
 //          records who arranged it;
 //        - a hymn choice tells nobody.
@@ -63,7 +70,8 @@ import { PRAYER_TYPE_LABELS } from "@/types/domain";
 //      limitation) is treated the same as a cancelled one here.
 //   2. THE WORK FOLLOWS THE CONDUCTOR (f2). On a live talk that is on, an open ask held by anybody
 //      but the current conductor moves to them: a clean copy for the conductor, the old one closed
-//      as handed over. A Sunday with NO conductor keeps its asks where they are.
+//      as handed over. A Sunday with NO conductor keeps its asks where they are. A live PRAYER's
+//      open asks follow the conductor the same way (ITER-036 fb).
 //
 // There is NO "back on" rule any more (f2b had one). Cancelled work stays cancelled; if the Sunday
 // holds a meeting again, planning starts over and the "let them know" to-dos stay open (the user's
@@ -108,7 +116,10 @@ export function writtenTodoIds(result: ReconcileResult): string[] {
 type SundayWork = {
   talks: Assignment[];
   openAsks: OpenAsk[];
+  // CANCELLED prayers — rule 1's. The live ones are `livePrayers`, rule 2's.
   prayers: Prayer[];
+  livePrayers: Prayer[];
+  openPrayerAsks: OpenPrayerAsk[];
   musicalNumbers: MusicalNumber[];
   toldTalks: Set<string>;
   toldPrayers: Set<string>;
@@ -130,18 +141,26 @@ export async function reconcileSundayAsks(params: {
 
   // A handful of reads however many Sundays a re-shift touched. Only a Sunday with something to
   // act on is read further.
-  const [talks, prayers, allMusic] = await Promise.all([
+  const [talks, prayers, livePrayers, allMusic] = await Promise.all([
     listAssignments(wardId, { sundayIds, includeCancelled: true }, client),
     listCancelledPrayers(wardId, sundayIds, client),
+    listPrayers(wardId, { sundayIds }, client),
     listMusicalNumbers(wardId, sundayIds, client, { includeCancelled: true }),
   ]);
   const musicalNumbers = allMusic.filter((number) => number.cancelledAt !== null);
-  const openAsks = await listOpenAsks({ wardId, assignmentIds: talks.map((talk) => talk.id) });
+  const [openAsks, openPrayerAsks] = await Promise.all([
+    listOpenAsks({ wardId, assignmentIds: talks.map((talk) => talk.id) }),
+    listOpenPrayerAsks({
+      wardId,
+      prayerIds: [...prayers, ...livePrayers].map((prayer) => prayer.id),
+    }),
+  ]);
 
   const cancelledTalkIds = talks.filter((talk) => talk.cancelledAt !== null).map((talk) => talk.id);
   const accepted = talks.filter((talk) => talk.requestOutcome === "accepted" && hasSpeaker(talk));
   if (
     openAsks.length === 0 &&
+    openPrayerAsks.length === 0 &&
     cancelledTalkIds.length === 0 &&
     accepted.length === 0 &&
     prayers.length === 0 &&
@@ -168,6 +187,9 @@ export async function reconcileSundayAsks(params: {
       ...cancelledTalkIds.map((id) => talkById.get(id)?.sundayId),
       ...accepted.map((talk) => talk.sundayId),
       ...prayers.map((prayer) => prayer.sundayId),
+      ...openPrayerAsks.map(
+        (ask) => livePrayers.find((prayer) => prayer.id === ask.prayerId)?.sundayId,
+      ),
       ...musicalNumbers.map((number) => number.sundayId),
     ],
     client,
@@ -181,6 +203,8 @@ export async function reconcileSundayAsks(params: {
       talks: talks.filter((talk) => talk.sundayId === sunday.id),
       openAsks,
       prayers: prayers.filter((prayer) => prayer.sundayId === sunday.id),
+      livePrayers: livePrayers.filter((prayer) => prayer.sundayId === sunday.id),
+      openPrayerAsks,
       musicalNumbers: musicalNumbers.filter((number) => number.sundayId === sunday.id),
       toldTalks,
       toldPrayers,
@@ -219,13 +243,25 @@ export async function reconcileSundayAsks(params: {
       // f3 adds the assistant here: their copies are not stray either.
       const stray =
         conductorId === null ? [] : liveAsks.filter((ask) => ask.ownerUserId !== conductorId);
-      if (conductorId !== null && stray.length > 0) {
+      const livePrayerIds = new Set(work.livePrayers.map((prayer) => prayer.id));
+      const strayPrayerAsks =
+        conductorId === null
+          ? []
+          : work.openPrayerAsks.filter(
+              (ask) =>
+                livePrayerIds.has(ask.prayerId) &&
+                ask.talkOffAt === null &&
+                ask.ownerUserId !== conductorId,
+            );
+      if (conductorId !== null && (stray.length > 0 || strayPrayerAsks.length > 0)) {
         await handOverSunday({
           wardId,
           sunday,
           conductorId,
           stray,
+          strayPrayerAsks,
           talks: work.talks,
+          prayers: work.livePrayers,
           actingUserId: params.actingUserId,
           today,
           client,
@@ -301,9 +337,26 @@ async function tellAboutCancelledWork(params: {
     }
   }
 
+  // An open ASK on a cancelled prayer (ITER-036 fb) is marked, exactly as a talk's is, and is then
+  // the only to-do about it: whoever holds the ask is whoever was going to speak to them.
+  const cancelledPrayerIds = new Set(work.prayers.map((prayer) => prayer.id));
+  const prayerAsksOnCancelled = work.openPrayerAsks.filter((ask) =>
+    cancelledPrayerIds.has(ask.prayerId),
+  );
+  result.talkOffTodoIds.push(
+    ...(await markAsksTalkOff({
+      wardId,
+      todoIds: prayerAsksOnCancelled
+        .filter((ask) => ask.talkOffAt === null)
+        .map((ask) => ask.todoId),
+      sundayLabel,
+    })),
+  );
+  const prayersWithAsk = new Set(prayerAsksOnCancelled.map((ask) => ask.prayerId));
+
   // A prayer somebody was asked to give. One still at `assign` was never asked.
   for (const prayer of work.prayers) {
-    if (work.toldPrayers.has(prayer.id)) continue;
+    if (work.toldPrayers.has(prayer.id) || prayersWithAsk.has(prayer.id)) continue;
     if (prayer.stage !== "ask" && prayer.stage !== "confirm") continue;
     if (prayer.askedBy === null || prayer.memberId === null) continue;
     const member = await getMember(wardId, prayer.memberId, params.client);
@@ -357,20 +410,31 @@ async function handOverSunday(params: {
   sunday: Sunday;
   conductorId: string;
   stray: readonly OpenAsk[];
+  strayPrayerAsks: readonly OpenPrayerAsk[];
   talks: readonly Assignment[];
+  prayers: readonly Prayer[];
   actingUserId: string;
   today: string;
   client: SupabaseClient<Database>;
   result: ReconcileResult;
 }): Promise<void> {
   const strayTalkIds = new Set(params.stray.map((ask) => ask.assignmentId));
-  const previousOwnerIds = [...new Set(params.stray.map((ask) => ask.ownerUserId))];
+  const strayPrayerIds = new Set(params.strayPrayerAsks.map((ask) => ask.prayerId));
+  const previousOwnerIds = [
+    ...new Set([...params.stray, ...params.strayPrayerAsks].map((ask) => ask.ownerUserId)),
+  ];
 
-  const [asks, conductorName, previousNames] = await Promise.all([
+  const [asks, prayerAsks, conductorName, previousNames] = await Promise.all([
     buildAsksForTalks({
       wardId: params.wardId,
       sundayDate: params.sunday.date,
       talks: params.talks.filter((talk) => strayTalkIds.has(talk.id)),
+      client: params.client,
+    }),
+    buildPrayerAsks({
+      wardId: params.wardId,
+      sundayDate: params.sunday.date,
+      prayers: params.prayers.filter((prayer) => strayPrayerIds.has(prayer.id)),
       client: params.client,
     }),
     readConductorName(params.wardId, params.conductorId, params.client),
@@ -382,24 +446,30 @@ async function handOverSunday(params: {
     ),
   ]);
   const askByTalk = new Map(asks.map((ask) => [ask.assignmentId, ask] as const));
+  const askByPrayer = new Map(prayerAsks.map((ask) => [ask.prayerId, ask] as const));
   const nameOf = new Map(previousNames);
+  const fromName = (ownerUserId: string) => nameOf.get(ownerUserId) ?? "the previous conductor";
+
+  const handovers: AskHandover[] = [
+    ...params.stray.flatMap((openAsk) => {
+      const ask = askByTalk.get(openAsk.assignmentId);
+      return ask === undefined
+        ? []
+        : [{ fromTodoId: openAsk.todoId, fromName: fromName(openAsk.ownerUserId), ask }];
+    }),
+    ...params.strayPrayerAsks.flatMap((openAsk) => {
+      const ask = askByPrayer.get(openAsk.prayerId);
+      return ask === undefined
+        ? []
+        : [{ fromTodoId: openAsk.todoId, fromName: fromName(openAsk.ownerUserId), ask }];
+    }),
+  ];
 
   const { createdIds, closedIds } = await handOverAsks({
     wardId: params.wardId,
     toUserId: params.conductorId,
     toName: conductorName ?? "the new conductor",
-    handovers: params.stray.flatMap((openAsk) => {
-      const ask = askByTalk.get(openAsk.assignmentId);
-      return ask === undefined
-        ? []
-        : [
-            {
-              fromTodoId: openAsk.todoId,
-              fromName: nameOf.get(openAsk.ownerUserId) ?? "the previous conductor",
-              ask,
-            },
-          ];
-    }),
+    handovers,
     assignedByUserId: params.actingUserId,
     today: params.today,
   });

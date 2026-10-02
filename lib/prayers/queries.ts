@@ -47,7 +47,11 @@ export type Prayer = {
   createdAt: string;
 };
 
-export type PrayerFilter = ({ sundayId: string } | { from: DateOnly; to: DateOnly }) & {
+export type PrayerFilter = (
+  | { sundayId: string }
+  | { sundayIds: readonly string[] }
+  | { from: DateOnly; to: DateOnly }
+) & {
   // Only the save-time reconcile that tells people reads cancelled prayers.
   includeCancelled?: boolean;
 };
@@ -147,6 +151,8 @@ export async function listPrayers(
 
   if ("sundayId" in filter) {
     query = query.eq("sunday_id", filter.sundayId);
+  } else if ("sundayIds" in filter) {
+    query = query.in("sunday_id", [...filter.sundayIds]);
   } else {
     // Resolved through lib/calendar/queries.ts rather than an embedded PostgREST join, so the
     // ward scope on `sundays` is applied by the module that owns that table. An empty range
@@ -228,9 +234,14 @@ export async function findPrayerSlot(
 // (ward_id, sunday_id, prayer_type) in migration 028 makes true rather than merely intended.
 //
 // A new row is always created at stage `assign`. There is no parameter for the stage,
-// deliberately: a prayer that starts anywhere else has skipped a gate. An EXISTING row keeps
-// whatever stage it has — changing who is praying is not a stage move, and this function has no
-// branch that could make it one.
+// deliberately: a prayer that starts anywhere else has skipped a gate.
+//
+// A CHANGE OF PERSON STARTS THE PRAYER OVER AT `assign` (ITER-036 fb, reversing "an existing row
+// keeps whatever stage it has"). The stage describes the PERSON — asked, confirmed — so a new
+// person left at Confirmed reads as having said yes without ever being asked, and finalizing the
+// prayers would skip them. A talk's speaker change resets its answer the same way. The earlier
+// stamps stay as the record, exactly as a backward move leaves them. Re-saving the SAME person
+// changes nothing.
 export async function upsertPrayer(
   wardId: string,
   input: UpsertPrayerInput,
@@ -241,7 +252,7 @@ export async function upsertPrayer(
   const existing = await findPrayerSlot(wardId, input.sundayId, input.prayerType, supabase);
 
   if (existing) {
-    const patch: PrayerUpdate = { member_id: input.memberId };
+    const patch = personPatch(existing, input.memberId);
 
     const { data, error } = await supabase
       .from("prayer_assignments")
@@ -286,18 +297,25 @@ export async function upsertPrayer(
   return mapPrayerRow(data);
 }
 
-// Changes who is praying on an EXISTING row, by id. The upsert above is keyed by slot and is
-// what the board uses; this is what PATCH /api/prayers/[id] uses, so a caller holding an id does
-// not have to re-derive the Sunday and the type to change a name.
+function personPatch(existing: Prayer, memberId: string | null): PrayerUpdate {
+  return memberId === existing.memberId
+    ? { member_id: memberId }
+    : { member_id: memberId, stage: "assign" };
+}
+
+// Changes who is praying on an EXISTING row. The upsert above is keyed by slot and is what the
+// board uses; this is what PATCH /api/prayers/[id] and a declined prayer ask use, so a caller
+// holding the row does not have to re-derive the Sunday and the type to change a name.
 export async function setPrayerMember(
   wardId: string,
-  prayerId: string,
+  existing: Prayer,
   memberId: string | null,
   client?: SupabaseClient<Database>,
 ): Promise<Prayer | null> {
   const supabase = await resolveClient(client);
+  const prayerId = existing.id;
 
-  const patch: PrayerUpdate = { member_id: memberId };
+  const patch = personPatch(existing, memberId);
 
   const { data, error } = await supabase
     .from("prayer_assignments")

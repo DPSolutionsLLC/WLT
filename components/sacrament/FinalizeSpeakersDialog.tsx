@@ -5,8 +5,13 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/FormError";
 import { Modal } from "@/components/ui/Modal";
+import type { PeopleKind } from "@/lib/calendar/queries";
 
 // THE CONFIRM BEFORE FINALIZING OR UN-FINALIZING A SUNDAY'S SPEAKERS — ITER-036.
+//
+// AND ITS PRAYERS (ITER-036 fb). `kind` picks the route — speakers-finalized or prayers-finalized,
+// which answer the same GET and PATCH — and the words. Generalized the second time it was needed
+// rather than copied, so the two confirms cannot drift apart.
 //
 // Opened from the hub's Talks tab and from the Topics screen's panel. It reads
 // GET /api/sundays/[id]/speakers-finalized first, so it can say:
@@ -27,7 +32,23 @@ type Preview = {
 
 export type FinalizeSpeakersMode = "finalize" | "unfinalize";
 
+// The words that differ between the two kinds. Everything else is one sentence for both.
+const WORDS: Record<PeopleKind, { noun: string; askLine: string; loadError: string }> = {
+  speakers: {
+    noun: "speakers",
+    askLine: "Each one not yet asked gets an \u201cAsk ___ to speak\u201d on To Do.",
+    loadError: "Could not load this Sunday's speakers. Please try again.",
+  },
+  prayers: {
+    noun: "prayers",
+    askLine:
+      "Each person not yet asked gets an \u201cAsk ___ to give the opening (or closing) prayer\u201d on To Do.",
+    loadError: "Could not load this Sunday's prayers. Please try again.",
+  },
+};
+
 export type FinalizeSpeakersDialogProps = {
+  kind: PeopleKind;
   sundayId: string;
   sundayLabel: string;
   mode: FinalizeSpeakersMode;
@@ -47,11 +68,14 @@ function finalizeSentence(preview: Preview): string {
 }
 
 export function FinalizeSpeakersDialog({
+  kind,
   sundayId,
   sundayLabel,
   mode,
   onClose,
 }: FinalizeSpeakersDialogProps) {
+  const words = WORDS[kind];
+  const route = `/api/sundays/${sundayId}/${kind}-finalized`;
   const router = useRouter();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>();
@@ -64,13 +88,13 @@ export function FinalizeSpeakersDialog({
     let cancelled = false;
     async function load(): Promise<void> {
       try {
-        const response = await fetch(`/api/sundays/${sundayId}/speakers-finalized`);
+        const response = await fetch(route);
         const payload = (await response.json().catch(() => ({}))) as Partial<Preview> & {
           error?: string;
         };
         if (cancelled) return;
         if (!response.ok) {
-          setErrorMessage(payload.error ?? "Could not load this Sunday's speakers. Please try again.");
+          setErrorMessage(payload.error ?? words.loadError);
           return;
         }
         setPreview({
@@ -81,7 +105,7 @@ export function FinalizeSpeakersDialog({
           unfinalizeWarning: payload.unfinalizeWarning ?? null,
         });
       } catch (error) {
-        console.error("Could not load the speakers finalize preview", { sundayId, error });
+        console.error("Could not load the finalize preview", { kind, sundayId, error });
         if (!cancelled) {
           setErrorMessage("Could not reach the server. Check your connection and try again.");
         }
@@ -91,7 +115,7 @@ export function FinalizeSpeakersDialog({
     return () => {
       cancelled = true;
     };
-  }, [sundayId]);
+  }, [route, words.loadError, kind, sundayId]);
 
   useEffect(() => {
     if (saved && !isRefreshing) onClose();
@@ -101,7 +125,7 @@ export function FinalizeSpeakersDialog({
     setErrorMessage(undefined);
     setIsSaving(true);
     try {
-      const response = await fetch(`/api/sundays/${sundayId}/speakers-finalized`, {
+      const response = await fetch(route, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ finalized: mode === "finalize" }),
@@ -115,7 +139,7 @@ export function FinalizeSpeakersDialog({
       setSaved(true);
       startRefresh(() => router.refresh());
     } catch (error) {
-      console.error("Could not save the speakers finalize", { sundayId, mode, error });
+      console.error("Could not save the finalize", { kind, sundayId, mode, error });
       setErrorMessage("Could not reach the server. Check your connection and try again.");
     } finally {
       setIsSaving(false);
@@ -124,8 +148,8 @@ export function FinalizeSpeakersDialog({
 
   const title =
     mode === "finalize"
-      ? `Finalize speakers — ${sundayLabel}`
-      : `Un-finalize speakers — ${sundayLabel}`;
+      ? `Finalize ${words.noun} — ${sundayLabel}`
+      : `Un-finalize ${words.noun} — ${sundayLabel}`;
   const canConfirm =
     preview !== null && (mode === "unfinalize" || preview.hasConductor) && !isBusy;
 
@@ -139,8 +163,8 @@ export function FinalizeSpeakersDialog({
         {preview !== null && mode === "finalize" && (
           <>
             <p className="text-sm text-foreground">
-              Finalize when you&rsquo;ve prayed about these speakers and decided. Each one not yet
-              asked gets an &ldquo;Ask ___ to speak&rdquo; on To Do.
+              Finalize when you&rsquo;ve prayed about these {words.noun} and decided.{" "}
+              {words.askLine}
             </p>
             <p className="text-sm font-medium text-foreground">{finalizeSentence(preview)}</p>
           </>
@@ -167,7 +191,7 @@ export function FinalizeSpeakersDialog({
             Cancel
           </Button>
           <Button type="button" onClick={() => void confirm()} disabled={!canConfirm}>
-            {isBusy ? "Saving…" : mode === "finalize" ? "Finalize speakers" : "Un-finalize"}
+            {isBusy ? "Saving…" : mode === "finalize" ? `Finalize ${words.noun}` : "Un-finalize"}
           </Button>
         </div>
       </div>

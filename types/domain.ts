@@ -1625,6 +1625,9 @@ export type Todo = {
   sourceCompletedAt: string | null;
   // The talk this to-do asks somebody to give (Sacrament slice f); null for every other to-do.
   askAssignmentId: string | null;
+  // The prayer this to-do is about (migration 085): an ask to give it (ITER-036 fb), or a
+  // "let them know it's cancelled" (f2c). Null for every other to-do.
+  askPrayerId: string | null;
   // Set only on an ask that left this list unanswered — see TODO_CLOSED_REASONS.
   closedReason: TodoClosedReason | null;
   // When the owner was told this ask's talk is off (Sacrament slice f2b, migration 084).
@@ -1645,7 +1648,31 @@ export type TodoAgendaSource = {
 // Where an ask came from, for the card's "Talk on … · …" line and the Accepted / Declined
 // buttons. Read through `assignments`' ward-wide SELECT; null when the to-do is not an ask, or the
 // talk has since been deleted. `isOpen` is the TO-DO's state — an open ask is answered, not ticked.
-export type TodoAskSource = {
+//
+// A TALK OR A PRAYER (ITER-036 fb). Both are asks on the conductor's To Do with the same buttons;
+// `kind` says which, and only a talk has a topic, references or another leader's time.
+export type TodoAskSource = TodoTalkAskSource | TodoPrayerAskSource;
+
+export type TodoPrayerAskSource = {
+  kind: "prayer";
+  prayerId: string;
+  prayerType: PrayerType | null;
+  // A `date` column — format in UTC. Null when the prayer sits on no Sunday.
+  sundayDate: string | null;
+  // Null once nobody is down to pray (a decline clears it).
+  speakerName: string | null;
+  speakerMemberId: string | null;
+  // A prayer is always given by a ward member.
+  onRoster: true;
+  phone: string | null;
+  isOpen: boolean;
+  // The prayer was CANCELLED (Sacrament slice f2c): "Told them" in place of Accepted / Declined.
+  talkOff: boolean;
+  timeElsewhere: null;
+};
+
+export type TodoTalkAskSource = {
+  kind: "talk";
   assignmentId: string;
   // A `date` column — format in UTC. Null when the talk sits on no Sunday.
   sundayDate: string | null;

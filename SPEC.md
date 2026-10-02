@@ -217,7 +217,7 @@ presiding_override  text  -- if not the bishop, free text name/title
 references_finalized_at  timestamptz  -- migration 079. "These references are ready"
 references_skipped_at    timestamptz  -- migration 079. "Not giving references this round"
 speakers_finalized_at    timestamptz  -- migration 088 (ITER-036). Finalizing sends the speakers' asks
-prayers_finalized_at     timestamptz  -- migration 088 (ITER-036). Used by the prayers slice (fb)
+prayers_finalized_at     timestamptz  -- migration 088 (ITER-036 fb). Finalizing sends the prayers' asks
 created_at      timestamptz DEFAULT now()
 ```
 `references_finalized_at` and `references_skipped_at` are never both set (CHECK
@@ -229,6 +229,10 @@ an empty list. A topic change clears `references_finalized_at` and leaves a skip
 a speaker set, changed or cleared on a talk, and by a new talk with a speaker
 (`lib/sacrament/finalizePeople.ts`). A decline never clears it. Migration 088 backfilled it on every
 Sunday that already had an ask, so no live Sunday moved.
+`prayers_finalized_at` is the same for the two prayers: set and cleared by
+`PATCH /api/sundays/[id]/prayers-finalized`, and cleared when who prays is set, changed or cleared
+(`POST /api/prayers`, `PATCH /api/prayers/[id]` `assign`). A prayer ask's decline and a stage move
+never clear it.
 
 ### `conducting_rotation`
 ```sql
@@ -870,6 +874,17 @@ with a `speaker_changed` line on a speaker change, so the new speaker can be ask
 un-finalize. Every window that changes a scheduled or accepted speaker, or their topic, warns first
 naming them (`lib/sacrament/askImpact.ts`). The ask card reads the talk's references live
 (`talk_references`, embedded), so References need not be decided before asking (D5).
+**A prayer's ask (ITER-036 fb).** *Finalizing the prayers* creates one "Ask ___ to give the opening
+prayer" (or closing) per prayer not yet asked — somebody down to pray, still at `assign`, no open ask
+(`lib/prayers/prayerAsks.ts`) — on the conductor's list, linked on `todos.ask_prayer_id` with its own
+one-open-per-owner index (085c). Accepted moves the prayer `assign → ask → confirm` through the
+pipeline (`asked_by` = the ask's owner); Declined clears the person, with no reason and no history
+row; both close every open copy, through `lib/prayers/prayerOutcome.ts` alone. A board move to
+`confirm` or `done` closes the open ask as Accepted. **A change of person starts the prayer over at
+`assign`** and withdraws the old person's ask by the talk rules above. Prayer asks follow the
+conductor; an open ask on a cancelled prayer is marked `talk_off_at` and is the only to-do about it.
+`listToldPrayerIds()` counts only stamped rows, so a prayer whose ask was answered is still told
+when it is cancelled.
 **A Sunday's cancelled work (slice f2c, migration 085).** `cancelled_at` + `cancelled_reason`
 (`no_meeting | fast_sunday | slot_removed`) on `assignments`, `prayer_assignments`,
 `hymn_selections` and `musical_numbers`. `updateSunday()` cancels — never reverts, never deletes —
@@ -1343,6 +1358,9 @@ PATCH  /api/sundays/[id]/speakers-finalized     { finalized }. true stamps and a
                                                 the conductor's To Do; 400 with a sentence with no speaker or nobody
                                                 conducting. false clears the stamp and withdraws the asks (talks.request).
                                                 Replaced POST /api/sundays/[id]/asks ("Send asks"), removed by ITER-036
+GET    /api/sundays/[id]/prayers-finalized      The same confirm for the two prayers (talks.request; ITER-036 fb)
+PATCH  /api/sundays/[id]/prayers-finalized      { finalized }. true stamps and asks every prayer not yet asked, on the
+                                                conductor's To Do; false withdraws them (talks.request)
 ```
 The References routes check that the talk is on THE SUNDAY IN THE URL, not merely in the ward —
 the composite key proves only the second. Finalizing with no references is a 409 naming the
@@ -1378,8 +1396,10 @@ anything.
 ### Prayers
 ```
 GET    /api/prayers              List prayer assignments by Sunday or by date range
-POST   /api/prayers              Assign a prayer BY SLOT — a second write replaces the member
-PATCH  /api/prayers/[id]         Change who is praying, or move one stage
+POST   /api/prayers              Assign a prayer BY SLOT — a second write replaces the member. A change
+                                 of person starts the prayer over and un-finalizes the prayers (ITER-036 fb)
+PATCH  /api/prayers/[id]         Change who is praying, or move one stage. A move to confirm/done closes
+                                 the prayer's open ask as Accepted (ITER-036 fb)
 ```
 
 Prayers run their own four-stage pipeline — `assign → ask → confirm → done` — with no approval

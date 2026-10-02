@@ -331,7 +331,7 @@ describe("Conductor handover — Sacrament slice f2", () => {
       await actAs(fixtures, handle);
       const todos = await listTodos(wardId, { status: "open" }, actingClient());
 
-      const mariaAsk = todos.find((todo) => todo.askSource?.assignmentId === mariaTalkId)!;
+      const mariaAsk = todos.find((todo) => todo.askAssignmentId === mariaTalkId)!;
       expect(mariaAsk.askSource?.timeElsewhere).toEqual({
         holderName: await nameOf(firstConductorId),
         scheduledFor: "2027-07-01T01:30:00+00:00",
@@ -341,7 +341,7 @@ describe("Conductor handover — Sacrament slice f2", () => {
       expect(JSON.stringify(mariaAsk)).not.toContain(OWNERS_OWN_WORDS);
 
       // Nobody had a time set for the visitor, so there is nothing to say.
-      const visitorAsk = todos.find((todo) => todo.askSource?.assignmentId === visitorTalkId)!;
+      const visitorAsk = todos.find((todo) => todo.askAssignmentId === visitorTalkId)!;
       expect(visitorAsk.askSource?.timeElsewhere).toBeNull();
     });
 

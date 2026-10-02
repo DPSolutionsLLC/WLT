@@ -5,6 +5,8 @@ import { writeAuditLog } from "@/lib/audit/writeAuditLog";
 import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
+import { recordPrayerOutcome } from "@/lib/prayers/prayerOutcome";
+import { getPrayer } from "@/lib/prayers/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   AskLinkWriteError,
@@ -14,7 +16,7 @@ import {
 } from "@/lib/todos/askLinks";
 import { getTodo } from "@/lib/todos/queries";
 import { respondToTodoError } from "@/lib/todos/routeErrors";
-import { answerAskSchema } from "@/lib/validation/talkAsk";
+import { answerAskSchema, DECLINE_NEEDS_REASON } from "@/lib/validation/talkAsk";
 import { todoIdSchema } from "@/lib/validation/todo";
 import { DECLINE_REASON_LABELS } from "@/types/domain";
 
@@ -40,6 +42,11 @@ import { DECLINE_REASON_LABELS } from "@/types/domain";
 // theirs) and the other copies of the same talk ask. A ward secretary who cancelled a meeting holds
 // the musical number's to-do and no talk permission. Accepted / Declined still need `talks.request`,
 // and are refused on anything that is off.
+//
+// A PRAYER ASK (ITER-036 fb) is answered the same way, through lib/prayers/prayerOutcome.ts — the
+// one writer of a prayer's answer. Its decline carries no reason: a prayer keeps no decline history.
+// A TALK's decline still needs one, checked here because the schema cannot see which kind of ask
+// the URL names.
 
 const NOT_FOUND = "That to-do could not be found.";
 const NOT_AN_OPEN_ASK =
@@ -51,6 +58,11 @@ const TALK_IS_OFF =
   "There is no talk any more. Once you've let them know they're not needed, press Told them.";
 const TALK_IS_ON = "The talk is still on. Record their answer with Accepted or Declined.";
 const TOLD_NOT_ALL_CLOSED = "Not every copy of this to-do was closed. Please refresh.";
+const PRAYER_IS_OFF =
+  "This prayer was cancelled. Once you've let them know they're not needed, press Told them.";
+const PRAYER_GONE = "The prayer this ask was for is no longer on the calendar.";
+const PRAYER_COPIES_NOT_CLOSED =
+  "The answer was recorded on the prayer, but its ask could not be closed. Please refresh.";
 
 export async function POST(
   request: Request,
@@ -86,11 +98,31 @@ export async function POST(
       });
     }
 
+    if (todo.askPrayerId !== null && todo.askAssignmentId === null) {
+      if (todo.completedAt !== null) {
+        return NextResponse.json({ error: NOT_AN_OPEN_ASK }, { status: 400 });
+      }
+      if (isOff) {
+        return NextResponse.json({ error: PRAYER_IS_OFF }, { status: 400 });
+      }
+      return await answerPrayerAsk({
+        wardId: user.wardId,
+        userId: user.id,
+        todoId: id,
+        prayerId: todo.askPrayerId,
+        outcome: input.outcome,
+        supabase,
+      });
+    }
+
     if (todo.askAssignmentId === null || todo.completedAt !== null) {
       return NextResponse.json({ error: NOT_AN_OPEN_ASK }, { status: 400 });
     }
     if (isOff) {
       return NextResponse.json({ error: TALK_IS_OFF }, { status: 400 });
+    }
+    if (input.outcome === "declined" && input.declineReason === undefined) {
+      return NextResponse.json({ error: DECLINE_NEEDS_REASON }, { status: 400 });
     }
 
     const assignmentId = todo.askAssignmentId;
@@ -168,6 +200,56 @@ export async function POST(
       detail: { wardId: user.wardId, userId: user.id },
     });
   }
+}
+
+// A prayer's Accepted / Declined. The prayer was read through the caller's own client; the answer
+// is recorded on it by recordPrayerOutcome(), which then closes the ask. Ids only in the audit.
+async function answerPrayerAsk(params: {
+  wardId: string;
+  userId: string;
+  todoId: string;
+  prayerId: string;
+  outcome: "accepted" | "declined";
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>;
+}): Promise<NextResponse> {
+  const existing = await getPrayer(params.wardId, params.prayerId, params.supabase);
+  if (existing === null) {
+    return NextResponse.json({ error: PRAYER_GONE }, { status: 404 });
+  }
+
+  const result = await recordPrayerOutcome({
+    wardId: params.wardId,
+    existing,
+    outcome: params.outcome,
+    actorUserId: params.userId,
+    client: params.supabase,
+  });
+  if (!result.ok) {
+    return NextResponse.json({ error: result.message }, { status: 409 });
+  }
+
+  await writeAuditLog(
+    {
+      wardId: params.wardId,
+      userId: params.userId,
+      action: "prayer_ask_answered",
+      module: "talks",
+      detail: {
+        todoId: params.todoId,
+        prayerId: params.prayerId,
+        outcome: params.outcome,
+        stage: result.prayer.stage,
+        todosClosed: result.todosClosed,
+      },
+    },
+    params.supabase,
+  );
+
+  if (result.closeFailure !== null) {
+    return NextResponse.json({ error: PRAYER_COPIES_NOT_CLOSED }, { status: 500 });
+  }
+
+  return NextResponse.json({ outcome: params.outcome, todosClosed: result.todosClosed });
 }
 
 // "Told them". Nothing on the cancelled record changes — it stays exactly as it was when it was

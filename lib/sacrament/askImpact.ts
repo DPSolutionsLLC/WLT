@@ -16,20 +16,27 @@ import { formatAppointmentInstant } from "@/lib/visits/visitDates";
 // `scheduledFor` is a timestamptz, so it is formatted in the WARD's zone (CLAUDE.md rule 12), passed
 // in by the caller. `holderName` is whoever holds the appointment, and null when that is the person
 // reading the warning — f3a's rule that another leader's time is theirs, not the reader's.
+//
+// PRAYERS TOO (ITER-036 fb). `askedTo` is what the person was asked to do — "speak", or "give the
+// opening prayer" — and a change of who prays is the `speaker` change: the person was replaced.
 
 export type AskImpact = {
   personName: string;
+  // The end of "to ask them to ___". `ASKED_TO_SPEAK` for a talk.
+  askedTo: string;
   scheduledFor: string | null;
   holderName: string | null;
   accepted: boolean;
 };
+
+export const ASKED_TO_SPEAK = "speak";
 
 export type AskImpactChange = "unfinalize" | "speaker" | "topic";
 
 function appointmentSentence(impact: AskImpact, change: AskImpactChange, wardZone: string): string {
   const when = formatAppointmentInstant(impact.scheduledFor ?? "", wardZone);
   const who = impact.holderName === null ? "You have" : `${impact.holderName} has`;
-  const base = `${who} an appointment with ${impact.personName} on ${when} to ask them to speak`;
+  const base = `${who} an appointment with ${impact.personName} on ${when} to ask them to ${impact.askedTo}`;
   switch (change) {
     case "unfinalize":
       return `${base}. That ask stays on the list.`;
@@ -46,7 +53,9 @@ function acceptedSentence(impact: AskImpact, change: AskImpactChange): string {
     case "unfinalize":
       return `${base} — you'll need to let them know if anything changes.`;
     case "speaker":
-      return `${base} — you'll need to let them know they're no longer speaking.`;
+      return impact.askedTo === ASKED_TO_SPEAK
+        ? `${base} — you'll need to let them know they're no longer speaking.`
+        : `${base} — you'll need to let them know they're no longer needed.`;
     case "topic":
       return `${base} — you'll want to tell them about their new topic.`;
   }

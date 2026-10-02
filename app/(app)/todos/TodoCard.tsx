@@ -112,7 +112,10 @@ export function TodoCard({
   // (Sacrament slices f2b and f2c): a talk ask, or the to-do for a cancelled prayer or musical
   // number. It has no checkbox either; "Told them" closes it.
   const needsTelling = todo.talkOffAt !== null || todo.askSource?.talkOff === true;
-  const isAsk = todo.askAssignmentId !== null || todo.talkOffAt !== null;
+  const isAsk =
+    todo.askAssignmentId !== null || todo.askPrayerId !== null || todo.talkOffAt !== null;
+  // A prayer's decline records no reason — prayers keep no decline history (ITER-036 fb).
+  const isPrayerAsk = todo.askSource?.kind === "prayer";
   const isOpenAsk = isAsk && !isDone;
   const bodyId = `todo-body-${todo.id}`;
   const stepFieldId = `todo-step-${todo.id}`;
@@ -158,6 +161,15 @@ export function TodoCard({
       url: `/api/todos/${todo.id}/answer`,
       method: "POST",
       body: { outcome: "accepted" },
+      place: "card",
+    });
+  }
+
+  function declinePrayer() {
+    mutation.mutate({
+      url: `/api/todos/${todo.id}/answer`,
+      method: "POST",
+      body: { outcome: "declined" },
       place: "card",
     });
   }
@@ -270,7 +282,7 @@ export function TodoCard({
           {/* A `date` column, so UTC like the do and due dates above. */}
           {todo.askSource === null ? null : (
             <span className="text-xs text-muted">
-              Talk
+              {todo.askSource.kind === "prayer" ? "Prayer" : "Talk"}
               {todo.askSource.sundayDate === null ? "" : ` on ${dayLabel(todo.askSource.sundayDate)}`}
               {todo.askSource.speakerName === null ? "" : ` · ${todo.askSource.speakerName}`}
             </span>
@@ -337,7 +349,7 @@ export function TodoCard({
             <SmallButton
               label="Declined"
               accessibleName={`They declined — ${todo.title}`}
-              onClick={() => setDeclining(true)}
+              onClick={isPrayerAsk ? declinePrayer : () => setDeclining(true)}
               disabled={busy}
             />
           </span>

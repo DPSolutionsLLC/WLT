@@ -183,8 +183,10 @@ land first.
 > references live. A speaker change un-finalizes and withdraws the old person's ask (deleted if
 > untouched, closed if touched, kept and unlinked if scheduled); every window that would affect a
 > scheduled or accepted speaker warns first, naming them. A decline never un-finalizes. **`fb`**
-> (prayers) gives prayers the same finalize; it uses 088's `prayers_finalized_at`. **f3** moves to
-> migration **089**.
+> (prayers, 2026-10-01) gives prayers the same finalize on 088's `prayers_finalized_at`: a check on the
+> hub's Prayer pill and a button per Sunday on the Prayers board; Accepted moves the prayer to
+> Confirmed, Declined frees it; a change of person starts the prayer over at Assigned; a board move to
+> Confirmed closes the ask as Accepted. **f3** moves to migration **089**.
 >
 > **Module 1 now has `d`, `e` left**, and `f`/`g` wait on **P5**. The INDEX argues P5 should
 > come early for exactly that reason.

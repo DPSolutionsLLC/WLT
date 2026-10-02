@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { PrayersFinalizeButton } from "@/app/(app)/prayers/PrayersFinalizeButton";
 import { LastPrayedLabel } from "@/components/prayers/LastPrayedLabel";
 import { lastPrayedLabel } from "@/lib/prayers/lastPrayed";
 import { MemberPicker } from "@/components/roster/MemberPicker";
@@ -9,6 +11,7 @@ import { SundayTypeBadge } from "@/components/calendar/SundayTypeBadge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
+import { Modal } from "@/components/ui/Modal";
 import { formatSundayLabel, lastDayOfMonth, type DateOnly } from "@/lib/calendar/dates";
 import type { Sunday } from "@/lib/calendar/queries";
 // Type-only, so nothing from the server-only module survives the build. A VALUE import of
@@ -16,6 +19,7 @@ import type { Sunday } from "@/lib/calendar/queries";
 // both lint and typecheck (plans/retros/roster-b-picker-and-orgs.md).
 import type { Prayer } from "@/lib/prayers/queries";
 import type { LastPrayed } from "@/lib/prayers/lastPrayed";
+import type { PrayersAskState } from "@/lib/prayers/prayerAsks";
 import { canTransitionPrayer, nextPrayerStage } from "@/lib/prayers/prayerPipeline";
 import {
   PRAYER_STAGE_LABELS,
@@ -35,6 +39,20 @@ export type PrayerBoardProps = {
   memberNames: Record<string, string>;
   lastPrayed: LastPrayed[];
   canPlan: boolean;
+  // Each Sunday's prayer finalize state (ITER-036 fb), by Sunday id. Null for anybody without
+  // `talks.request`, who sees no finalize control at all.
+  prayerAsks: Record<string, { state: PrayersAskState; settled: boolean }> | null;
+  // By prayer id: who a change of person would affect (D4) — somebody who already confirmed, or an
+  // appointment booked to ask them. Built on the server in the ward's zone (rule 12). A prayer
+  // nobody would be affected by is absent.
+  changeWarnings: Record<string, string>;
+};
+
+type PendingChange = {
+  sunday: Sunday;
+  prayerType: PrayerType;
+  memberIds: string[];
+  warning: string;
 };
 
 async function readJson(response: Response): Promise<Record<string, unknown>> {
@@ -76,8 +94,12 @@ export function PrayerBoard({
   memberNames,
   lastPrayed,
   canPlan,
+  prayerAsks,
+  changeWarnings,
 }: PrayerBoardProps) {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const [pendingChange, setPendingChange] = useState<PendingChange | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
 
@@ -111,8 +133,11 @@ export function PrayerBoard({
     }),
   );
 
+  // The finalize state and the change warnings are the SERVER's (they read other people's asks), so
+  // a change here refreshes the page as well as the prayers it fetched itself.
   async function refresh(): Promise<void> {
     await queryClient.invalidateQueries({ queryKey: [PRAYERS_QUERY_KEY, month] });
+    router.refresh();
   }
 
   async function send(
@@ -165,6 +190,19 @@ export function PrayerBoard({
     );
   }
 
+  // WARN FIRST (ITER-036 D4): a change that would replace somebody who already confirmed, or who
+  // has an appointment booked to be asked, is confirmed before it is saved. Soft — Continue saves.
+  function choose(sunday: Sunday, prayerType: PrayerType, memberIds: string[]): void {
+    const prayer = bySlot.get(keyFor(sunday.id, prayerType)) ?? null;
+    const warning = prayer === null ? undefined : changeWarnings[prayer.id];
+    const nextMemberId = memberIds[0] ?? null;
+    if (warning !== undefined && prayer !== null && nextMemberId !== prayer.memberId) {
+      setPendingChange({ sunday, prayerType, memberIds, warning });
+      return;
+    }
+    void assign(sunday, prayerType, memberIds);
+  }
+
   async function advance(prayer: Prayer, key: string): Promise<void> {
     const to = nextPrayerStage(prayer.stage);
     if (to === null) return;
@@ -201,6 +239,17 @@ export function PrayerBoard({
             </h2>
             <SundayTypeBadge type={sunday.type} />
           </div>
+
+          {prayerAsks?.[sunday.id] !== undefined && (
+            <div className="mt-3">
+              <PrayersFinalizeButton
+                sundayId={sunday.id}
+                sundayLabel={formatSundayLabel(sunday.date)}
+                state={prayerAsks[sunday.id].state}
+                settled={prayerAsks[sunday.id].settled}
+              />
+            </div>
+          )}
 
           {/* DELIBERATELY not gated on speakingSlots. A fast Sunday carries speaking_slots = 0
               and still has an invocation and a benediction — the slot count is a fact about
@@ -276,7 +325,7 @@ export function PrayerBoard({
                     <MemberPicker
                       user={user}
                       value={memberId === null ? [] : [memberId]}
-                      onChange={(memberIds) => void assign(sunday, prayerType, memberIds)}
+                      onChange={(memberIds) => choose(sunday, prayerType, memberIds)}
                       multiple={false}
                       mode="modal"
                       disabled={isBusy}
@@ -291,6 +340,35 @@ export function PrayerBoard({
           </ul>
         </Card>
       ))}
+
+      {pendingChange !== null && (
+        <Modal
+          isOpen
+          onClose={() => setPendingChange(null)}
+          title={`Change who is praying — ${formatSundayLabel(pendingChange.sunday.date)}`}
+        >
+          <div className="flex flex-col gap-3">
+            <p role="status" className="text-sm text-warning">
+              {pendingChange.warning}
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="secondary" onClick={() => setPendingChange(null)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  const change = pendingChange;
+                  setPendingChange(null);
+                  void assign(change.sunday, change.prayerType, change.memberIds);
+                }}
+              >
+                Change anyway
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

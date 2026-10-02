@@ -71,6 +71,25 @@ export type AskToCreate = {
   notes: string;
 };
 
+// A PRAYER ASK (ITER-036 fb) — the same to-do, linked on `ask_prayer_id` (migration 085) instead.
+// Its one-open-ask-per-owner index is `todos_one_open_prayer_item_per_owner` (085c), so every
+// idempotence argument below holds for it unchanged.
+export type PrayerAskToCreate = {
+  prayerId: string;
+  title: string;
+  notes: string;
+};
+
+export type AnyAskToCreate = AskToCreate | PrayerAskToCreate;
+
+type AskColumn = "ask_assignment_id" | "ask_prayer_id";
+
+function askLinkColumns(ask: AnyAskToCreate) {
+  return "prayerId" in ask
+    ? { ask_prayer_id: ask.prayerId }
+    : { ask_assignment_id: ask.assignmentId };
+}
+
 // ---------------------------------------------------------------------------
 // SEND ASKS — one open ask per (talk, owner)
 // ---------------------------------------------------------------------------
@@ -84,7 +103,7 @@ export async function createAsksForSunday(params: {
   wardId: string;
   sundayId: string;
   ownerUserIds: readonly string[];
-  asks: readonly AskToCreate[];
+  asks: readonly AnyAskToCreate[];
   assignedByUserId: string;
   today: string;
   client?: Client;
@@ -105,19 +124,20 @@ export async function createAsksForSunday(params: {
           notes: ask.notes,
           tag: "Sacrament",
           do_date: params.today,
-          ask_assignment_id: ask.assignmentId,
+          ...askLinkColumns(ask),
         })
         .select("id")
         .single();
 
       if (error) {
-        // 23505 is todos_one_open_ask_per_owner (migration 083b): this person already holds an
-        // open ask for this talk. That is the outcome this call wanted, so it is not a failure.
+        // 23505 is todos_one_open_ask_per_owner (migration 083b), or its prayer twin (085c): this
+        // person already holds an open ask for it. That is the outcome this call wanted, so it is
+        // not a failure.
         if (error.code === "23505") continue;
         fail(
-          "Could not create a talk's ask to-do",
+          "Could not create an ask to-do",
           error,
-          { wardId: params.wardId, sundayId: params.sundayId, assignmentId: ask.assignmentId },
+          { wardId: params.wardId, sundayId: params.sundayId, ...askLinkColumns(ask) },
           created,
         );
       }
@@ -149,7 +169,28 @@ export async function resolveAsksForAssignment(params: {
 }): Promise<string[]> {
   const kind: TodoLogKind = params.outcome === "accepted" ? "ask_accepted" : "ask_declined";
   const body = params.outcome === "declined" ? params.reasonLabel : null;
-  return completeOpenAsks(params, { closedReason: null, kind, body });
+  return completeOpenAsks(
+    { ...params, column: "ask_assignment_id", id: params.assignmentId },
+    { closedReason: null, kind, body },
+  );
+}
+
+// A prayer's answer (ITER-036 fb). Called by lib/prayers/prayerOutcome.ts alone. A prayer decline
+// carries no reason, so the line is the bare "Declined".
+export async function resolveAsksForPrayer(params: {
+  wardId: string;
+  prayerId: string;
+  outcome: "accepted" | "declined";
+  client?: Client;
+}): Promise<string[]> {
+  return completeOpenAsks(
+    { ...params, column: "ask_prayer_id", id: params.prayerId },
+    {
+      closedReason: null,
+      kind: params.outcome === "accepted" ? "ask_accepted" : "ask_declined",
+      body: null,
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -168,32 +209,31 @@ export async function closeAsksForAssignment(params: {
   onlyTalkOff?: boolean;
   client?: Client;
 }): Promise<string[]> {
-  return completeOpenAsks(params, {
-    closedReason: params.reason,
-    kind: params.reason,
-    body: params.body ?? null,
-  });
+  return completeOpenAsks(
+    { ...params, column: "ask_assignment_id", id: params.assignmentId },
+    { closedReason: params.reason, kind: params.reason, body: params.body ?? null },
+  );
 }
 
 async function completeOpenAsks(
-  params: { wardId: string; assignmentId: string; onlyTalkOff?: boolean; client?: Client },
+  params: { wardId: string; column: AskColumn; id: string; onlyTalkOff?: boolean; client?: Client },
   line: { closedReason: TodoClosedReason | null; kind: TodoLogKind; body: string | null },
 ): Promise<string[]> {
   const supabase = params.client ?? createServiceSupabaseClient();
-  const detail = { wardId: params.wardId, assignmentId: params.assignmentId, kind: line.kind };
+  const detail = { wardId: params.wardId, [params.column]: params.id, kind: line.kind };
   const now = new Date().toISOString();
 
   let update = supabase
     .from("todos")
     .update({ completed_at: now, closed_reason: line.closedReason, updated_at: now })
     .eq("ward_id", params.wardId)
-    .eq("ask_assignment_id", params.assignmentId)
+    .eq(params.column, params.id)
     .is("completed_at", null);
   if (params.onlyTalkOff === true) update = update.not("talk_off_at", "is", null);
 
   const { data, error } = await update.select("id");
 
-  if (error) fail("Could not close a talk's open asks", error, detail);
+  if (error) fail("Could not close the open asks", error, detail);
 
   const closed = (data ?? []).map((row) => row.id);
   if (closed.length === 0) return closed;
@@ -217,7 +257,7 @@ async function completeOpenAsks(
 // Each OPEN ask on these talks, in one of three ways:
 //   - SCHEDULED: it stays (D4). The owner has an appointment with that person, and only they can
 //     undo it; the route warned before confirming. On a SPEAKER CHANGE it is UNLINKED from the talk
-//     with a "Speaker changed" line, so it stays on To Do and My Appointments as an ordinary to-do
+//     with a "Somebody else was chosen" line, so it stays on To Do and My Appointments as an ordinary to-do
 //     — left linked, migration 083b's one-open-ask-per-(talk, owner) index would stop the NEW
 //     speaker ever being asked (the user's decision, 2026-09-30). On an un-finalize it stays linked:
 //     the speaker is the same person and still needs their answer recorded.
@@ -225,6 +265,9 @@ async function completeOpenAsks(
 //     owner never did anything with it, so nothing anybody wrote is lost.
 //   - TOUCHED: closed with `reason` and a line, never deleted — never destroy what somebody wrote.
 // An ask whose owner was told the talk is off (`talk_off_at`) is f2b's, and is left alone.
+//
+// PRAYERS TOO (ITER-036 fb): `prayerIds` withdraws prayer asks by the same three rules, and a
+// scheduled one is unlinked from `ask_prayer_id` on a change of person, for 085c's index.
 //
 // "A line the OWNER wrote" leaves out the lines this file writes on the owner's behalf — a
 // handover's "Taken over from ___" must not make an ask the owner never opened count as touched.
@@ -248,24 +291,41 @@ type WithdrawRow = {
   todo_log_entries: { kind: string }[] | null;
 };
 
+type WithdrawReason = Extract<TodoClosedReason, "unfinalized" | "speaker_changed">;
+
 export async function withdrawAsks(params: {
   wardId: string;
-  assignmentIds: readonly string[];
-  reason: Extract<TodoClosedReason, "unfinalized" | "speaker_changed">;
+  assignmentIds?: readonly string[];
+  prayerIds?: readonly string[];
+  reason: WithdrawReason;
   client?: Client;
 }): Promise<WithdrawnAsks> {
   const withdrawn: WithdrawnAsks = { deletedIds: [], closedIds: [], keptIds: [] };
-  if (params.assignmentIds.length === 0) return withdrawn;
+  const targets: [AskColumn, readonly string[]][] = [
+    ["ask_assignment_id", params.assignmentIds ?? []],
+    ["ask_prayer_id", params.prayerIds ?? []],
+  ];
+  for (const [column, ids] of targets) {
+    if (ids.length > 0) await withdrawOn(params, column, ids, withdrawn);
+  }
+  return withdrawn;
+}
 
+async function withdrawOn(
+  params: { wardId: string; reason: WithdrawReason; client?: Client },
+  column: AskColumn,
+  ids: readonly string[],
+  withdrawn: WithdrawnAsks,
+): Promise<void> {
   const supabase = params.client ?? createServiceSupabaseClient();
-  const detail = { wardId: params.wardId, reason: params.reason };
+  const detail = { wardId: params.wardId, reason: params.reason, column };
   const done = () => [...withdrawn.deletedIds, ...withdrawn.closedIds, ...withdrawn.keptIds];
 
   const { data, error } = await supabase
     .from("todos")
     .select("id, completed_at, scheduled_for, todo_steps (count), todo_log_entries (kind)")
     .eq("ward_id", params.wardId)
-    .in("ask_assignment_id", [...params.assignmentIds])
+    .in(column, [...ids])
     .is("completed_at", null)
     .is("talk_off_at", null);
   if (error) fail("Could not read the asks to withdraw", error, detail);
@@ -319,9 +379,11 @@ export async function withdrawAsks(params: {
   }
 
   if (scheduled.length > 0 && params.reason === "speaker_changed") {
+    const unlink =
+      column === "ask_prayer_id" ? { ask_prayer_id: null } : { ask_assignment_id: null };
     const { data: unlinked, error: unlinkError } = await supabase
       .from("todos")
-      .update({ ask_assignment_id: null, updated_at: new Date().toISOString() })
+      .update({ ...unlink, updated_at: new Date().toISOString() })
       .eq("ward_id", params.wardId)
       .in("id", scheduled)
       .select("id");
@@ -332,8 +394,6 @@ export async function withdrawAsks(params: {
   } else {
     withdrawn.keptIds.push(...scheduled);
   }
-
-  return withdrawn;
 }
 
 async function writeLines(
@@ -391,6 +451,20 @@ export async function countOpenAsksByAssignment(params: {
   return counts;
 }
 
+// The same count for PRAYERS (ITER-036 fb), for the same reason: the conductor's asks are invisible
+// to the bishop, so counted through their client every prayer would read "not yet asked".
+export async function countOpenAsksByPrayer(params: {
+  wardId: string;
+  prayerIds: readonly string[];
+  client?: Client;
+}): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  for (const ask of await listOpenPrayerAsks(params)) {
+    counts.set(ask.prayerId, (counts.get(ask.prayerId) ?? 0) + 1);
+  }
+  return counts;
+}
+
 // Every OPEN ask on these talks, with who holds it and when it is scheduled. Service role, for the
 // same reason as the count above: the handover must see the old conductor's asks whoever makes
 // the change. Ids and times only, never a title, notes or steps (D2).
@@ -437,6 +511,54 @@ export async function listOpenAsks(params: {
             ownerUserId: row.user_id,
             scheduledFor: row.scheduled_for,
             scheduledWithMemberId: row.scheduled_with_member_id,
+            talkOffAt: row.talk_off_at,
+          },
+        ],
+  );
+}
+
+// Every OPEN ask on these PRAYERS (ITER-036 fb) — listOpenAsks() for prayers, on the same terms.
+// A cancelled prayer's "let them know" to-do is open and linked too; `talkOffAt` tells it apart.
+export type OpenPrayerAsk = {
+  todoId: string;
+  prayerId: string;
+  ownerUserId: string;
+  scheduledFor: string | null;
+  talkOffAt: string | null;
+};
+
+export async function listOpenPrayerAsks(params: {
+  wardId: string;
+  prayerIds: readonly string[];
+  client?: Client;
+}): Promise<OpenPrayerAsk[]> {
+  if (params.prayerIds.length === 0) return [];
+
+  const supabase = params.client ?? createServiceSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("todos")
+    .select("id, ask_prayer_id, user_id, scheduled_for, talk_off_at")
+    .eq("ward_id", params.wardId)
+    .in("ask_prayer_id", [...params.prayerIds])
+    .is("completed_at", null);
+
+  if (error) {
+    console.error(`Could not read a Sunday's open prayer asks — ${error.message}`, {
+      wardId: params.wardId,
+    });
+    throw new Error(`Could not read who holds this Sunday's prayer asks: ${error.message}`);
+  }
+
+  return (data ?? []).flatMap((row) =>
+    row.ask_prayer_id === null
+      ? []
+      : [
+          {
+            todoId: row.id,
+            prayerId: row.ask_prayer_id,
+            ownerUserId: row.user_id,
+            scheduledFor: row.scheduled_for,
             talkOffAt: row.talk_off_at,
           },
         ],
@@ -521,7 +643,8 @@ export type AskHandover = {
   fromTodoId: string;
   // The previous owner's name, for the new copy's "Taken over from ___" line.
   fromName: string;
-  ask: AskToCreate;
+  // A talk's ask, or a prayer's (ITER-036 fb).
+  ask: AnyAskToCreate;
 };
 
 export async function handOverAsks(params: {
@@ -541,7 +664,7 @@ export async function handOverAsks(params: {
   for (const handover of params.handovers) {
     const detail = {
       wardId: params.wardId,
-      assignmentId: handover.ask.assignmentId,
+      ...askLinkColumns(handover.ask),
       fromTodoId: handover.fromTodoId,
     };
 
@@ -555,7 +678,7 @@ export async function handOverAsks(params: {
         notes: handover.ask.notes,
         tag: "Sacrament",
         do_date: params.today,
-        ask_assignment_id: handover.ask.assignmentId,
+        ...askLinkColumns(handover.ask),
       })
       .select("id")
       .single();
@@ -783,12 +906,15 @@ export async function listToldAssignmentIds(params: {
   return ids;
 }
 
+// ONLY STAMPED ROWS (ITER-036 fb). A prayer ASK is linked on the same column, so counting every
+// linked to-do would read each prayer anybody was ever asked to give as "already told", and a
+// cancelled prayer's person would never be told. A tell is created stamped; a marked ask is stamped.
 export async function listToldPrayerIds(params: {
   wardId: string;
   prayerIds: readonly string[];
   client?: Client;
 }): Promise<Set<string>> {
-  return linkedIds(params.wardId, "ask_prayer_id", params.prayerIds, false, params.client);
+  return linkedIds(params.wardId, "ask_prayer_id", params.prayerIds, true, params.client);
 }
 
 export async function listToldMusicalNumberIds(params: {

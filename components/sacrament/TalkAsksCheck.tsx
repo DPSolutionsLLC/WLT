@@ -6,9 +6,22 @@ import {
   FinalizeSpeakersDialog,
   type FinalizeSpeakersMode,
 } from "@/components/sacrament/FinalizeSpeakersDialog";
-import { TALKS_LOCK_REASON_TEXT, type TalksAskState } from "@/lib/sacrament/talkAsks";
+import type { PeopleKind } from "@/lib/calendar/queries";
+import {
+  PRAYERS_LOCK_REASON_TEXT,
+  type PrayersAskState,
+  type PrayersLockReason,
+} from "@/lib/prayers/prayerAsks";
+import {
+  TALKS_LOCK_REASON_TEXT,
+  type TalksAskState,
+  type TalksLockReason,
+} from "@/lib/sacrament/talkAsks";
 
 // THE TALKS PILL'S FINALIZE CHECK — Sacrament slice f1, made a finalize by ITER-036.
+//
+// AND THE PRAYER PILL'S (ITER-036 fb). `kind` picks the confirm and the words; the states are the
+// same five, except that prayers have no "declined" (prayersAskState() says why).
 //
 // The Topics and Refs pills each carry a finalize checkmark attached to their right edge
 // (FinalizeToggle). So does Talks now: finalizing the speakers is what sends their asks to the
@@ -33,8 +46,15 @@ import { TALKS_LOCK_REASON_TEXT, type TalksAskState } from "@/lib/sacrament/talk
 // broken; this one carries its reason. A locked tab is disabled unless the Sunday is settled — a
 // finalized Sunday whose conductor was cleared can still be un-finalized.
 
+export type PeopleAskState = TalksAskState | PrayersAskState;
+
+const LOCK_TEXT: Record<TalksLockReason | PrayersLockReason, string> = {
+  ...TALKS_LOCK_REASON_TEXT,
+  ...PRAYERS_LOCK_REASON_TEXT,
+};
+
 // WHOLE LITERALS, never interpolated (components/ui/Pill.tsx, rule 1).
-const TAB_TONES: Record<TalksAskState["kind"], string> = {
+const TAB_TONES: Record<PeopleAskState["kind"], string> = {
   locked: "border-border text-muted opacity-60",
   not_finalized: "border-stage-plan text-stage-plan",
   pending: "border-gold text-gold",
@@ -42,7 +62,7 @@ const TAB_TONES: Record<TalksAskState["kind"], string> = {
   declined: "border-rust text-rust",
 };
 
-function tabText(state: TalksAskState): string | null {
+function tabText(state: PeopleAskState): string | null {
   switch (state.kind) {
     case "locked":
     case "accepted":
@@ -56,36 +76,38 @@ function tabText(state: TalksAskState): string | null {
   }
 }
 
-function spokenState(state: TalksAskState): string {
+function spokenState(state: PeopleAskState, kind: PeopleKind): string {
   switch (state.kind) {
     case "locked":
-      return TALKS_LOCK_REASON_TEXT[state.reason];
+      return LOCK_TEXT[state.reason];
     case "not_finalized":
       return state.count > 0 ? `not finalized, ${state.count} to ask` : "not finalized";
     case "pending":
       return "asks sent, waiting for answers";
     case "accepted":
-      return "every speaker accepted";
+      return kind === "speakers" ? "every speaker accepted" : "every prayer confirmed";
     case "declined":
       return `${state.count} declined`;
   }
 }
 
 export type TalkAsksCheckProps = {
-  state: TalksAskState;
-  // speakersSettled(): finalized AND nobody left to ask. Pressing then un-finalizes.
+  kind: PeopleKind;
+  state: PeopleAskState;
+  // speakersSettled() / prayersSettled(): finalized AND nobody left to ask. Pressing then
+  // un-finalizes.
   settled: boolean;
   sundayId: string;
   sundayLabel: string;
 };
 
-export function TalkAsksCheck({ state, settled, sundayId, sundayLabel }: TalkAsksCheckProps) {
+export function TalkAsksCheck({ kind, state, settled, sundayId, sundayLabel }: TalkAsksCheckProps) {
   const [mode, setMode] = useState<FinalizeSpeakersMode | null>(null);
 
   const text = tabText(state);
   const isLocked = state.kind === "locked";
   const disabled = isLocked && !settled;
-  const reason = isLocked ? TALKS_LOCK_REASON_TEXT[state.reason] : undefined;
+  const reason = isLocked ? LOCK_TEXT[state.reason] : undefined;
 
   return (
     <>
@@ -94,7 +116,7 @@ export function TalkAsksCheck({ state, settled, sundayId, sundayLabel }: TalkAsk
         onClick={() => setMode(settled ? "unfinalize" : "finalize")}
         disabled={disabled}
         aria-pressed={settled}
-        aria-label={`Finalize speakers — ${sundayLabel}: ${spokenState(state)}`}
+        aria-label={`Finalize ${kind} — ${sundayLabel}: ${spokenState(state, kind)}`}
         title={reason}
         className="inline-flex h-11 items-center justify-start focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
@@ -108,6 +130,7 @@ export function TalkAsksCheck({ state, settled, sundayId, sundayLabel }: TalkAsk
 
       {mode !== null && (
         <FinalizeSpeakersDialog
+          kind={kind}
           sundayId={sundayId}
           sundayLabel={sundayLabel}
           mode={mode}

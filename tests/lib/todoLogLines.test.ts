@@ -43,7 +43,7 @@ describe("describeLogEntry", () => {
       "No longer assisting this Sunday",
     );
     expect(describeLogEntry({ kind: "speaker_changed", body: null })).toBe(
-      "Speaker changed — this ask is no longer needed",
+      "Somebody else was chosen — this ask is no longer needed",
     );
   });
 

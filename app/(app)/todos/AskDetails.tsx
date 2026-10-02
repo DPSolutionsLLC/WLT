@@ -1,7 +1,7 @@
 import { Pill } from "@/components/ui/Pill";
 import { askContactLine } from "@/lib/sacrament/talkAsks";
 import { formatAppointmentInstant } from "@/lib/visits/visitDates";
-import type { AskTimeElsewhere, TodoAskSource } from "@/types/domain";
+import { PRAYER_TYPE_LABELS, type AskTimeElsewhere, type TodoAskSource } from "@/types/domain";
 
 // What a leader needs in hand to extend a talk's invitation: the topic and how to reach the
 // speaker. It is shown on the to-do card, in "Schedule this" and on My Appointments, so a hallway
@@ -19,6 +19,8 @@ import type { AskTimeElsewhere, TodoAskSource } from "@/types/domain";
 // ANOTHER LEADER'S TIME (Sacrament slice f3a) is a line, never an appointment: an assistant, or a
 // conductor who took the Sunday over, reads who has a time set so they can fit it in or reach out
 // to reschedule. In the WARD's zone (rule 12) — it is a time somebody turns up at.
+//
+// A PRAYER ASK (ITER-036 fb) shows which prayer in place of a topic, and has no references.
 
 export function describeTimeElsewhere(time: AskTimeElsewhere, wardZone: string): string {
   const when = formatAppointmentInstant(time.scheduledFor, wardZone);
@@ -39,11 +41,20 @@ export function AskDetails({ ask, wardZone }: { ask: TodoAskSource; wardZone: st
           </dd>
         </div>
       ) : null}
-      <div className="flex flex-wrap gap-x-1.5">
-        <dt className="text-muted">Topic</dt>
-        <dd className="min-w-0 break-words text-foreground">{ask.topicTitle ?? "No topic yet"}</dd>
-      </div>
-      {ask.references.length === 0 ? null : (
+      {ask.kind === "prayer" ? (
+        <div className="flex flex-wrap gap-x-1.5">
+          <dt className="text-muted">Prayer</dt>
+          <dd className="min-w-0 break-words text-foreground">
+            {ask.prayerType === null ? "Prayer" : PRAYER_TYPE_LABELS[ask.prayerType]}
+          </dd>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-x-1.5">
+          <dt className="text-muted">Topic</dt>
+          <dd className="min-w-0 break-words text-foreground">{ask.topicTitle ?? "No topic yet"}</dd>
+        </div>
+      )}
+      {ask.kind === "prayer" || ask.references.length === 0 ? null : (
         <div className="flex flex-wrap gap-x-1.5">
           <dt className="text-muted">References</dt>
           <dd className="min-w-0 break-words text-foreground">{ask.references.join("; ")}</dd>

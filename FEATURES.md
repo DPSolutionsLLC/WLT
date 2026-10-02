@@ -297,6 +297,14 @@ PLAN → REVIEW → APPROVE → REQUEST → CONFIRM → NOTIFY → SPEAK → APP
 - **When a Sunday's work is cancelled** — the Sunday becomes a stake conference (or anything else without a sacrament meeting), becomes Fast Sunday, or loses a speaking slot — the lost work is **released and kept as a cancelled record**, never deleted: the talks, and when the meeting itself goes, the prayers, hymn choices and musical number too. The Sunday's topics and references decisions are cleared, and it reads as empty. The calendar's warning says what will be cancelled and who will be told before you apply it. Whoever asked each person gets a **"Let ___ know it's cancelled"** to-do with a **Cancelled** marker and a **Told them** button — the asker for a talk or an asked prayer, the person making the change for a musical number, nobody for a hymn. A ward member's speaking history shows **"Cancelled · Talk"**, which never counts as having spoken or as being asked recently. If the Sunday holds a meeting again, planning starts over; unfinished "let them know" to-dos stay open.
 - The Talks pill's check shows where the asks stand: "N to ask" until the speakers are finalized, **Asks sent** (gold), all accepted (green), or **N declined** (rust). It is dimmed with its reason when there is no speaker yet, or nobody conducting.
 
+### Asking for the prayers
+**Finalizing the prayers** works the same way, from a checkmark on the hub's **Prayer** pill or a **Finalize prayers** button on each Sunday of the Prayers board. Each person not yet asked becomes an **"Ask ___ to give the opening prayer"** (or closing prayer) on the conductor's To Do, with their phone and the Sunday.
+- **Accepted** moves the prayer to **Confirmed** on the Prayers board. **Declined** needs no reason: the prayer is open again for somebody else.
+- Moving a prayer to Confirmed on the board — because they said yes in the hallway — closes its ask as Accepted, so nobody is asked twice.
+- **Choosing somebody else un-finalizes the prayers** and starts that prayer over at Assigned; finalizing again asks only the new person. The old ask is removed, closed or kept by the same rules as a speaker's. The timeline line reads *"Somebody else was chosen — this ask is no longer needed"*, for a talk or a prayer.
+- Before replacing somebody who already confirmed, or who has an appointment booked to be asked, the board warns first, naming them.
+- Prayer asks follow the conductor and are told about a cancellation exactly like talk asks.
+
 **CONFIRM** — On acceptance, app generates an AI-assisted confirmation message with the topic and the scriptures chosen for that talk in References. Counselor reviews, edits, and approves before sending.
 
 **NOTIFY** — Approved message opened via native SMS with recipient and text pre-filled. Counselor or secretary sends and marks as sent.

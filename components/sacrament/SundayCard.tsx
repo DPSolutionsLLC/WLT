@@ -10,6 +10,7 @@ import {
   type SundayPill,
   type SundayPillLinkKey,
 } from "@/lib/sacrament/sundayStatus";
+import type { PrayersAskState } from "@/lib/prayers/prayerAsks";
 import type { TalksAskState } from "@/lib/sacrament/talkAsks";
 import { SUNDAY_TYPE_LABELS, type SundayType } from "@/types/domain";
 
@@ -74,6 +75,9 @@ export type SundayCardProps = {
   // without `talks.request`, which PATCH /api/sundays/[id]/speakers-finalized asserts: the Talks
   // pill then carries no check, absent rather than disabled.
   talkAsks: { state: TalksAskState; settled: boolean } | null;
+  // The Prayer pill's finalize check (ITER-036 fb), on the same terms: null for anybody without
+  // `talks.request`, which PATCH /api/sundays/[id]/prayers-finalized asserts.
+  prayerAsks: { state: PrayersAskState; settled: boolean } | null;
 };
 
 export function SundayCard({
@@ -88,6 +92,7 @@ export function SundayCard({
   canFinalizeTopics,
   canPlanTalks,
   talkAsks,
+  prayerAsks,
 }: SundayCardProps) {
   const sundayLabel = formatSundayLabel(date);
   const holdsMeeting = sundayHasPills(type);
@@ -160,8 +165,17 @@ export function SundayCard({
                     trailing={
                       pill.key === "talks" && talkAsks !== null ? (
                         <TalkAsksCheck
+                          kind="speakers"
                           state={talkAsks.state}
                           settled={talkAsks.settled}
+                          sundayId={sundayId}
+                          sundayLabel={sundayLabel}
+                        />
+                      ) : pill.key === "prayer" && prayerAsks !== null ? (
+                        <TalkAsksCheck
+                          kind="prayers"
+                          state={prayerAsks.state}
+                          settled={prayerAsks.settled}
                           sundayId={sundayId}
                           sundayLabel={sundayLabel}
                         />

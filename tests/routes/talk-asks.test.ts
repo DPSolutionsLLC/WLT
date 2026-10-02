@@ -482,7 +482,7 @@ describe("Talk asks — Sacrament slice f1", () => {
 
       const { status, body } = await patchTodo(answered.id, { complete: false });
       expect(status).toBe(400);
-      expect(errorMessage(body)).toMatch(/change the speaker on the talk and finalize the speakers again/);
+      expect(errorMessage(body)).toMatch(/change who is asked and finalize again/);
 
       const [still] = await asksFor(withPhoneTalkId);
       expect(still.completed_at).not.toBeNull();

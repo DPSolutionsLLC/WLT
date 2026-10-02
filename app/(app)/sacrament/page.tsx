@@ -26,6 +26,7 @@ import {
 import { listSelections } from "@/lib/music/queries";
 import { listPrayers } from "@/lib/prayers/queries";
 import { countReferencesByAssignment } from "@/lib/references/queries";
+import { loadPrayerAsksBySunday } from "@/lib/sacrament/finalizePeople";
 import { hasSpeaker } from "@/lib/sacrament/sundayAsks";
 import {
   speakersSettled,
@@ -219,6 +220,11 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
       })
     : new Map<string, number>();
 
+  // The Prayer pill's finalize check (ITER-036 fb), on the same permission and the same terms.
+  const prayerAsksBySunday = canSendAsks
+    ? await loadPrayerAsksBySunday({ wardId: user.wardId, sundays, prayers })
+    : null;
+
   const sundaysById = new Map(sundays.map((sunday) => [sunday.id, sunday] as const));
   const askInputsBySunday = groupBySunday(
     assignments,
@@ -294,6 +300,7 @@ export default async function SacramentPage({ searchParams }: SacramentPageProps
     canFinalizeTopics,
     canPlanTalks,
     talkAsks: canSendAsks ? talkAsksFor(sunday, askInputsBySunday.get(sunday.id) ?? []) : null,
+    prayerAsks: prayerAsksBySunday?.get(sunday.id) ?? null,
   }));
 
   return (

@@ -14,6 +14,10 @@ import {
 import { listSundays } from "@/lib/calendar/queries";
 import { listLastPrayed, listPrayers } from "@/lib/prayers/queries";
 import { listMembers } from "@/lib/roster/queries";
+import {
+  loadPrayerAsksBySunday,
+  loadPrayerChangeWarnings,
+} from "@/lib/sacrament/finalizePeople";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { MEMBER_STATUSES } from "@/types/domain";
 
@@ -41,6 +45,8 @@ export default async function PrayersPage({ searchParams }: PrayersPageProps) {
   }
 
   const canPlan = can(user, "talks.plan", roleAccess);
+  // `talks.request`, which PATCH /api/sundays/[id]/prayers-finalized asserts (ITER-036 fb).
+  const canFinalize = can(user, "talks.request", roleAccess);
 
   const today = formatDateOnly(new Date());
   const params = await searchParams;
@@ -67,6 +73,24 @@ export default async function PrayersPage({ searchParams }: PrayersPageProps) {
     members.map((member) => member.id),
     supabase,
   );
+
+  // Both read other people's asks through the service role, so neither depends on whose To Do the
+  // asks are on. Only the permissions that use them pay for them.
+  const [prayerAsks, changeWarnings] = await Promise.all([
+    canFinalize
+      ? loadPrayerAsksBySunday({ wardId: user.wardId, sundays, prayers }).then((bySunday) =>
+          Object.fromEntries(bySunday),
+        )
+      : null,
+    canPlan
+      ? loadPrayerChangeWarnings({
+          wardId: user.wardId,
+          prayers,
+          viewerUserId: user.id,
+          client: supabase,
+        })
+      : {},
+  ]);
 
   const memberNames = Object.fromEntries(
     members.map((member) => [member.id, `${member.firstName} ${member.lastName}`.trim()]),
@@ -107,6 +131,8 @@ export default async function PrayersPage({ searchParams }: PrayersPageProps) {
           memberNames={memberNames}
           lastPrayed={lastPrayed}
           canPlan={canPlan}
+          prayerAsks={prayerAsks}
+          changeWarnings={changeWarnings}
         />
       )}
     </div>

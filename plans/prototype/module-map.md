@@ -164,6 +164,14 @@ Each numbered item below is a candidate slice. "New" means no WLT route, table o
 > **Still to come in slice `f`:** `f2` (the asks follow the conductor on a handover or a rotation
 > re-shift) and `f3` (an assistant holding a mirrored copy of every open ask).
 >
+> **ITER-036 `fa` (2026-09-30) and `fb` (2026-10-01), migration 088 — the chain's Talks and Prayers
+> links.** Behaviour 2's last two steps: *Finalize speakers* replaced Send asks, and *Finalize
+> prayers* puts "Ask ___ to give the opening/closing prayer" on the conductor's To Do, from a check on
+> the hub's Prayer pill and a button per Sunday on `/prayers`. Accepted moves a prayer to Confirmed,
+> Declined frees it (no reason — a prayer keeps no history); a change of person un-finalizes and
+> starts the prayer over at Assigned; a board move to Confirmed closes the ask as Accepted. The chain
+> is still not a hard gate: each finalize stands on its own, as the user decided for `fa`.
+>
 > **Reworked the same day after walking scenario 074 (user decisions):** references are
 > **bishopric-only** — the pill is absent for everybody else and migration 080 narrows the read;
 > **skipping is refused while references exist**; the modal shows only the chosen references, with

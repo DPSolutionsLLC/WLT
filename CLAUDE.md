@@ -1424,7 +1424,14 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   on a speaker change it is **unlinked** from the talk, because migration 083b's one-open-ask index
   would otherwise stop the new speaker ever being asked. Every surface that would affect a scheduled
   or accepted person warns first, naming them (`lib/sacrament/askImpact.ts`, soft, ward's zone).
-  Prayers (`fb`) follow on 088's `prayers_finalized_at`.
+  **Prayers (`fb`, 2026-10-01) are the same act** on 088's `prayers_finalized_at`, linked on
+  `todos.ask_prayer_id`: Accepted moves the prayer to `confirm`, Declined clears the person (no
+  reason, no history), both through `lib/prayers/prayerOutcome.ts` alone; a board move to
+  `confirm`/`done` closes the ask as Accepted. **A change of who prays starts the prayer over at
+  `assign`** (reversing "an existing row keeps whatever stage it has") and un-finalizes through
+  `afterPrayerPersonChanged()`, which `tests/lib/prayersFinalizeSites.test.ts` holds both prayer
+  routes to. **`listToldPrayerIds()` counts only stamped rows** — counting every linked to-do read
+  each prayer ever asked as "already told", and a cancelled prayer's person was never told.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS
