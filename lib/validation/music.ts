@@ -120,3 +120,39 @@ export const clearMusicalNumberSchema = z.object({
   sundayId: z.uuid("Choose a Sunday from the calendar."),
 });
 export type ClearMusicalNumberInput = z.infer<typeof clearMusicalNumberSchema>;
+
+export const MAX_MUSIC_PERSON_NAME_LENGTH = 120;
+
+// A chorister or organist (ITER-038, migration 089a): a roster member, a typed name for somebody
+// the roster does not have, or null to clear. The member is checked against THIS ward by the route,
+// never trusted from here.
+export const musicPersonSchema = z
+  .union([
+    z.object({ memberId: z.uuid("Choose somebody from the roster.") }).strict(),
+    z
+      .object({
+        name: z
+          .string()
+          .trim()
+          .min(1, "Type a name.")
+          .max(
+            MAX_MUSIC_PERSON_NAME_LENGTH,
+            `Keep the name to ${MAX_MUSIC_PERSON_NAME_LENGTH} characters.`,
+          ),
+      })
+      .strict(),
+  ])
+  .nullable();
+export type MusicPersonBody = z.infer<typeof musicPersonSchema>;
+
+// A key left out is left alone; a key sent as null clears that person.
+export const sundayMusicPeopleSchema = z
+  .object({
+    chorister: musicPersonSchema.optional(),
+    organist: musicPersonSchema.optional(),
+  })
+  .refine(
+    (input) => input.chorister !== undefined || input.organist !== undefined,
+    "Nothing to save.",
+  );
+export type SundayMusicPeopleInput = z.infer<typeof sundayMusicPeopleSchema>;

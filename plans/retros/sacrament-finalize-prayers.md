@@ -2,7 +2,7 @@
 id: sacrament-finalize-prayers
 type: feature
 iter: [ITER-036]
-commits: []
+commits: ["17daa9d"]
 date: 2026-10-01
 files:
   - lib/prayers/prayerAsks.ts

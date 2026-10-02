@@ -1,7 +1,8 @@
 # ITER-038: Music coordinator handoff and conductor approval
 
 **Type:** Feature
-**Status:** Backlogged
+**Status:** In Progress
+**Plan:** plans/sacrament-music-handoff-and-approval.md
 **Created:** 2026-09-30
 **Group:** GROUP-02 — Sacrament planning flow (4 of 4)
 

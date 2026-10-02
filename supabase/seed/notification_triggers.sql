@@ -88,6 +88,13 @@ cross join (values
   ('sacrament_assignments_overdue', array['bishop', 'counselor']),
   ('sacrament_manager_changed',     array['bishop', 'counselor']),
 
+  -- Music (ITER-038, migration 089f). Recipients are resolved EXPLICITLY — every active music
+  -- coordinator calling for the first and third, the Sunday's conductor for the second — so these
+  -- lists are the opt-out surface rather than the address list.
+  ('music_topics_ready',            array['music_coordinator']),
+  ('music_submitted',               array['bishop', 'counselor']),
+  ('music_sent_back',               array['music_coordinator']),
+
   -- Access requests (P2). A ward asking for a permission, and the answer coming back.
   --
   -- `access_request_submitted` carries an EMPTY default_roles on purpose. Its recipients are the

@@ -1,14 +1,14 @@
 # Backlog
 
-_Last updated: 2026-09-30_
+_Last updated: 2026-10-02_
 
 ---
 
 ## In Progress
 Items currently being planned or actively worked.
 
-- [ ] ITER-036 — Finalize hands speakers and prayers to To Do → [scope](.iterate/scopes/ITER-036.md) | [plan](plans/sacrament-finalize-hands-off-asks.md)
-  _GROUP-02, planned first (2026-09-30): it fixes what the user hit on the live site and needs nothing unbuilt. Suggested order after it: ITER-038, Prayer Items (P7), ITER-035, ITER-037, then the paused f3b._
+- [ ] ITER-038 — Music coordinator handoff and conductor approval → [scope](.iterate/scopes/ITER-038.md) | [plan](plans/sacrament-music-handoff-and-approval.md)
+  _GROUP-02, planned 2026-10-02 as three slices (ma people, mb submit/review, mc topics handoff + email). Decisions D1–D4 settled with the user._
 
 - [ ] ITER-034 — Youth Support: the module the user actually wants → [scope](.iterate/scopes/ITER-034.md) — **PARKED 2026-08-31**
   _Raised by the user 2026-08-31 after walking 062 and 063, and **this is the destination Phase 8
@@ -57,9 +57,9 @@ the conductor. **Plan in this order** — each builds on the one before — and 
 Prayer Items (P7), which is not built.** The paused f3b (assistant / conductor window) sits on top
 of ITER-036. Too large for one session; one plan, sliced._
 - [ ] ITER-035 — Sacrament candidates and Prayer Items → [scope](.iterate/scopes/ITER-035.md)
-- ITER-036 — _moved to In Progress 2026-09-30_
+- ITER-036 — _completed 2026-10-02 (fa 3f4c835, fb 17daa9d)_
 - [ ] ITER-037 — Leftover candidates fill the rest of the rotation → [scope](.iterate/scopes/ITER-037.md)
-- [ ] ITER-038 — Music coordinator handoff and conductor approval → [scope](.iterate/scopes/ITER-038.md)
+- ITER-038 — _moved to In Progress 2026-10-02_
 
 ---
 
@@ -303,6 +303,7 @@ _Items that need testing or further exploration before scoping. Each entry shoul
 
 ## Completed
 
+- [x] ITER-036 — Finalize hands speakers and prayers to To Do _(completed 2026-10-02, 3f4c835 + 17daa9d — `fa` replaced Send asks with **Finalize speakers** and `fb` gave prayers the same finalize on migration 088. A change of person un-finalizes and withdraws the old ask (deleted / closed / kept-and-unlinked if scheduled); a decline never un-finalizes. `fb` also made a change of who prays start the prayer over at Assigned, and fixed `listToldPrayerIds()` to count only stamped rows. Suggested next in GROUP-02: ITER-038)_
 - [x] ITER-033 — A team has one schedule and a roster, not one schedule per young person _(completed 2026-08-31, df25b40 — migration 062's `activity_roster` and `activity_event_participation`, one window function (`memberIsExpectedAt`) folding the leave, the join and the closed season into one rule, and **migration 063 held back until the deploy**. Closes the `ActivityCalendar` `closed_at` leak BY CONSTRUCTION; an empty roster stays LOUD. Scenario 062 walked with **six clean judgements and no copy defect — a first for Phase 8** — and the one defect it found was fixed in BOTH places it lived)_
 - [x] ITER-030 — Nobody could have gone: recording that the youth missed it _(completed 2026-08-31, df25b40 — the fourth exclusion in `carriesCoverageExpectation()` shipped in `youth-i` (6529004), which said in its own message that this item was **not** closed by it; `youth-j` moved the fact off the event onto a (youth, event) row and reshaped the control as an exception. The user confirmed that in their own words walking scenario 062: *"an exception you may record"*)_
 - [x] ITER-028 — Closing out a season, and the history that outlives it _(completed 2026-08-31, 637cfbc — migration 060's nullable `closed_at`, `/youth/history/[member_id]` with the final number **recomputed against `closed_at`**, and a fully-closed young person who stays on `/youth` with a named `· Finished` pill. **REVERSES CLAUDE.md §9's "no season boundary"**; the ward-wide historical overview was CUT)_

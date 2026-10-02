@@ -2,6 +2,8 @@
 
 import { HymnSearchModal } from "@/app/(app)/music/HymnSearchModal";
 import { MusicalNumberForm } from "@/app/(app)/music/MusicalNumberForm";
+import { MusicPeopleForm } from "@/app/(app)/music/MusicPeopleForm";
+import type { MusicDirectoryEntry } from "@/app/(app)/music/MusicPersonWindow";
 import { SuggestHymnsButton } from "@/app/(app)/music/SuggestHymnsButton";
 import { SundayTypeBadge } from "@/components/calendar/SundayTypeBadge";
 import { UnverifiedHymnBadge } from "@/components/music/UnverifiedHymnBadge";
@@ -16,7 +18,7 @@ import { formatSundayLabelWithYear } from "@/lib/calendar/dates";
 // rather than a rewrite.
 import type { HymnSelection, MusicalNumber } from "@/lib/music/queries";
 import { HYMNS_PER_SUNDAY, pillStatus } from "@/lib/sacrament/sundayStatus";
-import { HYMN_TYPES, type HymnType, type SundayType } from "@/types/domain";
+import { HYMN_TYPES, type HymnType, type SundayMusic, type SundayType } from "@/types/domain";
 
 // One Sunday: what it is about, what has been chosen, and what has not.
 //
@@ -72,6 +74,10 @@ export type SundayMusicCardProps = {
   topicTitles: string[];
   selections: HymnSelection[];
   musicalNumber: MusicalNumber | null;
+  // The chorister and organist (ITER-038, `sunday_music`) — an empty draft when nobody has set any.
+  sundayMusic: SundayMusic;
+  // The roster for choosing them, slim. Empty for a reader without `music.manage`.
+  members: readonly MusicDirectoryEntry[];
   canManage: boolean;
   isOpen: boolean;
   onToggle: () => void;
@@ -142,6 +148,8 @@ export function SundayMusicCard({
   topicTitles,
   selections,
   musicalNumber,
+  sundayMusic,
+  members,
   canManage,
   isOpen,
   onToggle,
@@ -262,6 +270,13 @@ export function SundayMusicCard({
               />
             ))}
           </div>
+
+          <MusicPeopleForm
+            sundayId={sunday.id}
+            sundayMusic={sundayMusic}
+            members={members}
+            canManage={canManage}
+          />
 
           <div className="mt-3 border-t border-border pt-3">
             <span className="text-xs font-medium uppercase tracking-wide text-muted">

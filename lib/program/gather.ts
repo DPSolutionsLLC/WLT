@@ -11,10 +11,11 @@ import {
   getMusicalNumber as readMusicalNumberRow,
   listSelections,
 } from "@/lib/music/queries";
+import { getSundayMusic } from "@/lib/music/sundayMusic";
 import { listPrayers, type Prayer } from "@/lib/prayers/queries";
 import { listMembers } from "@/lib/roster/queries";
 import type { Database } from "@/types/database";
-import { MEMBER_STATUSES, type HymnType } from "@/types/domain";
+import { MEMBER_STATUSES, type HymnType, type MusicPerson } from "@/types/domain";
 
 // The I/O half of the program builder. Everything assembleDraft() needs, read once.
 //
@@ -44,6 +45,13 @@ export type MusicalNumber = {
   performer: string | null;
   pieceTitle: string | null;
   notes: string | null;
+};
+
+// The chorister and organist (ITER-038, migration 089a), and nothing else of `sunday_music`: the
+// submission's status describes the WORKFLOW, not the meeting, and has no place in a snapshot.
+export type MusicPeople = {
+  chorister: MusicPerson | null;
+  organist: MusicPerson | null;
 };
 
 export type ProgramLeadershipContact = {
@@ -76,6 +84,7 @@ export type ProgramSources = {
   memberNames: Record<string, string>;
   hymnSelections: HymnSelection[];
   musicalNumber: MusicalNumber | null;
+  musicPeople: MusicPeople;
   bishopName: string | null;
   conductingName: string | null;
   wardSettings: ProgramWardSettings;
@@ -199,6 +208,15 @@ async function readMusicalNumber(
   };
 }
 
+async function readMusicPeople(
+  wardId: string,
+  sundayId: string,
+  supabase: SupabaseClient<Database>,
+): Promise<MusicPeople> {
+  const sundayMusic = await getSundayMusic(wardId, sundayId, supabase);
+  return { chorister: sundayMusic.chorister, organist: sundayMusic.organist };
+}
+
 // EVERY status, not the active-only default.
 //
 // A member who moved out in June still spoke in May, and their name still has to print on that
@@ -242,6 +260,7 @@ export async function gatherProgramSources(
     memberNames,
     hymnSelections,
     musicalNumber,
+    musicPeople,
     bishopric,
     wardSettings,
   ] = await Promise.all([
@@ -250,6 +269,7 @@ export async function gatherProgramSources(
     readMemberNames(supabase, wardId),
     readHymnSelections(wardId, sundayId, supabase),
     readMusicalNumber(wardId, sundayId, supabase),
+    readMusicPeople(wardId, sundayId, supabase),
     listBishopricUsers(wardId, supabase),
     readWardSettings(supabase, wardId),
   ]);
@@ -267,6 +287,7 @@ export async function gatherProgramSources(
     memberNames,
     hymnSelections,
     musicalNumber,
+    musicPeople,
     bishopName: bishop === null ? null : bishopricDisplayName(bishop),
     conductingName: conducting === null ? null : bishopricDisplayName(conducting),
     wardSettings,

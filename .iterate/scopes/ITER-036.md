@@ -1,7 +1,9 @@
 # ITER-036: Finalize hands speakers and prayers to To Do
 
 **Type:** Modification
-**Status:** In Progress
+**Status:** Completed
+**Completed:** 2026-10-02
+**Commit:** 3f4c835 (fa), 17daa9d (fb)
 **Plan:** plans/sacrament-finalize-hands-off-asks.md
 **Created:** 2026-09-30
 **Group:** GROUP-02 — Sacrament planning flow (2 of 4)

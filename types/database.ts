@@ -2054,6 +2054,7 @@ export type Database = {
       }
       notification_user_prefs: {
         Row: {
+          email_enabled: boolean
           id: string
           is_enabled: boolean
           trigger_key: string
@@ -2061,6 +2062,7 @@ export type Database = {
           ward_id: string
         }
         Insert: {
+          email_enabled?: boolean
           id?: string
           is_enabled?: boolean
           trigger_key: string
@@ -2068,6 +2070,7 @@ export type Database = {
           ward_id: string
         }
         Update: {
+          email_enabled?: boolean
           id?: string
           is_enabled?: boolean
           trigger_key?: string
@@ -2719,6 +2722,99 @@ export type Database = {
           },
         ]
       }
+      sunday_music: {
+        Row: {
+          approved_at: string | null
+          chorister_member_id: string | null
+          chorister_name: string | null
+          created_at: string
+          id: string
+          organist_member_id: string | null
+          organist_name: string | null
+          return_note: string | null
+          returned_at: string | null
+          returned_reason: string | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          sunday_id: string
+          updated_at: string
+          ward_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          chorister_member_id?: string | null
+          chorister_name?: string | null
+          created_at?: string
+          id?: string
+          organist_member_id?: string | null
+          organist_name?: string | null
+          return_note?: string | null
+          returned_at?: string | null
+          returned_reason?: string | null
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          sunday_id: string
+          updated_at?: string
+          ward_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          chorister_member_id?: string | null
+          chorister_name?: string | null
+          created_at?: string
+          id?: string
+          organist_member_id?: string | null
+          organist_name?: string | null
+          return_note?: string | null
+          returned_at?: string | null
+          returned_reason?: string | null
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          sunday_id?: string
+          updated_at?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sunday_music_chorister_member_id_ward_id_fkey"
+            columns: ["chorister_member_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "sunday_music_organist_member_id_ward_id_fkey"
+            columns: ["organist_member_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "sunday_music_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sunday_music_sunday_id_ward_id_fkey"
+            columns: ["sunday_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "sundays"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "sunday_music_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sunday_org_conducting: {
         Row: {
           created_at: string
@@ -3124,6 +3220,8 @@ export type Database = {
           do_date: string | null
           due_date: string | null
           id: string
+          music_role: string | null
+          music_sunday_id: string | null
           musical_number_id: string | null
           notes: string | null
           scheduled_for: string | null
@@ -3147,6 +3245,8 @@ export type Database = {
           do_date?: string | null
           due_date?: string | null
           id?: string
+          music_role?: string | null
+          music_sunday_id?: string | null
           musical_number_id?: string | null
           notes?: string | null
           scheduled_for?: string | null
@@ -3170,6 +3270,8 @@ export type Database = {
           do_date?: string | null
           due_date?: string | null
           id?: string
+          music_role?: string | null
+          music_sunday_id?: string | null
           musical_number_id?: string | null
           notes?: string | null
           scheduled_for?: string | null
@@ -3209,6 +3311,13 @@ export type Database = {
             columns: ["assigned_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_music_sunday_id_fkey"
+            columns: ["music_sunday_id"]
+            isOneToOne: false
+            referencedRelation: "sundays"
             referencedColumns: ["id"]
           },
           {

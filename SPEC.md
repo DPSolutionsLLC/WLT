@@ -2083,6 +2083,11 @@ sacrament_assignments_sent
 sacrament_assignments_overdue
 sacrament_manager_changed
 
+-- Music
+music_topics_ready             -- a Sunday's topics were finalized; the music coordinator chooses the music (ITER-038)
+music_submitted                -- the coordinator submitted a Sunday's music; the conductor reviews it (ITER-038)
+music_sent_back                -- the conductor sent the music back with a note (ITER-038)
+
 -- Access Requests
 access_request_submitted       -- a ward asked for a permission; goes to the super admins, not to a ward role (P2)
 access_request_decided         -- approved or declined; the asking ward reads the note either way (P2)

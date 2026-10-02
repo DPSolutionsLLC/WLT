@@ -12,6 +12,7 @@ import {
   PIPELINE_STAGES,
   type HymnType,
   type MissingFieldKey,
+  type MusicPerson,
   type PipelineStage,
 } from "@/types/domain";
 
@@ -131,6 +132,13 @@ function musicalNumberFrom(sources: ProgramSources): MusicalNumberField | null {
   return { performer, pieceTitle, notes: musical.notes };
 }
 
+// The chorister and organist (ITER-038). A roster member is a name from a RECORD; a typed name was
+// typed in order to be printed — the name rule above, applied unchanged.
+function musicPersonName(person: MusicPerson | null): NameField | null {
+  if (person === null) return null;
+  return person.memberId === null ? typedName(person.name) : recordName(person.name);
+}
+
 function prayerName(sources: ProgramSources, prayerType: "invocation" | "benediction"): NameField | null {
   const prayer = sources.prayers.find((entry) => entry.prayerType === prayerType);
   if (!prayer || prayer.memberId === null) return null;
@@ -246,11 +254,11 @@ export function assembleDraft(sources: ProgramSources): ProgramDraft {
     sundayType: sunday.type,
     presiding: assemblePresiding(sources),
     conducting: recordName(sources.conductingName),
-    // No table in this schema holds an organist or a chorister. 06-program-music.md sources them
-    // from "music coordinator entry or manual", and neither surface exists until program-e — so
-    // they assemble as null, are named in `missing`, and program-b's editor is what fills them.
-    organist: null,
-    chorister: null,
+    // The music coordinator's entry on /music (ITER-038, `sunday_music`). Nobody chosen stays null
+    // and stays in `missing`; program-b's editor can still type over either, and a refresh diffs
+    // rather than overwriting what was typed.
+    organist: musicPersonName(sources.musicPeople.organist),
+    chorister: musicPersonName(sources.musicPeople.chorister),
     openingHymn: hymnRefFrom(sources.hymnSelections, "opening"),
     invocation: prayerName(sources, "invocation"),
     // Free text a secretary writes in program-b. There is no upstream source to read, so a first

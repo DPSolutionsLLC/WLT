@@ -7,8 +7,10 @@ import { requireSessionUser } from "@/lib/auth/session";
 import { addDaysUtc, firstSundayOnOrAfter, formatDateOnly } from "@/lib/calendar/dates";
 import { getSunday, listSundays, type Sunday } from "@/lib/calendar/queries";
 import { listMusicalNumbers, listSelections } from "@/lib/music/queries";
+import { emptySundayMusic, listSundayMusic } from "@/lib/music/sundayMusic";
 import { listSundayTopicTitles } from "@/lib/music/sundayTopics";
 import { musicSundayWindow, MUSIC_WINDOW_SUNDAYS } from "@/lib/music/sundayWindow";
+import { listMembers } from "@/lib/roster/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { holdsSacramentMeeting } from "@/types/domain";
 
@@ -106,11 +108,23 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
   const openSundayId = jumped?.id ?? matchingId(meetingSundays, params.sunday);
   const windowed = musicSundayWindow(candidates, openSundayId);
 
-  const [selections, musicalNumbers, topicsBySunday] = await Promise.all([
-    listSelections(user.wardId, { sundayIds: windowed.map((sunday) => sunday.id) }, supabase),
-    listMusicalNumbers(user.wardId, windowed.map((sunday) => sunday.id), supabase),
+  const windowedIds = windowed.map((sunday) => sunday.id);
+
+  const [selections, musicalNumbers, topicsBySunday, sundayMusicById, members] = await Promise.all([
+    listSelections(user.wardId, { sundayIds: windowedIds }, supabase),
+    listMusicalNumbers(user.wardId, windowedIds, supabase),
     listSundayTopicTitles(user.wardId, [...windowed], supabase),
+    listSundayMusic(user.wardId, windowedIds, supabase),
+    // The chorister/organist picker's roster: ACTIVE members (the roster's default), slim — a
+    // name and an id, never a phone or address — and only for somebody who can choose.
+    canManage ? listMembers(user.wardId, undefined, supabase) : Promise.resolve([]),
   ]);
+
+  const directory = members.map((member) => ({
+    id: member.id,
+    firstName: member.firstName,
+    lastName: member.lastName,
+  }));
 
   const entries: MusicSundayEntry[] = windowed.map((sunday) => ({
     sunday: { id: sunday.id, date: sunday.date, type: sunday.type },
@@ -122,6 +136,7 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
     selections: selections.filter((selection) => selection.sundayId === sunday.id),
     musicalNumber:
       musicalNumbers.find((musicalNumber) => musicalNumber.sundayId === sunday.id) ?? null,
+    sundayMusic: sundayMusicById.get(sunday.id) ?? emptySundayMusic(sunday.id),
   }));
 
   return (
@@ -164,6 +179,7 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
           key={openSundayId ?? "none"}
           entries={entries}
           initialOpenSundayId={openSundayId}
+          members={directory}
           canManage={canManage}
         />
       ) : sundays.length === 0 ? (

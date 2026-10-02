@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import type { MusicDirectoryEntry } from "@/app/(app)/music/MusicPersonWindow";
 import { SundayMusicCard } from "@/app/(app)/music/SundayMusicCard";
 // TYPE-ONLY. A VALUE import of a queries.ts from a client component pulls in next/headers, which
 // lint and typecheck both pass and only `npm run build` catches
 // (plans/retros/roster-b-picker-and-orgs.md).
 import type { HymnSelection, MusicalNumber } from "@/lib/music/queries";
-import type { SundayType } from "@/types/domain";
+import type { SundayMusic, SundayType } from "@/types/domain";
 
 // The collapsed list of dates /music is worked as (module-map.md §6.2).
 //
@@ -50,6 +51,7 @@ export type MusicSundayEntry = {
   topicTitles: string[];
   selections: HymnSelection[];
   musicalNumber: MusicalNumber | null;
+  sundayMusic: SundayMusic;
 };
 
 export type MusicSundayListProps = {
@@ -57,12 +59,16 @@ export type MusicSundayListProps = {
   // The Sunday `?sunday=` named, already resolved by the page against this ward. Null is the
   // ordinary arrival from the navigation, and it opens NOTHING — the list is collapsed.
   initialOpenSundayId: string | null;
+  // The roster for choosing a chorister or organist, once for the whole list. Empty without
+  // `music.manage`.
+  members: readonly MusicDirectoryEntry[];
   canManage: boolean;
 };
 
 export function MusicSundayList({
   entries,
   initialOpenSundayId,
+  members,
   canManage,
 }: MusicSundayListProps) {
   const [openSundayId, setOpenSundayId] = useState<string | null>(initialOpenSundayId);
@@ -90,6 +96,8 @@ export function MusicSundayList({
             topicTitles={entry.topicTitles}
             selections={entry.selections}
             musicalNumber={entry.musicalNumber}
+            sundayMusic={entry.sundayMusic}
+            members={members}
             canManage={canManage}
             isOpen={openSundayId === entry.sunday.id}
             // Opening a card CLOSES whatever was open, because the state is one value rather

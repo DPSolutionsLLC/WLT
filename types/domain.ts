@@ -553,6 +553,33 @@ export const PRAYER_COMPLETED_STAGE: PrayerStage = "done";
 export const HYMN_TYPES = ["opening", "sacrament", "closing"] as const;
 export type HymnType = (typeof HYMN_TYPES)[number];
 
+// A Sunday's music submission (`sunday_music`, migration 089, ITER-038). MUST STAY IN STEP WITH
+// the table's CHECKs. lib/music/musicReview.ts is the only writer of `status`.
+export const MUSIC_REVIEW_STATUSES = ["draft", "submitted", "approved"] as const;
+export type MusicReviewStatus = (typeof MUSIC_REVIEW_STATUSES)[number];
+
+// Why a submission went back to draft: the conductor sent it back with a note, the music was
+// edited after it was submitted, or the topics changed under it.
+export const MUSIC_RETURNED_REASONS = ["sent_back", "music_changed", "topics_changed"] as const;
+export type MusicReturnedReason = (typeof MUSIC_RETURNED_REASONS)[number];
+
+// A chorister or organist: a roster member (with the name read from the record) or a typed name
+// for somebody the roster does not have. Never both — migration 089a's CHECK.
+export type MusicPerson = { memberId: string; name: string } | { memberId: null; name: string };
+
+export type SundayMusic = {
+  sundayId: string;
+  chorister: MusicPerson | null;
+  organist: MusicPerson | null;
+  status: MusicReviewStatus;
+  submittedAt: string | null;
+  submittedByUserId: string | null;
+  approvedAt: string | null;
+  returnedAt: string | null;
+  returnedReason: MusicReturnedReason | null;
+  returnNote: string | null;
+};
+
 export const PROGRAM_STATUSES = [
   "draft",
   "pending_approval",

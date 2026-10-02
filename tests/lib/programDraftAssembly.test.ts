@@ -118,6 +118,7 @@ function sources(overrides: Partial<ProgramSources> = {}): ProgramSources {
       { hymnType: "closing", hymnNumber: 152, hymnTitle: "God Be with You Till We Meet Again" },
     ],
     musicalNumber: null,
+    musicPeople: { chorister: null, organist: null },
     bishopName: "Mark Chen",
     conductingName: "Peter Lindqvist",
     wardSettings: parseProgramWardSettings({
@@ -431,5 +432,54 @@ describe("assembleDraft — the musical number", () => {
     );
 
     expect(draft.musicalNumber).toBeNull();
+  });
+});
+
+describe("assembleDraft — the chorister and organist (ITER-038)", () => {
+  it("names a roster member from the record", () => {
+    const draft = assembleDraft(
+      sources({
+        musicPeople: {
+          chorister: { memberId: MEMBER_RUTH, name: "Ruth Okonkwo" },
+          organist: null,
+        },
+      }),
+    );
+
+    expect(draft.chorister).toEqual({ printedName: "Ruth Okonkwo", publicName: "Ruth Okonkwo" });
+    expect(draft.missing).not.toContain("chorister");
+    expect(draft.organist).toBeNull();
+    expect(draft.missing).toContain("organist");
+  });
+
+  it("carries a typed name verbatim in both halves", () => {
+    const draft = assembleDraft(
+      sources({
+        musicPeople: {
+          chorister: null,
+          organist: { memberId: null, name: "  Sister Jansen (visiting)  " },
+        },
+      }),
+    );
+
+    expect(draft.organist).toEqual({
+      printedName: "Sister Jansen (visiting)",
+      publicName: "Sister Jansen (visiting)",
+    });
+    expect(draft.missing).not.toContain("organist");
+    expect(draft.missing).toContain("chorister");
+  });
+
+  it("produces a draft the schema accepts with both people set", () => {
+    const draft = assembleDraft(
+      sources({
+        musicPeople: {
+          chorister: { memberId: MEMBER_RUTH, name: "Ruth Okonkwo" },
+          organist: { memberId: null, name: "Brother Hale" },
+        },
+      }),
+    );
+
+    expect(programDraftSchema.safeParse(draft).success).toBe(true);
   });
 });
