@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CalendarClock, Mic, Pencil, Plus } from "lucide-react";
+import { CalendarClock, Mic, Music, Pencil, Plus } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import { Pill, type PillTone } from "@/components/ui/Pill";
@@ -117,6 +118,9 @@ export function TodoCard({
   // A prayer's decline records no reason — prayers keep no decline history (ITER-036 fb).
   const isPrayerAsk = todo.askSource?.kind === "prayer";
   const isOpenAsk = isAsk && !isDone;
+  // A Sunday's music (ITER-038 mb) has no checkbox either: submitting, approving or sending back
+  // on Music closes it, and the server refuses a tick or an untick.
+  const musicLink = todo.musicLink;
   const bodyId = `todo-body-${todo.id}`;
   const stepFieldId = `todo-step-${todo.id}`;
 
@@ -220,7 +224,14 @@ export function TodoCard({
         {/* THE CHECKBOX IS THE DONE CONTROL — and unticking it reopens, so a mis-tick is
             recoverable without a delete. The box is 20px to see and the label around it is 44×44
             to tap (defect 075-D1: the bare input was a 20×20 target). */}
-        {isAsk ? (
+        {musicLink !== null ? (
+          <span
+            aria-hidden="true"
+            className="flex h-11 w-11 shrink-0 items-center justify-center text-muted"
+          >
+            <Music className="h-4 w-4" />
+          </span>
+        ) : isAsk ? (
           // No checkbox on an ask. An open one is answered with Accepted / Declined in the action
           // row below.
           <span
@@ -329,7 +340,21 @@ export function TodoCard({
           }
           disabled={busy}
         />
-        {isOpenAsk && needsTelling ? (
+        {/* A LINK, NOT A BUTTON THAT ACTS: the decision is made on the Music card, the one place it
+            lives, so this card and that one cannot disagree (plan A6). `from=todos` gives /music
+            its way back. */}
+        {musicLink !== null ? (
+          <span className="ml-auto flex items-center gap-0.5">
+            <Link
+              href={`/music?sunday=${musicLink.sundayId}&from=todos#sunday-${musicLink.sundayId}`}
+              className="group inline-flex min-h-11 items-center justify-center px-0.5 focus-visible:outline-none"
+            >
+              <span className="inline-flex h-7 items-center justify-center rounded-md border border-border px-2 text-xs font-medium text-foreground group-hover:bg-surface group-focus-visible:outline-2 group-focus-visible:outline-offset-2 group-focus-visible:outline-primary">
+                Open music
+              </span>
+            </Link>
+          </span>
+        ) : isOpenAsk && needsTelling ? (
           <span className="ml-auto flex items-center gap-0.5">
             <SmallButton
               label="Told them"

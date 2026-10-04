@@ -1192,6 +1192,35 @@ export async function createMusicalNumber(options: {
   });
 }
 
+// A Sunday's chorister, organist and music submission (ITER-038, migration 089a). A person is a
+// member OR a typed name, never both — the table's CHECK refuses both. `status` 'submitted' needs
+// `submittedAt` and `submittedBy` and 'approved' needs `approvedAt`, as the CHECKs do; seed the
+// states the app can reach, or the insert fails loudly.
+export async function createSundayMusic(options: {
+  sundayId: string;
+  choristerMemberId?: string;
+  choristerName?: string;
+  organistMemberId?: string;
+  organistName?: string;
+  status?: "draft" | "submitted" | "approved";
+  submittedAt?: string;
+  submittedBy?: string;
+  approvedAt?: string;
+}): Promise<string> {
+  return insertRow("sunday_music", {
+    ward_id: TEST_WARD_ID,
+    sunday_id: options.sundayId,
+    chorister_member_id: options.choristerMemberId ?? null,
+    chorister_name: options.choristerName ?? null,
+    organist_member_id: options.organistMemberId ?? null,
+    organist_name: options.organistName ?? null,
+    status: options.status ?? "draft",
+    submitted_at: options.submittedAt ?? null,
+    submitted_by: options.submittedBy ?? null,
+    approved_at: options.approvedAt ?? null,
+  });
+}
+
 // `publicData` is the ONLY thing /public/[slug] can read, and `public_program` also requires
 // `status = 'distributed'` AND a non-null projection. A scenario that seeds one without the other
 // renders a 404, which looks exactly like a broken seed — set all three together or none.
@@ -1910,6 +1939,10 @@ export async function createTodo(options: {
   // A talk ask (migration 083): the to-do asks somebody to speak on this talk. Seeded directly the
   // way Send asks writes it; the app is what normally creates one.
   askAssignmentId?: string;
+  // A Sunday's music (ITER-038, migration 089b): "Choose the music" or "Review the music". Both
+  // together or neither.
+  musicSundayId?: string;
+  musicRole?: "choose" | "review";
   createdAt?: string;
 }): Promise<string> {
   return insertRow("todos", {
@@ -1928,6 +1961,8 @@ export async function createTodo(options: {
     action_item_id: options.actionItemId ?? null,
     source_completed_at: options.sourceCompletedAt ?? null,
     ask_assignment_id: options.askAssignmentId ?? null,
+    music_sunday_id: options.musicSundayId ?? null,
+    music_role: options.musicRole ?? null,
     ...(options.createdAt === undefined ? {} : { created_at: options.createdAt }),
   });
 }

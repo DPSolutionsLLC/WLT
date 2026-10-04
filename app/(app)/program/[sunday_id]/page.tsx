@@ -10,6 +10,7 @@ import { emailConfiguration } from "@/lib/email/resend";
 import { requireSessionUser } from "@/lib/auth/session";
 import { formatSundayLabelWithYear } from "@/lib/calendar/dates";
 import { getSunday } from "@/lib/calendar/queries";
+import { getSundayMusic } from "@/lib/music/sundayMusic";
 import { readDistributionRecipients } from "@/lib/program/distribution";
 import { getProgramBySunday } from "@/lib/program/queries";
 import { programSundayIdSchema } from "@/lib/validation/program";
@@ -88,7 +89,27 @@ export default async function ProgramPage({ params }: ProgramPageProps) {
     );
   }
 
-  const program = await getProgramBySunday(user.wardId, parsed.data, supabase);
+  const [program, sundayMusic] = await Promise.all([
+    getProgramBySunday(user.wardId, parsed.data, supabase),
+    getSundayMusic(user.wardId, parsed.data, supabase),
+  ]);
+
+  // A SOFT WARNING, NEVER A GATE (ITER-038, decision D3). The hymns stay live exactly as before —
+  // a build or a refresh takes them as they stand — and nothing here is hidden or disabled. It
+  // only says the conductor has not approved the music yet, and where that happens.
+  const musicNotice =
+    sundayMusic.status === "approved" ? null : (
+      <p role="status" className="text-sm text-muted">
+        Music not approved yet — the conductor approves it on{" "}
+        <Link
+          href={`/music?sunday=${sunday.id}#sunday-${sunday.id}`}
+          className="text-primary underline underline-offset-4"
+        >
+          Music
+        </Link>
+        .
+      </p>
+    );
 
   // A Sunday with no program row yet gets ONE action, not an empty form. An editor with every
   // field blank looks like a program that failed to load.
@@ -96,6 +117,7 @@ export default async function ProgramPage({ params }: ProgramPageProps) {
     return (
       <div className="flex flex-col gap-6">
         {heading}
+        {musicNotice}
         <Card>
           <p className="text-sm text-muted">
             No program has been built for this Sunday yet. Building one takes the speakers,
@@ -145,6 +167,7 @@ export default async function ProgramPage({ params }: ProgramPageProps) {
   return (
     <div className="flex flex-col gap-6">
       {heading}
+      {musicNotice}
       <ProgramBuilder
         sundayId={sunday.id}
         sundayLabel={sundayLabel}

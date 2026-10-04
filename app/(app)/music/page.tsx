@@ -5,7 +5,8 @@ import { NotPermitted } from "@/components/ui/NotPermitted";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { addDaysUtc, firstSundayOnOrAfter, formatDateOnly } from "@/lib/calendar/dates";
-import { getSunday, listSundays, type Sunday } from "@/lib/calendar/queries";
+import { getSunday, listSundays, readConductorName, type Sunday } from "@/lib/calendar/queries";
+import { musicCompletionFor } from "@/lib/music/musicCompletion";
 import { listMusicalNumbers, listSelections } from "@/lib/music/queries";
 import { emptySundayMusic, listSundayMusic } from "@/lib/music/sundayMusic";
 import { listSundayTopicTitles } from "@/lib/music/sundayTopics";
@@ -75,6 +76,7 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
   }
 
   const canManage = can(user, "music.manage", roleAccess);
+  const canReview = can(user, "topics.manage", roleAccess);
 
   const today = formatDateOnly(new Date());
   const params = await searchParams;
@@ -120,24 +122,53 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
     canManage ? listMembers(user.wardId, undefined, supabase) : Promise.resolve([]),
   ]);
 
+  // Only the conductors of Sundays whose music is waiting, for `Pending approval — <name>`.
+  const conductorIds = [
+    ...new Set(
+      windowed
+        .filter((sunday) => sundayMusicById.get(sunday.id)?.status === "submitted")
+        .flatMap((sunday) => (sunday.conductingUserId === null ? [] : [sunday.conductingUserId])),
+    ),
+  ];
+  const conductorNames = new Map(
+    await Promise.all(
+      conductorIds.map(
+        async (userId) => [userId, await readConductorName(user.wardId, userId, supabase)] as const,
+      ),
+    ),
+  );
+
   const directory = members.map((member) => ({
     id: member.id,
     firstName: member.firstName,
     lastName: member.lastName,
   }));
 
-  const entries: MusicSundayEntry[] = windowed.map((sunday) => ({
-    sunday: { id: sunday.id, date: sunday.date, type: sunday.type },
-    // THE COLUMN, never `topicTitles.length > 0`. A Sunday with three topics on it that nobody
-    // has finalized is still pending — decisions.md §1.15, and the reason migration 078 exists
-    // rather than the card inferring it from what is already on this page.
-    topicsFinalized: sunday.topicsFinalizedAt !== null,
-    topicTitles: topicsBySunday.get(sunday.id) ?? [],
-    selections: selections.filter((selection) => selection.sundayId === sunday.id),
-    musicalNumber:
-      musicalNumbers.find((musicalNumber) => musicalNumber.sundayId === sunday.id) ?? null,
-    sundayMusic: sundayMusicById.get(sunday.id) ?? emptySundayMusic(sunday.id),
-  }));
+  const entries: MusicSundayEntry[] = windowed.map((sunday) => {
+    const sundaySelections = selections.filter((selection) => selection.sundayId === sunday.id);
+    const musicalNumber =
+      musicalNumbers.find((candidate) => candidate.sundayId === sunday.id) ?? null;
+    const sundayMusic = sundayMusicById.get(sunday.id) ?? emptySundayMusic(sunday.id);
+
+    return {
+      sunday: { id: sunday.id, date: sunday.date, type: sunday.type },
+      // THE COLUMN, never `topicTitles.length > 0`. A Sunday with three topics on it that nobody
+      // has finalized is still pending — decisions.md §1.15, and the reason migration 078 exists
+      // rather than the card inferring it from what is already on this page.
+      topicsFinalized: sunday.topicsFinalizedAt !== null,
+      topicTitles: topicsBySunday.get(sunday.id) ?? [],
+      selections: sundaySelections,
+      musicalNumber,
+      sundayMusic,
+      // The ONE completion rule (lib/music/musicCompletion.ts), over the live rows the readers
+      // above already filtered — the same answer the Submit route will give.
+      completion: musicCompletionFor({ selections: sundaySelections, musicalNumber, sundayMusic }),
+      conductorName:
+        sunday.conductingUserId === null
+          ? null
+          : (conductorNames.get(sunday.conductingUserId) ?? null),
+    };
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -181,6 +212,8 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
           initialOpenSundayId={openSundayId}
           members={directory}
           canManage={canManage}
+          canReview={canReview}
+          viewerUserId={user.id}
         />
       ) : sundays.length === 0 ? (
         <Card>

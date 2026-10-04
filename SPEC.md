@@ -442,6 +442,29 @@ notes           text
 created_at      timestamptz DEFAULT now()
 ```
 
+### `sunday_music` (migration 089, ITER-038)
+```sql
+id                  uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id             uuid NOT NULL REFERENCES wards(id)
+sunday_id           uuid NOT NULL  -- (sunday_id, ward_id) → sundays, on delete cascade
+chorister_member_id uuid           -- a member OR a typed name, never both
+chorister_name      text
+organist_member_id  uuid
+organist_name       text
+status              text NOT NULL DEFAULT 'draft'  -- draft | submitted | approved
+submitted_at        timestamptz
+submitted_by        uuid REFERENCES users(id) ON DELETE SET NULL
+approved_at         timestamptz
+returned_at         timestamptz
+returned_reason     text           -- sent_back | music_changed | topics_changed
+return_note         text           -- the conductor's note, only with sent_back
+UNIQUE (ward_id, sunday_id)
+```
+SELECT-only under RLS: every write is `lib/music/*` with the service role behind a route, and
+`lib/music/musicReview.ts` is the only writer of `status`. A Sunday with no row is an empty draft.
+`todos.music_sunday_id` + `todos.music_role` (`choose` | `review`) link the coordinator's
+"Choose the music" and the conductor's "Review the music" to-dos to a Sunday.
+
 ### `hymns` (static reference table)
 ```sql
 id              integer PRIMARY KEY
@@ -1459,7 +1482,11 @@ one invisible to the org that has to act on it. `PATCH` cannot move ownership at
 ```
 GET    /api/hymns                Search hymn database
 GET    /api/hymns/suggest        AI hymn suggestions for a Sunday's topics
-POST   /api/hymns/select         Save hymn selection for a Sunday
+POST   /api/hymns/select         Save hymn selection for a Sunday (reopens submitted music)
+PATCH  /api/sundays/[id]/music   Chorister and organist (music.manage; reopens submitted music)
+POST   /api/sundays/[id]/music/submit   Submit the music for review (music.manage)
+POST   /api/sundays/[id]/music/review   { decision: "approve" } | { decision: "return", note }
+                                        (topics.manage; never on your own submission)
 ```
 
 ### Programs

@@ -2,7 +2,7 @@
 id: sacrament-music-people
 type: feature
 iter: [ITER-038]
-commits: []
+commits: ["1bc33b9"]
 date: 2026-10-02
 files:
   - supabase/migrations/089_sunday_music_review.sql

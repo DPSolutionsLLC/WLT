@@ -5,6 +5,7 @@ import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { getSunday } from "@/lib/calendar/queries";
 import { deleteMusicalNumber, upsertMusicalNumber } from "@/lib/music/queries";
+import { reopenMusicAfterWrite } from "@/lib/music/musicReview";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { clearMusicalNumberSchema, logMusicalNumberSchema } from "@/lib/validation/music";
 import { holdsSacramentMeeting } from "@/types/domain";
@@ -89,7 +90,10 @@ export async function POST(request: Request) {
 
     // The snapshot rule again: this does not reach into an existing program draft. It appears in
     // that program's refresh diff (program-a).
-    return NextResponse.json({ musicalNumber });
+    //
+    // A SUBMITTED OR APPROVED SUNDAY GOES BACK TO DRAFT (ITER-038 mb).
+    const reopen = await reopenMusicAfterWrite({ wardId: user.wardId, sundayId: input.sundayId });
+    return NextResponse.json({ musicalNumber, ...reopen });
   } catch (error) {
     return respondToRouteError(error, {
       route: "POST /api/musical-numbers",
@@ -132,7 +136,10 @@ export async function DELETE(request: Request) {
       supabase,
     );
 
-    return NextResponse.json({ cleared });
+    const reopen = cleared
+      ? await reopenMusicAfterWrite({ wardId: user.wardId, sundayId: input.sundayId })
+      : { reopened: false, reopenProblem: null };
+    return NextResponse.json({ cleared, ...reopen });
   } catch (error) {
     return respondToRouteError(error, {
       route: "DELETE /api/musical-numbers",

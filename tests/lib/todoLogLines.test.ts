@@ -69,4 +69,21 @@ describe("describeLogEntry", () => {
       "The decision was reopened — this ask is closed",
     );
   });
+
+  // ITER-038 (migration 089d): a Sunday's music. A send-back quotes the conductor's note.
+  it("says where a Sunday's music went, quoting a send-back's note", () => {
+    expect(describeLogEntry({ kind: "music_submitted", body: null })).toBe(
+      "Music submitted for review",
+    );
+    expect(describeLogEntry({ kind: "music_approved", body: null })).toBe("Music approved");
+    expect(describeLogEntry({ kind: "music_sent_back", body: "Swap the closing hymn." })).toBe(
+      "Sent back: Swap the closing hymn.",
+    );
+    expect(describeLogEntry({ kind: "music_reopened", body: null })).toBe(
+      "The music changed — this review is no longer needed",
+    );
+    expect(describeLogEntry({ kind: "meeting_cancelled", body: null })).toBe(
+      "No sacrament meeting this Sunday any more",
+    );
+  });
 });

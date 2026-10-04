@@ -567,6 +567,11 @@ export type MusicReturnedReason = (typeof MUSIC_RETURNED_REASONS)[number];
 // for somebody the roster does not have. Never both — migration 089a's CHECK.
 export type MusicPerson = { memberId: string; name: string } | { memberId: null; name: string };
 
+// Which side of the music workflow a linked to-do is (`todos.music_role`, migration 089b): the
+// coordinator's "Choose the music for …" or the conductor's "Review the music for …".
+export const MUSIC_TODO_ROLES = ["choose", "review"] as const;
+export type MusicTodoRole = (typeof MUSIC_TODO_ROLES)[number];
+
 export type SundayMusic = {
   sundayId: string;
   chorister: MusicPerson | null;
@@ -1591,6 +1596,14 @@ export const TODO_LOG_KINDS = [
   // ITER-036 (migration 088): the owner had worked on an ask when its decision was reopened, so it
   // was closed rather than deleted.
   "unfinalized",
+  // ITER-038 (migration 089d): a Sunday's music. `music_sent_back` carries the conductor's note in
+  // `body`, and the CHECK requires it.
+  "music_submitted",
+  "music_approved",
+  "music_sent_back",
+  "music_reopened",
+  "topics_changed",
+  "meeting_cancelled",
 ] as const;
 export type TodoLogKind = (typeof TODO_LOG_KINDS)[number];
 
@@ -1619,6 +1632,10 @@ export const TODO_CLOSED_REASONS = [
   "told_not_needed",
   "talk_back_on",
   "unfinalized",
+  // ITER-038 (migration 089c): the music changed after it was submitted, so the review is no longer
+  // needed; or the Sunday stopped holding sacrament meeting.
+  "music_reopened",
+  "meeting_cancelled",
 ] as const;
 export type TodoClosedReason = (typeof TODO_CLOSED_REASONS)[number];
 
@@ -1655,6 +1672,10 @@ export type Todo = {
   // The prayer this to-do is about (migration 085): an ask to give it (ITER-036 fb), or a
   // "let them know it's cancelled" (f2c). Null for every other to-do.
   askPrayerId: string | null;
+  // The Sunday whose music this to-do is about (ITER-038, migration 089b); null for every other
+  // to-do. It closes itself when the music moves on, so it has no checkbox and cannot be removed
+  // while open.
+  musicLink: { sundayId: string; role: MusicTodoRole } | null;
   // Set only on an ask that left this list unanswered — see TODO_CLOSED_REASONS.
   closedReason: TodoClosedReason | null;
   // When the owner was told this ask's talk is off (Sacrament slice f2b, migration 084).

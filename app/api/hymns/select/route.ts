@@ -5,6 +5,7 @@ import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { getSunday } from "@/lib/calendar/queries";
 import { deleteSelection, upsertSelection } from "@/lib/music/queries";
+import { reopenMusicAfterWrite } from "@/lib/music/musicReview";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { clearHymnSchema, selectHymnSchema } from "@/lib/validation/music";
 import { holdsSacramentMeeting } from "@/types/domain";
@@ -99,7 +100,11 @@ export async function POST(request: Request) {
     // THE SNAPSHOT RULE IS UNCHANGED. Choosing a hymn does not reach into an existing program
     // draft — it shows up in that program's refresh diff, where somebody accepts it. There is
     // deliberately no write-through here (program-a).
-    return NextResponse.json({ selection });
+    //
+    // A SUBMITTED OR APPROVED SUNDAY GOES BACK TO DRAFT (ITER-038 mb): the music the conductor
+    // looked at is no longer the music.
+    const reopen = await reopenMusicAfterWrite({ wardId: user.wardId, sundayId: input.sundayId });
+    return NextResponse.json({ selection, ...reopen });
   } catch (error) {
     return respondToRouteError(error, {
       route: "POST /api/hymns/select",
@@ -152,7 +157,11 @@ export async function DELETE(request: Request) {
       supabase,
     );
 
-    return NextResponse.json({ cleared });
+    // Only a slot that actually held a hymn changed the music.
+    const reopen = cleared
+      ? await reopenMusicAfterWrite({ wardId: user.wardId, sundayId: input.sundayId })
+      : { reopened: false, reopenProblem: null };
+    return NextResponse.json({ cleared, ...reopen });
   } catch (error) {
     return respondToRouteError(error, {
       route: "DELETE /api/hymns/select",

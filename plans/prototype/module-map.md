@@ -210,12 +210,20 @@ but not this rotation view.
 
 ### 2.2 Music — RESKIN+ (4 new)
 1. **Draft → submit → approve workflow**, invisible to other modules until approved.
+   **BUILT — ITER-038 `mb`, migration 089.** The approver is the bishopric (the to-do goes to the
+   conductor), and nobody approves their own submission. One deliberate departure: the hymns stay
+   LIVE to the programme, which shows a soft "Music not approved yet" line rather than hiding them
+   (ITER-038 D3).
 2. **A completion gate** — one shared `musicCompletionFor()` used by both the submit button and
    the list pill so they cannot disagree. Counts 3 hymns + chorister + accompanist + every
-   extra slot.
+   extra slot. **BUILT — `lib/music/musicCompletion.ts`**, used by the pill, the button AND the
+   server; WLT has one musical number per Sunday, counted only when one exists.
 3. **Auto-reopen** — adding an extra musical number reverts an approved submission to draft
-   with a visible banner and a stored reason.
+   with a visible banner and a stored reason. **BUILT, widened** — ANY change to the hymns, the
+   musical number, the chorister or the organist reopens it (`sunday_music.returned_reason`).
 4. **Roster-derived defaults** — chorister and accompanist matched from real calling text.
+   **STILL OPEN.** The chorister and organist are real fields since ITER-038 `ma` (a member or a
+   typed name), with no defaults.
 
 ### 2.3 Conducting Sheet — NEW
 The run-of-show. Sections *and* standalone rows (invocation, benediction and each speaker are
@@ -485,10 +493,12 @@ settled when nobody had said so. `lib/topics/finalize.ts` holds the rule that cl
 the rule is about **what** changed rather than about **who** moved — advancing a speaker through
 the pipeline leaves a finalized Sunday finalized.
 
-**THE WORKFLOW PILL OF ITEM 2 IS STILL NOT BUILT, and it is not slice `b`'s.**
-`Draft` / `Pending approval` / `Approved` reports the **programme's** state, not the topics', so it
-belongs with the programme — module 6, or whichever slice next touches `/program`. Its absence on
-the collapsed music card is correct rather than outstanding.
+**THE WORKFLOW PILL OF ITEM 2 IS BUILT — ITER-038 `mb`, and the paragraph that stood here was
+wrong.** It said `Draft` / `Pending approval` / `Approved` reported the **programme's** state and
+belonged with the programme. Reading the prototype's `MusicSundayEditor` again, it is the **music
+submission's own** status, and it now sits on the collapsed music card beside `n/m picked`
+(`Pending approval — <conductor>`, plus `Sent back`). `Topics pending` still replaces both while the
+topics are not final.
 
 ### 6.3 The contextual back link — ~17 pages, and WLT has sanctioned it but built none
 

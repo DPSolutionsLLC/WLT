@@ -1432,6 +1432,25 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   `afterPrayerPersonChanged()`, which `tests/lib/prayersFinalizeSites.test.ts` holds both prayer
   routes to. **`listToldPrayerIds()` counts only stamped rows** — counting every linked to-do read
   each prayer ever asked as "already told", and a cancelled prayer's person was never told.
+- **THE MUSIC IS SUBMITTED, REVIEWED BY THE CONDUCTOR, AND REOPENS ON ANY CHANGE — DECIDED
+  2026-10-02 (ITER-038, migration 089, plans/sacrament-music-handoff-and-approval.md).**
+  `sunday_music` holds a Sunday's chorister and organist (a member OR a typed name, never both) and
+  its submission status, and has **a SELECT policy and no write policy** (073's `access_requests`
+  shape): every write is the service role behind a route, and **`lib/music/musicReview.ts` is the
+  only writer of `status`**. The coordinator submits once `musicCompletionFor()` says complete
+  (3 hymns + chorister + organist + the musical number if one exists) and the topics are final; the
+  **conductor** gets "Review the music" on To Do; **any bishopric member** approves or sends back
+  with a note (`topics.manage`, not "is the conductor" — §7), and **nobody approves their own
+  submission**. A send-back reopens the submitter's "Choose the music" with the note on its
+  timeline, and **leaves the conductor's review OPEN** with the same "Sent back: <note>" line until
+  the music is resubmitted onto it (decided walking scenario 087); the audit row says only `returnedWithMessage: true`. **Every music write route calls
+  `reopenMusicAfterWrite()`** (`tests/lib/musicReopenSites.test.ts`), returning submitted or
+  approved music to draft and closing the open review as `music_reopened` — a sent-back draft keeps
+  its note through the next edit. Music to-dos have **no checkbox and cannot be deleted while open**;
+  they close themselves. The reconcile closes them as `meeting_cancelled` when the meeting is lost
+  and moves an open review to a new conductor. **Hymns stay live to the programme (D3)**: it shows a
+  soft "Music not approved yet" line and blocks nothing. Not built: roster-derived chorister/organist
+  defaults (module-map §2.2 item 4).
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

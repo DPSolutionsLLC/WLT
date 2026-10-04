@@ -4,12 +4,14 @@ import { HymnSearchModal } from "@/app/(app)/music/HymnSearchModal";
 import { MusicalNumberForm } from "@/app/(app)/music/MusicalNumberForm";
 import { MusicPeopleForm } from "@/app/(app)/music/MusicPeopleForm";
 import type { MusicDirectoryEntry } from "@/app/(app)/music/MusicPersonWindow";
+import { MusicReviewControls } from "@/app/(app)/music/MusicReviewControls";
+import { SubmitMusicButton } from "@/app/(app)/music/SubmitMusicButton";
 import { SuggestHymnsButton } from "@/app/(app)/music/SuggestHymnsButton";
 import { SundayTypeBadge } from "@/components/calendar/SundayTypeBadge";
 import { UnverifiedHymnBadge } from "@/components/music/UnverifiedHymnBadge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { Pill } from "@/components/ui/Pill";
+import { Pill, type PillTone } from "@/components/ui/Pill";
 import { formatSundayLabelWithYear } from "@/lib/calendar/dates";
 // TYPE-ONLY, AND IT MUST STAY THAT WAY. A VALUE import of a queries.ts from a client component
 // pulls in next/headers, which `npm run lint` and `npm run typecheck` both pass and only
@@ -17,7 +19,8 @@ import { formatSundayLabelWithYear } from "@/lib/calendar/dates";
 // "use client" without that import moving, which is the only reason the change was a directive
 // rather than a rewrite.
 import type { HymnSelection, MusicalNumber } from "@/lib/music/queries";
-import { HYMNS_PER_SUNDAY, pillStatus } from "@/lib/sacrament/sundayStatus";
+import type { MusicCompletion } from "@/lib/music/musicCompletion";
+import { pillStatus } from "@/lib/sacrament/sundayStatus";
 import { HYMN_TYPES, type HymnType, type SundayMusic, type SundayType } from "@/types/domain";
 
 // One Sunday: what it is about, what has been chosen, and what has not.
@@ -56,9 +59,15 @@ import { HYMN_TYPES, type HymnType, type SundayMusic, type SundayType } from "@/
 // "this Sunday has topics assigned" would tell a coordinator the topics were settled when nobody
 // had said so — which is the single thing this signal exists to prevent.
 //
-// STILL NOT BUILT, and must not be approximated: the prototype's workflow pill
-// (`Draft` / `Pending approval` / `Approved`). That reports the PROGRAMME's state and belongs with
-// the programme, not with the topics.
+// ---------------------------------------------------------------------------
+// TWO PILLS ONCE THE TOPICS ARE FINAL — ITER-038 slice mb
+// ---------------------------------------------------------------------------
+// `n/m picked` is lib/music/musicCompletion.ts's count — the same definition the Submit button and
+// the server use — and the workflow pill (`Draft` / `Pending approval — <conductor>` / `Approved` /
+// `Sent back`) is the MUSIC SUBMISSION's own status, `sunday_music.status`. This header used to say
+// that pill reported the programme's state and belonged with the programme; that was a misreading
+// of the prototype's MusicSundayEditor, corrected here and in module-map.md §6.2. While the topics
+// are pending, `Topics pending` still replaces BOTH, for the reason above.
 
 const HYMN_SLOT_LABELS: Record<HymnType, string> = {
   opening: "Opening hymn",
@@ -78,7 +87,15 @@ export type SundayMusicCardProps = {
   sundayMusic: SundayMusic;
   // The roster for choosing them, slim. Empty for a reader without `music.manage`.
   members: readonly MusicDirectoryEntry[];
+  // musicCompletionFor() over this Sunday's live music, computed by the page.
+  completion: MusicCompletion;
+  // Who the submitted music waits on, for `Pending approval — <name>`.
+  conductorName: string | null;
+  // `music.manage`: choose the music and submit it.
   canManage: boolean;
+  // `topics.manage`: approve it or send it back (the whole bishopric, plan A2).
+  canReview: boolean;
+  viewerUserId: string;
   isOpen: boolean;
   onToggle: () => void;
 };
@@ -142,6 +159,37 @@ const COMPLETION_TONES = {
   empty: "neutral",
 } as const;
 
+function workflowPill(
+  sundayMusic: SundayMusic,
+  conductorName: string | null,
+): { label: string; tone: PillTone } {
+  if (sundayMusic.status === "approved") return { label: "Approved", tone: "ok" };
+  if (sundayMusic.status === "submitted") {
+    return {
+      label: conductorName === null ? "Pending approval" : `Pending approval — ${conductorName}`,
+      tone: "pending",
+    };
+  }
+  if (sundayMusic.returnedReason === "sent_back") return { label: "Sent back", tone: "missing" };
+  return { label: "Draft", tone: "neutral" };
+}
+
+// Why a draft is a draft again. Shown until the music is submitted again, which clears the reason.
+function ReturnedBanner({ sundayMusic }: { sundayMusic: SundayMusic }) {
+  if (sundayMusic.status !== "draft" || sundayMusic.returnedReason === null) return null;
+  const message =
+    sundayMusic.returnedReason === "sent_back"
+      ? `Sent back by the conductor: ${sundayMusic.returnNote ?? ""}`
+      : sundayMusic.returnedReason === "topics_changed"
+        ? "The topics changed after this was submitted. Your picks are kept — check them and submit again."
+        : "Changed after it was submitted — submit again when it's ready.";
+  return (
+    <p role="status" className="mt-3 rounded-md border border-warning px-3 py-2 text-sm text-foreground">
+      {message}
+    </p>
+  );
+}
+
 export function SundayMusicCard({
   sunday,
   topicsFinalized,
@@ -150,7 +198,11 @@ export function SundayMusicCard({
   musicalNumber,
   sundayMusic,
   members,
+  completion,
+  conductorName,
   canManage,
+  canReview,
+  viewerUserId,
   isOpen,
   onToggle,
 }: SundayMusicCardProps) {
@@ -161,11 +213,7 @@ export function SundayMusicCard({
     return selection === undefined || selection.hymnNumber === null;
   }).length;
 
-  // THE DENOMINATOR IS HYMNS_PER_SUNDAY, the same constant lib/sacrament/sundayStatus.ts counts
-  // the hub's `Music n/3` pill against — so the pill somebody pressed and the card they land on
-  // cannot report different numbers. That is ITER-022's failure, where a summary and the card
-  // beneath it held the same state and two different counts.
-  const chosenCount = HYMN_TYPES.length - missingCount;
+  const workflow = workflowPill(sundayMusic, conductorName);
 
   const panelId = `sunday-${sunday.id}-music`;
 
@@ -207,9 +255,12 @@ export function SundayMusicCard({
           {/* REPLACED, NOT ACCOMPANIED — see the header. Two pills here would be two answers to
               "is this ready to work on". */}
           {topicsFinalized ? (
-            <Pill tone={COMPLETION_TONES[pillStatus(chosenCount, HYMNS_PER_SUNDAY)]}>
-              {chosenCount}/{HYMNS_PER_SUNDAY} chosen
-            </Pill>
+            <>
+              <Pill tone={COMPLETION_TONES[pillStatus(completion.filled, completion.total)]}>
+                {completion.filled}/{completion.total} picked
+              </Pill>
+              <Pill tone={workflow.tone}>{workflow.label}</Pill>
+            </>
           ) : (
             <Pill tone="pending">Topics pending</Pill>
           )}
@@ -223,6 +274,8 @@ export function SundayMusicCard({
           <Button variant="secondary" onClick={onToggle}>
             Collapse
           </Button>
+
+          <ReturnedBanner sundayMusic={sundayMusic} />
 
           {/* Correctly pluralised, and the two states are written rather than templated. "1 hymns
               still to choose" is the plural bug ai-b recorded, and a count of zero is a different
@@ -294,6 +347,27 @@ export function SundayMusicCard({
               </p>
             )}
           </div>
+
+          {/* THE WORKFLOW, LAST — after everything it is about. Submit while it is a draft; Approve
+              or Send back while it waits. An approved Sunday shows neither: changing anything
+              above returns it to draft by itself. */}
+          {canManage && sundayMusic.status === "draft" ? (
+            <div className="mt-3 border-t border-border pt-3">
+              <SubmitMusicButton
+                sundayId={sunday.id}
+                completion={completion}
+                topicsFinalized={topicsFinalized}
+              />
+            </div>
+          ) : null}
+          {canReview && sundayMusic.status === "submitted" ? (
+            <div className="mt-3 border-t border-border pt-3">
+              <MusicReviewControls
+                sundayId={sunday.id}
+                isOwnSubmission={sundayMusic.submittedByUserId === viewerUserId}
+              />
+            </div>
+          ) : null}
         </div>
       )}
     </Card>

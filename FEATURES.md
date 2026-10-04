@@ -510,7 +510,20 @@ Based on the standard bifold format (Buffalo Ward template):
 - Receive AI-suggested hymns based on the week's assigned topics
 - Select or override suggestions
 - Log special musical numbers (performer, piece title)
+- Choose the chorister and organist — somebody on the roster, or a typed name
 - All selections feed into the program builder
+
+### Submitting the Music for Review
+- Once a Sunday's topics are finalized and its music is complete (three hymns, a chorister, an
+  organist, and the musical number if there is one), the coordinator **submits** it
+- The conductor gets "Review the music for …" on their To Do; any member of the bishopric
+  **approves** it or **sends it back with a note** — never somebody who submitted it themselves
+- Sending it back reopens the coordinator's "Choose the music" to-do with the note on it
+- Any change after submitting or approving returns the music to draft, with a banner saying why,
+  and the conductor's review to-do closes
+- Each Sunday's card shows how much is picked and where the music stands: Draft, Pending approval,
+  Approved or Sent back
+- The programme is never blocked: it shows a quiet "Music not approved yet" line until it is
 
 ### AI Hymn Suggestions
 - Based on topic(s) assigned for that Sunday

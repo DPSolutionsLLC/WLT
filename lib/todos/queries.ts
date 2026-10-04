@@ -18,9 +18,11 @@ import type {
 import type { Database } from "@/types/database";
 import {
   MEETING_TYPES,
+  MUSIC_TODO_ROLES,
   TODO_CLOSED_REASONS,
   TODO_LOG_KINDS,
   type MeetingType,
+  type MusicTodoRole,
   type Todo,
   type TodoAgendaSource,
   type TodoClosedReason,
@@ -67,6 +69,8 @@ type TodoRow = {
   source_completed_at: string | null;
   ask_assignment_id: string | null;
   ask_prayer_id: string | null;
+  music_sunday_id: string | null;
+  music_role: string | null;
   closed_reason: string | null;
   talk_off_at: string | null;
   created_at: string;
@@ -115,9 +119,9 @@ type LogRow = {
 // `action_items` has TWO foreign keys to `agendas` (the agenda it is on, and the one it was carried
 // from), so the embed names its constraint — without the hint PostgREST refuses the ambiguity.
 const TODO_COLUMNS =
-  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, ask_prayer_id, closed_reason, talk_off_at, created_at, updated_at";
+  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, ask_prayer_id, music_sunday_id, music_role, closed_reason, talk_off_at, created_at, updated_at";
 const TODO_WITH_STEPS_COLUMNS =
-  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, ask_prayer_id, closed_reason, talk_off_at, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date)), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number, cancelled_at, topic_title, sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), talk_references!talk_references_assignment_id_ward_id_fkey (citation, created_at)), prayer:prayer_assignments!todos_ask_prayer_id_fkey (id, member_id, prayer_type, cancelled_at, sundays!prayer_assignments_sunday_id_ward_id_fkey (date), members!prayer_assignments_member_id_ward_id_fkey (first_name, last_name, phone)), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name)";
+  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, ask_prayer_id, music_sunday_id, music_role, closed_reason, talk_off_at, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date)), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number, cancelled_at, topic_title, sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), talk_references!talk_references_assignment_id_ward_id_fkey (citation, created_at)), prayer:prayer_assignments!todos_ask_prayer_id_fkey (id, member_id, prayer_type, cancelled_at, sundays!prayer_assignments_sunday_id_ward_id_fkey (date), members!prayer_assignments_member_id_ward_id_fkey (first_name, last_name, phone)), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name)";
 const STEP_COLUMNS = "id, todo_id, label, position, done_at";
 const LOG_COLUMNS = "id, todo_id, kind, body, created_at";
 
@@ -170,6 +174,19 @@ function toClosedReason(value: string | null): TodoClosedReason | null {
   return value as TodoClosedReason;
 }
 
+// A null Sunday is UNLINKED whatever `music_role` holds: deleting a Sunday nulls only the id
+// (migration 089b has no pair CHECK, deliberately).
+function toMusicLink(sundayId: string | null, role: string | null): Todo["musicLink"] {
+  if (sundayId === null) return null;
+  if (role === null || !(MUSIC_TODO_ROLES as readonly string[]).includes(role)) {
+    throw new Error(
+      `todos.music_role holds "${String(role)}" beside a Sunday, which is not a known value. ` +
+        "Migration 089b and MUSIC_TODO_ROLES in types/domain.ts have drifted.",
+    );
+  }
+  return { sundayId, role: role as MusicTodoRole };
+}
+
 // Explicit objects rather than spreads, so a column added later cannot ride into a response
 // nobody reviewed.
 function mapTodoRow(row: TodoRow): Todo {
@@ -188,6 +205,7 @@ function mapTodoRow(row: TodoRow): Todo {
     sourceCompletedAt: row.source_completed_at,
     askAssignmentId: row.ask_assignment_id,
     askPrayerId: row.ask_prayer_id,
+    musicLink: toMusicLink(row.music_sunday_id, row.music_role),
     closedReason: toClosedReason(row.closed_reason),
     talkOffAt: row.talk_off_at,
     createdAt: row.created_at,
@@ -492,6 +510,9 @@ export async function updateTodo(
   if (input.complete === false && isAsk(current) && current.completedAt !== null) {
     throw new InvalidInputError(ANSWERED_ASK_REOPEN);
   }
+  if (input.complete !== undefined && current.musicLink !== null) {
+    throw new InvalidInputError(MUSIC_TODO_TICK);
+  }
 
   if (input.complete !== undefined && input.complete !== (current.completedAt !== null)) {
     row.completed_at = input.complete ? new Date().toISOString() : null;
@@ -642,7 +663,24 @@ function isAsk(todo: Todo): boolean {
   return todo.askAssignmentId !== null || todo.askPrayerId !== null;
 }
 
-export type DeleteTodoResult = "deleted" | "not_found" | "linked_to_open_item" | "open_ask";
+// A SUNDAY'S MUSIC TO-DO MOVES WITH THE MUSIC, NEVER BY HAND (ITER-038). Submitting closes the
+// coordinator's "Choose the music"; approving or sending back closes the conductor's "Review the
+// music". A tick would leave the music waiting on a review nobody holds, and an untick would meet
+// migration 089b's one-open-per-owner index the next time the workflow wrote one. Once closed, it
+// stays closed: the workflow reopens it when it is needed again.
+const MUSIC_TODO_TICK =
+  "This closes itself when the music moves on — submit, approve or send it back on Music.";
+
+function isOpenMusicTodo(todo: Todo): boolean {
+  return todo.musicLink !== null && todo.completedAt === null;
+}
+
+export type DeleteTodoResult =
+  | "deleted"
+  | "not_found"
+  | "linked_to_open_item"
+  | "open_ask"
+  | "open_music";
 
 // "not_found" is RLS's zero rows, which the route turns into a 404. Steps and timeline lines go
 // with it by the foreign keys' cascade.
@@ -662,6 +700,7 @@ export async function deleteTodo(
   if (current === null) return "not_found";
 
   if (isOpenAsk(current)) return "open_ask";
+  if (isOpenMusicTodo(current)) return "open_music";
 
   if (current.actionItemId !== null && (await isActionItemOpen(supabase, wardId, current.actionItemId))) {
     return "linked_to_open_item";

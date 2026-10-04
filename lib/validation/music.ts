@@ -156,3 +156,25 @@ export const sundayMusicPeopleSchema = z
     "Nothing to save.",
   );
 export type SundayMusicPeopleInput = z.infer<typeof sundayMusicPeopleSchema>;
+
+export const MAX_MUSIC_RETURN_NOTE_LENGTH = 1000;
+
+// The conductor's decision on submitted music (ITER-038 slice mb). Sending it back REQUIRES a note:
+// it is the whole message to the coordinator, and migration 089d's CHECK refuses a blank one.
+export const musicReviewSchema = z.discriminatedUnion("decision", [
+  z.object({ decision: z.literal("approve") }).strict(),
+  z
+    .object({
+      decision: z.literal("return"),
+      note: z
+        .string()
+        .trim()
+        .min(1, "Say what to change.")
+        .max(
+          MAX_MUSIC_RETURN_NOTE_LENGTH,
+          `Keep the note to ${MAX_MUSIC_RETURN_NOTE_LENGTH} characters.`,
+        ),
+    })
+    .strict(),
+]);
+export type MusicReviewInput = z.infer<typeof musicReviewSchema>;

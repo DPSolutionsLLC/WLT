@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 85,
+  "scenarioCount": 86,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -2242,6 +2242,45 @@
         "Is starting the prayer over at Assigned, when somebody else is chosen, what you expect?"
       ],
       "seedCommand": "npm run seed -- talks/scenario-086-finalize-prayers"
+    },
+    {
+      "id": "talks:scenario-087-music-submit-and-review",
+      "path": "talks/scenario-087-music-submit-and-review",
+      "name": "Music is submitted, reviewed by the conductor, and reopens on a change",
+      "scope": "sacrament-music-handoff-and-approval",
+      "part": 2,
+      "tags": [
+        "talks",
+        "music",
+        "todos",
+        "full",
+        "P4"
+      ],
+      "prerequisites": "none",
+      "purpose": "ITER-038 `mb` (plans/sacrament-music-handoff-and-approval.md). The music coordinator **submits** a\nSunday's music once it is complete: 3 hymns, a chorister, an organist, and the musical number if\nthere is one. The **conductor** gets \"Review the music for …\" on To Do. Any member of the bishopric\n**approves** it or **sends it back with a note**, except whoever submitted it. Sending back reopens the\ncoordinator's \"Choose the music\" with the note on it. Changing anything after submit or approve\nreturns it to **Draft** with a banner, and the conductor's open review closes.\n\nThe card shows two pills once the topics are final: **n/m picked** and the workflow (**Draft** /\n**Pending approval — <conductor>** / **Approved** / **Sent back**). Music to-dos have no checkbox.\nThey close themselves, and **Open music** leads to the card.\n\n`mc` (finalizing topics tells the coordinator, plus the email toggle) extends this scenario later.\n\n**Already automated:**\n- `tests/routes/music-review.test.ts`:\n  - submit is refused when incomplete (naming what is missing), before the topics are final, and with no conductor;\n  - a submit gives one review to-do and closes the choose to-do; a second submit adds nothing;\n  - the coordinator cannot review; a send-back needs a note, and reopens the choose to-do with the note;\n  - the audit row never carries the note; the note survives the coordinator's next edit;\n  - an approval closes the review; a hymn change reopens approved music; an organist change closes an open review as `music_reopened`;\n  - a bishop who submitted cannot approve, and the conductor can;\n  - a conductor change moves the review; a lost meeting closes everything and resets the status; a re-save writes nothing;\n  - a music to-do cannot be ticked or deleted.\n- `tests/lib/musicCompletion.test.ts`: the completion rule, table-driven.\n- `tests/lib/musicReopenSites.test.ts`: every music write route reopens; only `lib/music/` writes `sunday_music`.",
+      "checklist": [
+        "Step 3: the to-do has **no checkbox**, a music icon, and an **Open music** link. It lands on `/music?sunday=<A>&from=todos#sunday-<A>` with A open",
+        "Step 4: the page shows **Back to To Do**. A reads **4/5 picked** · **Draft**, B **6/6 picked** · **Pending approval — Peter Nakamura**, C **5/5 picked** · **Pending approval — Peter Nakamura**, and D only **Topics pending**",
+        "Step 5: before the organist, Submit is disabled and reads **1 left: Organist**. Afterwards A reads **5/5 picked** · **Pending approval — Peter Nakamura**, Hannah's choose to-do is closed (read back: `music_submitted` line), and Peter has one open *Review the music for A*",
+        "Step 5: Hannah sees no Approve or Send back on any card",
+        "Step 6: on C the bishop sees **Approve** and **Send back** disabled, with *\"You submitted this music, so another member of the bishopric approves it.\"*. On B both are enabled",
+        "Step 7: Peter's three review to-dos have no checkbox; removing one is refused with *\"This comes from a Sunday's music and closes itself when the music moves on.\"*",
+        "Step 8: the send-back window's **Send back** is disabled while the note is empty. After sending, B reads **Sent back**, its banner reads *\"Sent back by the conductor: Please swap…\"*, and Peter's review for B **stays open**, its timeline ending *\"Sent back: Please swap…\"*",
+        "Step 9: A and C read **Approved**, and Peter's reviews for them are closed (read back: `music_approved` lines)",
+        "Step 10: Hannah has an open *Choose the music for B* — created by the send-back, since the seed gave her none for B (an existing one would be reopened instead) — and its timeline ends **Sent back: Please swap the closing hymn for one about the Savior.**",
+        "Step 11: the banner stays through the hymn change, and clears on submit. B reads **Pending approval — Peter Nakamura**, and Peter's SAME review gains *\"Music submitted for review\"* (no second review is created)",
+        "Step 12: A returns to **Draft** with *\"Changed after it was submitted — submit again when it's ready.\"*. B returns to Draft the same way",
+        "Step 13: Peter has no open review for B any more; its timeline ends *\"The music changed — this review is no longer needed\"* (`closed_reason` `music_reopened`)",
+        "Step 14: the programme page shows *\"Music not approved yet — the conductor approves it on Music.\"*, with nothing disabled. Its Organist line reads **Brother Visiting** and its Chorister line **Ruth Hale**",
+        "`audit_log` has `sunday_music_submitted`, `sunday_music_approved` and `sunday_music_sent_back` rows; the send-back's detail has `returnedWithMessage: true` and no note text",
+        "Every date reads as the right day (no off-by-one) on the to-dos, the cards and the programme",
+        "375px: no horizontal scroll on /music; the summary row may wrap the workflow pill under the date (as `Fast Sunday · Topics pending` already does) but nothing overflows; the Submit / Approve / Send back rows fit inside the card",
+        "Do the two pills read clearly side by side, or does the workflow pill crowd the date?",
+        "Is it clear from the card what Submit does, and who it goes to?",
+        "Does the sent-back banner read as the conductor's words to the coordinator?",
+        "Is \"Music not approved yet\" on the programme quiet enough not to read as a blocker?"
+      ],
+      "seedCommand": "npm run seed -- talks/scenario-087-music-submit-and-review"
     },
     {
       "id": "todos:scenario-075-a-todo-that-became-a-project",

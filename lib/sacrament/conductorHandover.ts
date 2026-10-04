@@ -7,7 +7,9 @@ import {
 } from "@/lib/assignments/queries";
 import { formatSundayLabelWithYear } from "@/lib/calendar/dates";
 import { getSunday, readConductorName, type Sunday } from "@/lib/calendar/queries";
+import { resetMusicForLostMeeting, reviewTodoContent } from "@/lib/music/musicReview";
 import { listMusicalNumbers, type MusicalNumber } from "@/lib/music/queries";
+import { listSundayMusic } from "@/lib/music/sundayMusic";
 import { listCancelledPrayers, listPrayers, type Prayer } from "@/lib/prayers/queries";
 import { buildPrayerAsks } from "@/lib/sacrament/finalizePeople";
 import { getMember } from "@/lib/roster/queries";
@@ -35,10 +37,16 @@ import {
   type OpenPrayerAsk,
   type TellToCreate,
 } from "@/lib/todos/askLinks";
+import {
+  handOverReviewTodo,
+  listOpenMusicTodos,
+  MusicLinkWriteError,
+  type OpenMusicTodo,
+} from "@/lib/todos/musicLinks";
 import { wardDateOnly } from "@/lib/ward/wardDate";
 import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import type { Database } from "@/types/database";
-import { PRAYER_TYPE_LABELS } from "@/types/domain";
+import { holdsSacramentMeeting, PRAYER_TYPE_LABELS, type SundayMusic } from "@/types/domain";
 
 // A SUNDAY'S PEOPLE, BROUGHT INTO LINE WITH THE CALENDAR — Sacrament slices f2, f2b and f2c.
 // SERVER-ONLY. Run after every Sunday save.
@@ -73,6 +81,12 @@ import { PRAYER_TYPE_LABELS } from "@/types/domain";
 //      as handed over. A Sunday with NO conductor keeps its asks where they are. A live PRAYER's
 //      open asks follow the conductor the same way (ITER-036 fb).
 //
+// A SUNDAY'S MUSIC (ITER-038 mb) rides on both rules. Rule 1: a Sunday that no longer holds a
+// meeting closes every open music to-do as `meeting_cancelled` and returns its submission to a
+// plain draft (lib/music/musicReview.ts, resetMusicForLostMeeting — the chorister and organist are
+// kept). Rule 2: an open "Review the music" held by anybody but the current conductor moves to
+// them, exactly as an ask does. The coordinator's "Choose the music" is theirs and never moves.
+//
 // There is NO "back on" rule any more (f2b had one). Cancelled work stays cancelled; if the Sunday
 // holds a meeting again, planning starts over and the "let them know" to-dos stay open (the user's
 // decision C6, 2026-09-26).
@@ -96,6 +110,9 @@ export type ReconcileResult = {
   talkOffTodoIds: string[];
   tellTodoIds: string[];
   historyWrittenAssignmentIds: string[];
+  // A Sunday's music (ITER-038 mb).
+  musicClosedIds: string[];
+  musicHandedOverIds: string[];
 };
 
 function emptyResult(): ReconcileResult {
@@ -106,11 +123,20 @@ function emptyResult(): ReconcileResult {
     talkOffTodoIds: [],
     tellTodoIds: [],
     historyWrittenAssignmentIds: [],
+    musicClosedIds: [],
+    musicHandedOverIds: [],
   };
 }
 
 export function writtenTodoIds(result: ReconcileResult): string[] {
-  return [...result.createdIds, ...result.closedIds, ...result.talkOffTodoIds, ...result.tellTodoIds];
+  return [
+    ...result.createdIds,
+    ...result.closedIds,
+    ...result.talkOffTodoIds,
+    ...result.tellTodoIds,
+    ...result.musicClosedIds,
+    ...result.musicHandedOverIds,
+  ];
 }
 
 type SundayWork = {
@@ -125,6 +151,8 @@ type SundayWork = {
   toldPrayers: Set<string>;
   toldMusic: Set<string>;
   talksWithHistory: Set<string>;
+  openMusicTodos: OpenMusicTodo[];
+  sundayMusic: SundayMusic | null;
 };
 
 export async function reconcileSundayAsks(params: {
@@ -141,12 +169,22 @@ export async function reconcileSundayAsks(params: {
 
   // A handful of reads however many Sundays a re-shift touched. Only a Sunday with something to
   // act on is read further.
-  const [talks, prayers, livePrayers, allMusic] = await Promise.all([
+  const [talks, prayers, livePrayers, allMusic, openMusicTodos, sundayMusicById] = await Promise.all([
     listAssignments(wardId, { sundayIds, includeCancelled: true }, client),
     listCancelledPrayers(wardId, sundayIds, client),
     listPrayers(wardId, { sundayIds }, client),
     listMusicalNumbers(wardId, sundayIds, client, { includeCancelled: true }),
+    listOpenMusicTodos({ wardId, sundayIds }),
+    listSundayMusic(wardId, sundayIds, client),
   ]);
+  // A Sunday whose music holds any state beyond an untouched draft — the only kind a lost meeting
+  // has anything to reset on.
+  const musicSundayIds = [
+    ...openMusicTodos.map((todo) => todo.sundayId),
+    ...[...sundayMusicById.values()]
+      .filter((music) => music.status !== "draft" || music.returnedAt !== null)
+      .map((music) => music.sundayId),
+  ];
   const musicalNumbers = allMusic.filter((number) => number.cancelledAt !== null);
   const [openAsks, openPrayerAsks] = await Promise.all([
     listOpenAsks({ wardId, assignmentIds: talks.map((talk) => talk.id) }),
@@ -164,7 +202,8 @@ export async function reconcileSundayAsks(params: {
     cancelledTalkIds.length === 0 &&
     accepted.length === 0 &&
     prayers.length === 0 &&
-    musicalNumbers.length === 0
+    musicalNumbers.length === 0 &&
+    musicSundayIds.length === 0
   ) {
     return result;
   }
@@ -191,6 +230,7 @@ export async function reconcileSundayAsks(params: {
         (ask) => livePrayers.find((prayer) => prayer.id === ask.prayerId)?.sundayId,
       ),
       ...musicalNumbers.map((number) => number.sundayId),
+      ...musicSundayIds,
     ],
     client,
   );
@@ -210,6 +250,8 @@ export async function reconcileSundayAsks(params: {
       toldPrayers,
       toldMusic,
       talksWithHistory,
+      openMusicTodos: openMusicTodos.filter((todo) => todo.sundayId === sunday.id),
+      sundayMusic: sundayMusicById.get(sunday.id) ?? null,
     };
     const isOff = (talk: Assignment) =>
       talk.cancelledAt !== null ||
@@ -268,7 +310,22 @@ export async function reconcileSundayAsks(params: {
           result,
         });
       }
+
+      await reconcileMusic({
+        wardId,
+        sunday,
+        work,
+        actingUserId: params.actingUserId,
+        today,
+        client,
+        result,
+      });
     } catch (error) {
+      // The reconcile's callers report ONE failure type with their own sentence, so a music to-do
+      // that could not be written is raised as that type rather than escaping as a bare 500.
+      if (error instanceof MusicLinkWriteError) {
+        throw new AskLinkWriteError(error.cause, [...writtenTodoIds(result), ...error.completedIds]);
+      }
       if (!(error instanceof AskLinkWriteError)) throw error;
       throw new AskLinkWriteError(error.cause, [
         ...writtenTodoIds(result),
@@ -477,6 +534,54 @@ async function handOverSunday(params: {
   params.result.handedOverSundayIds.push(params.sunday.id);
   params.result.createdIds.push(...createdIds);
   params.result.closedIds.push(...closedIds);
+}
+
+// A Sunday's music, both rules (ITER-038 mb). Asked of the state: a lost meeting with nothing open
+// and a plain draft writes nothing, and a review already with the conductor is left alone.
+async function reconcileMusic(params: {
+  wardId: string;
+  sunday: Sunday;
+  work: SundayWork;
+  actingUserId: string;
+  today: string;
+  client: SupabaseClient<Database>;
+  result: ReconcileResult;
+}): Promise<void> {
+  const { wardId, sunday, work, result } = params;
+
+  if (!holdsSacramentMeeting(sunday.type)) {
+    const music = work.sundayMusic;
+    const needsReset = music !== null && (music.status !== "draft" || music.returnedAt !== null);
+    if (work.openMusicTodos.length === 0 && !needsReset) return;
+    const { closedTodoIds } = await resetMusicForLostMeeting({ wardId, sundayId: sunday.id });
+    result.musicClosedIds.push(...closedTodoIds);
+    return;
+  }
+
+  const conductorId = sunday.conductingUserId;
+  if (conductorId === null) return;
+
+  const strayReviews = work.openMusicTodos.filter(
+    (todo) => todo.role === "review" && todo.ownerUserId !== conductorId,
+  );
+  if (strayReviews.length === 0) return;
+
+  const conductorName = await readConductorName(wardId, conductorId, params.client);
+  for (const todo of strayReviews) {
+    const fromName = await readConductorName(wardId, todo.ownerUserId, params.client);
+    const { createdIds, closedIds } = await handOverReviewTodo({
+      wardId,
+      sundayId: sunday.id,
+      fromTodoId: todo.todoId,
+      fromName: fromName ?? "the previous conductor",
+      toUserId: conductorId,
+      toName: conductorName ?? "the new conductor",
+      content: reviewTodoContent(sunday.date),
+      assignedByUserId: params.actingUserId,
+      today: params.today,
+    });
+    result.musicHandedOverIds.push(...createdIds, ...closedIds);
+  }
 }
 
 async function readSundays(

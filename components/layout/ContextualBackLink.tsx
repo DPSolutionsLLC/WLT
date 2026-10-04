@@ -53,6 +53,8 @@ import Link from "next/link";
 // not exist rather than being guarded against.
 const ORIGINS = new Map<string, { href: string; label: string }>([
   ["sacrament", { href: "/sacrament", label: "Back to Sacrament Calendar" }],
+  // A music to-do's "Open music" (ITER-038 mb).
+  ["todos", { href: "/todos", label: "Back to To Do" }],
 ]);
 
 export type ContextualBackLinkProps = {

@@ -7,6 +7,7 @@ import { SundayMusicCard } from "@/app/(app)/music/SundayMusicCard";
 // lint and typecheck both pass and only `npm run build` catches
 // (plans/retros/roster-b-picker-and-orgs.md).
 import type { HymnSelection, MusicalNumber } from "@/lib/music/queries";
+import type { MusicCompletion } from "@/lib/music/musicCompletion";
 import type { SundayMusic, SundayType } from "@/types/domain";
 
 // The collapsed list of dates /music is worked as (module-map.md §6.2).
@@ -52,6 +53,9 @@ export type MusicSundayEntry = {
   selections: HymnSelection[];
   musicalNumber: MusicalNumber | null;
   sundayMusic: SundayMusic;
+  // musicCompletionFor() over the live rows above, and who conducts (ITER-038 mb).
+  completion: MusicCompletion;
+  conductorName: string | null;
 };
 
 export type MusicSundayListProps = {
@@ -63,6 +67,8 @@ export type MusicSundayListProps = {
   // `music.manage`.
   members: readonly MusicDirectoryEntry[];
   canManage: boolean;
+  canReview: boolean;
+  viewerUserId: string;
 };
 
 export function MusicSundayList({
@@ -70,6 +76,8 @@ export function MusicSundayList({
   initialOpenSundayId,
   members,
   canManage,
+  canReview,
+  viewerUserId,
 }: MusicSundayListProps) {
   const [openSundayId, setOpenSundayId] = useState<string | null>(initialOpenSundayId);
 
@@ -98,7 +106,11 @@ export function MusicSundayList({
             musicalNumber={entry.musicalNumber}
             sundayMusic={entry.sundayMusic}
             members={members}
+            completion={entry.completion}
+            conductorName={entry.conductorName}
             canManage={canManage}
+            canReview={canReview}
+            viewerUserId={viewerUserId}
             isOpen={openSundayId === entry.sunday.id}
             // Opening a card CLOSES whatever was open, because the state is one value rather
             // than a set. Pressing the open card closes it, which is what the Collapse button

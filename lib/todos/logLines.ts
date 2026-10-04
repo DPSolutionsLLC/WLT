@@ -46,6 +46,18 @@ export function describeLogEntry(entry: Pick<TodoLogEntry, "kind" | "body">): st
       return "The talk is back on — finalize speakers to ask again";
     case "unfinalized":
       return "The decision was reopened — this ask is closed";
+    case "music_submitted":
+      return "Music submitted for review";
+    case "music_approved":
+      return "Music approved";
+    case "music_sent_back":
+      return `Sent back: ${entry.body ?? ""}`;
+    case "music_reopened":
+      return "The music changed — this review is no longer needed";
+    case "topics_changed":
+      return "The topics changed — check the music";
+    case "meeting_cancelled":
+      return "No sacrament meeting this Sunday any more";
     default: {
       const unhandled: never = entry.kind;
       throw new Error(`No sentence for to-do log kind "${String(unhandled)}".`);

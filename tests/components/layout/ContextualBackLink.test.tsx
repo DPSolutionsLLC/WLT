@@ -24,6 +24,14 @@ describe("ContextualBackLink", () => {
     expect(link).toHaveAttribute("href", "/sacrament");
   });
 
+  // A music to-do's "Open music" (ITER-038 mb).
+  it("leads back to To Do from a music to-do", () => {
+    render(<ContextualBackLink from="todos" />);
+
+    const link = screen.getByRole("link", { name: /Back to To Do/ });
+    expect(link).toHaveAttribute("href", "/todos");
+  });
+
   it("renders nothing when no origin is given", () => {
     const { container } = render(<ContextualBackLink from={undefined} />);
 

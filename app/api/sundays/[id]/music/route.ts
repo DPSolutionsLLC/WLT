@@ -5,7 +5,8 @@ import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { getSunday } from "@/lib/calendar/queries";
-import { upsertSundayMusicPeople } from "@/lib/music/sundayMusic";
+import { reopenMusicAfterWrite } from "@/lib/music/musicReview";
+import { getSundayMusic, upsertSundayMusicPeople } from "@/lib/music/sundayMusic";
 import { getMember } from "@/lib/roster/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { sundayMusicPeopleSchema } from "@/lib/validation/music";
@@ -93,7 +94,13 @@ export async function PATCH(
       supabase,
     );
 
-    return NextResponse.json({ sundayMusic });
+    // A SUBMITTED OR APPROVED SUNDAY GOES BACK TO DRAFT (ITER-038 mb), and the answer carries the
+    // row as it is after that, so the card shows the reopened state.
+    const reopen = await reopenMusicAfterWrite({ wardId: user.wardId, sundayId });
+    const current = reopen.reopened
+      ? await getSundayMusic(user.wardId, sundayId, supabase)
+      : sundayMusic;
+    return NextResponse.json({ sundayMusic: current, ...reopen });
   } catch (error) {
     return respondToRouteError(error, {
       route: "PATCH /api/sundays/[id]/music",

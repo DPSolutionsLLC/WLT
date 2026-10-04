@@ -32,7 +32,7 @@ type Client = SupabaseClient<Database>;
 
 // One string literal on ONE line (plans/retros/calendar-a-rules-and-api.md). The member names
 // embed through the composite foreign keys by name, because two keys point at `members`.
-const SUNDAY_MUSIC_COLUMNS =
+export const SUNDAY_MUSIC_COLUMNS =
   "sunday_id, chorister_member_id, chorister_name, organist_member_id, organist_name, status, submitted_at, submitted_by, approved_at, returned_at, returned_reason, return_note, chorister:members!sunday_music_chorister_member_id_ward_id_fkey (first_name, last_name), organist:members!sunday_music_organist_member_id_ward_id_fkey (first_name, last_name)";
 
 type MemberNameRow = { first_name: string; last_name: string } | null;
