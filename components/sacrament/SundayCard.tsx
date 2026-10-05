@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SundayTypeBadge } from "@/components/calendar/SundayTypeBadge";
 import { ReferencesPill } from "@/components/sacrament/ReferencesPill";
-import { StatusPill } from "@/components/sacrament/StatusPill";
+import { finalizeResultSlotId, StatusPill } from "@/components/sacrament/StatusPill";
 import { TalkAsksCheck } from "@/components/sacrament/TalkAsksCheck";
 import { Card } from "@/components/ui/Card";
 import { formatSundayLabel, type DateOnly } from "@/lib/calendar/dates";
@@ -186,6 +186,9 @@ export function SundayCard({
               </li>
             ))}
           </ul>
+          {/* The Topics tick's result line lands here, on its own row (scenario 088). Hidden
+              while empty, so the card's gap does not leave a blank line under the pills. */}
+          <div id={finalizeResultSlotId(sundayId)} className="relative z-10 empty:hidden" />
         </>
       ) : (
         // A stake- or general-conference Sunday holds no sacrament meeting at all

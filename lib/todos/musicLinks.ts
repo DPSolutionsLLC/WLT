@@ -6,8 +6,9 @@ import type { MusicTodoRole, TodoClosedReason, TodoLogKind } from "@/types/domai
 // WRITES TO THE TO-DOS A SUNDAY'S MUSIC PUTS ON PEOPLE'S LISTS — ITER-038, migration 089b. The
 // sibling of lib/todos/askLinks.ts: that file speaks for a talk or a prayer, this one for a Sunday's
 // music. Two roles, on `todos.music_role`:
-//   - `choose`: the coordinator's "Choose the music for …" (reopened with the conductor's note when
-//     the music is sent back; created by finalizing topics in slice mc);
+//   - `choose`: the coordinator's "Choose the music for …" (created by finalizing topics —
+//     lib/music/topicsHandoff.ts — and reopened with the conductor's note when the music is sent
+//     back);
 //   - `review`: the conductor's "Review the music for …", created by a submission.
 //
 // ---------------------------------------------------------------------------
@@ -88,7 +89,13 @@ export type MusicTodoContent = { title: string; notes: string };
 //     rather than starting a second to-do;
 //   - neither: a new one is created.
 // `existing` is returned separately, so slice mc can tell nobody twice.
-export type ChooseTodosResult = { createdIds: string[]; reopenedIds: string[]; existingIds: string[] };
+// `existingOwnerIds` names the PEOPLE behind `existingIds`, so a caller can tell who was not told.
+export type ChooseTodosResult = {
+  createdIds: string[];
+  reopenedIds: string[];
+  existingIds: string[];
+  existingOwnerIds: string[];
+};
 
 export async function createChooseTodos(params: {
   wardId: string;
@@ -101,7 +108,12 @@ export async function createChooseTodos(params: {
   client?: Client;
 }): Promise<ChooseTodosResult> {
   const supabase = params.client ?? createServiceSupabaseClient();
-  const result: ChooseTodosResult = { createdIds: [], reopenedIds: [], existingIds: [] };
+  const result: ChooseTodosResult = {
+    createdIds: [],
+    reopenedIds: [],
+    existingIds: [],
+    existingOwnerIds: [],
+  };
   const done = () => [...result.createdIds, ...result.reopenedIds, ...result.existingIds];
   const owners = [...new Set(params.ownerUserIds)];
 
@@ -124,6 +136,7 @@ export async function createChooseTodos(params: {
         await writeLines(supabase, params.wardId, [open.id], params.line.kind, params.line.body, detail, done());
       }
       result.existingIds.push(open.id);
+      result.existingOwnerIds.push(ownerId);
       continue;
     }
 
@@ -148,6 +161,7 @@ export async function createChooseTodos(params: {
       // 23505: another request opened one for them in the meantime. Theirs stands.
       if (reopenError && reopenError.code === "23505") {
         result.existingIds.push(latest.id);
+        result.existingOwnerIds.push(ownerId);
         continue;
       }
       if (reopenError) fail("Could not reopen a coordinator's music to-do", reopenError, detail, done());
@@ -183,7 +197,10 @@ export async function createChooseTodos(params: {
       .single();
 
     if (createError) {
-      if (createError.code === "23505") continue;
+      if (createError.code === "23505") {
+        result.existingOwnerIds.push(ownerId);
+        continue;
+      }
       fail("Could not create a coordinator's music to-do", createError, detail, done());
     }
     if (params.line !== undefined) {
@@ -382,6 +399,24 @@ export async function listOpenMusicTodos(params: {
           },
         ],
   );
+}
+
+// Whether this Sunday's music was ever handed to a coordinator — any "Choose the music", open or
+// done, held by anybody. Slice mc asks it to tell a FIRST handout from a re-finalize after the topics
+// changed (lib/music/topicsHandoff.ts). Service role, for listOpenMusicTodos()'s reason.
+export async function hasChooseTodo(params: { wardId: string; sundayId: string }): Promise<boolean> {
+  const { count, error } = await createServiceSupabaseClient()
+    .from("todos")
+    .select("id", { count: "exact", head: true })
+    .eq("ward_id", params.wardId)
+    .eq("music_sunday_id", params.sundayId)
+    .eq("music_role", "choose");
+
+  if (error) {
+    console.error(`Could not read whether the music was handed out — ${error.message}`, params);
+    throw new Error(`Could not read this Sunday's music to-dos: ${error.message}`);
+  }
+  return (count ?? 0) > 0;
 }
 
 // ---------------------------------------------------------------------------

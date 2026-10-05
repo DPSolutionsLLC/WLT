@@ -1451,6 +1451,20 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   and moves an open review to a new conductor. **Hymns stay live to the programme (D3)**: it shows a
   soft "Music not approved yet" line and blocks nothing. Not built: roster-derived chorister/organist
   defaults (module-map §2.2 item 4).
+  **FINALIZING TOPICS TELLS THE MUSIC COORDINATOR (`mc`, REVERSING b2's "nothing is notified")** —
+  `lib/music/topicsHandoff.ts`: every active `music_coordinator` calling gets "Choose the music"
+  (topic TITLES only in its notes), a `music_topics_ready` notification row, and an email if they
+  ticked the toggle on `/music` (`notification_user_prefs.email_enabled` on BOTH music triggers;
+  shown only to a coordinator). The route reads the Sunday BEFORE its write: **never handed out →
+  first handout; handed out and the stamp just moved → "Topics changed"** (a done to-do reopens
+  retitled, an open one gets a line, everybody is told); **already finalized → nothing.** A failed
+  handoff or email never undoes the finalize — the response carries a `music` sentence the control
+  shows. **Every place that clears the topics stamp reopens submitted music as `topics_changed`**:
+  the un-finalize route, `unfinalizeTopicsIfNeeded()`, and the reconcile (Fast Sunday / every talk
+  cancelled) — `tests/lib/musicTopicSites.test.ts` reads all three. A send-back emails the submitter
+  too. **Known limits:** Sundays finalized before `mc` deployed get no to-do until undone and
+  re-finalized; `notification_user_prefs` is unique per (user, trigger), not per ward, so a person
+  with a row from another ward cannot change it here (a 400 sentence, not a 500).
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

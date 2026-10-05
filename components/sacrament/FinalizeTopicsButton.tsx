@@ -2,6 +2,7 @@
 
 import {
   FinalizeToggle,
+  type FinalizeResultLine,
   type FinalizeToggleVariant,
 } from "@/components/sacrament/FinalizeToggle";
 
@@ -73,6 +74,8 @@ export type FinalizeTopicsButtonProps = {
   // The panel variant's visible words. The Topics screen uses the prototype's "Finalize topics" /
   // "Undo"; the accessible name stays the stateful aria-label either way.
   panelLabels?: { pressed: string; unpressed: string };
+  // Where the "Told the music coordinator" line goes (FinalizeToggle's `resultSlotId`).
+  resultSlotId?: string;
 };
 
 export function FinalizeTopicsButton({
@@ -81,6 +84,7 @@ export function FinalizeTopicsButton({
   sundayLabel,
   variant = "pill",
   panelLabels = { pressed: "Topics are decided", unpressed: "Mark topics decided" },
+  resultSlotId,
 }: FinalizeTopicsButtonProps) {
   return (
     <FinalizeToggle
@@ -91,6 +95,23 @@ export function FinalizeTopicsButton({
       ariaLabel={`Topics are decided — ${sundayLabel}`}
       variant={variant}
       panelLabels={panelLabels}
+      describeResult={describeMusicHandoff}
+      resultSlotId={resultSlotId}
     />
   );
+}
+
+// The route's `music` answer (ITER-038 mc): what happened to the music coordinator, or why it could
+// not. Nothing on an un-finalize unless the music could not be returned to draft.
+function describeMusicHandoff(payload: unknown): FinalizeResultLine | null {
+  if (typeof payload !== "object" || payload === null || !("music" in payload)) return null;
+  const { music } = payload;
+  if (typeof music !== "object" || music === null) return null;
+  if ("error" in music && typeof music.error === "string") {
+    return { text: music.error, tone: "danger" };
+  }
+  if ("message" in music && typeof music.message === "string") {
+    return { text: music.message, tone: "info" };
+  }
+  return null;
 }

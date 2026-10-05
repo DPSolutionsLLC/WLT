@@ -464,6 +464,10 @@ SELECT-only under RLS: every write is `lib/music/*` with the service role behind
 `lib/music/musicReview.ts` is the only writer of `status`. A Sunday with no row is an empty draft.
 `todos.music_sunday_id` + `todos.music_role` (`choose` | `review`) link the coordinator's
 "Choose the music" and the conductor's "Review the music" to-dos to a Sunday.
+Finalizing topics creates the coordinators' "Choose the music" (ITER-038 mc,
+`lib/music/topicsHandoff.ts`); un-finalizing returns submitted music to draft as `topics_changed`.
+`notification_user_prefs.email_enabled` (migration 089e) is the person's email opt-in per trigger;
+the music coordinator's toggle writes it on `music_topics_ready` and `music_sent_back` together.
 
 ### `hymns` (static reference table)
 ```sql
@@ -1369,6 +1373,7 @@ GET    /api/sundays              List Sundays
 POST   /api/sundays              Create Sunday record
 PATCH  /api/sundays/[id]         Update Sunday; moves open talk asks to the conductor (slice f2)
 PATCH  /api/sundays/[id]/topics-finalized       Finalize / un-finalize a Sunday's topics (topics.manage)
+       -- answers { sunday, music: { message, error } }; finalizing tells the music coordinator (ITER-038 mc)
 GET    /api/sundays/[id]/references             The References modal's data (talks.plan)
 POST   /api/sundays/[id]/references             Add a reference to one of this Sunday's talks (talks.plan)
 DELETE /api/sundays/[id]/references/[referenceId]  Remove one (talks.plan)
@@ -1487,6 +1492,7 @@ PATCH  /api/sundays/[id]/music   Chorister and organist (music.manage; reopens s
 POST   /api/sundays/[id]/music/submit   Submit the music for review (music.manage)
 POST   /api/sundays/[id]/music/review   { decision: "approve" } | { decision: "return", note }
                                         (topics.manage; never on your own submission)
+PUT    /api/session/music-email   { enabled } — the caller's own music email opt-in (music.view)
 ```
 
 ### Programs

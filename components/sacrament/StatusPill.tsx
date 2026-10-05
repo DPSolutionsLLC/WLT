@@ -88,6 +88,12 @@ export type StatusPillProps = {
   trailing?: ReactNode;
 };
 
+// The element under a Sunday's pill row that the Topics tick's result line renders into, so the
+// sentence gets its own row instead of squeezing the pill (decided walking scenario 088).
+export function finalizeResultSlotId(sundayId: string): string {
+  return `finalize-result-${sundayId}`;
+}
+
 export function StatusPill({
   pill,
   href,
@@ -136,6 +142,7 @@ export function StatusPill({
           // Narrowed by showsFinalizeControl above; the boolean is what makes a pill finalizable.
           finalized={pill.finalized === true}
           sundayLabel={sundayLabel}
+          resultSlotId={finalizeResultSlotId(sundayId)}
         />
       )}
 

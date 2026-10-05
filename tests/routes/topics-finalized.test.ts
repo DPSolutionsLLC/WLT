@@ -160,6 +160,9 @@ describe("PATCH /api/sundays/[id]/topics-finalized", () => {
       expect(status).toBe(200);
       expect(sunday.topicsFinalizedAt).not.toBeNull();
       expect(await readStamp(sundayId)).toBe(sunday.topicsFinalizedAt);
+      // ITER-038 mc: the answer says what happened to the music coordinator. The handoff itself
+      // is tests/routes/music-handoff.test.ts.
+      expect(body.music).toEqual({ message: "Told the music coordinator.", error: null });
     });
 
     // IDEMPOTENT, AND THE STAMP DOES NOT MOVE. This is the whole reason the rule lives in

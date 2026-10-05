@@ -1,3 +1,4 @@
+import { MusicEmailToggle } from "@/app/(app)/music/MusicEmailToggle";
 import { MusicSundayList, type MusicSundayEntry } from "@/app/(app)/music/MusicSundayList";
 import { ContextualBackLink } from "@/components/layout/ContextualBackLink";
 import { Card } from "@/components/ui/Card";
@@ -6,11 +7,13 @@ import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { addDaysUtc, firstSundayOnOrAfter, formatDateOnly } from "@/lib/calendar/dates";
 import { getSunday, listSundays, readConductorName, type Sunday } from "@/lib/calendar/queries";
+import { emailConfiguration } from "@/lib/email/resend";
 import { musicCompletionFor } from "@/lib/music/musicCompletion";
 import { listMusicalNumbers, listSelections } from "@/lib/music/queries";
 import { emptySundayMusic, listSundayMusic } from "@/lib/music/sundayMusic";
 import { listSundayTopicTitles } from "@/lib/music/sundayTopics";
 import { musicSundayWindow, MUSIC_WINDOW_SUNDAYS } from "@/lib/music/sundayWindow";
+import { readMusicEmailEnabled } from "@/lib/notifications/musicEmailPreference";
 import { listMembers } from "@/lib/roster/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { holdsSacramentMeeting } from "@/types/domain";
@@ -138,6 +141,17 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
     ),
   );
 
+  // THE EMAIL SWITCH IS THE COORDINATOR'S (plan A5): they are the only people the two music email
+  // triggers reach, so offering it to anybody else would promise mail that never comes. A display
+  // decision — the route itself admits any holder of `music.view`.
+  const isMusicCoordinator = user.role === "music_coordinator";
+  const musicEmailEnabled = isMusicCoordinator
+    ? await readMusicEmailEnabled(user.id, user.wardId, supabase)
+    : false;
+  const emailNotConfigured = emailConfiguration().configured
+    ? null
+    : "Email isn't set up for this ward yet, so nothing will be sent until it is.";
+
   const directory = members.map((member) => ({
     id: member.id,
     firstName: member.firstName,
@@ -186,6 +200,13 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
           {entries.length} {entries.length === 1 ? "Sunday" : "Sundays"}
         </p>
       </div>
+
+      {isMusicCoordinator && (
+        <MusicEmailToggle
+          initialEnabled={musicEmailEnabled}
+          notConfiguredReason={emailNotConfigured}
+        />
+      )}
 
       {/* TWO EMPTY STATES, because a window has two ways to be empty — and `entries.length` is
           tested FIRST, which is load-bearing rather than tidy. A jumped-to Sunday is resolved

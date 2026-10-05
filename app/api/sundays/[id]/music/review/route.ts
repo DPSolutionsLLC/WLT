@@ -99,7 +99,10 @@ export async function POST(
       supabase,
     );
 
-    return NextResponse.json({ sundayMusic: outcome.sundayMusic });
+    return NextResponse.json({
+      sundayMusic: outcome.sundayMusic,
+      emailProblem: outcome.emailProblem,
+    });
   } catch (error) {
     return respondToRouteError(error, {
       route: "POST /api/sundays/[id]/music/review",

@@ -513,6 +513,16 @@ Based on the standard bifold format (Buffalo Ward template):
 - Choose the chorister and organist — somebody on the roster, or a typed name
 - All selections feed into the program builder
 
+### Being Told the Topics Are Ready
+- When the bishopric finalizes a Sunday's topics, every music coordinator gets "Choose the music
+  for …" on their To Do, with the topics in its notes
+- If the topics change after the music was submitted, the music goes back to draft with a "topics
+  changed" banner; when the topics are finalized again the coordinator gets "Topics changed —
+  check the music for …"
+- A coordinator can tick **Email me when topics are ready or the music is sent back** on the Music
+  page; the To Do item is there either way
+- Whoever finalizes sees one line saying who was told, or why nobody was
+
 ### Submitting the Music for Review
 - Once a Sunday's topics are finalized and its music is complete (three hymns, a chorister, an
   organist, and the musical number if there is one), the coordinator **submits** it

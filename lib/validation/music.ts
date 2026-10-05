@@ -178,3 +178,8 @@ export const musicReviewSchema = z.discriminatedUnion("decision", [
     .strict(),
 ]);
 export type MusicReviewInput = z.infer<typeof musicReviewSchema>;
+
+// The music coordinator's own email switch (ITER-038 slice mc). The person is always the caller —
+// the body cannot name anybody.
+export const musicEmailPreferenceSchema = z.object({ enabled: z.boolean() }).strict();
+export type MusicEmailPreferenceInput = z.infer<typeof musicEmailPreferenceSchema>;

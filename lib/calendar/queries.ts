@@ -661,18 +661,21 @@ export async function setReferencesDecision(
 // One UPDATE, so PATCH /api/sundays/[id] gets one honest returned row rather than two helpers'
 // answers to choose between. When neither stamp is set it writes nothing, which keeps
 // unfinalizeTopicsIfNeeded()'s "one SELECT in the ordinary case" promise.
+//
+// `clearedTopics` says whether THIS call cleared a topics stamp that was set — what tells the
+// music to reopen (ITER-038 mc) without a second read.
 export async function clearTalkShapeStamps(
   wardId: string,
   sundayId: string,
   client?: SupabaseClient<Database>,
-): Promise<Sunday | null> {
+): Promise<{ sunday: Sunday; clearedTopics: boolean } | null> {
   const supabase = await resolveClient(client);
 
   const before = await getSunday(wardId, sundayId, supabase);
   if (!before) return null;
 
   if (before.topicsFinalizedAt === null && before.referencesFinalizedAt === null) {
-    return before;
+    return { sunday: before, clearedTopics: false };
   }
 
   const { data, error } = await supabase
@@ -691,7 +694,7 @@ export async function clearTalkShapeStamps(
     throw new Error(`Could not update that Sunday: ${error.message}`);
   }
 
-  return data ? mapSundayRow(data) : null;
+  return data ? { sunday: mapSundayRow(data), clearedTopics: before.topicsFinalizedAt !== null } : null;
 }
 
 // `options.orgId` is a THREE-way choice, and the difference matters:

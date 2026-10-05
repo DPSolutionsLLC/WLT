@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clearTalkShapeStamps, type Sunday } from "@/lib/calendar/queries";
+import { reopenMusicForTopicChange } from "@/lib/music/topicsHandoff";
 import type { UpdateAssignmentInput } from "@/lib/validation/assignment";
 import type { Database } from "@/types/database";
 
@@ -105,6 +106,14 @@ export function topicShapeChanged(patch: UpdateAssignmentInput): boolean {
 // write, a thrown read. Since this function cannot throw, a caller must treat null as "keep what
 // you had" rather than as "it is cleared" — `?? sunday` at the call site. Nothing is asserted
 // that was not observed.
+// ---------------------------------------------------------------------------
+// AND THE MUSIC REOPENS WITH IT — ITER-038 slice mc
+// ---------------------------------------------------------------------------
+// Only when THIS call actually cleared the topics stamp: music submitted against topics that have
+// since moved goes back to draft ("Topics changed"), and the coordinator is told when the topics
+// are finalized again (plan D2). No extra read in the ordinary case — clearTalkShapeStamps() says
+// whether it cleared anything. A music failure is caught on its own and logged, and the save-time
+// reconcile (lib/sacrament/conductorHandover.ts) reopens such music the next time it runs.
 export async function unfinalizeTopicsIfNeeded(
   wardId: string,
   sundayId: string | null,
@@ -113,7 +122,10 @@ export async function unfinalizeTopicsIfNeeded(
   if (sundayId === null) return null;
 
   try {
-    return await clearTalkShapeStamps(wardId, sundayId, client);
+    const cleared = await clearTalkShapeStamps(wardId, sundayId, client);
+    if (cleared === null) return null;
+    if (cleared.clearedTopics) await reopenMusicSafely(wardId, sundayId);
+    return cleared.sunday;
   } catch (error) {
     console.error("Could not clear a Sunday's finalized stamps", {
       wardId,
@@ -121,5 +133,18 @@ export async function unfinalizeTopicsIfNeeded(
       error,
     });
     return null;
+  }
+}
+
+// Its own catch, so a music failure never makes the caller believe the stamps were not cleared.
+async function reopenMusicSafely(wardId: string, sundayId: string): Promise<void> {
+  try {
+    await reopenMusicForTopicChange({ wardId, sundayId });
+  } catch (error) {
+    console.error("The topics changed but the submitted music could not be returned to draft", {
+      wardId,
+      sundayId,
+      error,
+    });
   }
 }

@@ -5,7 +5,9 @@ import { describeMissingMusic, musicCompletionFor } from "@/lib/music/musicCompl
 import { listMusicCoordinatorIds } from "@/lib/music/musicCoordinators";
 import { getMusicalNumber, listSelections } from "@/lib/music/queries";
 import { getSundayMusic, mapSundayMusicRow, SUNDAY_MUSIC_COLUMNS } from "@/lib/music/sundayMusic";
+import { emailCoordinators, sentBackEmail } from "@/lib/email/musicEmails";
 import { emitNotification } from "@/lib/notifications/emitNotification";
+import { resolveSiteUrl } from "@/lib/program/queries";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import {
   addLineToOpenMusicTodos,
@@ -223,7 +225,14 @@ export async function submitMusic(params: {
 // pressing again.
 export type ReviewOutcome =
   | Refusal
-  | { ok: true; sunday: Sunday; sundayMusic: SundayMusic; todoIds: string[] };
+  | {
+      ok: true;
+      sunday: Sunday;
+      sundayMusic: SundayMusic;
+      todoIds: string[];
+      // A send-back's email to the coordinator could not go (slice mc). Null otherwise.
+      emailProblem: string | null;
+    };
 
 export async function approveMusic(params: {
   wardId: string;
@@ -267,7 +276,7 @@ export async function approveMusic(params: {
     kind: "music_approved",
   });
 
-  return { ok: true, sunday, sundayMusic: saved, todoIds };
+  return { ok: true, sunday, sundayMusic: saved, todoIds, emailProblem: null };
 }
 
 // ---------------------------------------------------------------------------
@@ -330,14 +339,23 @@ export async function returnMusic(params: {
     line: { kind: "music_sent_back", body: params.note },
   });
 
+  const sundayLabel = formatSundayLabelWithYear(sunday.date);
+  let emailProblem: string | null = null;
   if (owners.length > 0) {
     await emitNotification({
       wardId,
       triggerKey: "music_sent_back",
       title: "Music sent back",
-      body: `The conductor sent back the music for ${formatSundayLabelWithYear(sunday.date)}.`,
+      body: `The conductor sent back the music for ${sundayLabel}.`,
       recipientUserIds: owners,
     });
+    // Slice mc: anybody who switched email on hears it there too. Never throws.
+    ({ emailProblem } = await emailCoordinators({
+      wardId,
+      userIds: owners,
+      triggerKey: "music_sent_back",
+      ...sentBackEmail({ sundayLabel, note: params.note, siteUrl: resolveSiteUrl(), sundayId }),
+    }));
   }
 
   return {
@@ -345,6 +363,7 @@ export async function returnMusic(params: {
     sunday,
     sundayMusic: saved,
     todoIds: [...notedReviewIds, ...chosen.createdIds, ...chosen.reopenedIds, ...chosen.existingIds],
+    emailProblem,
   };
 }
 

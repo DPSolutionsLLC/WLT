@@ -270,8 +270,9 @@ Details in the module map. Three things worth flagging here:
 
 - **Music's completion gate** must use **one** shared `musicCompletionFor()` for both the submit
   button and the list pill, or they drift — which is exactly how "Approved" showed while two
-  hymns sat empty. **BUILT — ITER-038 `ma` + `mb`** (chorister/organist, then submit → review →
-  reopen; `lib/music/musicCompletion.ts` is used by the pill, the button and the server).
+  hymns sat empty. **BUILT — ITER-038 `ma` + `mb` + `mc`** (chorister/organist, then submit → review →
+  reopen, then finalizing topics tells the coordinator; `lib/music/musicCompletion.ts` is used by
+  the pill, the button and the server).
   Behaviour 4, roster-derived defaults, is still open.
 - **Tithing keeps its navy/gold palette** (P1's deliberate exception) and **its clear window
   changed** — CLAUDE.md rule 11 is now a Sunday-night schedule. The scheduler is P12's; until it

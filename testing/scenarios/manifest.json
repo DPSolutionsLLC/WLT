@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 86,
+  "scenarioCount": 87,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -2281,6 +2281,41 @@
         "Is \"Music not approved yet\" on the programme quiet enough not to read as a blocker?"
       ],
       "seedCommand": "npm run seed -- talks/scenario-087-music-submit-and-review"
+    },
+    {
+      "id": "talks:scenario-088-music-topics-handoff",
+      "path": "talks/scenario-088-music-topics-handoff",
+      "name": "Finalizing topics tells the music coordinator, and a topic change reopens the music",
+      "scope": "sacrament-music-handoff-and-approval",
+      "part": 3,
+      "tags": [
+        "talks",
+        "music",
+        "todos",
+        "full",
+        "P4"
+      ],
+      "prerequisites": "none",
+      "purpose": "ITER-038 `mc` (plans/sacrament-music-handoff-and-approval.md). When the bishopric **finalizes a\nSunday's topics**, every active music coordinator gets **Choose the music for …** on To Do, with\nthat Sunday's **topic titles** in its notes (never a speaker's name), plus a notification row and an\nemail if they switched email on. The Finalize control says what happened in one line.\n\n**Un-finalizing** topics returns submitted or approved music to **Draft** with *\"The topics changed\nafter this was submitted…\"* and closes the conductor's open review. It tells nobody. **Finalizing\nagain** tells the coordinator the topics changed: a done to-do reopens as **Topics changed — check\nthe music for …**, and an open one gets a *\"The topics changed — check the music\"* line.\n\nIt also re-walks the `mb` change made after scenario 087's walk: **the conductor's review stays open\nafter a send-back**, with a *\"Sent back: <note>\"* line, and the resubmission lands on that same to-do.\n\n**Already automated:**\n- `tests/routes/music-handoff.test.ts`:\n  - one to-do per active coordinator, with topic titles and no speaker name; a deactivated coordinator gets none;\n  - finalizing an already-finalized Sunday adds nothing and tells nobody;\n  - un-finalizing returns submitted music to draft and closes the review; finalizing again reopens with \"Topics changed\";\n  - editing a talk's topic, or turning the Sunday into Fast Sunday, returns submitted music to draft;\n  - email only to the coordinator who opted in; \"not set up\" is reported, not thrown; a send-back emails the submitter;\n  - no coordinator → the finalize stands and says nobody was told; a failed handoff → the finalize stands and says so.\n- `tests/routes/music-email-preference.test.ts`: the toggle writes both rows for the caller only and never touches the in-app opt-out.\n- `tests/lib/musicTopicSites.test.ts`: every place that clears the topics stamp reopens the music (read from the source).",
+      "checklist": [
+        "Step 2: the toggle is on the page for Hannah, stays ticked after the reload, and (with email not set up) reads *\"Email isn't set up for this ward yet, so nothing will be sent until it is.\"*. Read back: two `notification_user_prefs` rows for Hannah, `music_topics_ready` and `music_sent_back`, both `email_enabled = true`",
+        "Step 3: the line reads *\"Told the music coordinator.\"* — or, with email not set up, *\"Told the music coordinator. Email isn't set up for this ward yet, so nobody was emailed.\"*. Read back: one open `choose` to-do on Hannah for A, and one `music_topics_ready` notification row",
+        "Step 4: the line reads *\"Told the music coordinator the topics changed.\"* (plus the email sentence if not set up). Read back: still **one** `choose` to-do for A, now with a `topics_changed` line",
+        "Step 5: the to-do is titled **Choose the music for <A>**, its notes read *\"Topics: Faith in Jesus Christ; Keeping the Sabbath day holy.\"* and do **not** contain \"Thornbury\", and its timeline ends *\"The topics changed — check the music\"*",
+        "Step 6: B reads **Sent back** with the banner, and Peter's review for B is **still open**, its timeline ending *\"Sent back: Please choose a closing hymn about the Savior.\"*. Hannah's *Choose the music for B* is open again with the same line",
+        "Step 7: B reads **Pending approval — Peter Nakamura**",
+        "Step 8: Peter has **one** review for B — the same one — and its timeline ends *\"Music submitted for review\"*",
+        "Step 9: after Undo, B reads **Draft** with *\"The topics changed after this was submitted. Your picks are kept — check them and submit again.\"*, and Peter's review for B is closed (`closed_reason` `music_reopened`). After finalizing again the line reads *\"Told the music coordinator the topics changed.\"*",
+        "Step 10: Hannah's B to-do is open again, titled **Topics changed — check the music for <B>**, its timeline ending *\"The topics changed — check the music\"*",
+        "Step 11: the bishop sees **no** email toggle on Music",
+        "`audit_log` has `sunday_topics_finalized` / `sunday_topics_unfinalized` rows and a `notification_email_preference_changed` row whose detail is `{ triggers, enabled }` with no address",
+        "Every date reads as the right day (no off-by-one) on the to-dos and cards",
+        "375px: the result line beside Finalize topics wraps inside the screen, with no horizontal scroll",
+        "Is the line beside Finalize topics clear about what happened, and is it quiet enough?",
+        "Does *\"Topics changed — check the music for …\"* make it obvious what Hannah should do?",
+        "Is the email toggle in the right place on Music, and does its wording say what it does?"
+      ],
+      "seedCommand": "npm run seed -- talks/scenario-088-music-topics-handoff"
     },
     {
       "id": "todos:scenario-075-a-todo-that-became-a-project",

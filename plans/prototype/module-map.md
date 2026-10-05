@@ -225,6 +225,11 @@ but not this rotation view.
    **STILL OPEN.** The chorister and organist are real fields since ITER-038 `ma` (a member or a
    typed name), with no defaults.
 
+*Also built — ITER-038 `mc`:* finalizing topics hands the Sunday to the music coordinator ("Choose
+the music" on To Do, a notification row, an opt-in email), **reversing the prototype's refusal** to
+notify ("would still require assuming a group with the music-coordinator role exists") — WLT resolves
+the real callings and says so when there are none. A topic change reopens submitted music.
+
 ### 2.3 Conducting Sheet — NEW
 The run-of-show. Sections *and* standalone rows (invocation, benediction and each speaker are
 individually placeable anywhere in the sequence — a box you can only reorder *within* cannot

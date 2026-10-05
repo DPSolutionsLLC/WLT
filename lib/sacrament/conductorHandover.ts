@@ -7,7 +7,11 @@ import {
 } from "@/lib/assignments/queries";
 import { formatSundayLabelWithYear } from "@/lib/calendar/dates";
 import { getSunday, readConductorName, type Sunday } from "@/lib/calendar/queries";
-import { resetMusicForLostMeeting, reviewTodoContent } from "@/lib/music/musicReview";
+import {
+  reopenMusicIfNeeded,
+  resetMusicForLostMeeting,
+  reviewTodoContent,
+} from "@/lib/music/musicReview";
 import { listMusicalNumbers, type MusicalNumber } from "@/lib/music/queries";
 import { listSundayMusic } from "@/lib/music/sundayMusic";
 import { listCancelledPrayers, listPrayers, type Prayer } from "@/lib/prayers/queries";
@@ -86,6 +90,8 @@ import { holdsSacramentMeeting, PRAYER_TYPE_LABELS, type SundayMusic } from "@/t
 // plain draft (lib/music/musicReview.ts, resetMusicForLostMeeting — the chorister and organist are
 // kept). Rule 2: an open "Review the music" held by anybody but the current conductor moves to
 // them, exactly as an ask does. The coordinator's "Choose the music" is theirs and never moves.
+// And (ITER-038 mc) a meeting that stays but has lost its topics stamp returns submitted music to
+// draft as "Topics changed" — the un-finalize rule, for the path that clears the stamp directly.
 //
 // There is NO "back on" rule any more (f2b had one). Cancelled work stays cancelled; if the Sunday
 // holds a meeting again, planning starts over and the "let them know" to-dos stay open (the user's
@@ -556,6 +562,20 @@ async function reconcileMusic(params: {
     const { closedTodoIds } = await resetMusicForLostMeeting({ wardId, sundayId: sunday.id });
     result.musicClosedIds.push(...closedTodoIds);
     return;
+  }
+
+  // THE TOPICS STAMP WENT WHILE THE MEETING STAYED (ITER-038 mc) — every talk was cancelled, as when
+  // a Sunday becomes Fast Sunday, and cancelSundayWork() cleared the stamp directly. Music submitted
+  // against those topics goes back to draft as "Topics changed", exactly as an un-finalize does.
+  // Asked of the state, so it is safe on every run.
+  const music = work.sundayMusic;
+  if (sunday.topicsFinalizedAt === null && music !== null && music.status !== "draft") {
+    const { closedTodoIds } = await reopenMusicIfNeeded({
+      wardId,
+      sundayId: sunday.id,
+      reason: "topics_changed",
+    });
+    result.musicClosedIds.push(...closedTodoIds);
   }
 
   const conductorId = sunday.conductingUserId;

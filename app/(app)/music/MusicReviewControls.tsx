@@ -14,6 +14,10 @@ import { MAX_MUSIC_RETURN_NOTE_LENGTH } from "@/lib/validation/music";
 //
 // SOMEBODY WHO SUBMITTED IT SEES THE BUTTONS DISABLED WITH THE REASON (A3), not hidden: a bishop
 // who submitted the music and looks for Approve should learn why it is not theirs to press.
+//
+// AN EMAIL THAT COULD NOT GO IS SAID IN THE WINDOW BEFORE IT CLOSES (slice mc). Refreshing returns
+// the card to draft and unmounts this component, so a sentence shown anywhere else would vanish with
+// it; the refresh waits until the window is closed.
 
 const FIELD_CLASSES =
   "min-h-11 rounded-md border border-border bg-surface-raised px-3 py-2 text-base text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
@@ -32,6 +36,7 @@ export function MusicReviewControls({ sundayId, isOwnSubmission }: MusicReviewCo
   const [note, setNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
+  const [emailProblem, setEmailProblem] = useState<string>();
 
   async function decide(body: { decision: "approve" } | { decision: "return"; note: string }) {
     setErrorMessage(undefined);
@@ -47,6 +52,11 @@ export function MusicReviewControls({ sundayId, isOwnSubmission }: MusicReviewCo
         setErrorMessage(messageFromPayload(payload, "Could not save your decision. Please try again."));
         return;
       }
+      const problem = readEmailProblem(payload);
+      if (problem !== null) {
+        setEmailProblem(problem);
+        return;
+      }
       setSendingBack(false);
       setNote("");
       router.refresh();
@@ -56,6 +66,13 @@ export function MusicReviewControls({ sundayId, isOwnSubmission }: MusicReviewCo
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function closeAfterSentBack() {
+    setEmailProblem(undefined);
+    setSendingBack(false);
+    setNote("");
+    router.refresh();
   }
 
   return (
@@ -87,50 +104,68 @@ export function MusicReviewControls({ sundayId, isOwnSubmission }: MusicReviewCo
           onClose={() => {
             setErrorMessage(undefined);
             setSendingBack(false);
+            if (emailProblem !== undefined) closeAfterSentBack();
           }}
           title="Send the music back"
         >
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1">
-              <label htmlFor={noteId} className="text-sm font-medium text-foreground">
-                What should change?
-              </label>
-              <textarea
-                id={noteId}
-                rows={3}
-                maxLength={MAX_MUSIC_RETURN_NOTE_LENGTH}
-                value={note}
-                autoFocus
-                disabled={isSaving}
-                onChange={(event) => setNote(event.target.value)}
-                className={FIELD_CLASSES}
-              />
+          {emailProblem !== undefined ? (
+            <div className="flex flex-col gap-3">
+              <p role="status" className="text-sm text-foreground">
+                Sent back. {emailProblem}
+              </p>
+              <div className="flex justify-end">
+                <Button onClick={closeAfterSentBack}>Close</Button>
+              </div>
             </div>
-            <p className="text-xs text-muted">
-              The music coordinator gets this on their To Do, and the music goes back to draft.
-            </p>
-            <FormError message={errorMessage} />
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button
-                variant="secondary"
-                disabled={isSaving}
-                onClick={() => {
-                  setErrorMessage(undefined);
-                  setSendingBack(false);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                disabled={isSaving || note.trim() === ""}
-                onClick={() => void decide({ decision: "return", note })}
-              >
-                {isSaving ? "Sending…" : "Send back"}
-              </Button>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1">
+                <label htmlFor={noteId} className="text-sm font-medium text-foreground">
+                  What should change?
+                </label>
+                <textarea
+                  id={noteId}
+                  rows={3}
+                  maxLength={MAX_MUSIC_RETURN_NOTE_LENGTH}
+                  value={note}
+                  autoFocus
+                  disabled={isSaving}
+                  onChange={(event) => setNote(event.target.value)}
+                  className={FIELD_CLASSES}
+                />
+              </div>
+              <p className="text-xs text-muted">
+                The music coordinator gets this on their To Do, and the music goes back to draft.
+              </p>
+              <FormError message={errorMessage} />
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  variant="secondary"
+                  disabled={isSaving}
+                  onClick={() => {
+                    setErrorMessage(undefined);
+                    setSendingBack(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  disabled={isSaving || note.trim() === ""}
+                  onClick={() => void decide({ decision: "return", note })}
+                >
+                  {isSaving ? "Sending…" : "Send back"}
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </Modal>
       )}
     </div>
   );
+}
+
+function readEmailProblem(payload: unknown): string | null {
+  if (typeof payload !== "object" || payload === null || !("emailProblem" in payload)) return null;
+  const { emailProblem } = payload;
+  return typeof emailProblem === "string" && emailProblem !== "" ? emailProblem : null;
 }
