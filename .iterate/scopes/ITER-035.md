@@ -50,8 +50,24 @@ reference, speaker or prayer is picked. Prayer Items (P7) is not built.
   raise yet — ask before planning the picking UI.
 - Prayers were missing from the flow as first described; they follow the same path as speakers.
 
+## Decisions (settled with the user 2026-10-05, during `/planning`)
+- **Pool:** shared by the whole bishopric — one set of candidates per Sunday, all three see and
+  edit it.
+- **Prayer Items granularity:** ONE item per Sunday, listing its candidates inside; it clears
+  itself when everything on that Sunday is finalized.
+- **Whose list:** the **conductor's own** Prayer Items list only — personal, NOT the prototype's
+  council-shared list (a deliberate departure from the prototype's Bishopric / Ward Council scope).
+- **Slots:** a "Considering" list per kind (speakers, topics, references, prayers) ABOVE the
+  existing slots; moving a candidate into a slot makes them the choice, the rest stay candidates
+  until finalized.
+- **How much of P7:** only what this item needs — the Prayer Items page, personal items, and the
+  self-resolving linked item with a Sunday as its first source. Agenda-linked items (and the
+  agenda discussion-status field) and the Prayer Roll stay in P7.
+
 ## Open Questions
-- Is the candidate pool shared by the whole bishopric (one pool per ward), or per conductor?
-- One Prayer Item per Sunday, or one per candidate?
-- How does a candidate list sit with today's fixed slots and slot-count stepper on the Topics
-  screen (t3)?
+- **PLANNING PAUSED HERE 2026-10-10** on the user's instruction, to start a different module in
+  another session. No plan file was written and no research beyond the P7 stub and the
+  prototype's `prayer-items` build note was done.
+- **Still unanswered, and the first thing to ask on resuming:** the user's further refinements to
+  topic and speaker picking. They chose to describe them and the description never arrived.
+  Resume with `/planning .iterate/scopes/ITER-035.md`.

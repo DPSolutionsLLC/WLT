@@ -2,7 +2,7 @@
 id: sacrament-music-topics-handoff
 type: feature
 iter: [ITER-038]
-commits: []
+commits: ["b22aa82"]
 date: 2026-10-04
 files:
   - lib/music/topicsHandoff.ts
