@@ -41,9 +41,14 @@ export function StakesAndWards({ initialUnits, wards, canManage }: StakesAndWard
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
   const [editing, setEditing] = useState<string>();
-  const [editDraft, setEditDraft] = useState<{ name: string; unitNumber: string }>({
+  const [editDraft, setEditDraft] = useState<{
+    name: string;
+    unitNumber: string;
+    parentId: string;
+  }>({
     name: "",
     unitNumber: "",
+    parentId: "",
   });
 
   const stakes = units.filter((unit) => unit.type === "stake");
@@ -51,6 +56,14 @@ export function StakesAndWards({ initialUnits, wards, canManage }: StakesAndWard
 
   const wardsForUnit = (unitId: string): WardSummary[] =>
     wards.filter((ward) => ward.unitId === unitId);
+
+  // A ward sits under a stake through its own unit's parent. A ward unit whose parent is not a
+  // stake on this screen is listed with the unplaced ones rather than vanishing from the page.
+  const wardUnitsUnder = (stakeId: string): Unit[] =>
+    wardUnits.filter((unit) => unit.parentId === stakeId);
+  const unplacedWardUnits = wardUnits.filter(
+    (unit) => unit.parentId === null || !stakes.some((stake) => stake.id === unit.parentId),
+  );
 
   async function send(
     path: string,
@@ -108,15 +121,20 @@ export function StakesAndWards({ initialUnits, wards, canManage }: StakesAndWard
     }
   };
 
-  const handleSaveEdit = async (unitId: string): Promise<void> => {
-    const payload = await send(`/api/units/${unitId}`, "PATCH", {
+  // A ward's parent travels with the edit; a stake's never does, because nothing sits above a
+  // stake on this screen and sending null would detach one that a script had placed under a unit.
+  const handleSaveEdit = async (unit: Unit): Promise<void> => {
+    const payload = await send(`/api/units/${unit.id}`, "PATCH", {
       name: editDraft.name,
       unitNumber: editDraft.unitNumber === "" ? null : editDraft.unitNumber,
+      ...(unit.type === "ward"
+        ? { parentId: editDraft.parentId === "" ? null : editDraft.parentId }
+        : {}),
     });
 
     if (payload?.unit) {
       setUnits((current) =>
-        current.map((unit) => (unit.id === unitId ? (payload.unit as Unit) : unit)),
+        current.map((entry) => (entry.id === unit.id ? (payload.unit as Unit) : entry)),
       );
       setEditing(undefined);
     }
@@ -134,7 +152,12 @@ export function StakesAndWards({ initialUnits, wards, canManage }: StakesAndWard
   };
 
   function renderUnit(unit: Unit) {
-    const attached = wardsForUnit(unit.id);
+    const attached = [
+      ...new Set([
+        ...wardUnitsUnder(unit.id).map((child) => child.name),
+        ...wardsForUnit(unit.id).map((ward) => ward.name),
+      ]),
+    ];
 
     return (
       <Card key={unit.id}>
@@ -155,9 +178,9 @@ export function StakesAndWards({ initialUnits, wards, canManage }: StakesAndWard
           <p className="mt-2 text-sm text-muted">
             {attached.length === 0
               ? "No wards under this stake yet."
-              : `${attached.length} ${attached.length === 1 ? "ward" : "wards"}: ${attached
-                  .map((ward) => ward.name)
-                  .join(", ")}`}
+              : `${attached.length} ${attached.length === 1 ? "ward" : "wards"}: ${attached.join(
+                  ", ",
+                )}`}
           </p>
         )}
 
@@ -180,8 +203,28 @@ export function StakesAndWards({ initialUnits, wards, canManage }: StakesAndWard
                 setEditDraft((current) => ({ ...current, unitNumber: event.target.value }))
               }
             />
+            {unit.type === "ward" && (
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="font-medium text-foreground">Under which stake</span>
+                <select
+                  id={`unit-parent-${unit.id}`}
+                  className="min-w-0 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+                  value={editDraft.parentId}
+                  onChange={(event) =>
+                    setEditDraft((current) => ({ ...current, parentId: event.target.value }))
+                  }
+                >
+                  <option value="">Not under a stake</option>
+                  {stakes.map((stake) => (
+                    <option key={stake.id} value={stake.id}>
+                      {stake.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <div className="flex gap-2">
-              <Button onClick={() => void handleSaveEdit(unit.id)} disabled={isSaving}>
+              <Button onClick={() => void handleSaveEdit(unit)} disabled={isSaving}>
                 {isSaving ? "Saving…" : "Save"}
               </Button>
               <Button variant="secondary" onClick={() => setEditing(undefined)}>
@@ -197,7 +240,11 @@ export function StakesAndWards({ initialUnits, wards, canManage }: StakesAndWard
               variant="secondary"
               onClick={() => {
                 setEditing(unit.id);
-                setEditDraft({ name: unit.name, unitNumber: unit.unitNumber ?? "" });
+                setEditDraft({
+                  name: unit.name,
+                  unitNumber: unit.unitNumber ?? "",
+                  parentId: unit.parentId ?? "",
+                });
               }}
             >
               Edit
@@ -223,17 +270,29 @@ export function StakesAndWards({ initialUnits, wards, canManage }: StakesAndWard
         </Card>
       )}
 
-      {stakes.map(renderUnit)}
+      {stakes.map((stake) => {
+        const children = wardUnitsUnder(stake.id);
+        return (
+          <div key={stake.id} className="flex flex-col gap-2">
+            {renderUnit(stake)}
+            {children.length > 0 && (
+              <div className="ml-4 flex flex-col gap-2 border-l border-border pl-3">
+                {children.map(renderUnit)}
+              </div>
+            )}
+          </div>
+        );
+      })}
 
       {/* Ward units with no stake above them. Every ward created before this screen existed has
           none — `wards.unit_id` is nullable and stays that way (migration 065c) — so this is an
           ordinary state and is shown plainly rather than as a problem. */}
-      {wardUnits.filter((unit) => unit.parentId === null).length > 0 && (
+      {unplacedWardUnits.length > 0 && (
         <>
           <h2 className="mt-2 text-lg font-semibold text-foreground">
             Not under a stake yet
           </h2>
-          {wardUnits.filter((unit) => unit.parentId === null).map(renderUnit)}
+          {unplacedWardUnits.map(renderUnit)}
         </>
       )}
 

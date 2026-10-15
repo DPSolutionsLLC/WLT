@@ -78,3 +78,18 @@ avoids a second permission system layered over the role one.
 - What does the bishopric see for To Do / My Appointments in the real ward if those aren't released
   — and does the Speaker Tracker need them?
 - Should the dashboard say anything about modules "coming soon", or simply show nothing?
+
+## Found while setting up the real ward (2026-10-15)
+The real roster was pasted into the old "Development Ward", so **that ward is now the real Buffalo
+Ward** (Sheridan, WY Stake), instead of a newly created one. Its made-up members, talks and draft
+programmes were removed by a one-off script, and the user became the first super admin through a
+one-off grant (no screen exists for the first one, by design). The plan therefore needs a **new
+test ward**; the old one is real.
+- **Renaming a ward on Stakes & Wards does not change the name shown in the app.** The screen
+  edits `units.name`; the chrome bar reads `wards.name`, which no screen writes. Buffalo Ward was
+  renamed by script. Decide in planning whether a ward unit's rename should write both.
+- **Moving a ward under a stake had no control on the screen** (the API accepted `parentId`), and a
+  ward unit with a parent was shown nowhere. Fixed 2026-10-15 in
+  `app/(app)/admin/stakes/StakesAndWards.tsx` (ward Edit gains "Under which stake"; a stake's wards
+  are listed beneath it). The API still accepts any unit as a parent, including a ward; only the
+  screen limits it to stakes.
