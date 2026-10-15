@@ -3,10 +3,11 @@
 // nobody can reproduce.
 //
 // ---------------------------------------------------------------------------
-// A DELIBERATE TWIN OF lib/roster/csv/limits.ts, NOT AN IMPORT FROM IT
+// A DELIBERATE TWIN OF THE ROSTER'S OLD CSV LIMITS, NOT AN IMPORT FROM THEM
 // ---------------------------------------------------------------------------
-// `capProblems`, `hasAcceptedExtension` and `formatFileSizeLimit` exist there in a roster-typed
-// form. This is their SECOND user. The repo's stated rule (plans/INDEX.md, on
+// `capProblems`, `hasAcceptedExtension` and `formatFileSizeLimit` existed there in a roster-typed
+// form (deleted in ITER-040; lib/roster/paste/pasteRequest.ts keeps its own `capProblems`). This
+// was their SECOND user. The repo's stated rule (plans/INDEX.md, on
 // lib/visits/cadence.ts) is to lift a shared helper on the THIRD user, not the second — two
 // concrete copies teach you what the general one has to be, and a premature abstraction that
 // fits neither caller is harder to remove than a duplicate.

@@ -177,6 +177,14 @@ category        text  -- 'adult' | 'youth' | 'child'
 gender          text  -- 'male' | 'female'
 status          text DEFAULT 'active'  -- 'active' | 'moved_out' | 'do_not_contact'
 phone           text
+-- Migration 090 (ITER-040), all nullable, written by the roster paste import:
+full_name       text  -- LCR "Full Name"; with birth_date, the paste's match key
+preferred_name  text  -- LCR "Last, First"; first_name/last_name are split from it
+birth_date      date
+email           text
+class_assignment, callings, callings_sustained, callings_set_apart,
+ministering_brothers, ministering_sisters   text   -- SILENT: overwritten by every paste,
+has_ministering_brothers, has_ministering_sisters  boolean  -- never reviewed, never published
 created_at      timestamptz DEFAULT now()
 -- No `notes` column. Member notes are bishopric-only, and RLS grants or denies a row,
 -- never a column — so they live in `member_notes` below, behind their own policy.
@@ -1357,8 +1365,10 @@ PATCH  /api/members/[id]         Update member
 GET    /api/members/[id]/speaker-history   Bishopric-only. A SEPARATE call, deliberately
 GET    /api/households           List households
 POST   /api/households           Create household
-POST   /api/roster/import        CSV import
+POST   /api/roster/import/preview  Paste preview: JSON { text } → checklist. Writes nothing
+POST   /api/roster/import        Paste apply: JSON { text, pasteHash, selectedIds }
 ```
+The roster import is a **paste of the LCR ward list report**, reviewed as a checklist (ITER-040). The apply route re-parses the paste and recomputes the checklist against the current roster; only the ticked ids come from the client. It calls `apply_roster_paste()` (migration 090, SECURITY INVOKER, refuses any ward but `current_ward_id()`), which creates, updates and marks `moved_out` in one transaction and **never deletes**. `apply_roster_import()` (migration 022, the CSV upload) was dropped.
 `GET /api/members/[id]/speaker-history` is a route this spec did not list, added in talks-d. It is
 separate from every other member read ON PURPOSE: reliability flags and speaking history must never
 be a field on the shared member type, because a field on a shared type is one refactor away from a
@@ -2361,7 +2371,7 @@ RESEND_API_KEY              # for agenda/program email
 
 1. Supabase schema, RLS policies, seed data (hymn table, default topics)
 2. Auth — invite flow, registration, login, role assignment
-3. Roster — household and member CRUD, CSV import
+3. Roster — household and member CRUD, LCR paste import
 4. Sunday calendar
 5. Talk assignment pipeline (full PLAN→COMPLETE flow)
 6. Prayer assignments

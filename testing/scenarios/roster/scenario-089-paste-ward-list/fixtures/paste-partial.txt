@@ -1,0 +1,42 @@
+
+Preferred Name
+
+Full Name
+
+Age
+
+Individual Phone
+
+Individual E-mail
+
+Address - Street 1
+
+Birth Date (1 Jan 1990)
+
+Gender
+
+Class Assignment
+
+Head of House and Spouse
+
+Callings
+
+Callings with Date Sustained
+
+Callings with Date Sustained and Set Apart
+
+Ministering Brothers
+
+Ministering Sisters
+
+Has Ministering Sisters
+
+Has Ministering Brothers
+
+Andersen, Mark	Andersen, Mark Thomas		555-0111	mark.andersen@example.com	12 Oak Street	4 Mar 1980	M	Elders Quorum	Andersen, Mark & Julia						No	No
+Andersen, Julia	Andersen, Julia Rose				12 Oak Street	19 Nov 1982	F	Relief Society	Andersen, Mark & Julia	Primary Teacher
+Ward Activities Committee Member	Primary Teacher (5 Jan 2025)
+Ward Activities Committee Member (2 Mar 2025)				No	No
+Andersen, Carlos	Andersen, Carlos				12 Oak Street	8 Aug 2003	M	Elders Quorum	Andersen, Mark & Julia						No	No
+Brooks, Sarah	Brooks, Sarah Jane		555-0299		48 Willow Lane	27 Feb 1975	F	Relief Society	Brooks, Sarah						No	No
+Brooks, Grace	Brooks, Grace				48 Willow Lane	14 Jul 2011	F	Young Women	Brooks, Sarah						No	No

@@ -260,3 +260,17 @@ const MEETING_LABEL_FORMAT = new Intl.DateTimeFormat("en-US", {
 export function formatMeetingDateLabel(value: DateOnly): string {
   return MEETING_LABEL_FORMAT.format(parseDateOnly(value));
 }
+
+// A birth date, written the way LCR writes it ("13 Jun 1986"). Built from the date-only string's
+// own parts rather than through Intl, whose en-GB month for September is "Sept" in current ICU and
+// would not match what a leader sees in LCR. The day is read straight from the string, so no zone
+// can shift it; parseDateOnly() only validates.
+const SHORT_MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+] as const;
+
+export function formatBirthDate(value: DateOnly): string {
+  parseDateOnly(value);
+  const month = SHORT_MONTHS[Number(value.slice(5, 7)) - 1];
+  return `${Number(value.slice(8, 10))} ${month} ${value.slice(0, 4)}`;
+}

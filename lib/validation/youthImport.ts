@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-// The multipart fields both halves of the ICS import read. Follows lib/validation/rosterImport.ts,
-// which is the same flow for a different file format.
+// The multipart fields both halves of the ICS import read. It followed the roster's old CSV
+// import schemas, deleted in ITER-040 when the roster moved to a paste.
 //
 // NO wardId, NO enteredBy, NO calendarId ON ANY SCHEMA HERE, EVER. The ward and the user come from
 // the session; the calendar is resolved from the profile by lib/youth/ics/applyImport.ts
@@ -16,7 +16,7 @@ export const profileIdSchema = z.uuid("Choose which activity this schedule belon
 
 // Decision: the confirm re-uploads the same file and the server re-derives everything from it, so
 // the only thing carried across from the preview is a hash proving it is the same file. Copied in
-// spirit from rosterImport.ts's own fileHashSchema.
+// spirit from the old roster CSV import's fileHashSchema.
 export const fileHashSchema = z
   .string()
   .regex(

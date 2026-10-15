@@ -58,8 +58,8 @@ import type { Database } from "@/types/database";
 // ---------------------------------------------------------------------------
 // THERE IS NO TRANSACTION HERE, AND THAT IS NOT AN OVERSIGHT
 // ---------------------------------------------------------------------------
-// The roster import has `apply_roster_import` (migration 022) because it spanned households,
-// members, notes and org membership, where a partial write leaves the roster in a state nobody
+// The roster import has `apply_roster_paste` (migration 090) because it spans households and
+// members, where a partial write leaves the roster in a state nobody
 // asked for. An ICS import writes to ONE table plus one calendar row. If a batch insert fails
 // partway, migration 055's unique index means a re-run creates only what is still missing —
 // which is exactly what "idempotent" is for. A stored procedure here would buy nothing and would

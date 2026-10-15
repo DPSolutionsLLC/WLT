@@ -1,16 +1,13 @@
 import { Card } from "@/components/ui/Card";
-import type { RowProblem } from "@/lib/roster/csv/normalizeRow";
+import type { ImportProblem } from "@/lib/roster/paste/normalizeReportRow";
 
 export type ImportProblemListProps = {
-  problems: RowProblem[];
+  problems: ImportProblem[];
   problemsTruncated: number;
   emptyMessage: string;
 };
 
-// Rendered on the preview screen AND on the result screen, from one component rather than two.
-// The rows that did not import are the whole reason a user is still reading after a confirm,
-// and they have to be described identically in both places or the second list reads as a
-// different set of problems from the first.
+// The rows of a pasted report that could not be used, with the reason for each.
 export function ImportProblemList({
   problems,
   problemsTruncated,
@@ -34,7 +31,7 @@ export function ImportProblemList({
       {problemsTruncated > 0 && (
         <p className="mt-2 text-sm text-muted">
           Showing the first {problems.length}. Another {problemsTruncated} are not listed —
-          this file has more problems than it has good rows.
+          this paste has more problems than it has good rows.
         </p>
       )}
 
@@ -43,11 +40,11 @@ export function ImportProblemList({
       <ul className="mt-3 max-h-80 overflow-y-auto text-sm">
         {problems.map((problem, index) => (
           <li
-            key={`${problem.rowNumber}-${problem.field ?? "row"}-${index}`}
+            key={`${problem.rowNumber}-${index}`}
             className="border-t border-border py-2 first:border-t-0 first:pt-0"
           >
-            {/* The row number as a spreadsheet shows it — the header is row 1. A number the
-                user cannot locate in their file is worse than no number. */}
+            {/* The row's place in the report, counting from the first person — what a leader can
+                find in LCR. */}
             <span className="font-medium text-foreground">Row {problem.rowNumber}</span>
             <span className="text-muted"> — {problem.message}</span>
           </li>

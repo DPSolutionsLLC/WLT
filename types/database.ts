@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.15"
   }
   graphql_public: {
     Tables: {
@@ -1911,41 +1911,77 @@ export type Database = {
       }
       members: {
         Row: {
+          birth_date: string | null
+          callings: string | null
+          callings_set_apart: string | null
+          callings_sustained: string | null
           category: string | null
+          class_assignment: string | null
           created_at: string
+          email: string | null
           first_name: string
+          full_name: string | null
           gender: string | null
+          has_ministering_brothers: boolean | null
+          has_ministering_sisters: boolean | null
           household_id: string | null
           id: string
           last_name: string
+          ministering_brothers: string | null
+          ministering_sisters: string | null
           mrn: string | null
           phone: string | null
+          preferred_name: string | null
           status: string
           ward_id: string
         }
         Insert: {
+          birth_date?: string | null
+          callings?: string | null
+          callings_set_apart?: string | null
+          callings_sustained?: string | null
           category?: string | null
+          class_assignment?: string | null
           created_at?: string
+          email?: string | null
           first_name: string
+          full_name?: string | null
           gender?: string | null
+          has_ministering_brothers?: boolean | null
+          has_ministering_sisters?: boolean | null
           household_id?: string | null
           id?: string
           last_name: string
+          ministering_brothers?: string | null
+          ministering_sisters?: string | null
           mrn?: string | null
           phone?: string | null
+          preferred_name?: string | null
           status?: string
           ward_id: string
         }
         Update: {
+          birth_date?: string | null
+          callings?: string | null
+          callings_set_apart?: string | null
+          callings_sustained?: string | null
           category?: string | null
+          class_assignment?: string | null
           created_at?: string
+          email?: string | null
           first_name?: string
+          full_name?: string | null
           gender?: string | null
+          has_ministering_brothers?: boolean | null
+          has_ministering_sisters?: boolean | null
           household_id?: string | null
           id?: string
           last_name?: string
+          ministering_brothers?: string | null
+          ministering_sisters?: string | null
           mrn?: string | null
           phone?: string | null
+          preferred_name?: string | null
           status?: string
           ward_id?: string
         }
@@ -4204,8 +4240,8 @@ export type Database = {
         }
         Returns: Json
       }
-      apply_roster_import: {
-        Args: { p_households: Json; p_members: Json; p_ward_id: string }
+      apply_roster_paste: {
+        Args: { p_plan: Json; p_ward_id: string }
         Returns: Json
       }
       assigned_unit_ids: { Args: never; Returns: string[] }

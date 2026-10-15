@@ -2601,7 +2601,7 @@ export function conductingNameMap(users: ConductingCandidate[]): Record<string, 
 
 // For the notification body only, so a failure here degrades the message rather than failing an
 // edit that has already committed. It is logged, not swallowed — the same rule
-// readHouseholdNames() follows in lib/roster/csv/applyImport.ts.
+// the roster import's notification follows in lib/roster/paste/applyRosterPaste.ts.
 export async function readConductorName(
   wardId: string,
   userId: string,

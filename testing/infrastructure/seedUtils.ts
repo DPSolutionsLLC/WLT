@@ -711,8 +711,8 @@ export async function setYouthLoginAttempts(options: {
 
 // The ADDRESS is part of the derived id, not just the family name. Two households can share a
 // family name — scenario 008 seeds "Smith, 3 North Road" and "Smith, 91 South Road" on purpose,
-// because keeping them apart is exactly what the picker's household grouping has to do, and
-// apply_roster_import (migration 022) matches on the pair for the same reason.
+// because keeping them apart is exactly what the picker's household grouping has to do, and the
+// old CSV import (migration 022) matched on the pair for the same reason.
 //
 // Keyed on the family name alone, both Smiths derived the SAME uuid and the second insert failed
 // on households_pkey, aborting the whole seed after three households and zero members. Scenario
@@ -766,6 +766,10 @@ export async function createMember(options: {
   gender?: MemberGender;
   status?: MemberStatus;
   phone?: string;
+  fullName?: string;
+  preferredName?: string;
+  birthDate?: string;
+  email?: string;
 }): Promise<string> {
   return insertRow("members", {
     id: options.id ?? testUuid(`member:${options.firstName}:${options.lastName}`),
@@ -777,6 +781,10 @@ export async function createMember(options: {
     gender: options.gender ?? null,
     status: options.status ?? "active",
     phone: options.phone ?? null,
+    full_name: options.fullName ?? null,
+    preferred_name: options.preferredName ?? null,
+    birth_date: options.birthDate ?? null,
+    email: options.email ?? null,
   });
 }
 

@@ -340,7 +340,7 @@ app-wide, or denies with a note, and **the requester can see the outcome**), the
 one-tap opt-in), and the Roles / Users / Accesses browser tabs with the reverse lookup. Phase C.
 
 ### 2.13 Ward Import — RESKIN+
-WLT has a full CSV import wizard. New here: **three-tier match confidence** on name + birth date
+**ITER-040 (2026-10-14) replaced the CSV wizard with a paste of the LCR ward list report** reviewed as a checklist: match on full name + birth date (legacy first + last fallback, an ambiguous match falls through to new), New/Changed/Address **pre-checked**, No longer listed **unchecked**, **soft delete only** (`moved_out`), and callings/ministering stored silently. Still to come from the list below: the calling-text integrity flag, the corrections log and revert detection, which need a stored snapshot of the previous report. WLT had a full CSV import wizard. New here: **three-tier match confidence** on name + birth date
 (ambiguous mediums fall through to "new" rather than guessing), four review buckets
 (New/Changed **pre-checked**, Reactivate/Missing **deliberately unchecked**), **soft delete
 only**, a **calling-text mismatch shown as a distinct integrity flag** rather than a routine

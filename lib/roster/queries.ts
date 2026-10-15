@@ -48,6 +48,18 @@ export type Member = {
   gender: MemberGender | null;
   status: MemberStatus;
   phone: string | null;
+  fullName: string | null;
+  preferredName: string | null;
+  birthDate: string | null;
+  email: string | null;
+  classAssignment: string | null;
+  callings: string | null;
+  callingsSustained: string | null;
+  callingsSetApart: string | null;
+  ministeringBrothers: string | null;
+  ministeringSisters: string | null;
+  hasMinisteringBrothers: boolean | null;
+  hasMinisteringSisters: boolean | null;
   createdAt: string;
 };
 
@@ -73,13 +85,27 @@ export type MemberRow = {
   gender: string | null;
   status: string;
   phone: string | null;
+  full_name: string | null;
+  preferred_name: string | null;
+  birth_date: string | null;
+  email: string | null;
+  class_assignment: string | null;
+  callings: string | null;
+  callings_sustained: string | null;
+  callings_set_apart: string | null;
+  ministering_brothers: string | null;
+  ministering_sisters: string | null;
+  has_ministering_brothers: boolean | null;
+  has_ministering_sisters: boolean | null;
   created_at: string;
 };
 
-const HOUSEHOLD_COLUMNS =
+export const HOUSEHOLD_COLUMNS =
   "id, family_name, address, latitude, longitude, do_not_contact, created_at";
-const MEMBER_COLUMNS =
-  "id, household_id, first_name, last_name, category, gender, status, phone, created_at";
+// One literal, never concatenated: supabase-js infers the row type from this string, and a `+`
+// widens it to `string` and loses the inference.
+export const MEMBER_COLUMNS =
+  "id, household_id, first_name, last_name, category, gender, status, phone, full_name, preferred_name, birth_date, email, class_assignment, callings, callings_sustained, callings_set_apart, ministering_brothers, ministering_sisters, has_ministering_brothers, has_ministering_sisters, created_at";
 
 // The single most important line in this file. A caller who forgets to say what it wants gets
 // active members only, so a moved-out member can never quietly inflate a speaker rotation, a
@@ -166,6 +192,18 @@ export function mapMemberRow(row: MemberRow): Member {
       row.gender === null ? null : toEnumValue(row.gender, MEMBER_GENDERS, "gender"),
     status: toEnumValue(row.status, MEMBER_STATUSES, "status"),
     phone: row.phone,
+    fullName: row.full_name,
+    preferredName: row.preferred_name,
+    birthDate: row.birth_date,
+    email: row.email,
+    classAssignment: row.class_assignment,
+    callings: row.callings,
+    callingsSustained: row.callings_sustained,
+    callingsSetApart: row.callings_set_apart,
+    ministeringBrothers: row.ministering_brothers,
+    ministeringSisters: row.ministering_sisters,
+    hasMinisteringBrothers: row.has_ministering_brothers,
+    hasMinisteringSisters: row.has_ministering_sisters,
     createdAt: row.created_at,
   };
 }

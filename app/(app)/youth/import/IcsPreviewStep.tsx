@@ -23,7 +23,7 @@ export type IcsPreviewStepProps = {
 };
 
 // Nothing on this screen is written in the past tense. Copy that reads as though the import has
-// already happened is how a user confirms twice (app/(app)/roster/import/PreviewStep.tsx).
+// already happened is how a user confirms twice (a lesson from the roster's old CSV preview).
 
 function Count({ label, value }: { label: string; value: number }) {
   return (

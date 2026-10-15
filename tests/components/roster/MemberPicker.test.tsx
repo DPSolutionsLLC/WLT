@@ -50,6 +50,18 @@ function member(id: string, firstName: string, lastName: string): Member {
     gender: "male",
     status: "active",
     phone: null,
+    fullName: null,
+    preferredName: null,
+    birthDate: null,
+    email: null,
+    classAssignment: null,
+    callings: null,
+    callingsSustained: null,
+    callingsSetApart: null,
+    ministeringBrothers: null,
+    ministeringSisters: null,
+    hasMinisteringBrothers: null,
+    hasMinisteringSisters: null,
     createdAt: "2026-01-01T00:00:00.000Z",
   };
 }

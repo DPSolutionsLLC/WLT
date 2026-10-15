@@ -24,7 +24,7 @@ import type { EventType } from "@/types/domain";
 // client — the caller hands it the rows it already read. A preview with a write path is a
 // preview whose "nothing happened" guarantee has to be re-proved every time it changes; with no
 // client in scope there is nothing to re-prove, and it can be read off the imports.
-// lib/roster/csv/buildImportPreview.ts states the same guarantee for the roster.
+// lib/roster/paste/buildRosterDiff.ts states the same guarantee for the roster.
 //
 // ---------------------------------------------------------------------------
 // THE FOUR COUNTS ARE THE SAME FOUR THE RESULT SCREEN SHOWS

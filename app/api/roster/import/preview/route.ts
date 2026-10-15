@@ -1,20 +1,14 @@
 import { NextResponse } from "next/server";
 import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
-import { respondToRouteError } from "@/lib/auth/routeErrors";
+import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
-import { buildImportPreview } from "@/lib/roster/csv/buildImportPreview";
-import {
-  assertAcceptableFile,
-  isImportRequestError,
-  readImportFile,
-  readImportFormData,
-} from "@/lib/roster/csv/importRequest";
-import { capProblems } from "@/lib/roster/csv/limits";
+import { toReviewView } from "@/lib/roster/paste/buildRosterDiff";
+import { capProblems, hashPaste, runPastePipeline } from "@/lib/roster/paste/pasteRequest";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { pastePreviewSchema } from "@/lib/validation/rosterPaste";
 
 // This route WRITES NOTHING. No insert, no update, no rpc, and deliberately no audit row: a
-// preview is not a mutation, and a route with no write path at all is a guarantee that can be
-// read off the imports rather than re-argued every time it changes.
+// preview is not a mutation.
 
 export async function POST(request: Request) {
   // Outside the try. requireSessionUser() redirects by throwing an internal Next.js error, and
@@ -22,45 +16,31 @@ export async function POST(request: Request) {
   const user = await requireSessionUser();
 
   try {
-    // The real boundary. Migration 019's ward-scoped policy loop would happily let an org
-    // secretary insert members (roster-a Decision 3), so RLS alone does not make this bishopric
-    // only — this line does.
+    // The real boundary, checked before the body is read. The members/households policies let
+    // any ward member write (roster-a Decision 3), so RLS alone does not make this bishopric-only.
     const supabase = await createServerSupabaseClient();
     const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 
     assertCan(user, "roster.import", roleAccess);
 
-    const { file, mapping } = await readImportFormData(request);
-    assertAcceptableFile(file);
-
-    const read = await readImportFile(file, mapping);
-
-    const preview = await buildImportPreview(
-      user.wardId,
-      read.normalized,
-      read.fileHash,
-      read.problems,
-      supabase,
-    );
-
-    const capped = capProblems(preview.problems);
+    const { text } = pastePreviewSchema.parse(await readJsonBody(request));
+    const pipeline = await runPastePipeline(text, user.wardId, supabase);
+    const capped = capProblems(pipeline.problems);
 
     return NextResponse.json({
-      preview: { ...preview, problems: capped.problems },
+      pasteHash: hashPaste(text),
+      review: toReviewView(pipeline.diff),
+      problems: capped.problems,
       problemsTruncated: capped.problemsTruncated,
-      headers: read.headers,
-      mapping: read.mapping,
-      sampleRow: read.sampleRow,
-      totalFileRows: read.totalFileRows,
+      ignoredColumns: pipeline.ignoredColumns,
+      notSuppliedColumns: pipeline.notSuppliedColumns,
+      rowsRead: pipeline.rowsRead,
+      rowsWithProblems: pipeline.rowsWithProblems,
     });
   } catch (error) {
-    if (isImportRequestError(error)) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-
     return respondToRouteError(error, {
       route: "POST /api/roster/import/preview",
-      fallbackMessage: "Could not read that file. Please try again.",
+      fallbackMessage: "Could not read that paste. Please try again.",
       detail: { wardId: user.wardId, userId: user.id },
     });
   }

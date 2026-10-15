@@ -25,7 +25,7 @@ import {
 import type { ActivityProfile } from "@/lib/youth/queries";
 
 // Two steps and a result — choose an activity and a file, read the preview, confirm — mirroring
-// app/(app)/roster/import/ImportWizard.tsx.
+// the roster's old CSV import wizard (deleted in ITER-040, when the roster moved to a paste).
 //
 // HOLDS THE `File` ACROSS BOTH REQUESTS, because the confirm uploads it a second time and the
 // server re-derives everything from it. Keeping the file rather than the parsed events is what

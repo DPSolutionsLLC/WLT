@@ -1,12 +1,14 @@
 # Backlog
 
-_Last updated: 2026-10-04_
+_Last updated: 2026-10-14_
 
 ---
 
 ## In Progress
 Items currently being planned or actively worked.
 
+- [ ] ITER-040 — Roster import: paste the church's ward list report → [scope](.iterate/scopes/ITER-040.md) | [plan](plans/roster-paste-import.md) _(GROUP-03, first of three)_
+- [ ] ITER-039 — Move the app to wardleadershiptools.com and send email from it → [scope](.iterate/scopes/ITER-039.md) | [plan](plans/custom-domain-and-email-sender.md)
 - [ ] ITER-034 — Youth Support: the module the user actually wants → [scope](.iterate/scopes/ITER-034.md) — **PARKED 2026-08-31**
   _Raised by the user 2026-08-31 after walking 062 and 063, and **this is the destination Phase 8
   has been approximating**. The module is renamed **Youth Support**, because ward and church youth
@@ -57,6 +59,15 @@ of ITER-036. Too large for one session; one plan, sliced._
 - ITER-036 — _completed 2026-10-02 (fa 3f4c835, fb 17daa9d)_
 - [ ] ITER-037 — Leftover candidates fill the rest of the rotation → [scope](.iterate/scopes/ITER-037.md)
 - ITER-038 — _completed 2026-10-04 (ma 1bc33b9, mb 4c0ce53, mc b22aa82)_
+
+### [GROUP-03] Speaker Tracker launch — real data for the bishopric now
+_Raised 2026-10-14. Get the bishopric using a speaker/prayer tracker on REAL data while the rest of
+the app keeps being built. **Real and test data never share a ward:** the current ward becomes the
+test ward (data kept as-is), a new real ward is created, and its roster comes from pasting the
+LCR ward list report. The tracker's history is the source of truth from day one; Sacrament
+migrates FROM it later, never the reverse. **Plan in this order** — each needs the one before._
+- [ ] ITER-041 — Released modules per ward, and the real ward → [scope](.iterate/scopes/ITER-041.md)
+- [ ] ITER-042 — Speakers & Prayers: a standalone tracker for the bishopric → [scope](.iterate/scopes/ITER-042.md)
 
 ---
 

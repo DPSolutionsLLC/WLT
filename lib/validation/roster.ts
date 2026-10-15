@@ -24,18 +24,25 @@ export type CreateHouseholdInput = z.infer<typeof createHouseholdSchema>;
 export const updateHouseholdSchema = createHouseholdSchema.partial();
 export type UpdateHouseholdInput = z.infer<typeof updateHouseholdSchema>;
 
-export const createMemberSchema = z.object({
+const memberBaseSchema = z.object({
   householdId: z.uuid("Choose a household from the list.").optional().nullable(),
   firstName: z.string().trim().min(1, "Enter a first name.").max(80),
   lastName: z.string().trim().min(1, "Enter a last name.").max(80),
   category: z.enum(MEMBER_CATEGORIES).optional().nullable(),
   gender: z.enum(MEMBER_GENDERS).optional().nullable(),
-  status: z.enum(MEMBER_STATUSES).default("active"),
+  status: z.enum(MEMBER_STATUSES),
   phone: z.string().trim().max(40).optional().nullable(),
+});
+
+export const createMemberSchema = memberBaseSchema.extend({
+  status: z.enum(MEMBER_STATUSES).default("active"),
 });
 export type CreateMemberInput = z.infer<typeof createMemberSchema>;
 
-export const updateMemberSchema = createMemberSchema.partial();
+// Built from the base, NOT from createMemberSchema.partial(): Zod 4 keeps `.default("active")`
+// through `.partial()`, so a PATCH that only changed a phone number would quietly set the member
+// back to active and undo a move-out.
+export const updateMemberSchema = memberBaseSchema.partial();
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
 
 export const memberFiltersSchema = z.object({
@@ -65,7 +72,7 @@ export const setMemberOrganizationsSchema = z.object({
 export type SetMemberOrganizationsInput = z.infer<typeof setMemberOrganizationsSchema>;
 
 // 500 is a UI selection cap, not an import cap. A roster larger than one screenful of
-// checkboxes belongs in roster-c's CSV import, which has its own preview-and-confirm step.
+// checkboxes belongs in the roster paste import, which has its own review-and-apply step.
 export const bulkAssignSchema = z.object({
   memberIds: z
     .array(z.uuid("That member id is not valid."))

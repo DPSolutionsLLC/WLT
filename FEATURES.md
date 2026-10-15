@@ -213,7 +213,9 @@ The single source of truth for all ward member data. Every module that reference
 - Notes (bishopric-visible only)
 
 ### Roster Import & Maintenance
-- Initial load via CSV import (exported from LCR)
+- Load and refresh by **pasting the LCR ward list report**: select the whole table in LCR, copy it and paste it into the import box. Columns are matched by header name in any order, and a missing required column (Preferred Name, Full Name, Birth Date, Head of House and Spouse) is named along with how to add it in LCR
+- Every paste is reviewed as a **checklist** before anything is saved: new people, changed people (each field before → after), changed household addresses, and people no longer listed. Untick anything you do not want; nothing is edited in the checklist itself. No longer listed starts unticked, and ticking it marks the person `Moved Out`; nobody is ever deleted. A paste missing a large part of the ward raises a warning first
+- Callings, class assignment and ministering columns are stored silently with each paste, for future modules
 - Ongoing: new members added manually; departing members marked `Moved Out` (records retained for history)
 - Address data used by visit tracker map view
 
@@ -1081,7 +1083,7 @@ Module 5 already provides.
 ## Out of Scope
 
 - Two-way SMS tracking or delivery receipts
-- LCR API integration — CSV and manual import only, until the church offers one
+- LCR API integration — the ward list paste and manual entry only, until the church offers one
 - Google Calendar sync — one-way ICS import only
 - Public-facing member portal beyond the existing public pages and the single-purpose token
   links (receipts join, Zoom opt-out, Zoom referral, program, agenda guest, recurring series)

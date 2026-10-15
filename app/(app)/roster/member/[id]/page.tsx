@@ -11,6 +11,7 @@ import { listSpeakerHistory } from "@/lib/assignments/queries";
 import { listWardOrganizations } from "@/lib/auth/adminUsers";
 import { BISHOPRIC_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
+import { formatBirthDate } from "@/lib/calendar/dates";
 import { listMemberNotes } from "@/lib/roster/memberNotes";
 import { listMemberOrganizations } from "@/lib/roster/organizations";
 import { getMember, listHouseholds } from "@/lib/roster/queries";
@@ -93,6 +94,13 @@ export default async function MemberDetailPage({ params }: MemberDetailPageProps
 
       <Card>
         <dl className="flex flex-col gap-3">
+          {member.fullName && (
+            <div className="flex flex-col gap-0.5 md:flex-row md:gap-3">
+              <dt className="text-sm text-muted md:w-32">Full name</dt>
+              <dd className="text-sm text-foreground">{member.fullName}</dd>
+            </div>
+          )}
+
           <div className="flex flex-col gap-0.5 md:flex-row md:gap-3">
             <dt className="text-sm text-muted md:w-32">Household</dt>
             <dd className="text-sm text-foreground">
@@ -117,6 +125,13 @@ export default async function MemberDetailPage({ params }: MemberDetailPageProps
           </div>
 
           <div className="flex flex-col gap-0.5 md:flex-row md:gap-3">
+            <dt className="text-sm text-muted md:w-32">Birth date</dt>
+            <dd className="text-sm text-foreground">
+              {member.birthDate ? formatBirthDate(member.birthDate) : "Not set"}
+            </dd>
+          </div>
+
+          <div className="flex flex-col gap-0.5 md:flex-row md:gap-3">
             <dt className="text-sm text-muted md:w-32">Gender</dt>
             <dd className="text-sm text-foreground">
               {member.gender ? GENDER_LABELS[member.gender] : "Not set"}
@@ -132,6 +147,22 @@ export default async function MemberDetailPage({ params }: MemberDetailPageProps
                   className="text-primary underline underline-offset-4"
                 >
                   {member.phone}
+                </a>
+              ) : (
+                "Not set"
+              )}
+            </dd>
+          </div>
+
+          <div className="flex flex-col gap-0.5 md:flex-row md:gap-3">
+            <dt className="text-sm text-muted md:w-32">Email</dt>
+            <dd className="text-sm text-foreground">
+              {member.email ? (
+                <a
+                  href={`mailto:${member.email}`}
+                  className="break-all text-primary underline underline-offset-4"
+                >
+                  {member.email}
                 </a>
               ) : (
                 "Not set"

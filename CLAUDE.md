@@ -1465,6 +1465,23 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   too. **Known limits:** Sundays finalized before `mc` deployed get no to-do until undone and
   re-finalized; `notification_user_prefs` is unique per (user, trigger), not per ward, so a person
   with a row from another ward cannot change it here (a 400 sentence, not a 500).
+- **THE ROSTER IMPORT IS A PASTE OF THE LCR REPORT, REVIEWED AS A CHECKLIST — DECIDED 2026-10-14
+  (ITER-040, migration 090, plans/roster-paste-import.md).** The CSV upload is gone. LCR's copy is
+  not a CSV: headers come one per line, and a cell with a line break (the callings) splits its row
+  across lines with **no quoting**, so `lib/roster/paste/parsePastedReport.ts` rebuilds a record by
+  gathering lines until it holds one tab fewer than there are headers. Columns match by header text
+  in any order. **First and last name are split from Preferred Name at the FIRST comma** — the
+  user's decision, reversing the old "never split a name" rule for this one known format. A person
+  is matched on **full name + birth date**, with a first + last fallback for members created before
+  any paste (exactly one on each side, or it is new and says why). `buildRosterDiff()` is pure and
+  both routes call it; the apply re-parses the paste and recomputes, so only the ticked ids come
+  from the client. **No longer listed starts UNTICKED** and means `moved_out`, never "inactive";
+  a paste that would move out ≥10 people and over a quarter of the ward warns first. A missing
+  optional column is "not supplied" and **never clears** a stored value. Callings, class and
+  ministering are **silent** — stored by every paste, never reviewed, never published.
+  **Three-way review ("changed in the app since the last report") is deferred** to the Callings and
+  Ministering modules, which need a stored snapshot. **The import never deletes anything**, and
+  `updateMemberSchema` no longer defaults `status` (it was undoing move-outs on any PATCH).
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

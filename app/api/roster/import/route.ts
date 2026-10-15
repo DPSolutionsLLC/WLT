@@ -1,23 +1,16 @@
 import { NextResponse } from "next/server";
+import { InvalidInputError } from "@/lib/auth/errors";
 import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
-import { respondToRouteError } from "@/lib/auth/routeErrors";
+import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
-import { applyRosterImport } from "@/lib/roster/csv/applyImport";
-import {
-  assertAcceptableFile,
-  ImportRequestError,
-  isImportRequestError,
-  readImportFile,
-  readImportFormData,
-} from "@/lib/roster/csv/importRequest";
-import { capProblems } from "@/lib/roster/csv/limits";
+import { applyRosterPaste } from "@/lib/roster/paste/applyRosterPaste";
+import { hashPaste, runPastePipeline } from "@/lib/roster/paste/pasteRequest";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { fileHashSchema } from "@/lib/validation/rosterImport";
+import { pasteApplySchema } from "@/lib/validation/rosterPaste";
 
-// Decision 2: the file is uploaded a second time and everything is re-derived from it here. The
-// alternative — posting back the rows the preview returned — makes a client-supplied diff the
-// thing that gets written, and a tampered confirm payload is a much more expensive problem than
-// a second 5MB upload.
+// The paste is posted a second time and the checklist is RECOMPUTED here against the current
+// roster. Only the ticked ids come from the client, so a tampered payload can untick things and
+// nothing else.
 
 export async function POST(request: Request) {
   const user = await requireSessionUser();
@@ -28,58 +21,33 @@ export async function POST(request: Request) {
 
     assertCan(user, "roster.import", roleAccess);
 
-    const { file, mapping, fileHash } = await readImportFormData(request);
-    assertAcceptableFile(file);
+    const { text, pasteHash, selectedIds } = pasteApplySchema.parse(await readJsonBody(request));
 
-    if (fileHash === null) {
-      throw new ImportRequestError(
-        400,
-        "Preview the file before importing it.",
+    if (hashPaste(text) !== pasteHash) {
+      throw new InvalidInputError(
+        "The pasted list changed since you reviewed it. Review it again.",
       );
     }
 
-    const expectedHash = fileHashSchema.parse(fileHash);
+    const pipeline = await runPastePipeline(text, user.wardId, supabase);
 
-    if (mapping === null) {
-      throw new ImportRequestError(
-        400,
-        "The column mapping is missing. Go back to the mapping step and continue again.",
-      );
-    }
-
-    const read = await readImportFile(file, mapping);
-
-    // The file was edited between preview and confirm. Importing it anyway would write something
-    // the user never saw — the exact failure this whole three-step flow exists to prevent.
-    if (read.fileHash !== expectedHash) {
-      throw new ImportRequestError(
-        400,
-        "The file changed since you previewed it. Preview again.",
-      );
-    }
-
-    const result = await applyRosterImport(
-      user.wardId,
-      user.id,
-      read.normalized,
-      read.problems,
+    const result = await applyRosterPaste(
+      {
+        wardId: user.wardId,
+        userId: user.id,
+        diff: pipeline.diff,
+        selectedIds: new Set(selectedIds),
+        rowsRead: pipeline.rowsRead,
+        problemCount: pipeline.problems.length,
+      },
       supabase,
     );
 
-    const capped = capProblems(result.problems);
-
-    return NextResponse.json({
-      result: { ...result, problems: capped.problems },
-      problemsTruncated: capped.problemsTruncated,
-    });
+    return NextResponse.json({ result });
   } catch (error) {
-    if (isImportRequestError(error)) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-
     return respondToRouteError(error, {
       route: "POST /api/roster/import",
-      fallbackMessage: "Could not import that file. Please try again.",
+      fallbackMessage: "Could not apply those changes. Please try again.",
       detail: { wardId: user.wardId, userId: user.id },
     });
   }

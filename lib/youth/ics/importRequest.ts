@@ -14,7 +14,7 @@ import {
 import { profileIdSchema } from "@/lib/validation/youthImport";
 
 // Everything the preview route and the confirm route must do IDENTICALLY, in one module rather
-// than copied into both — for the reason lib/roster/csv/importRequest.ts gives in as many words:
+// than copied into both — for the reason the roster's old CSV import gave in as many words:
 // "the two halves of a preview-then-confirm flow disagreeing about what the file contains is
 // precisely the failure this exists to prevent."
 //

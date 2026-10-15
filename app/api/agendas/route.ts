@@ -83,7 +83,7 @@ export async function GET(request: Request) {
 // A FAILURE AFTER THE AGENDA INSERT LEAVES AN AGENDA WITH NO CARRIED ITEMS, and that is the
 // better of the two failures available without a transaction: the secretary sees an agenda that
 // is missing its carried items and can add them, rather than an error and a row that may or may
-// not exist. `apply_roster_import` shows the shape a real transaction takes here — a database
+// not exist. `apply_roster_paste` (migration 090) shows the shape a real transaction takes here — a database
 // function — and this is not complex enough to earn one.
 //
 // AN ASSIGNEE'S TO-DO FOLLOWS ITS ITEM TO THE COPY (slice p5-b). The copy is the live item, the one

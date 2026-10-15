@@ -20,6 +20,18 @@ function memberRow(overrides: Partial<MemberRow> = {}): MemberRow {
     gender: "male",
     status: "active",
     phone: "555-0100",
+    full_name: "Ruiz, Tomas Alberto",
+    preferred_name: "Ruiz, Tomas",
+    birth_date: "1980-04-02",
+    email: "tomas@example.com",
+    class_assignment: "Elders Quorum",
+    callings: "Ward Clerk",
+    callings_sustained: null,
+    callings_set_apart: null,
+    ministering_brothers: null,
+    ministering_sisters: null,
+    has_ministering_brothers: true,
+    has_ministering_sisters: false,
     created_at: "2026-08-01T00:00:00.000Z",
     ...overrides,
   };
@@ -44,6 +56,12 @@ describe("mapMemberRow", () => {
     ["last_name", "lastName", "Ruiz"],
     ["household_id", "householdId", "22222222-2222-4222-8222-222222222222"],
     ["created_at", "createdAt", "2026-08-01T00:00:00.000Z"],
+    ["full_name", "fullName", "Ruiz, Tomas Alberto"],
+    ["preferred_name", "preferredName", "Ruiz, Tomas"],
+    ["birth_date", "birthDate", "1980-04-02"],
+    ["class_assignment", "classAssignment", "Elders Quorum"],
+    ["has_ministering_brothers", "hasMinisteringBrothers", true],
+    ["has_ministering_sisters", "hasMinisteringSisters", false],
   ];
 
   for (const [column, property, expected] of CASES) {
@@ -54,6 +72,13 @@ describe("mapMemberRow", () => {
       expect(member[column]).toBeUndefined();
     });
   }
+
+  it("maps the columns whose names are the same in SQL and TypeScript", () => {
+    const member = mapMemberRow(memberRow());
+
+    expect(member.email).toBe("tomas@example.com");
+    expect(member.callings).toBe("Ward Clerk");
+  });
 
   it("keeps nullable columns as null rather than undefined", () => {
     const member = mapMemberRow(
