@@ -51,10 +51,48 @@ export type CleanUpResult = {
   authUsersDeleted: number;
 };
 
+// WARDS CREATED DURING A WALK (scenario 091). Since ITER-041 slice a, adding a ward on Stakes &
+// Wards provisions a real ward with a random id, so it cannot be named at compile time. It is
+// found the one narrow way available: its unit hangs off the HARNESS stake, which nothing real
+// does. The Development Ward guard still applies to every id found this way.
+async function findWalkCreatedWards(): Promise<{ unitIds: string[]; wardIds: string[] }> {
+  const supabase = getAdminClient();
+  const known = new Set([TEST_WARD_UNIT_ID, TEST_SECOND_WARD_UNIT_ID]);
+
+  const { data: units, error: unitError } = await supabase
+    .from("units")
+    .select("id")
+    .eq("parent_id", TEST_STAKE_UNIT_ID);
+  if (unitError) {
+    throw new Error(`Could not list units under the harness stake: ${unitError.message}`);
+  }
+
+  const unitIds = (units ?? []).map((unit) => unit.id).filter((id) => !known.has(id));
+  if (unitIds.length === 0) return { unitIds, wardIds: [] };
+
+  const { data: wards, error: wardError } = await supabase
+    .from("wards")
+    .select("id")
+    .in("unit_id", unitIds);
+  if (wardError) {
+    throw new Error(`Could not list wards under the harness stake: ${wardError.message}`);
+  }
+
+  const wardIds = (wards ?? []).map((ward) => ward.id);
+  if (wardIds.includes(DEVELOPMENT_WARD_ID)) {
+    throw new Error(
+      "Refusing to run: the Development Ward sits under the harness stake. Move it out first.",
+    );
+  }
+
+  return { unitIds, wardIds };
+}
+
 export async function cleanUpTestData(): Promise<CleanUpResult> {
   assertSafeTarget();
 
   const supabase = getAdminClient();
+  const walkCreated = await findWalkCreatedWards();
 
   // The wards go first. Every ward-scoped table cascades from `wards`, which clears the rows
   // that would otherwise block an auth-user delete through a no-action foreign key such as
@@ -71,7 +109,7 @@ export async function cleanUpTestData(): Promise<CleanUpResult> {
   const { error: wardError } = await supabase
     .from("wards")
     .delete()
-    .in("id", [...HARNESS_WARD_IDS]);
+    .in("id", [...HARNESS_WARD_IDS, ...walkCreated.wardIds]);
 
   if (wardError) {
     throw new Error(
@@ -85,6 +123,7 @@ export async function cleanUpTestData(): Promise<CleanUpResult> {
   // `units.parent_id` is `on delete restrict`, which is why the two ward units must go before
   // the stake they hang off.
   const unitIdsInDeleteOrder = [
+    ...walkCreated.unitIds,
     TEST_WARD_UNIT_ID,
     TEST_SECOND_WARD_UNIT_ID,
     TEST_STAKE_UNIT_ID,

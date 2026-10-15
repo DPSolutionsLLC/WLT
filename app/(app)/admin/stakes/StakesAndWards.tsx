@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -31,12 +32,37 @@ export type StakesAndWardsProps = {
   canManage: boolean;
 };
 
-type Draft = { type: UnitType; name: string; unitNumber: string; parentId: string };
+type CallingRole = "bishop" | "counselor";
 
-const EMPTY_DRAFT: Draft = { type: "stake", name: "", unitNumber: "", parentId: "" };
+type Draft = {
+  type: UnitType;
+  name: string;
+  unitNumber: string;
+  parentId: string;
+  giveMeACalling: boolean;
+  callingRole: CallingRole;
+};
 
-export function StakesAndWards({ initialUnits, wards, canManage }: StakesAndWardsProps) {
+const EMPTY_DRAFT: Draft = {
+  type: "stake",
+  name: "",
+  unitNumber: "",
+  parentId: "",
+  giveMeACalling: true,
+  callingRole: "bishop",
+};
+
+type SavedPayload = { unit?: Unit; ward?: WardSummary | null; callingCreated?: boolean };
+
+export function StakesAndWards({
+  initialUnits,
+  wards: initialWards,
+  canManage,
+}: StakesAndWardsProps) {
+  const router = useRouter();
   const [units, setUnits] = useState<Unit[]>(initialUnits);
+  const [wards, setWards] = useState<WardSummary[]>(initialWards);
+  const [notice, setNotice] = useState<string>();
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
@@ -69,9 +95,10 @@ export function StakesAndWards({ initialUnits, wards, canManage }: StakesAndWard
     path: string,
     method: "POST" | "PATCH" | "DELETE",
     body?: unknown,
-  ): Promise<{ unit?: Unit } | null> {
+  ): Promise<SavedPayload | null> {
     setIsSaving(true);
     setErrorMessage(undefined);
+    setNotice(undefined);
 
     try {
       const response = await fetch(path, {
@@ -84,8 +111,7 @@ export function StakesAndWards({ initialUnits, wards, canManage }: StakesAndWard
             }),
       });
 
-      const payload = (await response.json().catch(() => ({}))) as {
-        unit?: Unit;
+      const payload = (await response.json().catch(() => ({}))) as SavedPayload & {
         error?: string;
       };
 
@@ -108,16 +134,35 @@ export function StakesAndWards({ initialUnits, wards, canManage }: StakesAndWard
   }
 
   const handleCreate = async (): Promise<void> => {
+    // The calling travels only for a ward, and only when ticked. A stake has no ward to hold one
+    // in, and the server refuses it there with a sentence.
+    const asksForCalling = draft.type === "ward" && draft.giveMeACalling;
+
     const payload = await send("/api/units", "POST", {
       type: draft.type,
       name: draft.name,
       unitNumber: draft.unitNumber === "" ? null : draft.unitNumber,
       parentId: draft.parentId === "" ? null : draft.parentId,
+      ...(asksForCalling ? { callingRole: draft.callingRole } : {}),
     });
 
     if (payload?.unit) {
-      setUnits((current) => [...current, payload.unit as Unit]);
+      const created = payload.unit;
+      setUnits((current) => [...current, created]);
+      if (payload.ward) {
+        const ward = payload.ward;
+        setWards((current) => [...current, ward]);
+      }
       setDraft(EMPTY_DRAFT);
+
+      // The switcher lives in the chrome bar, which the server renders. Refreshing is what makes
+      // it appear the moment the person holds callings in two wards.
+      if (payload.callingCreated) {
+        setNotice(`${created.name} was created. Switch to it from your account menu.`);
+        router.refresh();
+      } else if (payload.ward) {
+        setNotice(`${created.name} was created.`);
+      }
     }
   };
 
@@ -133,9 +178,15 @@ export function StakesAndWards({ initialUnits, wards, canManage }: StakesAndWard
     });
 
     if (payload?.unit) {
-      setUnits((current) =>
-        current.map((entry) => (entry.id === unit.id ? (payload.unit as Unit) : entry)),
-      );
+      const saved = payload.unit;
+      setUnits((current) => current.map((entry) => (entry.id === unit.id ? saved : entry)));
+      // The server renamed the ward behind a ward unit too (lib/units/writeUnit.ts).
+      if (saved.type === "ward") {
+        setWards((current) =>
+          current.map((ward) => (ward.unitId === saved.id ? { ...ward, name: saved.name } : ward)),
+        );
+        router.refresh();
+      }
       setEditing(undefined);
     }
   };
@@ -173,6 +224,12 @@ export function StakesAndWards({ initialUnits, wards, canManage }: StakesAndWard
             {unit.unitNumber ? `Unit ${unit.unitNumber}` : "No unit number yet"}
           </span>
         </div>
+
+        {/* A ward unit made before ITER-041 slice a has no ward behind it, and nothing can be
+            done in it. Shown so it is not mistaken for a working ward; there is no repair. */}
+        {unit.type === "ward" && wardsForUnit(unit.id).length === 0 && (
+          <p className="mt-2 text-sm text-muted">No ward set up behind this unit.</p>
+        )}
 
         {unit.type === "stake" && (
           <p className="mt-2 text-sm text-muted">
@@ -261,6 +318,11 @@ export function StakesAndWards({ initialUnits, wards, canManage }: StakesAndWard
   return (
     <div className="flex flex-col gap-4">
       <FormError message={errorMessage} />
+      {notice && (
+        <p role="status" className="text-sm text-foreground">
+          {notice}
+        </p>
+      )}
 
       {units.length === 0 && (
         <Card>
@@ -356,6 +418,40 @@ export function StakesAndWards({ initialUnits, wards, canManage }: StakesAndWard
                 setDraft((current) => ({ ...current, unitNumber: event.target.value }))
               }
             />
+
+            {draft.type === "ward" && (
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 text-sm text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={draft.giveMeACalling}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        giveMeACalling: event.target.checked,
+                      }))
+                    }
+                  />
+                  Give me a calling here
+                </label>
+                {draft.giveMeACalling && (
+                  <select
+                    aria-label="Calling"
+                    className="min-w-0 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+                    value={draft.callingRole}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        callingRole: event.target.value as CallingRole,
+                      }))
+                    }
+                  >
+                    <option value="bishop">Bishop</option>
+                    <option value="counselor">Counselor</option>
+                  </select>
+                )}
+              </div>
+            )}
 
             <div>
               <Button onClick={() => void handleCreate()} disabled={isSaving}>

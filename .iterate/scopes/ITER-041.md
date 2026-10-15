@@ -1,7 +1,8 @@
 # ITER-041: Released modules per ward, and the real ward
 
 **Type:** Modification
-**Status:** Backlogged
+**Status:** In Progress
+**Plan:** plans/released-modules-per-ward.md
 **Created:** 2026-10-14
 
 ## Summary

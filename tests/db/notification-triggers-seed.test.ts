@@ -1,7 +1,9 @@
 // @vitest-environment node
 //
-// One list of notification trigger keys is hand-maintained in THREE places: the seed SQL that
-// gives a new ward its rows, SPEC.md, and NOTIFICATION_TRIGGERS in the test harness. They drift,
+// One list of notification trigger keys is hand-maintained in FOUR places: the seed SQL that
+// gives a new ward its rows, SPEC.md, NOTIFICATION_TRIGGERS in the test harness, and
+// NOTIFICATION_TRIGGER_DEFAULTS in lib/notifications/triggerDefaults.ts (added 2026-10-15 so the
+// app can provision a ward). They drift,
 // and the drift is silent by construction — emitNotification() looks a key up in
 // notification_settings, finds no row, and returns without an error or a log. The only symptom is
 // a notification that does not arrive, which nothing observes until somebody walks a scenario
@@ -18,6 +20,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { NOTIFICATION_TRIGGER_DEFAULTS } from "@/lib/notifications/triggerDefaults";
 
 const SEED_SQL_PATH = path.resolve(process.cwd(), "supabase/seed/notification_triggers.sql");
 const HARNESS_PATH = path.resolve(process.cwd(), "testing/infrastructure/seedUtils.ts");
@@ -103,8 +106,34 @@ const seedTriggers = parseSeedSqlTriggers(readFileSync(SEED_SQL_PATH, "utf8"));
 const harnessTriggers = parseHarnessTriggers(readFileSync(HARNESS_PATH, "utf8"));
 const specKeys = parseSpecTriggerKeys(readFileSync(SPEC_PATH, "utf8"));
 
+// The fourth source, read by import rather than by parsing: it is TypeScript in the app graph, so
+// the compiler has already checked its shape and there is no regex to go quietly wrong.
+const appDefaults: TriggerDefinition[] = NOTIFICATION_TRIGGER_DEFAULTS.map((trigger) => ({
+  key: trigger.triggerKey,
+  defaultRoles: [...trigger.defaultRoles],
+}));
+
 const seedKeys = seedTriggers.map((trigger) => trigger.key);
 const harnessKeys = harnessTriggers.map((trigger) => trigger.key);
+const appDefaultKeys = appDefaults.map((trigger) => trigger.key);
+
+// default_roles disagreements between one source and the seed SQL. Sorted copies: the order of a
+// Postgres text[] is preserved but means nothing, so asserting order would turn a harmless
+// reordering into a failure.
+function roleMismatches(source: TriggerDefinition[]) {
+  const seedRolesByKey = new Map(
+    seedTriggers.map((trigger) => [trigger.key, [...trigger.defaultRoles].sort()]),
+  );
+
+  return source
+    .filter((trigger) => seedRolesByKey.has(trigger.key))
+    .map((trigger) => ({
+      key: trigger.key,
+      source: [...trigger.defaultRoles].sort(),
+      seed: seedRolesByKey.get(trigger.key),
+    }))
+    .filter((comparison) => comparison.source.join(",") !== (comparison.seed ?? []).join(","));
+}
 
 describe("notification trigger keys", () => {
   // No total count is asserted anywhere. A test that must be edited every time a key is added is
@@ -121,6 +150,12 @@ describe("notification trigger keys", () => {
     it("finds the anchor key in SPEC.md", () => {
       expect(specKeys).toContain(ANCHOR_KEY);
     });
+
+    // Its own anchor, chosen because its default_roles is EMPTY on purpose: a copy that dropped
+    // empty arrays, or filled them with the bishopric, is the likeliest way this one goes wrong.
+    it("finds the access-request anchor in NOTIFICATION_TRIGGER_DEFAULTS", () => {
+      expect(appDefaults).toContainEqual({ key: "access_request_submitted", defaultRoles: [] });
+    });
   });
 
   // A duplicate would let a set comparison pass while the seed insert carries a redundant tuple.
@@ -136,6 +171,10 @@ describe("notification trigger keys", () => {
     it("SPEC.md has no duplicate", () => {
       expect(duplicates(specKeys)).toEqual([]);
     });
+
+    it("NOTIFICATION_TRIGGER_DEFAULTS has no duplicate", () => {
+      expect(duplicates(appDefaultKeys)).toEqual([]);
+    });
   });
 
   // Both directions, as two expectations, so the failure names which way round the drift went and
@@ -149,26 +188,25 @@ describe("notification trigger keys", () => {
       expect(missingFrom(harnessKeys, seedKeys)).toEqual([]);
     });
 
-    // Sorted copies: the order of a Postgres text[] is preserved but means nothing, so asserting
-    // order would turn a harmless reordering into a failure.
     it("agrees on default_roles for every shared key", () => {
-      const seedRolesByKey = new Map(
-        seedTriggers.map((trigger) => [trigger.key, [...trigger.defaultRoles].sort()]),
-      );
+      expect(roleMismatches(harnessTriggers)).toEqual([]);
+    });
+  });
 
-      const mismatches = harnessTriggers
-        .filter((trigger) => seedRolesByKey.has(trigger.key))
-        .map((trigger) => ({
-          key: trigger.key,
-          harness: [...trigger.defaultRoles].sort(),
-          seed: seedRolesByKey.get(trigger.key),
-        }))
-        .filter(
-          (comparison) =>
-            comparison.harness.join(",") !== (comparison.seed ?? []).join(","),
-        );
+  // The copy a ward created from Stakes & Wards is provisioned from (lib/units/provisionWard.ts).
+  // Drift here is the same silent non-delivery, but only in wards created after it — which is
+  // exactly the set nobody is looking at.
+  describe("NOTIFICATION_TRIGGER_DEFAULTS matches the seed SQL", () => {
+    it("carries every key the seed SQL carries", () => {
+      expect(missingFrom(seedKeys, appDefaultKeys)).toEqual([]);
+    });
 
-      expect(mismatches).toEqual([]);
+    it("carries no key the seed SQL does not", () => {
+      expect(missingFrom(appDefaultKeys, seedKeys)).toEqual([]);
+    });
+
+    it("agrees on default_roles for every shared key", () => {
+      expect(roleMismatches(appDefaults)).toEqual([]);
     });
   });
 

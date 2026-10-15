@@ -182,6 +182,14 @@ and is the one role that spans everything. It bypasses the access matrix, so ass
 more deliberate confirmation than any other role, and **the last active Super Admin can never be
 deactivated**.
 
+**Adding a ward on Stakes & Wards sets up a working ward** (2026-10-15): the ward itself, its seven
+organizations (Bishopric, Elders Quorum, Relief Society, Young Men, Young Women, Primary, Sunday
+School) and its notification settings — no people, because the roster comes from a paste of the
+LCR ward list. **"Give me a calling here"** (ticked by default, Bishop or Counselor) gives the Super
+Admin a calling in the new ward, so they can switch into it straight away. Renaming a ward on that
+screen renames the ward everywhere the app shows it. A ward unit made before this, with no ward
+behind it, says **"No ward set up behind this unit."**
+
 **A leader who belongs to one ward never sees any of this.** No stake picker, no ward picker,
 nothing — the same logic already applied to roles, one layer up.
 

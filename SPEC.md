@@ -41,6 +41,17 @@ users.active_ward_id → wards    -- nullable; null means "my own ward"
 members.mrn          text       -- membership record number, nullable
 ```
 
+**Creating a ward unit provisions the ward (ITER-041, 2026-10-15).** `POST /api/units` with
+`type: "ward"` (super admin only) also runs `provisionWard()` (`lib/units/provisionWard.ts`): a
+`wards` row with `unit_id` set and `settings { cross_org_visibility: false, timezone:
+"America/Denver" }`, seven `organizations` (every `ORGANIZATION_TYPES` value but `other`), and one
+`notification_settings` row per `NOTIFICATION_TRIGGER_DEFAULTS` entry
+(`lib/notifications/triggerDefaults.ts`, the fourth copy of the trigger list, held to the seed by
+`tests/db/notification-triggers-seed.test.ts`). Optional `callingRole: "bishop" | "counselor"`
+(refused on a non-ward unit) creates the caller's calling there. Any failure removes the ward and
+the unit, so no half-made ward survives. The response is `{ unit, ward, callingCreated }`.
+`PATCH /api/units/[id]` renaming a ward unit also renames `wards.name` behind it.
+
 **Model generically, build narrowly.** `type` covers area/stake/ward because real church
 structure also has missions and districts as stake-equivalents, and how far up this goes is
 uncertain. **No area- or district-level screens are built** — only the shape anticipates them.

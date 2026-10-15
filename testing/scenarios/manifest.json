@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 87,
+  "scenarioCount": 88,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -71,6 +71,36 @@
         "At 375px, do the unit cards and the add-a-unit form stay usable?"
       ],
       "seedCommand": "npm run seed -- admin/scenario-068-a-stake-and-its-wards"
+    },
+    {
+      "id": "admin:scenario-091-create-a-working-ward",
+      "path": "admin/scenario-091-create-a-working-ward",
+      "name": "Create a working ward from Stakes & Wards",
+      "scope": "ITER-041",
+      "part": 1,
+      "tags": [
+        "admin",
+        "units",
+        "full"
+      ],
+      "prerequisites": "none",
+      "purpose": "Adding a ward on Stakes & Wards used to make a `units` row and nothing behind it, so the new ward\ncould not be held a calling in or switched to. It now provisions the real ward: the `wards` row,\nseven organizations and one notification setting per trigger, plus (if ticked) a calling for the\nsuper admin who made it. Only a walk proves you can switch into it and use it.",
+      "checklist": [
+        "The new ward appears under Harness Test Stake, and the sentence \"Harness Second Ward was",
+        "The new ward's card does **not** say \"No ward set up behind this unit.\"",
+        "`wards` has a row with the new unit's `unit_id`, `settings.timezone = America/Denver`",
+        "7 `organizations` rows for it, Sunday School included",
+        "One `notification_settings` row per trigger key for it (read back against the seed list)",
+        "`ward_role_assignments` has an active **bishop** calling for `admin` in it",
+        "The `unit_created` audit row carries the new `wardId` and `callingCreated: true`",
+        "The account menu offers the switch; after switching, the chrome bar names the new ward",
+        "Sacrament generates Sundays in the new ward; Roster is empty and offers the import",
+        "After the rename and a reload, `wards.name` and the chrome bar read \"Harness Ward Two\"",
+        "`npm run seed:clean` removes the walk-created ward, its unit and the calling",
+        "Does \"Give me a calling here\" read clearly next to the role choice, at 375px too?",
+        "Does the \"Switch to it from your account menu\" sentence point you to the right place?"
+      ],
+      "seedCommand": "npm run seed -- admin/scenario-091-create-a-working-ward"
     },
     {
       "id": "ai:scenario-020-preview-before-you-save",
@@ -1299,6 +1329,7 @@
         "The partial paste shows the warning \"This paste would mark 20 of 25 people as moved out\".",
         "The secretary sees the not-permitted message, not the paste box.",
         "No horizontal overflow at 375px width on the paste, review and result screens.",
+        "Every checklist control (Tick all, Untick all, each item's tappable row) is at least 44px",
         "The checklist reads as a list of decisions a bishop can make one by one, and the",
         "The partial-paste warning is hard to miss, in both light and dark mode.",
         "The \"Changed\" lines (before → after, Added, Removed) are legible one-handed at 375px."

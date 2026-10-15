@@ -1,12 +1,13 @@
 -- One notification_settings row per trigger key, per ward.
 --
--- This file is the CANONICAL list. The keys below must match SPEC.md §Trigger Keys and
--- NOTIFICATION_TRIGGERS in testing/infrastructure/seedUtils.ts EXACTLY. emitNotification()
--- (plan C) looks them up by string, so a typo here is a notification that silently never fires —
+-- This file is the CANONICAL list. The keys below must match SPEC.md §Trigger Keys,
+-- NOTIFICATION_TRIGGERS in testing/infrastructure/seedUtils.ts and NOTIFICATION_TRIGGER_DEFAULTS in
+-- lib/notifications/triggerDefaults.ts (which provisions a ward created in the app) EXACTLY.
+-- emitNotification() (plan C) looks them up by string, so a typo here is a notification that silently never fires —
 -- no error, no log, just nothing arriving.
 --
--- That match is ENFORCED by tests/db/notification-triggers-seed.test.ts, which diffs all three in
--- both directions. A key added here without the other two fails that test, naming the key and the
+-- That match is ENFORCED by tests/db/notification-triggers-seed.test.ts, which diffs all four in
+-- both directions. A key added here without the other three fails that test, naming the key and the
 -- file. Do not recount by hand: the count in this header once read "twenty-eight" while the block
 -- held twenty-nine, and a count nobody recounts is worse than none. The test counts nothing
 -- either — it compares, so adding a key needs no edit to it.

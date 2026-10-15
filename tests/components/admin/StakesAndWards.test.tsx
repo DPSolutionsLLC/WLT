@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StakesAndWards } from "@/app/(app)/admin/stakes/StakesAndWards";
 import type { Unit } from "@/types/domain";
 
+const refresh = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+
 // A ward is moved under a stake from its own Edit form, and once there it is listed UNDER that
 // stake rather than vanishing from the page. Both were missing until the Buffalo Ward setup
 // (2026-10-15): the server accepted `parentId` on PATCH and no screen sent it, and a ward unit
@@ -102,5 +105,74 @@ describe("StakesAndWards", () => {
 
     await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1));
     expect(sentBody(vi.mocked(fetch))).not.toHaveProperty("parentId");
+  });
+
+  describe("adding a ward", () => {
+    const CREATED: Unit = { ...WARD, id: "33333333-3333-4333-8333-333333333333", name: "Test Ward" };
+
+    function respondWithCreatedWard(callingCreated: boolean) {
+      return vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          unit: CREATED,
+          ward: { id: "44444444-4444-4444-8444-444444444444", name: "Test Ward", unitId: CREATED.id },
+          callingCreated,
+        }),
+      } as Response);
+    }
+
+    function fillWard() {
+      fireEvent.change(screen.getByLabelText("Type"), { target: { value: "ward" } });
+      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Test Ward" } });
+    }
+
+    it("sends the calling when 'Give me a calling here' is ticked, and says how to switch", async () => {
+      vi.stubGlobal("fetch", respondWithCreatedWard(true));
+      renderScreen([STAKE]);
+      fillWard();
+      expect(screen.getByLabelText("Give me a calling here")).toBeChecked();
+      fireEvent.change(screen.getByLabelText("Calling"), { target: { value: "counselor" } });
+      fireEvent.click(screen.getByRole("button", { name: "Add it" }));
+
+      await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1));
+      expect(sentBody(vi.mocked(fetch))).toMatchObject({
+        type: "ward",
+        name: "Test Ward",
+        callingRole: "counselor",
+      });
+      expect(
+        await screen.findByText("Test Ward was created. Switch to it from your account menu."),
+      ).toBeInTheDocument();
+      expect(refresh).toHaveBeenCalled();
+      expect(screen.queryByText("No ward set up behind this unit.")).not.toBeInTheDocument();
+    });
+
+    it("omits the calling when unticked", async () => {
+      vi.stubGlobal("fetch", respondWithCreatedWard(false));
+      renderScreen([STAKE]);
+      fillWard();
+      fireEvent.click(screen.getByLabelText("Give me a calling here"));
+      expect(screen.queryByLabelText("Calling")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Add it" }));
+
+      await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1));
+      expect(sentBody(vi.mocked(fetch))).not.toHaveProperty("callingRole");
+    });
+
+    it("never sends a calling for a stake", async () => {
+      vi.stubGlobal("fetch", respondWith(STAKE));
+      renderScreen([]);
+      expect(screen.queryByLabelText("Give me a calling here")).not.toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "A Stake" } });
+      fireEvent.click(screen.getByRole("button", { name: "Add it" }));
+
+      await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1));
+      expect(sentBody(vi.mocked(fetch))).not.toHaveProperty("callingRole");
+    });
+  });
+
+  it("says when a ward unit has no ward behind it", () => {
+    renderScreen([STAKE, WARD]);
+    expect(screen.getByText("No ward set up behind this unit.")).toBeInTheDocument();
   });
 });

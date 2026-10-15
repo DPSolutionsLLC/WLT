@@ -3,9 +3,11 @@ import { writeAuditLog } from "@/lib/audit/writeAuditLog";
 import { ForbiddenError } from "@/lib/auth/errors";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
+import { createCalling } from "@/lib/callings/writeCalling";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { provisionWard, removeProvisionedWard } from "@/lib/units/provisionWard";
 import { isSuperAdmin, listUnits } from "@/lib/units/queries";
-import { UnitConflictError, createUnit } from "@/lib/units/writeUnit";
+import { UnitConflictError, createUnit, deleteUnit } from "@/lib/units/writeUnit";
 import { createUnitSchema } from "@/lib/validation/unit";
 
 // STAKES AND WARDS. GET lists the units this session may see; POST creates one.
@@ -29,6 +31,25 @@ import { createUnitSchema } from "@/lib/validation/unit";
 // skipped. The READ below is governed by `units_select` and nothing here filters for security.
 
 const NOT_SUPER_ADMIN = "units.manage";
+
+const SETUP_FAILED =
+  "The ward could not be set up, so nothing was created. Please try again — if it keeps " +
+  "happening, the server log names the step that failed.";
+
+// Undo a ward unit whose setup failed partway. Each half logs its own failure rather than
+// throwing over the error the caller is about to report.
+async function undoWardUnit(unitId: string, wardId: string | null): Promise<void> {
+  if (wardId !== null) await removeProvisionedWard(wardId);
+
+  try {
+    await deleteUnit(unitId);
+  } catch (error) {
+    console.error("Could not remove the unit of a ward whose setup failed — delete it by hand", {
+      unitId,
+      cause: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
 
 export async function GET() {
   const user = await requireSessionUser();
@@ -70,6 +91,38 @@ export async function POST(request: Request) {
       unitNumber: input.unitNumber ?? null,
     });
 
+    // A WARD UNIT GETS A REAL WARD BEHIND IT (ITER-041 slice a). Without the `wards` row nothing
+    // in the app can reach it: no calling can be held there and the switcher cannot offer it.
+    // Every failure from here undoes the unit too, so a retry starts from nothing rather than
+    // from a unit with no ward, which this screen can show but not repair.
+    let wardId: string | null = null;
+    let callingCreated = false;
+
+    if (unit.type === "ward") {
+      try {
+        ({ wardId } = await provisionWard({ unitId: unit.id, name: unit.name }));
+
+        if (input.callingRole !== undefined) {
+          await createCalling({
+            userId: user.id,
+            wardId,
+            role: input.callingRole,
+            counselorPosition: input.callingRole === "counselor" ? 1 : null,
+            createdBy: user.id,
+          });
+          callingCreated = true;
+        }
+      } catch (error) {
+        await undoWardUnit(unit.id, wardId);
+        console.error("POST /api/units could not set up the ward behind a ward unit", {
+          unitId: unit.id,
+          wardId,
+          cause: error instanceof Error ? error.message : String(error),
+        });
+        return NextResponse.json({ error: SETUP_FAILED }, { status: 500 });
+      }
+    }
+
     // AUDITED (CLAUDE.md rule 6). Filed under the ward the session is acting in, because
     // `audit_log.ward_id` is NOT NULL (rule 1) and a unit has no ward of its own — the honest
     // answer to "where did this happen" is "from this ward's session", and `detail` names the
@@ -85,12 +138,16 @@ export async function POST(request: Request) {
           unitType: unit.type,
           unitName: unit.name,
           parentId: unit.parentId,
+          wardId,
+          callingCreated,
         },
       },
       supabase,
     );
 
-    return NextResponse.json({ unit }, { status: 201 });
+    const ward = wardId === null ? null : { id: wardId, name: unit.name, unitId: unit.id };
+
+    return NextResponse.json({ unit, ward, callingCreated }, { status: 201 });
   } catch (error) {
     // 409, with the sentence the write layer wrote. A unit number already recorded against
     // another unit is the caller's to fix, not a server fault, and a raw 23505 surfaces as a 500

@@ -1,12 +1,13 @@
 # Backlog
 
-_Last updated: 2026-10-14_
+_Last updated: 2026-10-15_
 
 ---
 
 ## In Progress
 Items currently being planned or actively worked.
 
+- [ ] ITER-041 — Released modules per ward, and a ward you can create → [scope](.iterate/scopes/ITER-041.md) | [plan](plans/released-modules-per-ward.md) _(GROUP-03, second of three)_
 - [ ] ITER-039 — Move the app to wardleadershiptools.com and send email from it → [scope](.iterate/scopes/ITER-039.md) | [plan](plans/custom-domain-and-email-sender.md)
 - [ ] ITER-034 — Youth Support: the module the user actually wants → [scope](.iterate/scopes/ITER-034.md) — **PARKED 2026-08-31**
   _Raised by the user 2026-08-31 after walking 062 and 063, and **this is the destination Phase 8
@@ -66,7 +67,6 @@ test ward (data kept as-is), a new real ward is created, and its roster comes fr
 LCR ward list report. The tracker's history is the source of truth from day one; Sacrament
 migrates FROM it later, never the reverse. **Plan in this order** — each needs the one before._
 - ITER-040 — _completed 2026-10-14 (d20c367)_
-- [ ] ITER-041 — Released modules per ward, and the real ward → [scope](.iterate/scopes/ITER-041.md)
 - [ ] ITER-042 — Speakers & Prayers: a standalone tracker for the bishopric → [scope](.iterate/scopes/ITER-042.md)
 
 ---
@@ -279,6 +279,12 @@ Each of these is large or complex enough to tackle on its own.
   or manage? The music coordinator plans against the calendar and Phase 6 depends on it._
   _Reason: architectural. Adds a fourth date-bearing model to the schema, a new sharing/audience
   boundary enforced by RLS, and will realistically split into three or four plans of its own._
+
+- [ ] ITER-043 — Keep the screen on while the tithing calculator is open → [scope](.iterate/scopes/ITER-043.md)
+  _Raised 2026-10-15. Automatic, only while the calculator is visible, iPhone and Android. One
+  open question: what to show when a phone cannot keep the screen awake._
+  _Reason: small and self-contained — the only tithing item in the backlog, so nothing to group it
+  with. A good quick win between larger pieces._
 
 ---
 

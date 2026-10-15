@@ -164,6 +164,22 @@ export async function updateUnit(
     throw new Error(`Could not update the unit: ${error.message}`);
   }
 
+  // A RENAME FOLLOWS THE UNIT INTO THE WARD BEHIND IT. The chrome bar, the switcher and every
+  // e-mail read `wards.name`, never the unit's, so renaming only the unit would leave the app
+  // calling the ward by its old name. Zero rows is the ordinary answer for a stake, which has no
+  // ward of its own.
+  if (data && changes.name !== undefined && data.type === "ward") {
+    const { error: wardError } = await service
+      .from("wards")
+      .update({ name: changes.name.trim() })
+      .eq("unit_id", unitId);
+
+    if (wardError) {
+      console.error(`Renamed the unit but not its ward — ${wardError.message}`, { unitId });
+      throw new Error(`Could not rename the ward behind this unit: ${wardError.message}`);
+    }
+  }
+
   return data ? toUnit(data) : null;
 }
 

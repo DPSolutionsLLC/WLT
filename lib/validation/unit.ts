@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BISHOPRIC_ROLES } from "@/lib/auth/permissions";
 import { UNIT_TYPES } from "@/types/domain";
 
 // Zod at the boundary, reused by the form (CLAUDE.md §6). Shape only — whether the caller is a
@@ -28,12 +29,23 @@ const unitNumber = z
 // `area` is accepted because the data shape anticipates it (migration 065a), and refused by no
 // screen because BUILD NO AREA OR DISTRICT SCREENS (CLAUDE.md §7). The schema is the shape; the
 // screen is what decides what to offer.
-export const createUnitSchema = z.object({
-  type: z.enum(UNIT_TYPES, "Choose a unit type."),
-  name: unitName,
-  parentId: z.uuid("Choose a parent unit from the list.").nullish(),
-  unitNumber,
-});
+//
+// `callingRole` gives the creating super admin a calling in the new ward, so they can switch into
+// it at once. The bishopric roles only: anything else needs an organization the ward does not
+// have an id for until it exists. A stake has no ward to hold a calling in, so it is refused there
+// with a sentence rather than silently ignored.
+export const createUnitSchema = z
+  .object({
+    type: z.enum(UNIT_TYPES, "Choose a unit type."),
+    name: unitName,
+    parentId: z.uuid("Choose a parent unit from the list.").nullish(),
+    unitNumber,
+    callingRole: z.enum(BISHOPRIC_ROLES, "Choose Bishop or Counselor.").optional(),
+  })
+  .refine((value) => value.callingRole === undefined || value.type === "ward", {
+    message: "Only a ward can give you a calling. Untick it, or choose Ward as the type.",
+    path: ["callingRole"],
+  });
 export type CreateUnitInput = z.infer<typeof createUnitSchema>;
 
 // Every field optional — a rename and a number correction are separate acts on the same screen,
