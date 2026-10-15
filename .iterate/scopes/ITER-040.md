@@ -1,7 +1,9 @@
 # ITER-040: Roster import — paste the church's ward list report
 
 **Type:** Modification
-**Status:** In Progress
+**Status:** Completed
+**Completed:** 2026-10-14
+**Commit:** d20c367
 **Plan:** plans/roster-paste-import.md
 **Created:** 2026-10-14
 

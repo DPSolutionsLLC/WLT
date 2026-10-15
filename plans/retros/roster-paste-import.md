@@ -2,7 +2,7 @@
 id: roster-paste-import
 type: feature
 iter: [ITER-040]
-commits: []
+commits: ["d20c367"]
 date: 2026-10-14
 files:
   - supabase/migrations/090_roster_paste_import.sql
