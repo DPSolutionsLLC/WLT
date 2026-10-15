@@ -394,6 +394,31 @@ export async function createUnitAssignment(options: {
   }
 }
 
+// A WARD'S RELEASED MODULES (ITER-041, migration 091). NULL removes the list, which means every
+// module is released — the state every ward is in unless a scenario says otherwise. Service role,
+// because the table has no write policy. The row cascades away with the ward on clean-up.
+//
+// Keys are not checked against the app's catalog here: the harness compiles apart from the app
+// graph, and the database column is free text, so a typo shows up as a module that never appears.
+export async function setReleasedModules(
+  wardId: string,
+  modules: readonly string[] | null,
+): Promise<void> {
+  const supabase = getAdminClient();
+
+  if (modules === null) {
+    const { error } = await supabase.from("ward_release_settings").delete().eq("ward_id", wardId);
+    if (error) throw new Error(`Could not clear the released modules: ${error.message}`);
+    return;
+  }
+
+  const { error } = await supabase
+    .from("ward_release_settings")
+    .upsert({ ward_id: wardId, released_modules: [...modules] }, { onConflict: "ward_id" });
+
+  if (error) throw new Error(`Could not set the released modules: ${error.message}`);
+}
+
 // ============================================================================
 // Users
 // ============================================================================

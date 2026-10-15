@@ -37,6 +37,8 @@ const USER: SessionUser = {
   username: null,
   themePreference: "system",
   isActive: true,
+  releasedModules: null,
+  isSuperAdmin: false,
 };
 
 function renderAt(pathname: string) {
@@ -123,5 +125,32 @@ describe("ChromeBar", () => {
     renderAt("/visits");
 
     expect(screen.getByRole("button", { name: "Your account" })).toBeInTheDocument();
+  });
+});
+
+// ITER-041. The super admin sees modules a ward has not released, so the bar says so — and only
+// to them, and only in a ward that has a list at all.
+describe("ChromeBar Admin view pill", () => {
+  function renderAs(user: SessionUser) {
+    pathnameMock.mockReturnValue("/dashboard");
+    return render(<ChromeBar title="Maple Ward" user={user} callingLabel="Bishop" />);
+  }
+
+  // From `sm` up only: at 375px it squeezed the ward name and pushed the account button off-screen
+  // (scenario 090's walk). jsdom applies no CSS, so the class is what is asserted.
+  it("shows for a super admin in a ward with a released-modules list, from small screens up", () => {
+    renderAs({ ...USER, isSuperAdmin: true, releasedModules: ["tithing"] });
+    const pill = screen.getByText("Admin view");
+    expect(pill.closest("span.hidden")).toHaveClass("sm:block");
+  });
+
+  it("does not show for a super admin in a ward with no list", () => {
+    renderAs({ ...USER, isSuperAdmin: true, releasedModules: null });
+    expect(screen.queryByText("Admin view")).toBeNull();
+  });
+
+  it("does not show for anybody else", () => {
+    renderAs({ ...USER, isSuperAdmin: false, releasedModules: ["tithing"] });
+    expect(screen.queryByText("Admin view")).toBeNull();
   });
 });

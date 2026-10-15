@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isReleasedModuleKey, type ReleasedModuleKey } from "@/lib/access/releasedModules";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 import {
@@ -188,7 +189,30 @@ async function resolveSessionUser(
     username: data.username,
     themePreference: toThemePreference(data.theme_preference),
     isActive: data.is_active,
+    releasedModules: toReleasedModules(context.released_modules ?? null, context.ward_id),
+    isSuperAdmin: context.is_super_admin === true,
   };
+}
+
+// NULL STAYS NULL — the ward has no list, so everything is released. An unknown key is DROPPED,
+// not kept and not fatal: it can only be a module this build does not know (a newer deploy wrote
+// it, or the catalog renamed one), and dropping it narrows rather than widens. Logged, because a
+// silently ignored entry is a module somebody released that never appears.
+function toReleasedModules(
+  value: string[] | null,
+  wardId: string,
+): readonly ReleasedModuleKey[] | null {
+  if (value === null) return null;
+
+  const unknown = value.filter((key) => !isReleasedModuleKey(key));
+  if (unknown.length > 0) {
+    console.warn("ward_release_settings names modules this build does not know; ignoring them", {
+      wardId,
+      unknown,
+    });
+  }
+
+  return value.filter(isReleasedModuleKey);
 }
 
 // cache() dedupes the query across one request, so a page rendering ten components issues one

@@ -6,6 +6,7 @@ import { AccountMenu } from "@/components/layout/AccountMenu";
 import { HelpButton } from "@/components/layout/HelpButton";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { ReportIssueButton } from "@/components/layout/ReportIssueButton";
+import { Pill } from "@/components/ui/Pill";
 import type { SessionUser } from "@/types/domain";
 
 // The bar above every page except the dashboard: the way home, where you are, and the five
@@ -84,6 +85,21 @@ export function ChromeBar({ title, user, callingLabel }: ChromeBarProps) {
           without it this row overflows at 375px beside five controls
           (plans/retros/youth-g-occasions-and-event-detail.md). */}
       <p className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{title}</p>
+
+      {/* ITER-041. Only a super admin in a ward that has narrowed its modules sees more than the
+          ward's own leaders do, and this says so — the screen is not what they will see.
+
+          FROM `sm` UP ONLY. At 375px the bar has no room for it: the walk of scenario 090 found it
+          squeezed the ward name to "Har…" and pushed the account button off-screen. On a phone
+          the same notice is in the account menu (AccountMenu.tsx). */}
+      {user.isSuperAdmin && user.releasedModules !== null ? (
+        <span className="hidden shrink-0 sm:block">
+          <Pill tone="neutral" title="You see modules this ward has not released.">
+            Admin view
+            <span className="sr-only"> — you see modules this ward has not released</span>
+          </Pill>
+        </span>
+      ) : null}
 
       <div className="flex shrink-0 items-center gap-1">
         {/* pagePath is the pathname this bar already read, so a report is tagged with the page

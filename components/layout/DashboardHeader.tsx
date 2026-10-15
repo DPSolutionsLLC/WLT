@@ -52,6 +52,8 @@ export type DashboardHeaderProps = {
   callingLabel: string;
   items: NavigationItem[];
   pinnedHrefs: string[];
+  // Passed straight to DashboardGrid (ITER-041's "Hidden from this ward" marks).
+  tileNotes?: Record<string, string>;
   // The ward switcher (P3c). Rendered inside the collapsing extras, and absent for the great
   // majority of people, who hold one calling.
   wardSwitcher?: ReactNode;
@@ -65,6 +67,7 @@ export function DashboardHeader({
   callingLabel,
   items,
   pinnedHrefs,
+  tileNotes,
   wardSwitcher,
   quickLinks,
 }: DashboardHeaderProps) {
@@ -115,7 +118,12 @@ export function DashboardHeader({
       </div>
 
       {/* SIBLING THREE — the grid. Still a sibling; the fragment adds no DOM node. */}
-      <DashboardGrid items={items} searchTerm={searchTerm} pinnedHrefs={pinnedHrefs} />
+      <DashboardGrid
+        items={items}
+        searchTerm={searchTerm}
+        pinnedHrefs={pinnedHrefs}
+        tileNotes={tileNotes}
+      />
     </>
   );
 }

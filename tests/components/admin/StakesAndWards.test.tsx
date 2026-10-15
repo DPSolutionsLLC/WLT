@@ -115,7 +115,12 @@ describe("StakesAndWards", () => {
         ok: true,
         json: async () => ({
           unit: CREATED,
-          ward: { id: "44444444-4444-4444-8444-444444444444", name: "Test Ward", unitId: CREATED.id },
+          ward: {
+            id: "44444444-4444-4444-8444-444444444444",
+            name: "Test Ward",
+            unitId: CREATED.id,
+            releasedModules: null,
+          },
           callingCreated,
         }),
       } as Response);
@@ -140,9 +145,12 @@ describe("StakesAndWards", () => {
         name: "Test Ward",
         callingRole: "counselor",
       });
-      expect(
-        await screen.findByText("Test Ward was created. Switch to it from your account menu."),
-      ).toBeInTheDocument();
+      const notice = await screen.findByText(
+        "Test Ward was created. Switch to it from your account menu.",
+      );
+      // Inside the Add form, beside the button that caused it — not at the top of a long page.
+      const addForm = screen.getByRole("heading", { name: "Add a unit" }).parentElement;
+      expect(addForm).toContainElement(notice);
       expect(refresh).toHaveBeenCalled();
       expect(screen.queryByText("No ward set up behind this unit.")).not.toBeInTheDocument();
     });
@@ -174,5 +182,64 @@ describe("StakesAndWards", () => {
   it("says when a ward unit has no ward behind it", () => {
     renderScreen([STAKE, WARD]);
     expect(screen.getByText("No ward set up behind this unit.")).toBeInTheDocument();
+  });
+
+  describe("released modules", () => {
+    const WARD_UNIT: Unit = { ...WARD, parentId: STAKE.id };
+    const BUFFALO = {
+      id: "55555555-5555-4555-8555-555555555555",
+      name: "Buffalo Ward",
+      unitId: WARD_UNIT.id,
+      releasedModules: null,
+    };
+
+    function respondOk() {
+      return vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+    }
+
+    it("says Everything when the ward has no list", () => {
+      render(<StakesAndWards initialUnits={[STAKE, WARD_UNIT]} wards={[BUFFALO]} canManage />);
+      expect(screen.getByText("Released: Everything")).toBeInTheDocument();
+    });
+
+    it("PUTs the ticked modules, then names them on the card", async () => {
+      vi.stubGlobal("fetch", respondOk());
+      render(<StakesAndWards initialUnits={[STAKE, WARD_UNIT]} wards={[BUFFALO]} canManage />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Edit released modules" }));
+      fireEvent.click(screen.getByLabelText("Everything (no list)"));
+      expect(screen.getByText("Not built yet")).toBeInTheDocument();
+      // Ticked out of catalog order on purpose: the list is saved and shown in one fixed order.
+      fireEvent.click(screen.getByLabelText("Tithing"));
+      fireEvent.click(screen.getByLabelText(/Speakers & Prayers/));
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+      const fetchMock = vi.mocked(fetch);
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      expect(fetchMock.mock.calls[0][0]).toBe(`/api/wards/${BUFFALO.id}/released-modules`);
+      expect((fetchMock.mock.calls[0][1] as RequestInit).method).toBe("PUT");
+      expect(sentBody(fetchMock)).toEqual({ modules: ["speakers", "tithing"] });
+      expect(
+        await screen.findByText("Released: Speakers & Prayers, Tithing"),
+      ).toBeInTheDocument();
+    });
+
+    it("sends null for Everything", async () => {
+      vi.stubGlobal("fetch", respondOk());
+      render(
+        <StakesAndWards
+          initialUnits={[STAKE, WARD_UNIT]}
+          wards={[{ ...BUFFALO, releasedModules: ["tithing"] }]}
+          canManage
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Edit released modules" }));
+      fireEvent.click(screen.getByLabelText("Everything (no list)"));
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1));
+      expect(sentBody(vi.mocked(fetch))).toEqual({ modules: null });
+    });
   });
 });

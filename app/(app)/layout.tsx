@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ChromeBar } from "@/components/layout/ChromeBar";
 import { VersionStamp } from "@/components/layout/VersionStamp";
 import { QueryProvider } from "@/components/providers/QueryProvider";
+import { requireReleasedRoute } from "@/lib/access/requireReleasedRoute";
 import { readCallingLabel } from "@/lib/callings/callingLabel";
 import { resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
@@ -29,6 +30,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // `/ordinances`, not `/sacrament`: P4 gave `/sacrament` to the sacrament MEETING hub, and the
   // youth ordinance screen moved out of its way (app/(youth)/ordinances/page.tsx).
   if (user.role === "sacrament_manager") redirect("/ordinances");
+
+  // A page whose module this ward has not released goes back to the dashboard (ITER-041).
+  await requireReleasedRoute(user);
 
   const supabase = await createServerSupabaseClient();
 

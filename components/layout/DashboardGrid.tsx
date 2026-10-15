@@ -41,6 +41,9 @@ export type DashboardGridProps = {
   // Filters on label and blurb, case-insensitively. Filtering is the ONLY thing it does.
   searchTerm: string;
   pinnedHrefs: string[];
+  // A short note per tile, keyed by href ("Hidden from this ward" for a super admin, ITER-041). The
+  // page decides what each note says; this component only renders it.
+  tileNotes?: Record<string, string>;
   // A SUB-DASHBOARD RENDERS ONE FLAT GRID. Its page title already names the section, so grouping
   // three admin pages under "Finance & Admin" would repeat the heading the reader just read —
   // and grouping them under section headings while showing none of them would leave unexplained
@@ -61,6 +64,7 @@ export function DashboardGrid({
   items,
   searchTerm,
   pinnedHrefs,
+  tileNotes = {},
   showSectionHeadings = true,
 }: DashboardGridProps) {
   const needle = searchTerm.trim().toLowerCase();
@@ -75,6 +79,7 @@ export function DashboardGrid({
       icon={item.icon}
       accent={item.accent}
       pinned={pinned.has(item.href)}
+      note={tileNotes[item.href]}
     />
   );
 

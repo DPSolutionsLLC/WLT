@@ -42,6 +42,10 @@ describe("getSessionUser", () => {
     // School may not — so it is asserted against a real organization rather than a stub.
     expect(user?.orgType).toBe("elders_quorum");
     expect(user?.isActive).toBe(true);
+    // A fixture ward has no released-modules list (null = everything), and this leader holds no
+    // super admin assignment. tests/rls/released-modules.test.ts covers the narrowed case.
+    expect(user?.releasedModules).toBeNull();
+    expect(user?.isSuperAdmin).toBe(false);
   });
 
   it("carries the counselor position through", async () => {
@@ -74,11 +78,14 @@ describe("getSessionUser", () => {
       "homeWardId",
       "id",
       "isActive",
+      // Added by migration 091 (ITER-041), from the same round trip as the role.
+      "isSuperAdmin",
       "lastName",
       "orgId",
       // Added by migration 072. The TYPE of the calling's organization, resolved in the same
       // query as the organization itself so the app and RLS cannot disagree about it.
       "orgType",
+      "releasedModules",
       "role",
       "themePreference",
       "username",

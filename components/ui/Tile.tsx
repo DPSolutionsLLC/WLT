@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Pill } from "@/components/ui/Pill";
 
 // The dashboard card. P3 builds the four-section tile grid out of these, so the prop shape here
 // is written to P3's stated needs rather than to this phase's — P3 should consume it, not
@@ -48,6 +49,10 @@ export type TileProps = {
   icon?: ReactNode;
   accent?: TileAccent;
   pinned?: boolean;
+  // A short marker about the tile, such as "Hidden from this ward" for a super admin. It is a BADGE ON
+  // A WORKING TILE: the tile still opens, and is never dimmed (DashboardGrid's header — there are
+  // no locked tiles).
+  note?: string;
   className?: string;
 };
 
@@ -67,6 +72,7 @@ export function Tile({
   icon,
   accent,
   pinned = false,
+  note,
   className = "",
 }: TileProps) {
   const accentClasses = accent === undefined ? "" : ACCENT_CLASSES[accent];
@@ -90,6 +96,11 @@ export function Tile({
         ) : null}
       </span>
       {blurb === undefined ? null : <span className="text-sm text-muted">{blurb}</span>}
+      {note === undefined ? null : (
+        <span>
+          <Pill tone="neutral">{note}</Pill>
+        </span>
+      )}
     </>
   );
 

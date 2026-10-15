@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 88,
+  "scenarioCount": 89,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -71,6 +71,38 @@
         "At 375px, do the unit cards and the add-a-unit form stay usable?"
       ],
       "seedCommand": "npm run seed -- admin/scenario-068-a-stake-and-its-wards"
+    },
+    {
+      "id": "admin:scenario-090-a-ward-that-released-some-modules",
+      "path": "admin/scenario-090-a-ward-that-released-some-modules",
+      "name": "A ward that has released only some modules",
+      "scope": "ITER-041",
+      "part": 2,
+      "tags": [
+        "admin",
+        "access",
+        "full"
+      ],
+      "prerequisites": "none",
+      "purpose": "A ward's released-modules list changes what people see from the same data. The bishop of a ward\nthat released only Speakers & Prayers and Tithing sees Tithing and a \"coming soon\" line. A typed\nURL to anything else lands on the dashboard, and the database hides the rows. The super admin\nsees everything, with the unreleased tiles marked, and is the only person who can change the list.",
+      "checklist": [
+        "The bishop's dashboard has only the Tithing tile, and reads \"More tools are on the way for",
+        "Each typed URL in step 2 ends on `/dashboard`; `/tithing` opens",
+        "`GET /api/agendas` as the bishop answers **403**",
+        "The bishop's own client reads **no** row from `agendas`; the service client reads one",
+        "`admin` sees every tile; the unreleased ones carry \"Not released here\" and still open",
+        "`admin`'s chrome bar shows **Admin view**; the bishop's does not",
+        "`admin` opens `/agendas` (the agenda is listed) and `/admin/stakes` in this ward",
+        "Stakes & wards reads \"Released: Speakers & Prayers, Tithing\" before the edit",
+        "After the edit, `ward_release_settings.released_modules` includes `agendas`, and a",
+        "The bishop then sees the Agendas tile and the 2026-10-18 agenda",
+        "The secretary (who holds Tithing) sees the same as the bishop: the Tithing tile and the",
+        "Does \"More tools are on the way\" read as a promise rather than as something broken?",
+        "Is \"Not released here\" clear on a tile that still opens?",
+        "Is the \"Admin view\" pill noticeable without being alarming?",
+        "At 375px and in dark mode, do the release editor's checkboxes and the pill stay usable?"
+      ],
+      "seedCommand": "npm run seed -- admin/scenario-090-a-ward-that-released-some-modules"
     },
     {
       "id": "admin:scenario-091-create-a-working-ward",

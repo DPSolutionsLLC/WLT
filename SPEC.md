@@ -52,6 +52,28 @@ members.mrn          text       -- membership record number, nullable
 the unit, so no half-made ward survives. The response is `{ unit, ward, callingCreated }`.
 `PATCH /api/units/[id]` renaming a ward unit also renames `wards.name` behind it.
 
+**Released modules per ward (ITER-041, migration 091).**
+
+```
+ward_release_settings
+  ward_id          uuid PK → wards (on delete cascade)
+  released_modules text[] NOT NULL   -- catalog keys; NO ROW = everything released
+  updated_by       uuid → users (on delete set null), updated_at timestamptz
+  -- SELECT: ward_id = current_ward_id() or is_super_admin(). No write policy.
+
+ward_module_released(p_module text) → boolean   -- security definer; true for a super admin,
+                                                -- for a ward with no row, or when listed
+session_context()  + released_modules text[], is_super_admin boolean
+module_release_policies() → (table_name, policy_qual)   -- service_role, drift test only
+```
+
+Each module-owned table carries a restrictive `<table>_module_released` policy (`for all to
+authenticated`). The table → module mapping, module labels, permission prefixes and route
+prefixes live in `lib/access/releasedModules.ts`. `SessionUser` gains `releasedModules:
+ReleasedModuleKey[] | null` and `isSuperAdmin: boolean` (both required). `PUT
+/api/wards/[id]/released-modules` with `{ modules: string[] | null }` — super admin only;
+`null` removes the row; audited as `released_modules_updated` with `{ targetWardId, modules }`.
+
 **Model generically, build narrowly.** `type` covers area/stake/ward because real church
 structure also has missions and districts as stake-equivalents, and how far up this goes is
 uncertain. **No area- or district-level screens are built** — only the shape anticipates them.

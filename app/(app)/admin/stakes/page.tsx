@@ -1,5 +1,6 @@
 import { StakesAndWards, type WardSummary } from "@/app/(app)/admin/stakes/StakesAndWards";
 import { NotPermitted } from "@/components/ui/NotPermitted";
+import { listReleasedModulesByWard } from "@/lib/access/writeReleasedModules";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
@@ -55,10 +56,16 @@ export default async function StakesPage() {
     throw new Error(`Could not load the wards: ${error.message}`);
   }
 
+  // Each ward's released-modules list (migration 091), read with the same service client for the
+  // same reason: the caller is a proved super admin, and the screen lists every ward. A ward with
+  // no row has no list, which means everything is released.
+  const releasedByWard = await listReleasedModulesByWard(service);
+
   const wards: WardSummary[] = (data ?? []).map((ward) => ({
     id: ward.id,
     name: ward.name,
     unitId: ward.unit_id ?? null,
+    releasedModules: releasedByWard.get(ward.id) ?? null,
   }));
 
   return (

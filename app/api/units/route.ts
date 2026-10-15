@@ -145,7 +145,11 @@ export async function POST(request: Request) {
       supabase,
     );
 
-    const ward = wardId === null ? null : { id: wardId, name: unit.name, unitId: unit.id };
+    // A new ward has no released-modules list, so everything is released (migration 091).
+    const ward =
+      wardId === null
+        ? null
+        : { id: wardId, name: unit.name, unitId: unit.id, releasedModules: null };
 
     return NextResponse.json({ unit, ward, callingCreated }, { status: 201 });
   } catch (error) {

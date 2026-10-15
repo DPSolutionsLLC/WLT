@@ -2,6 +2,7 @@ import { Building2 } from "lucide-react";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
 import { QuickLinksButton } from "@/components/layout/QuickLinksButton";
 import { WardSwitcher } from "@/components/layout/WardSwitcher";
+import { moduleForPath, unreleasedBuiltModules } from "@/lib/access/releasedModules";
 import { visibleNavigationItems, type NavigationItem } from "@/lib/auth/navigation";
 import { resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
@@ -69,6 +70,25 @@ export default async function DashboardPage() {
 
   const greetingName = user.firstName ?? user.username ?? "there";
 
+  // RELEASED MODULES (ITER-041). An ordinary person never sees an unreleased tile — can() already
+  // filtered it out — so they get one quiet line instead, and only when the ward has a list that
+  // withholds something that exists. The super admin sees every tile; an unreleased one carries a
+  // badge, and still opens.
+  const tileNotes: Record<string, string> = {};
+  const releasedModules = user.releasedModules;
+  if (user.isSuperAdmin && releasedModules !== null) {
+    for (const item of items) {
+      const owningModule = moduleForPath(item.href);
+      if (owningModule !== null && !releasedModules.includes(owningModule)) {
+        tileNotes[item.href] = "Hidden from this ward";
+      }
+    }
+  }
+
+  const showComingSoon =
+    !user.isSuperAdmin && unreleasedBuiltModules(user.releasedModules).length > 0;
+  const wardName = showComingSoon ? await readWardName(user.wardId, supabase) : null;
+
   return (
     <div className="flex flex-col gap-4">
       <DashboardHeader
@@ -76,10 +96,39 @@ export default async function DashboardPage() {
         callingLabel={callingLabel}
         items={items}
         pinnedHrefs={pinnedHrefs}
+        tileNotes={tileNotes}
         // Renders nothing at all for the great majority of people, who hold one calling.
         wardSwitcher={<WardSwitcher />}
         quickLinks={<QuickLinksButton items={items} pinnedHrefs={pinnedHrefs} />}
       />
+      {showComingSoon && (
+        <p className="text-sm text-muted">
+          More tools are on the way for {wardName ?? "your ward"}.
+        </p>
+      )}
     </div>
   );
+}
+
+// The same read the (app) layout makes for the chrome bar. A failure falls back to "your ward"
+// rather than taking the dashboard down — it is one sentence of courtesy text.
+async function readWardName(
+  wardId: string,
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("wards")
+    .select("name")
+    .eq("id", wardId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Could not read the ward name for the dashboard", {
+      wardId,
+      error: error.message,
+    });
+    return null;
+  }
+
+  return data?.name ?? null;
 }

@@ -55,4 +55,43 @@ super admin who made it. Only a walk proves you can switch into it and use it.
 
 ## Walkthrough record
 
-**Not yet walked.**
+### 2026-10-15 — agent-driven (Claude, Playwright), screenshots for human review
+
+**Driven by the agent** as `admin`; every write read back with the service client. Judgement items
+are on <https://claude.ai/artifact/KrpQ9RYZmXS5ibgmY4mSNT>. Screenshots in
+`testing/walk-screenshots/scenario-091/` (git-excluded).
+
+Observed:
+- Add form (Ward): "Give me a calling here" ticked, Bishop selected; 375px scrollWidth 360 = clientWidth 360.
+- After Add: stake line "2 wards: Harness Test Ward unit, Harness Second Ward"; the new card has no
+  "No ward set up" note; status text "Harness Second Ward was created. Switch to it from your account menu."
+- DB: unit under the harness stake; `wards` row with that `unit_id`, settings
+  `{ timezone: "America/Denver", cross_org_visibility: false }`; 7 organizations (Bishopric, Elders
+  Quorum, Primary, Relief Society, Sunday School, Young Men, Young Women); 36 `notification_settings`
+  keys, equal to the seed SQL's 36; one active `bishop` calling for Dana; audit `unit_created` with
+  `wardId` and `callingCreated: true`; no `ward_release_settings` row.
+- Account menu "Acting in" offered both wards (after a page reload; see below). After switching:
+  chrome bar "Harness Second Ward", "You are signed in as Bishop.", 17 tiles, no pill. Sacrament showed
+  October with 4 Sundays (52 generated in the DB); Roster "No members yet" with "Import from LCR".
+- Rename to "Harness Ward Two": `units.name` and `wards.name` both changed; chrome bar after reload and
+  a switch read "Harness Ward Two".
+- `npm run seed:clean` removed the walk-created unit, ward, Sundays and calling (all read back as gone).
+
+**Defect found:** the success sentence renders at the top of the page, 6,564px above the Add form
+at 375px (the leftover test data makes the page long, but it is above the whole list regardless).
+The form simply resets, so nothing visible says it worked.
+
+**Left unsettled:** the first time I opened the account menu (before any reload, waiting 3 s) the
+switcher did not show; after a reload it showed after a few seconds. The dev server was slow to
+compile the route, so I could not tell whether a reload is actually needed. Worth a quick look on the
+deployed build.
+
+No checklist corrections were needed.
+
+### 2026-10-15 (later) — fix re-checked, agent-driven
+
+Re-walked from scenario 090's seed as `admin` at 375px: adding "Harness Fix Check Ward" put
+"Harness Fix Check Ward was created. Switch to it from your account menu." inside the Add form,
+directly under "Add it" and on screen (top 707px in an 812px viewport). Errors from the Add form now
+appear there too. `npm run seed:clean` removed the ward afterwards (0 rows). Screenshot
+`03-fix-created-message-375-dark.png`. The user answered question 5 **yes**.

@@ -3987,6 +3987,42 @@ export type Database = {
           },
         ]
       }
+      ward_release_settings: {
+        Row: {
+          released_modules: string[]
+          updated_at: string
+          updated_by: string | null
+          ward_id: string
+        }
+        Insert: {
+          released_modules: string[]
+          updated_at?: string
+          updated_by?: string | null
+          ward_id: string
+        }
+        Update: {
+          released_modules?: string[]
+          updated_at?: string
+          updated_by?: string | null
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ward_release_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ward_release_settings_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: true
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ward_role_assignments: {
         Row: {
           counselor_position: number | null
@@ -4286,6 +4322,13 @@ export type Database = {
           type_tag: string
         }[]
       }
+      module_release_policies: {
+        Args: never
+        Returns: {
+          policy_qual: string
+          table_name: string
+        }[]
+      }
       refresh_goal_status: { Args: never; Returns: number }
       remove_talk: { Args: { p_assignment_id: string }; Returns: Json }
       session_context: {
@@ -4296,8 +4339,10 @@ export type Database = {
           counselor_position: number
           home_ward_id: string
           is_bishopric: boolean
+          is_super_admin: boolean
           org_id: string
           org_type: string
+          released_modules: string[]
           role: string
           ward_id: string
         }[]
@@ -4326,6 +4371,7 @@ export type Database = {
         Returns: boolean
       }
       ward_allows_cross_org_visibility: { Args: never; Returns: boolean }
+      ward_module_released: { Args: { p_module: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

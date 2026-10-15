@@ -48,6 +48,8 @@ function sessionUser(role: Role): SessionUser {
     username: null,
     themePreference: "system",
     isActive: true,
+    releasedModules: null,
+    isSuperAdmin: false,
   };
 }
 
@@ -1073,5 +1075,61 @@ describe("personal_tools.use", () => {
     silenceWarnings();
     const merged = mergeRoleAccess({ sacrament_manager: { add: ["personal_tools.use"] } });
     expect(can(sessionUser("sacrament_manager"), "personal_tools.use", merged)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RELEASED MODULES (ITER-041). can() refuses a permission the role holds when the ward being acted
+// in has not released its module — except for a super admin, and never for an always-on one.
+// ---------------------------------------------------------------------------
+describe("released-module narrowing", () => {
+  const withList = (role: Role, releasedModules: SessionUser["releasedModules"]): SessionUser => ({
+    ...sessionUser(role),
+    releasedModules,
+  });
+
+  it("refuses a role-granted permission whose module is unreleased", () => {
+    const bishop = withList("bishop", ["tithing"]);
+    expect(can(bishop, "agendas.view", ROLE_PERMISSIONS)).toBe(false);
+    expect(can(bishop, "roster.view", ROLE_PERMISSIONS)).toBe(false);
+    expect(() => assertCan(bishop, "agendas.view", ROLE_PERMISSIONS)).toThrow(ForbiddenError);
+  });
+
+  it("still grants what the ward has released", () => {
+    expect(can(withList("bishop", ["tithing"]), "tithing.view", ROLE_PERMISSIONS)).toBe(true);
+  });
+
+  // Decided 2026-10-15: role_access can never touch admin.* or sacrament.*, and the release list
+  // deliberately can — the super admin administers a ward whose Admin is unreleased.
+  it("reaches admin.* and sacrament.*, which role_access cannot", () => {
+    const bishop = withList("bishop", ["tithing"]);
+    expect(can(bishop, "admin.view", ROLE_PERMISSIONS)).toBe(false);
+    expect(can(bishop, "sacrament.view_assignments", ROLE_PERMISSIONS)).toBe(false);
+  });
+
+  it("lets a super admin through whatever the list says", () => {
+    const superAdminCounselor = { ...withList("counselor", ["tithing"]), isSuperAdmin: true };
+    expect(can(superAdminCounselor, "agendas.view", ROLE_PERMISSIONS)).toBe(true);
+    expect(can(superAdminCounselor, "admin.view", ROLE_PERMISSIONS)).toBe(true);
+  });
+
+  // The bypass is release-only: a super admin still holds only what their calling's role holds.
+  it("never widens a role beyond its own grants for a super admin", () => {
+    const superAdminMusic = { ...withList("music_coordinator", null), isSuperAdmin: true };
+    expect(can(superAdminMusic, "tithing.view", ROLE_PERMISSIONS)).toBe(false);
+  });
+
+  it("keeps always-on permissions on, even with nothing released", () => {
+    expect(can(withList("bishop", []), "notifications.view", ROLE_PERMISSIONS)).toBe(true);
+  });
+
+  it("changes nothing when the ward has no list", () => {
+    for (const role of ROLES) {
+      for (const permission of PERMISSIONS) {
+        expect(can(withList(role, null), permission, ROLE_PERMISSIONS)).toBe(
+          ROLE_PERMISSIONS[role].includes(permission),
+        );
+      }
+    }
   });
 });

@@ -38,6 +38,8 @@ const BISHOP: SessionUser = {
   username: null,
   themePreference: "system",
   isActive: true,
+  releasedModules: null,
+  isSuperAdmin: false,
 };
 
 function member(id: string, firstName: string, lastName: string): Member {

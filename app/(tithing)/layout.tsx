@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { NotPermitted } from "@/components/ui/NotPermitted";
+import { requireReleasedRoute } from "@/lib/access/requireReleasedRoute";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -23,6 +24,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 // about — 25 checks that ignored the ward's configuration because they went around can().
 export default async function TithingLayout({ children }: { children: ReactNode }) {
   const user = await requireSessionUser();
+  // Tithing unreleased in this ward goes back to the dashboard (ITER-041).
+  await requireReleasedRoute(user);
   const supabase = await createServerSupabaseClient();
   const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 

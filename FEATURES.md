@@ -190,6 +190,14 @@ Admin a calling in the new ward, so they can switch into it straight away. Renam
 screen renames the ward everywhere the app shows it. A ward unit made before this, with no ward
 behind it, says **"No ward set up behind this unit."**
 
+**Released modules** (2026-10-15). On Stakes & Wards the Super Admin can give each ward a list of
+the modules it has released — for example Speakers & Prayers and Tithing only. Everyone else in
+that ward sees only those modules: the other tiles are gone, a typed address to one goes back to
+the dashboard, and a quiet line says *"More tools are on the way for {ward}."* The Super Admin
+still sees and opens everything there, with a **"Hidden from this ward"** badge on each tile the ward
+has not released and an **Admin view** marker in the top bar. A ward with no list has everything.
+Notifications, the dashboard and your account are always on.
+
 **A leader who belongs to one ward never sees any of this.** No stake picker, no ward picker,
 nothing — the same logic already applied to roles, one layer up.
 

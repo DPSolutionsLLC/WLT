@@ -55,6 +55,8 @@ function sessionUser(
     username: null,
     themePreference: "system",
     isActive: true,
+    releasedModules: null,
+    isSuperAdmin: false,
   };
 }
 

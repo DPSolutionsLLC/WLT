@@ -79,6 +79,17 @@ describe("Tile", () => {
     expect(screen.queryByText("Pinned")).toBeNull();
   });
 
+  // ITER-041's "Hidden from this ward". A badge on a WORKING tile: still a link, never dimmed.
+  it("shows a note as a badge on a tile that still opens and is not dimmed", () => {
+    const { container } = render(<Tile href="/roster" label="Roster" note="Hidden from this ward" />);
+
+    expect(screen.getByText("Hidden from this ward")).toBeInTheDocument();
+    const tile = container.firstElementChild;
+    expect(tile?.tagName).toBe("A");
+    expect(tile).toHaveAttribute("href", "/roster");
+    expect(tile?.className).not.toContain("opacity-");
+  });
+
   it("hides a decorative icon from assistive technology", () => {
     const { container } = render(<Tile href="/x" label="X" icon={<span>◆</span>} />);
 

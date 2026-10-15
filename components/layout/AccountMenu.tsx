@@ -86,6 +86,16 @@ export function AccountMenu({ user, callingLabel, wardName }: AccountMenuProps) 
             </p>
           </div>
 
+          {/* ITER-041. The chrome bar's "Admin view" pill has no room on a phone, so the notice
+              lives here too. Shown at every width: the menu is where a person checks who they are
+              acting as, and the line costs nothing on a wide screen. */}
+          {user.isSuperAdmin && user.releasedModules !== null ? (
+            <p className="text-sm text-muted">
+              <span className="font-medium text-foreground">Admin view.</span> You see modules
+              this ward has not released.
+            </p>
+          ) : null}
+
           {/* Renders nothing at all for the great majority of people, who hold one calling. */}
           <WardSwitcher />
 

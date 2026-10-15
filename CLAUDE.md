@@ -1482,6 +1482,37 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   **Three-way review ("changed in the app since the last report") is deferred** to the Callings and
   Ministering modules, which need a stored snapshot. **The import never deletes anything**, and
   `updateMemberSchema` no longer defaults `status` (it was undoing move-outs on any PATCH).
+- **A WARD CAN RELEASE ONLY SOME MODULES, AND ONLY THE SUPER ADMIN DECIDES — DECIDED 2026-10-15
+  (ITER-041, migration 091, plans/released-modules-per-ward.md).** `ward_release_settings
+  (ward_id, released_modules text[])` narrows what ANYONE in that ward can reach; roles are
+  unchanged and bishop/counselor stay identical. **No row means everything** (every existing ward,
+  fixture and harness ward); an empty array means nothing. It has **a SELECT policy and no write
+  policy** — the only writer is `PUT /api/wards/[id]/released-modules` behind `isSuperAdmin`, never
+  `wards.settings`, which the bishopric can write. **Three layers read one catalog,
+  `lib/access/releasedModules.ts`:** `can()` refuses a permission whose module is unreleased
+  (unless `user.isSuperAdmin`); the (app) and (tithing) layouts bounce an unreleased page to
+  `/dashboard` (`requireReleasedRoute`, via the `x-wlt-pathname` header middleware sets); and a
+  **restrictive** policy on each module's OWN tables calls `ward_module_released()`.
+  `session_context()` carries `released_modules` and `is_super_admin`, so the app and RLS read one
+  answer (070e). **It deliberately reaches `admin.*` and `sacrament.*`**, which `role_access`
+  cannot — a ward configuring itself and the super admin narrowing it from above are different
+  acts. **Shared tables stay readable** (`sundays`, `members`, `households`, `organizations`,
+  `todos`, the AI and knowledge tables, everything account-level) because other modules read them;
+  a released module reading an unreleased module's own table would read empty, and nothing but the
+  catalog review prevents it. **Every permission must belong to exactly one module or be always on
+  (`notifications.*`)** — checked when `permissions.ts` loads; every top-level page folder must map
+  to a module or core (`tests/lib/releasedRoutesCovered.test.ts`); and the policies must equal the
+  catalog's `tables` (`tests/db/module-release-policies.test.ts`). **A new module adds its prefix,
+  its routes and its tables to the catalog AND a migration for the restrictive policy.**
+  Ordinary users see unreleased tiles **absent** plus "More tools are on the way for {ward}."; the
+  super admin sees every tile with a "Hidden from this ward" badge (never dimmed) and an **Admin view**
+  pill. The (youth) layout does **not** bounce (it would loop with the (app) layout's redirect), and
+  a layout does not re-render on client-side navigation, so the bounce covers typed URLs and full
+  loads while `can()` and RLS cover the rest. An access request approved for an unreleased module
+  has no visible effect until it is released. **Adding a ward on Stakes & Wards provisions a real
+  ward** (`lib/units/provisionWard.ts`: the ward, seven organizations, notification settings from
+  `lib/notifications/triggerDefaults.ts`, the fourth copy of the trigger list) and can give the
+  super admin a calling there.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

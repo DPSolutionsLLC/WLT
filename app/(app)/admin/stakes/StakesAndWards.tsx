@@ -7,6 +7,11 @@ import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import { Input } from "@/components/ui/Input";
 import { Pill } from "@/components/ui/Pill";
+import {
+  RELEASED_MODULES,
+  releasedModuleLabel,
+  type ReleasedModuleKey,
+} from "@/lib/access/releasedModules";
 import type { Unit, UnitType } from "@/types/domain";
 
 // STAKES AND WARDS. Create a stake, nest wards under it, and record the real unit numbers.
@@ -24,7 +29,11 @@ export type WardSummary = {
   id: string;
   name: string;
   unitId: string | null;
+  // The ward's released-modules list (migration 091). NULL MEANS EVERYTHING — the ward has none.
+  releasedModules: ReleasedModuleKey[] | null;
 };
+
+type ReleaseDraft = { everything: boolean; modules: ReleasedModuleKey[] };
 
 export type StakesAndWardsProps = {
   initialUnits: Unit[];
@@ -54,6 +63,18 @@ const EMPTY_DRAFT: Draft = {
 
 type SavedPayload = { unit?: Unit; ward?: WardSummary | null; callingCreated?: boolean };
 
+// WHERE A MESSAGE APPEARS. A message from the Add form shows inside the Add form, because that is
+// where the person is looking: the walk of scenario 090 found the "was created" sentence 6,564px
+// above the button that caused it. Edits and removals happen on a card, near the top.
+type MessagePlace = "top" | "add";
+
+const CATALOG_ORDER = new Map(RELEASED_MODULES.map((entry, index) => [entry.key, index]));
+
+// One fixed order however the boxes were ticked, so a ward's list reads the same every time.
+function inCatalogOrder(modules: readonly ReleasedModuleKey[]): ReleasedModuleKey[] {
+  return [...modules].sort((a, b) => (CATALOG_ORDER.get(a) ?? 0) - (CATALOG_ORDER.get(b) ?? 0));
+}
+
 export function StakesAndWards({
   initialUnits,
   wards: initialWards,
@@ -63,9 +84,15 @@ export function StakesAndWards({
   const [units, setUnits] = useState<Unit[]>(initialUnits);
   const [wards, setWards] = useState<WardSummary[]>(initialWards);
   const [notice, setNotice] = useState<string>();
+  const [editingRelease, setEditingRelease] = useState<string>();
+  const [releaseDraft, setReleaseDraft] = useState<ReleaseDraft>({
+    everything: true,
+    modules: [],
+  });
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
+  const [messagePlace, setMessagePlace] = useState<MessagePlace>("top");
   const [editing, setEditing] = useState<string>();
   const [editDraft, setEditDraft] = useState<{
     name: string;
@@ -94,11 +121,13 @@ export function StakesAndWards({
   async function send(
     path: string,
     method: "POST" | "PATCH" | "DELETE",
+    place: MessagePlace,
     body?: unknown,
   ): Promise<SavedPayload | null> {
     setIsSaving(true);
     setErrorMessage(undefined);
     setNotice(undefined);
+    setMessagePlace(place);
 
     try {
       const response = await fetch(path, {
@@ -138,7 +167,7 @@ export function StakesAndWards({
     // in, and the server refuses it there with a sentence.
     const asksForCalling = draft.type === "ward" && draft.giveMeACalling;
 
-    const payload = await send("/api/units", "POST", {
+    const payload = await send("/api/units", "POST", "add", {
       type: draft.type,
       name: draft.name,
       unitNumber: draft.unitNumber === "" ? null : draft.unitNumber,
@@ -169,7 +198,7 @@ export function StakesAndWards({
   // A ward's parent travels with the edit; a stake's never does, because nothing sits above a
   // stake on this screen and sending null would detach one that a script had placed under a unit.
   const handleSaveEdit = async (unit: Unit): Promise<void> => {
-    const payload = await send(`/api/units/${unit.id}`, "PATCH", {
+    const payload = await send(`/api/units/${unit.id}`, "PATCH", "top", {
       name: editDraft.name,
       unitNumber: editDraft.unitNumber === "" ? null : editDraft.unitNumber,
       ...(unit.type === "ward"
@@ -191,6 +220,141 @@ export function StakesAndWards({
     }
   };
 
+  // ONE PUT, the whole list. "Everything" sends null, which removes the ward's list rather than
+  // writing every key — so a module added to the app later reaches a ward that never narrowed.
+  const handleSaveRelease = async (ward: WardSummary): Promise<void> => {
+    const modules = releaseDraft.everything ? null : inCatalogOrder(releaseDraft.modules);
+
+    setIsSaving(true);
+    setErrorMessage(undefined);
+    setNotice(undefined);
+    setMessagePlace("top");
+
+    try {
+      const response = await fetch(`/api/wards/${ward.id}/released-modules`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ modules }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not save the released modules. Please try again.");
+      }
+
+      setWards((current) =>
+        current.map((entry) =>
+          entry.id === ward.id ? { ...entry, releasedModules: modules } : entry,
+        ),
+      );
+      setEditingRelease(undefined);
+      // The chrome bar's "Admin view" pill and the dashboard read the session, which the server
+      // renders, so the change is visible in the ward being acted in only after a refresh.
+      router.refresh();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not save the released modules. Please try again.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  function toggleReleaseModule(key: ReleasedModuleKey, checked: boolean) {
+    setReleaseDraft((current) => ({
+      ...current,
+      modules: checked
+        ? [...current.modules, key]
+        : current.modules.filter((entry) => entry !== key),
+    }));
+  }
+
+  function renderReleaseEditor(ward: WardSummary) {
+    if (editingRelease !== ward.id) {
+      return (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted">
+            {ward.releasedModules === null
+              ? "Released: Everything"
+              : ward.releasedModules.length === 0
+                ? "Released: Nothing"
+                : `Released: ${inCatalogOrder(ward.releasedModules).map(releasedModuleLabel).join(", ")}`}
+          </span>
+          {canManage && (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setEditingRelease(ward.id);
+                setReleaseDraft({
+                  everything: ward.releasedModules === null,
+                  modules: ward.releasedModules ?? [],
+                });
+              }}
+            >
+              Edit released modules
+            </Button>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <fieldset className="mt-3 flex flex-col gap-2">
+        <legend className="text-sm font-medium text-foreground">
+          Released modules for {ward.name}
+        </legend>
+        <label className="flex items-center gap-2 text-sm text-foreground">
+          <input
+            type="checkbox"
+            checked={releaseDraft.everything}
+            onChange={(event) =>
+              setReleaseDraft((current) => ({ ...current, everything: event.target.checked }))
+            }
+          />
+          Everything (no list)
+        </label>
+        {!releaseDraft.everything && (
+          <div className="flex flex-col gap-1 pl-6">
+            {RELEASED_MODULES.map((module) => (
+              <label key={module.key} className="flex items-center gap-2 text-sm text-foreground">
+                <input
+                  type="checkbox"
+                  checked={releaseDraft.modules.includes(module.key)}
+                  onChange={(event) => toggleReleaseModule(module.key, event.target.checked)}
+                />
+                {module.label}
+                {!module.built && <Pill tone="neutral">Not built yet</Pill>}
+              </label>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Button onClick={() => void handleSaveRelease(ward)} disabled={isSaving}>
+            {isSaving ? "Saving…" : "Save"}
+          </Button>
+          <Button variant="secondary" onClick={() => setEditingRelease(undefined)}>
+            Cancel
+          </Button>
+        </div>
+      </fieldset>
+    );
+  }
+
+  function renderMessages() {
+    return (
+      <>
+        <FormError message={errorMessage} />
+        {notice && (
+          <p role="status" className="text-sm text-foreground">
+            {notice}
+          </p>
+        )}
+      </>
+    );
+  }
+
   const handleDelete = async (unit: Unit): Promise<void> => {
     // A plain confirm, and the refusal that matters is the SERVER'S: a stake with wards under it
     // fails on `on delete restrict` and comes back as a sentence naming what to do first. A
@@ -198,7 +362,7 @@ export function StakesAndWards({
     // the constraint rather than here.
     if (!window.confirm(`Remove ${unit.name}? This cannot be undone.`)) return;
 
-    const payload = await send(`/api/units/${unit.id}`, "DELETE");
+    const payload = await send(`/api/units/${unit.id}`, "DELETE", "top");
     if (payload) setUnits((current) => current.filter((entry) => entry.id !== unit.id));
   };
 
@@ -230,6 +394,11 @@ export function StakesAndWards({
         {unit.type === "ward" && wardsForUnit(unit.id).length === 0 && (
           <p className="mt-2 text-sm text-muted">No ward set up behind this unit.</p>
         )}
+
+        {unit.type === "ward" &&
+          wardsForUnit(unit.id).map((ward) => (
+            <div key={ward.id}>{renderReleaseEditor(ward)}</div>
+          ))}
 
         {unit.type === "stake" && (
           <p className="mt-2 text-sm text-muted">
@@ -317,12 +486,7 @@ export function StakesAndWards({
 
   return (
     <div className="flex flex-col gap-4">
-      <FormError message={errorMessage} />
-      {notice && (
-        <p role="status" className="text-sm text-foreground">
-          {notice}
-        </p>
-      )}
+      {messagePlace === "top" && renderMessages()}
 
       {units.length === 0 && (
         <Card>
@@ -458,6 +622,8 @@ export function StakesAndWards({
                 {isSaving ? "Saving…" : "Add it"}
               </Button>
             </div>
+
+            {messagePlace === "add" && renderMessages()}
           </div>
         </Card>
       )}

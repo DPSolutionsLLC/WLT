@@ -34,6 +34,8 @@ function sessionUser(role: Role): SessionUser {
     username: null,
     themePreference: "system",
     isActive: true,
+    releasedModules: null,
+    isSuperAdmin: false,
   };
 }
 

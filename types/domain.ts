@@ -239,6 +239,26 @@ export type AccessRequest = {
   createdAt: string;
 };
 
+// THE RELEASED-MODULE KEYS (ITER-041, migration 091) — the values `ward_release_settings` may
+// hold. Here beside ROLES because it is an enum the harness and the app both compile; what each
+// module CONTAINS (permissions, routes, tables, labels) is lib/access/releasedModules.ts, which
+// checks at load that it describes exactly these keys.
+export const RELEASED_MODULE_KEYS = [
+  "sacrament",
+  "speakers",
+  "agendas",
+  "roster",
+  "visits",
+  "youth",
+  "tithing",
+  "personal_tools",
+  "knowledge",
+  "ai_settings",
+  "admin",
+  "sacrament_ordinances",
+] as const;
+export type ReleasedModuleKey = (typeof RELEASED_MODULE_KEYS)[number];
+
 export const ORGANIZATION_TYPES = [
   "bishopric",
   "elders_quorum",
@@ -1378,6 +1398,14 @@ export type SessionUser = {
   username: string | null;
   themePreference: ThemePreference;
   isActive: boolean;
+  // THE MODULES THE WARD BEING ACTED IN HAS RELEASED (migration 091), from session_context() in
+  // the same round trip as the role, so can() and RLS read one answer (070e). NULL MEANS
+  // EVERYTHING — the ward has no list. REQUIRED, with no default anywhere: a default is how an
+  // access check silently opts out (ITER-005).
+  releasedModules: readonly ReleasedModuleKey[] | null;
+  // is_super_admin(), from the same round trip. A super admin sees every module in every ward,
+  // so can() skips the release narrowing for them — exactly as ward_module_released() does.
+  isSuperAdmin: boolean;
 };
 
 // ---------------------------------------------------------------------------

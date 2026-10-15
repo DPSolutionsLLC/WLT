@@ -46,6 +46,8 @@ const YOUTH_SESSION_USER: SessionUser = {
   username: "jsmith",
   themePreference: "system",
   isActive: true,
+  releasedModules: null,
+  isSuperAdmin: false,
 };
 
 // Every permission guarding a page whose tables a policy would happily serve rows for.

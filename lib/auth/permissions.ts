@@ -1,5 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import {
+  assertPermissionsArePlaced,
+  isModuleReleased,
+  moduleOfPermission,
+} from "@/lib/access/releasedModules";
 import { ForbiddenError } from "@/lib/auth/errors";
 import type { Database } from "@/types/database";
 import {
@@ -81,6 +86,11 @@ export const PERMISSIONS = [
 ] as const;
 
 export type KnownPermission = (typeof PERMISSIONS)[number];
+
+// Every permission must belong to exactly one released module, or be always on. Checked here, at
+// load, so a permission added without being placed fails every page rather than quietly escaping
+// the release list (lib/access/releasedModules.ts).
+assertPermissionsArePlaced(PERMISSIONS);
 
 // Bishopric admin authority is shared (CLAUDE.md §7). These are the permissions the
 // bishop/counselor equivalence test loops over exhaustively.
@@ -445,7 +455,20 @@ export function can(
 ): boolean {
   const granted = roleAccess[user.role];
   if (!granted) return false;
-  return granted.includes(permission);
+  if (!granted.includes(permission)) return false;
+
+  // RELEASE NARROWING (ITER-041, migration 091). A permission the role holds is still refused when
+  // its module is not released in the ward being acted in — unless the session is a super admin,
+  // who sees everything everywhere, exactly as ward_module_released() answers in RLS.
+  //
+  // THIS DELIBERATELY REACHES admin.* AND sacrament.*, which role_access can never touch in either
+  // direction. That is not an inconsistency to fix: role_access is a ward configuring ITSELF, and
+  // the release list is the super admin narrowing a ward from above — a ward whose Admin is
+  // unreleased is meant to lose it, and the super admin does its administration instead.
+  const owningModule = moduleOfPermission(permission);
+  if (owningModule !== null && !isModuleReleased(user, owningModule)) return false;
+
+  return true;
 }
 
 // No default — see can() above.
