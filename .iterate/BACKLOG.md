@@ -7,7 +7,6 @@ _Last updated: 2026-10-15_
 ## In Progress
 Items currently being planned or actively worked.
 
-- [ ] ITER-041 — Released modules per ward, and a ward you can create → [scope](.iterate/scopes/ITER-041.md) | [plan](plans/released-modules-per-ward.md) _(GROUP-03, second of three)_
 - [ ] ITER-039 — Move the app to wardleadershiptools.com and send email from it → [scope](.iterate/scopes/ITER-039.md) | [plan](plans/custom-domain-and-email-sender.md)
 - [ ] ITER-034 — Youth Support: the module the user actually wants → [scope](.iterate/scopes/ITER-034.md) — **PARKED 2026-08-31**
   _Raised by the user 2026-08-31 after walking 062 and 063, and **this is the destination Phase 8
@@ -67,6 +66,7 @@ test ward (data kept as-is), a new real ward is created, and its roster comes fr
 LCR ward list report. The tracker's history is the source of truth from day one; Sacrament
 migrates FROM it later, never the reverse. **Plan in this order** — each needs the one before._
 - ITER-040 — _completed 2026-10-14 (d20c367)_
+- ITER-041 — _completed 2026-10-15 (a234706, 4c1e1fd)_
 - [ ] ITER-042 — Speakers & Prayers: a standalone tracker for the bishopric → [scope](.iterate/scopes/ITER-042.md)
 
 ---
@@ -317,6 +317,7 @@ _Items that need testing or further exploration before scoping. Each entry shoul
 
 ## Completed
 
+- [x] ITER-041 — Released modules per ward, and a ward you can create _(completed 2026-10-15, a234706 + 4c1e1fd — adding a ward on Stakes & Wards provisions a real ward and can give the super admin a calling there; each ward gets a super-admin-only released-modules list that narrows `can()`, bounces unreleased pages and refuses their tables (migration 091). Scenarios 090 and 091 walked; a phone-width pill overflow and an off-screen created message fixed. Slice c (onboarding Buffalo) is a runbook in the retro: deploy first. GROUP-03 next: ITER-042)_
 - [x] ITER-040 — Roster import: paste the church's ward list report _(completed 2026-10-14, d20c367 — the CSV upload is replaced by a paste of the LCR ward list report, rebuilt by tab count, matched on full name + birth date, and reviewed as a checklist (new / changed / addresses / no longer listed, move-outs unticked, partial-paste guard). Migration 090 adds the member fields and `apply_roster_paste`, which never deletes. Scenario 089 walked; two small defects fixed. GROUP-03 next: ITER-041)_
 - [x] ITER-038 — Music coordinator handoff and conductor approval _(completed 2026-10-04, 1bc33b9 + 4c0ce53 + b22aa82 — `ma` made the chorister and organist real fields on migration 089's `sunday_music` (SELECT-only; every write through `lib/music/`), `mb` added submit → conductor review → approve or send back with a note, reopening on any change, and `mc` made finalizing topics hand the Sunday to every music coordinator (To Do, notification, opt-in email), reopening submitted music when the topics change. Scenarios 087 and 088 walked. Not built: roster-derived chorister/organist defaults. GROUP-02 now has ITER-035 and ITER-037, both waiting on P7 Prayer Items)_
 - [x] ITER-036 — Finalize hands speakers and prayers to To Do _(completed 2026-10-02, 3f4c835 + 17daa9d — `fa` replaced Send asks with **Finalize speakers** and `fb` gave prayers the same finalize on migration 088. A change of person un-finalizes and withdraws the old ask (deleted / closed / kept-and-unlinked if scheduled); a decline never un-finalizes. `fb` also made a change of who prays start the prayer over at Assigned, and fixed `listToldPrayerIds()` to count only stamped rows. Suggested next in GROUP-02: ITER-038)_

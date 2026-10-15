@@ -2,7 +2,7 @@
 id: released-modules-per-ward
 type: feature
 iter: ITER-041
-commits: []
+commits: ["a234706", "4c1e1fd"]
 date: 2026-10-15
 files:
   - supabase/migrations/091_released_modules.sql

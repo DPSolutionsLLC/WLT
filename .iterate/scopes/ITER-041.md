@@ -1,7 +1,9 @@
 # ITER-041: Released modules per ward, and the real ward
 
 **Type:** Modification
-**Status:** In Progress
+**Status:** Completed
+**Completed:** 2026-10-15
+**Commit:** a234706 (slice a), 4c1e1fd (slice b)
 **Plan:** plans/released-modules-per-ward.md
 **Created:** 2026-10-14
 
