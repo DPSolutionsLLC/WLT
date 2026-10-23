@@ -20,6 +20,7 @@ import {
   Users,
 } from "lucide-react";
 import type { TileAccent } from "@/components/ui/Tile";
+import { isModuleReleased, moduleForPath } from "@/lib/access/releasedModules";
 import { can, type KnownPermission, type RoleAccess } from "@/lib/auth/permissions";
 import type { SessionUser } from "@/types/domain";
 
@@ -355,12 +356,17 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
 // ONE FILTER, SHARED BY BOTH VIEWS BELOW. The dashboard grid and a page's shortcut row are two
 // VIEWS of one list and differ in exactly one flag; copying this predicate into the second one is
 // how they come to disagree about whether an unbuilt module may be linked to.
+//
+// AND RELEASED BY ROUTE (ITER-044). Topic history owns a route and no permission, so can() alone
+// would offer its tile in a ward that has not released it.
 function isReachable(
   item: NavigationItem,
   user: SessionUser,
   roleAccess: RoleAccess,
 ): boolean {
-  return item.built && can(user, item.permission, roleAccess);
+  if (!item.built || !can(user, item.permission, roleAccess)) return false;
+  const owningModule = moduleForPath(item.href);
+  return owningModule === null || isModuleReleased(user, owningModule);
 }
 
 // THE DASHBOARD GRID, and — through it — the quick-links modal. Reachable, and meant to be

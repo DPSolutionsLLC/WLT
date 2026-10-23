@@ -1119,6 +1119,24 @@ describe("released-module narrowing", () => {
     expect(can(superAdminMusic, "tithing.view", ROLE_PERMISSIONS)).toBe(false);
   });
 
+  // ITER-044: Sacrament meeting no longer carries music, the programme or the calendar.
+  it("releases the Sacrament tile's permissions alone under Sacrament meeting", () => {
+    const bishop = withList("bishop", ["sacrament", "tithing"]);
+    expect(can(bishop, "talks.view", ROLE_PERMISSIONS)).toBe(true);
+    expect(can(bishop, "topics.manage", ROLE_PERMISSIONS)).toBe(true);
+    expect(can(bishop, "music.view", ROLE_PERMISSIONS)).toBe(false);
+    expect(can(bishop, "program.view", ROLE_PERMISSIONS)).toBe(false);
+    expect(can(bishop, "calendar.view", ROLE_PERMISSIONS)).toBe(false);
+    expect(can(bishop, "calendar.manage", ROLE_PERMISSIONS)).toBe(false);
+  });
+
+  it("releases each split-off module on its own", () => {
+    const bishop = withList("bishop", ["sacrament", "music"]);
+    expect(can(bishop, "music.manage", ROLE_PERMISSIONS)).toBe(true);
+    expect(can(bishop, "program.view", ROLE_PERMISSIONS)).toBe(false);
+    expect(can(bishop, "calendar.view", ROLE_PERMISSIONS)).toBe(false);
+  });
+
   it("keeps always-on permissions on, even with nothing released", () => {
     expect(can(withList("bishop", []), "notifications.view", ROLE_PERMISSIONS)).toBe(true);
   });

@@ -208,20 +208,34 @@ describe("StakesAndWards", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Edit released modules" }));
       fireEvent.click(screen.getByLabelText("Everything (no list)"));
-      expect(screen.getByText("Not built yet")).toBeInTheDocument();
       // Ticked out of catalog order on purpose: the list is saved and shown in one fixed order.
       fireEvent.click(screen.getByLabelText("Tithing"));
-      fireEvent.click(screen.getByLabelText(/Speakers & Prayers/));
+      fireEvent.click(screen.getByLabelText("Sacrament meeting"));
       fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
       const fetchMock = vi.mocked(fetch);
       await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
       expect(fetchMock.mock.calls[0][0]).toBe(`/api/wards/${BUFFALO.id}/released-modules`);
       expect((fetchMock.mock.calls[0][1] as RequestInit).method).toBe("PUT");
-      expect(sentBody(fetchMock)).toEqual({ modules: ["speakers", "tithing"] });
+      expect(sentBody(fetchMock)).toEqual({ modules: ["sacrament", "tithing"] });
       expect(
-        await screen.findByText("Released: Speakers & Prayers, Tithing"),
+        await screen.findByText("Released: Sacrament meeting, Tithing"),
       ).toBeInTheDocument();
+    });
+
+    // ITER-044: the four tiles that used to ride on Sacrament meeting are their own tickboxes,
+    // and the never-built Speakers & Prayers placeholder is gone.
+    it("offers the split-off modules separately and no Speakers & Prayers", () => {
+      render(<StakesAndWards initialUnits={[STAKE, WARD_UNIT]} wards={[BUFFALO]} canManage />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Edit released modules" }));
+      fireEvent.click(screen.getByLabelText("Everything (no list)"));
+
+      for (const label of ["Sacrament meeting", "Topic history", "Program", "Music", "Calendar"]) {
+        expect(screen.getByLabelText(label)).toBeInTheDocument();
+      }
+      expect(screen.queryByLabelText(/Speakers & Prayers/)).not.toBeInTheDocument();
+      expect(screen.queryByText("Not built yet")).not.toBeInTheDocument();
     });
 
     it("sends null for Everything", async () => {

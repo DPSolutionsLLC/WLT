@@ -14,7 +14,8 @@ import {
 //
 // The same data, seen three ways: a bishop who sees only Tithing, a super admin who sees
 // everything with the unreleased tiles marked, and a ward secretary for a second ordinary view.
-// Buffalo Ward's real list is Speakers & Prayers + Tithing, and that is what is seeded.
+// The list is Tithing alone. (It was Speakers & Prayers + Tithing until ITER-044 removed that
+// never-built placeholder; scenario 092 seeds Buffalo's real list.)
 //
 // THE AGENDA IS THE EVIDENCE. A refused read is an empty result, and an empty result is also what
 // a ward with no agendas shows — so one agenda exists, and its absence for the bishop and its
@@ -25,7 +26,7 @@ export async function seed(): Promise<void> {
   // A stake above the ward, so Stakes & Wards shows the ward's card and its release editor.
   await ensureTestUnits();
   await seedNotificationTriggers();
-  await setReleasedModules(TEST_WARD_ID, ["speakers", "tithing"]);
+  await setReleasedModules(TEST_WARD_ID, ["tithing"]);
 
   await createTestUser({
     handle: "bishop",
@@ -52,8 +53,8 @@ export async function seed(): Promise<void> {
     lastName: "Brooks",
   });
 
-  // Members stay readable whatever the list (migration 091 leaves them unrestricted), which is
-  // what Speakers & Prayers will need.
+  // Members stay readable whatever the list (migration 091 leaves them unrestricted), because
+  // other modules read the people.
   await createMember({ firstName: "Ethan", lastName: "Cortez" });
   await createMember({ firstName: "Elena", lastName: "Cortez" });
 

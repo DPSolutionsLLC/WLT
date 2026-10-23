@@ -9,7 +9,7 @@ prerequisites: none
 ## Purpose
 
 A ward's released-modules list changes what people see from the same data. The bishop of a ward
-that released only Speakers & Prayers and Tithing sees Tithing and a "coming soon" line. A typed
+that released only Tithing sees Tithing and a "coming soon" line. A typed
 URL to anything else lands on the dashboard, and the database hides the rows. The super admin
 sees everything, with the unreleased tiles marked, and is the only person who can change the list.
 
@@ -18,7 +18,7 @@ sees everything, with the unreleased tiles marked, and is the only person who ca
 | Entity | Detail |
 |---|---|
 | Wards | 1: "Harness Test Ward", under "Harness Test Stake" |
-| Released modules | `speakers`, `tithing` |
+| Released modules | `tithing` |
 | Users | `bishop` (bishop), `admin` (counselor **plus** app-wide super admin), `secretary` (ward secretary) |
 | Data | 2 members, 1 bishopric agenda dated 2026-10-18 |
 
@@ -44,7 +44,7 @@ sees everything, with the unreleased tiles marked, and is the only person who ca
 - [ ] `admin` sees every tile; the unreleased ones carry "Hidden from this ward" and still open
 - [ ] `admin`'s chrome bar shows **Admin view**; the bishop's does not
 - [ ] `admin` opens `/agendas` (the agenda is listed) and `/admin/stakes` in this ward
-- [ ] Stakes & wards reads "Released: Speakers & Prayers, Tithing" before the edit
+- [ ] Stakes & wards reads "Released: Tithing" before the edit
 - [ ] After the edit, `ward_release_settings.released_modules` includes `agendas`, and a
       `released_modules_updated` audit row names the ward and the keys
 - [ ] The bishop then sees the Agendas tile and the 2026-10-18 agenda
@@ -59,6 +59,11 @@ sees everything, with the unreleased tiles marked, and is the only person who ca
 - [ ] At 375px and in dark mode, do the release editor's checkboxes and the pill stay usable?
 
 ## Walkthrough record
+
+> **Revised for ITER-044 (2026-10-23).** The seeded list was `speakers`, `tithing`; the
+> Speakers & Prayers placeholder no longer exists, so it is now `tithing` alone and the card reads
+> "Released: Tithing". The walks below were recorded against the old list. Their
+> `["speakers",…]` values and "Released: Speakers & Prayers, …" lines are history, not failures.
 
 ### 2026-10-15 — agent-driven (Claude, Playwright), screenshots for human review
 

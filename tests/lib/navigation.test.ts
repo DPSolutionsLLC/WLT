@@ -11,7 +11,7 @@ import {
   can,
   mergeRoleAccess,
 } from "@/lib/auth/permissions";
-import { ROLES, type Role, type SessionUser } from "@/types/domain";
+import { ROLES, type ReleasedModuleKey, type Role, type SessionUser } from "@/types/domain";
 
 function sessionUser(role: Role): SessionUser {
   return {
@@ -414,5 +414,52 @@ describe("shortcut navigation", () => {
 
     expect(hrefs).not.toContain("/talks/topics");
     expect(hrefs).toContain("/music");
+  });
+});
+
+// ITER-044: a tile is offered only where its module is released, judged by its ROUTE. Topic
+// history has no permission of its own, so can() alone would offer it everywhere.
+describe("released-module narrowing", () => {
+  const SPLIT_TILES = ["/talks/topics", "/program", "/music", "/calendar"] as const;
+
+  function withList(releasedModules: ReleasedModuleKey[], isSuperAdmin = false): SessionUser {
+    return { ...sessionUser("bishop"), releasedModules, isSuperAdmin };
+  }
+
+  function dashboardHrefs(user: SessionUser): string[] {
+    return visibleNavigationItems(user, ROLE_PERMISSIONS).map((item) => item.href);
+  }
+
+  it("shows the Sacrament tile alone when only Sacrament meeting is released", () => {
+    const hrefs = dashboardHrefs(withList(["sacrament", "tithing"]));
+
+    expect(hrefs).toContain("/sacrament");
+    expect(hrefs).toContain("/tithing");
+    for (const href of SPLIT_TILES) {
+      expect(hrefs, `"${href}" belongs to a module this ward has not released`).not.toContain(href);
+    }
+  });
+
+  it("shows the topic history once it is released", () => {
+    expect(dashboardHrefs(withList(["sacrament", "topic_history"]))).toContain("/talks/topics");
+  });
+
+  it("shows every tile to a super admin, whatever the list says", () => {
+    const hrefs = dashboardHrefs(withList(["sacrament", "tithing"], true));
+
+    for (const href of ["/sacrament", ...SPLIT_TILES]) {
+      expect(hrefs).toContain(href);
+    }
+  });
+
+  it("leaves the hub's shortcut row without the unreleased modules", () => {
+    const hrefs = shortcutNavigationItems(withList(["sacrament", "roster"]), ROLE_PERMISSIONS, [
+      "/roster",
+      "/talks/topics",
+      "/music",
+      "/program",
+    ]).map((item) => item.href);
+
+    expect(hrefs).toEqual(["/roster"]);
   });
 });

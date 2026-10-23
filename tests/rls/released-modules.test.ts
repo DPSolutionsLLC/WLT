@@ -148,3 +148,100 @@ describe("released modules RLS", () => {
     expect(data).toEqual([{ id: agendaAId }]);
   });
 });
+
+// ITER-044, migration 092: Sacrament meeting no longer carries the programme or the calendar, and
+// the music tables are shared. Ward A releases `sacrament` alone. The rows are the bishop's own
+// ward's and readable under every other policy, so the release rule is the only reason for the
+// refusal — and the control is the same bishop reading the same rows once the list widens.
+describe("released modules RLS — the split sacrament modules", () => {
+  let fixtures: Fixtures;
+  let service: SupabaseClient<Database>;
+  let bishopA: SupabaseClient<Database>;
+  let programId: string;
+  let rotationId: string;
+  let hymnSelectionId: string;
+
+  async function setList(modules: string[]) {
+    const { error } = await service
+      .from("ward_release_settings")
+      .upsert({ ward_id: fixtures.wardAId, released_modules: modules });
+    if (error) throw new Error(error.message);
+  }
+
+  beforeAll(async () => {
+    fixtures = await seedFixtures(["bishop"]);
+    service = fixtures.service;
+
+    const { data: program, error: programError } = await service
+      .from("programs")
+      .insert({ ward_id: fixtures.wardAId })
+      .select("id")
+      .single();
+    if (programError) throw new Error(programError.message);
+    programId = program.id;
+
+    const { data: rotation, error: rotationError } = await service
+      .from("conducting_rotation")
+      .insert({
+        ward_id: fixtures.wardAId,
+        position: 1,
+        effective_from: TODAY,
+        user_id: fixtures.user("bishop").id,
+      })
+      .select("id")
+      .single();
+    if (rotationError) throw new Error(rotationError.message);
+    rotationId = rotation.id;
+
+    const { data: hymn, error: hymnError } = await service
+      .from("hymn_selections")
+      .insert({ ward_id: fixtures.wardAId, hymn_type: "opening", hymn_number: 1 })
+      .select("id")
+      .single();
+    if (hymnError) throw new Error(hymnError.message);
+    hymnSelectionId = hymn.id;
+
+    await setList(["sacrament"]);
+    bishopA = await asRole(fixtures, "bishop");
+  });
+
+  afterAll(async () => {
+    await service?.from("ward_release_settings").delete().eq("ward_id", fixtures.wardAId);
+    await fixtures?.cleanup();
+  });
+
+  it("hides the programme and the rotation under Sacrament meeting alone", async () => {
+    const { data: programs, error: programsError } = await bishopA
+      .from("programs")
+      .select("id")
+      .eq("id", programId);
+    expect(programsError).toBeNull();
+    expect(programs).toEqual([]);
+
+    const { data: rotation, error: rotationError } = await bishopA
+      .from("conducting_rotation")
+      .select("id")
+      .eq("id", rotationId);
+    expect(rotationError).toBeNull();
+    expect(rotation).toEqual([]);
+  });
+
+  // D4: Sacrament cancels a lost meeting's hymns, so the music tables must stay readable.
+  it("still serves the hymn selections, which Sacrament shares", async () => {
+    const { data } = await bishopA.from("hymn_selections").select("id").eq("id", hymnSelectionId);
+    expect(data).toEqual([{ id: hymnSelectionId }]);
+  });
+
+  it("serves the programme and the rotation once Program and Calendar are released", async () => {
+    await setList(["sacrament", "program", "calendar"]);
+
+    const { data: programs } = await bishopA.from("programs").select("id").eq("id", programId);
+    expect(programs).toEqual([{ id: programId }]);
+
+    const { data: rotation } = await bishopA
+      .from("conducting_rotation")
+      .select("id")
+      .eq("id", rotationId);
+    expect(rotation).toEqual([{ id: rotationId }]);
+  });
+});

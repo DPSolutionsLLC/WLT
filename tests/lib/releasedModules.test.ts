@@ -4,6 +4,7 @@ import {
   RELEASED_MODULES,
   assertPermissionsArePlaced,
   isModuleReleased,
+  isReleasedModuleKey,
   moduleForPath,
   moduleOfPermission,
   unreleasedBuiltModules,
@@ -60,8 +61,17 @@ describe("moduleOfPermission", () => {
 describe("moduleForPath", () => {
   it("matches whole segments only", () => {
     expect(moduleForPath("/talks")).toBe("sacrament");
-    expect(moduleForPath("/talks/topics")).toBe("sacrament");
     expect(moduleForPath("/talkative")).toBeNull();
+  });
+
+  // ITER-044: Sacrament meeting releases the Sacrament tile alone.
+  it("splits the sacrament area into five modules", () => {
+    expect(moduleForPath("/talks/topics")).toBe("topic_history");
+    expect(moduleForPath("/assignments/x")).toBe("sacrament");
+    expect(moduleForPath("/prayers")).toBe("sacrament");
+    expect(moduleForPath("/program/x")).toBe("program");
+    expect(moduleForPath("/music")).toBe("music");
+    expect(moduleForPath("/calendar/sunday/x")).toBe("calendar");
   });
 
   it("prefers the longest matching prefix", () => {
@@ -101,10 +111,26 @@ describe("unreleasedBuiltModules", () => {
     expect(unreleasedBuiltModules(null)).toEqual([]);
   });
 
-  it("names built modules only — an unbuilt one left off is not news", () => {
+  it("names the built modules the ward has not released", () => {
     const withheld = unreleasedBuiltModules(["tithing"]);
     expect(withheld).toContain("roster");
-    expect(withheld).not.toContain("speakers");
     expect(withheld).not.toContain("tithing");
+  });
+});
+
+describe("isReleasedModuleKey", () => {
+  it("knows the split modules and no longer knows the Speakers & Prayers placeholder", () => {
+    expect(isReleasedModuleKey("topic_history")).toBe(true);
+    expect(isReleasedModuleKey("calendar")).toBe(true);
+    expect(isReleasedModuleKey("speakers")).toBe(false);
+  });
+});
+
+describe("the split sacrament modules", () => {
+  it("places each split-off permission in its own module", () => {
+    expect(moduleOfPermission("topics.manage")).toBe("sacrament");
+    expect(moduleOfPermission("program.view")).toBe("program");
+    expect(moduleOfPermission("music.manage")).toBe("music");
+    expect(moduleOfPermission("calendar.manage")).toBe("calendar");
   });
 });

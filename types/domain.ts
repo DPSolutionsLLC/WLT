@@ -245,7 +245,10 @@ export type AccessRequest = {
 // checks at load that it describes exactly these keys.
 export const RELEASED_MODULE_KEYS = [
   "sacrament",
-  "speakers",
+  "topic_history",
+  "program",
+  "music",
+  "calendar",
   "agendas",
   "roster",
   "visits",

@@ -59,11 +59,11 @@ describe("PUT /api/wards/[id]/released-modules", () => {
 
   it("lets a super admin set another ward's list, and audits it", async () => {
     await actAs(fixtures, "superAdmin");
-    const { status, body } = await put(fixtures.wardBId, { modules: ["speakers", "tithing"] });
+    const { status, body } = await put(fixtures.wardBId, { modules: ["sacrament", "tithing"] });
 
     expect(status).toBe(200);
-    expect(body).toEqual({ wardId: fixtures.wardBId, modules: ["speakers", "tithing"] });
-    expect(await readList(fixtures.wardBId)).toEqual(["speakers", "tithing"]);
+    expect(body).toEqual({ wardId: fixtures.wardBId, modules: ["sacrament", "tithing"] });
+    expect(await readList(fixtures.wardBId)).toEqual(["sacrament", "tithing"]);
 
     const { data: audit } = await fixtures.service
       .from("audit_log")
@@ -73,7 +73,7 @@ describe("PUT /api/wards/[id]/released-modules", () => {
     expect(audit).toEqual([
       {
         ward_id: fixtures.wardAId,
-        detail: { targetWardId: fixtures.wardBId, modules: ["speakers", "tithing"] },
+        detail: { targetWardId: fixtures.wardBId, modules: ["sacrament", "tithing"] },
       },
     ]);
   });

@@ -1513,6 +1513,14 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   ward** (`lib/units/provisionWard.ts`: the ward, seven organizations, notification settings from
   `lib/notifications/triggerDefaults.ts`, the fourth copy of the trigger list) and can give the
   super admin a calling there.
+  **`sacrament` WAS SPLIT — ITER-044, migration 092, 2026-10-23.** It now releases the Sacrament
+  tile alone; `topic_history`, `program`, `music` and `calendar` are their own keys, and the
+  never-built `speakers` placeholder is gone (saved lists were NOT widened). **Topic history owns
+  a route and no permission or table** (its page reads the talks), so `isReachable()` in
+  `lib/auth/navigation.tsx` also checks the tile's ROUTE module. **Music owns no table**:
+  `hymn_selections`, `musical_numbers` and `sunday_music` are written by Sacrament (cancelling a
+  lost meeting's music) and read by Program, so they lost their release policy and Music is refused
+  through `can()` alone.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

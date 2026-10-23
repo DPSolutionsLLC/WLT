@@ -35,18 +35,10 @@ export const RELEASED_MODULES = [
   {
     key: "sacrament",
     label: "Sacrament meeting",
-    description: "Talks, prayers, topics, music, the programme and the calendar.",
+    description: "The Sacrament tile: each Sunday's talks, prayers and topics.",
     built: true,
-    permissionPrefixes: ["talks.", "topics.", "program.", "music.", "calendar."],
-    routePrefixes: [
-      "/sacrament",
-      "/assignments",
-      "/prayers",
-      "/talks",
-      "/program",
-      "/music",
-      "/calendar",
-    ],
+    permissionPrefixes: ["talks.", "topics."],
+    routePrefixes: ["/sacrament", "/assignments", "/prayers", "/talks"],
     tables: [
       "assignments",
       "assignment_approvals",
@@ -56,24 +48,50 @@ export const RELEASED_MODULES = [
       "prayer_assignments",
       "topics",
       "topic_candidates",
-      "programs",
-      "hymn_selections",
-      "musical_numbers",
-      "sunday_music",
-      "conducting_rotation",
-      "sunday_org_conducting",
     ],
   },
   {
-    // Named now so Buffalo's list can carry it today. ITER-042 adds its `speakers.` permissions,
-    // its route, its tables (with a migration adding their restrictive policy) and flips `built`.
-    key: "speakers",
-    label: "Speakers & Prayers",
-    description: "The bishopric's tracker of who has spoken and prayed.",
-    built: false,
+    // A route and nothing else (ITER-044). Its page reads the talks, which are Sacrament's, and
+    // `topics.manage` is used by the hub and by music approval, so `topics.*` stays with
+    // Sacrament. It is hidden by its route: the bounce, and isReachable() in lib/auth/navigation.
+    // `/talks/topics` is longer than `/talks`, so it wins the match (moduleForPath).
+    key: "topic_history",
+    label: "Topic history",
+    description: "Every topic used, when, and by whom.",
+    built: true,
     permissionPrefixes: [],
-    routePrefixes: [],
+    routePrefixes: ["/talks/topics"],
     tables: [],
+  },
+  {
+    key: "program",
+    label: "Program",
+    description: "Build, approve and publish the sacrament programme.",
+    built: true,
+    permissionPrefixes: ["program."],
+    routePrefixes: ["/program"],
+    tables: ["programs"],
+  },
+  {
+    // No table of its own (migration 092): hymn_selections, musical_numbers and sunday_music are
+    // also read and written by Sacrament (cancelling a lost meeting's music, the reconcile) and
+    // by Program, so refusing them with Music would break those. Music is refused through can().
+    key: "music",
+    label: "Music",
+    description: "Hymns, the chorister and organist, and music review.",
+    built: true,
+    permissionPrefixes: ["music."],
+    routePrefixes: ["/music"],
+    tables: [],
+  },
+  {
+    key: "calendar",
+    label: "Calendar",
+    description: "Every Sunday, who conducts, and the rotation.",
+    built: true,
+    permissionPrefixes: ["calendar."],
+    routePrefixes: ["/calendar"],
+    tables: ["conducting_rotation", "sunday_org_conducting"],
   },
   {
     key: "agendas",
@@ -85,7 +103,7 @@ export const RELEASED_MODULES = [
     tables: ["agendas", "action_items"],
   },
   {
-    // members and households stay readable: Speakers & Prayers reads the people. Only the roster's
+    // members and households stay readable: other modules read the people. Only the roster's
     // pages, its actions and its notes are this module's.
     key: "roster",
     label: "Roster",

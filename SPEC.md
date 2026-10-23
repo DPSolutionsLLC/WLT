@@ -74,6 +74,16 @@ ReleasedModuleKey[] | null` and `isSuperAdmin: boolean` (both required). `PUT
 /api/wards/[id]/released-modules` with `{ modules: string[] | null }` — super admin only;
 `null` removes the row; audited as `released_modules_updated` with `{ targetWardId, modules }`.
 
+Module keys (ITER-044, migration 092): `sacrament`, `topic_history`, `program`, `music`,
+`calendar`, `agendas`, `roster`, `visits`, `youth`, `tithing`, `personal_tools`, `knowledge`,
+`ai_settings`, `admin`, `sacrament_ordinances`. `sacrament` is the Sacrament tile alone
+(`talks.*`, `topics.*`). **`topic_history` owns a route and nothing else**: its page reads the
+talks, which are Sacrament's, so it is hidden by route (the bounce, and `isReachable()` in
+`lib/auth/navigation.tsx`). **`music` owns no table**: `hymn_selections`, `musical_numbers` and
+`sunday_music` are also written by Sacrament and read by Program, so they carry no release policy
+and Music is refused through `can()`. `program` owns `programs`; `calendar` owns
+`conducting_rotation` and `sunday_org_conducting`.
+
 **Model generically, build narrowly.** `type` covers area/stake/ward because real church
 structure also has missions and districts as stake-equivalents, and how far up this goes is
 uncertain. **No area- or district-level screens are built** — only the shape anticipates them.
