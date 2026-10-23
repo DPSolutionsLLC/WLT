@@ -2,7 +2,7 @@
 id: release-sacrament-tile-alone
 type: feature
 iter: ITER-044
-commits: []
+commits: ["00cb58d"]
 date: 2026-10-23
 files:
   - types/domain.ts
