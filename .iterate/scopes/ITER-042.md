@@ -1,7 +1,7 @@
 # ITER-042: Speakers & Prayers — a standalone tracker for the bishopric
 
 **Type:** Feature
-**Status:** Backlogged
+**Status:** Cancelled (2026-10-23 — the user has other plans; the placeholder module comes off the release list in ITER-044)
 **Created:** 2026-10-14
 
 ## Summary

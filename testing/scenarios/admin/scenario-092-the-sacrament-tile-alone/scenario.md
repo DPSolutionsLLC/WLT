@@ -123,7 +123,10 @@ shortcut row, so it passed while the cards still linked out.
 hub's programme and Music links stay until ITER-045 replaces the hub (D2 already said not to
 polish it). The tile's description, the stripped-down hub and the release editor read as intended.
 The per-card link check above therefore stays unticked for this hub on purpose.
-**Still open:** the programme/rotation RLS check, until migration 092 is applied.
+**Re-checked after migration 092 was applied (2026-10-23, after the `dba1825` deploy):** the
+bishop's own client read `programs` 0 (service 1) and `conducting_rotation` 0 (service 3), while
+`hymn_selections` 1/1 and `assignments` 3/3 stayed readable. The blocked check passes.
+`types/database.ts` regenerated unchanged.
 
 Two element-only screenshots of the editor were retaken as one viewport shot: they were identical
 (the app follows the account's saved theme, not the browser's emulated one), so they were not the

@@ -1,6 +1,6 @@
 # Backlog
 
-_Last updated: 2026-10-15_
+_Last updated: 2026-10-23_
 
 ---
 
@@ -67,12 +67,23 @@ LCR ward list report. The tracker's history is the source of truth from day one;
 migrates FROM it later, never the reverse. **Plan in this order** — each needs the one before._
 - ITER-040 — _completed 2026-10-14 (d20c367)_
 - ITER-041 — _completed 2026-10-15 (a234706, 4c1e1fd)_
-- [ ] ITER-042 — Speakers & Prayers: a standalone tracker for the bishopric → [scope](.iterate/scopes/ITER-042.md)
+- ITER-042 — _cancelled 2026-10-23 (the user has other plans)_
+- ITER-044 — _completed 2026-10-23 (00cb58d)_
+- [ ] ITER-045 — Sacrament Planner replaces what is behind the Sacrament tile → [scope](.iterate/scopes/ITER-045.md)
+  _Raised 2026-10-23. The bishopric's working Sacrament Planner moves in as is, on the app's member
+  list and logins, with its real records imported. Bishopric only for now. Needs ITER-044 first.
+  Brief: `sacrament-planner-handoff/HANDOFF.md`._
 
 ---
 
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
+
+- [ ] ITER-046 — Module access by title, set by the super admin → [scope](.iterate/scopes/ITER-046.md)
+  _Reason: rebuilds the access model (replaces per-ward release, ward self-service and access
+  requests with title × module → none/view/full, an app-wide baseline and per-ward overrides) — a
+  security boundary touching `can()`, layouts and RLS. Raised 2026-10-23. Plan ITER-044 with it in
+  mind; ITER-045 ships bishopric-only before it._
 
 - [ ] ITER-025 — Should being there earn the right to comment? → [scope](.iterate/scopes/ITER-025.md)
   _Raised by the user 2026-08-29: "anyone should be able to click on the event and add their comment
@@ -317,6 +328,7 @@ _Items that need testing or further exploration before scoping. Each entry shoul
 
 ## Completed
 
+- [x] ITER-044 — Release the Sacrament tile on its own _(completed 2026-10-23, 00cb58d — "Sacrament meeting" now releases the Sacrament tile alone; Topic history, Program, Music and Calendar are their own tickboxes and Speakers & Prayers is gone (migration 092, NOT YET APPLIED). Scenario 092 walked; the hub's links to unreleased Program/Music accepted until ITER-045. GROUP-03 next: ITER-045)_
 - [x] ITER-041 — Released modules per ward, and a ward you can create _(completed 2026-10-15, a234706 + 4c1e1fd — adding a ward on Stakes & Wards provisions a real ward and can give the super admin a calling there; each ward gets a super-admin-only released-modules list that narrows `can()`, bounces unreleased pages and refuses their tables (migration 091). Scenarios 090 and 091 walked; a phone-width pill overflow and an off-screen created message fixed. Slice c (onboarding Buffalo) is a runbook in the retro: deploy first. GROUP-03 next: ITER-042)_
 - [x] ITER-040 — Roster import: paste the church's ward list report _(completed 2026-10-14, d20c367 — the CSV upload is replaced by a paste of the LCR ward list report, rebuilt by tab count, matched on full name + birth date, and reviewed as a checklist (new / changed / addresses / no longer listed, move-outs unticked, partial-paste guard). Migration 090 adds the member fields and `apply_roster_paste`, which never deletes. Scenario 089 walked; two small defects fixed. GROUP-03 next: ITER-041)_
 - [x] ITER-038 — Music coordinator handoff and conductor approval _(completed 2026-10-04, 1bc33b9 + 4c0ce53 + b22aa82 — `ma` made the chorister and organist real fields on migration 089's `sunday_music` (SELECT-only; every write through `lib/music/`), `mb` added submit → conductor review → approve or send back with a note, reopening on any change, and `mc` made finalizing topics hand the Sunday to every music coordinator (To Do, notification, opt-in email), reopening submitted music when the topics change. Scenarios 087 and 088 walked. Not built: roster-derived chorister/organist defaults. GROUP-02 now has ITER-035 and ITER-037, both waiting on P7 Prayer Items)_
@@ -342,4 +354,4 @@ _Items that need testing or further exploration before scoping. Each entry shoul
 
 ## Cancelled
 
-_None._
+- [-] ITER-042 — Speakers & Prayers: a standalone tracker for the bishopric _(cancelled 2026-10-23: the user has other plans; its placeholder comes off the release list in ITER-044)_
