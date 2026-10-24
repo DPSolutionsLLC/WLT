@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/Card";
 import { NotPermitted } from "@/components/ui/NotPermitted";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
+import { redirectUnlessSuperAdmin } from "@/lib/sacramentPlanner/legacyGate";
 import {
   formatDateOnly,
   lastDayOfMonth,
@@ -35,6 +36,7 @@ export type PrayersPageProps = {
 
 export default async function PrayersPage({ searchParams }: PrayersPageProps) {
   const user = await requireSessionUser();
+  redirectUnlessSuperAdmin(user);
   const supabase = await createServerSupabaseClient();
   const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 

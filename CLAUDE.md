@@ -1521,6 +1521,41 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   `hymn_selections`, `musical_numbers` and `sunday_music` are written by Sacrament (cancelling a
   lost meeting's music) and read by Program, so they lost their release policy and Music is refused
   through `can()` alone.
+- **THE SACRAMENT PLANNER RUNS AS AN ADAPTER — DECIDED 2026-10-23 (ITER-045, migration 093,
+  plans/sacrament-planner-adapter.md).** The bishopric's finished Sacrament Planner is behind the
+  **Sacrament** tile (`/sacrament-planner`). Its own code runs **unchanged** in a same-origin
+  `<iframe>` under the chrome bar, and `lib/sacramentPlanner/bridge.ts` fills the one doorway it
+  uses, `window.claude.use("db" | "user" | "sample" | "downloads")`, with the app's database, login
+  and AI. **Adapter, not a rebuild, for now (D1):** every save passes through
+  `PUT`/`DELETE /api/sacrament-planner/documents`, but the Planner's rules run only in the browser,
+  so a pipeline built on it would have to diff JSON documents. The user decides about a rebuild
+  after using it; build nothing that assumes either outcome. **NO PIPELINES ARE CONNECTED:** a
+  Planner save reaches To Do, music, the programme and speaking history **nowhere**, and GROUP-02
+  (ITER-035, ITER-037) was planned on the hidden flow and needs a fresh look.
+  **Storage (D5):** `planner_documents` holds the Planner's ten collections as JSON under their
+  original ids, with a `real`/`practice` layer in place of its `t_` collections (practice is shared
+  per ward, as before). It is keyed by a **surrogate `id`** because Supabase sends a realtime
+  DELETE to every subscriber **without RLS**, carrying the primary key — observed 2026-10-23, and
+  asserted in `tests/rls/realtime-isolation.test.ts`. `planner_history` is the agenda history that
+  used to be built into the page; it has no write policy. **Concurrency is last-write-wins per
+  document**, as it was. **Identity comes from the calling (D6):** the bishop and counselors 1 and
+  2 map to "Bishop" / "1st Counselor" / "2nd Counselor" in the Planner's own `settings/bishopric`;
+  the "You are" menu is hidden and a **Practice mode** switch replaces it. **Bishopric only (D7):**
+  `planner.use` (non-overridable) **and** a bishopric calling, mirrored by `canUsePlanner()` and
+  migration 093's `is_bishopric()`; ITER-046 replaces both. **The tile follows the calling**, not the
+  super admin flag: only a session whose calling holds `planner.use` sees it, and a calling whose
+  role is `super_admin` (not bishopric) sees it and is refused (corrected walking scenario 093). **The old hub stays in the code (D2):** `/sacrament`,
+  `/assignments/**` and `/prayers` redirect everyone but the super admin
+  (`lib/sacramentPlanner/legacyGate.ts`); its routes and tables still work.
+  **THE ONE JAVASCRIPT EXCEPTION.** `lib/sacramentPlanner/assets/*.html|css` is imported code,
+  edited only for the reasons listed in the plan's Task 2: real names out (moved to imported
+  settings documents), identity from the login, `planner:`-prefixed storage keys, and no theme
+  button of its own (it follows the app's light/dark through `PlannerFrame.tsx`). Do not
+  "improve" it. **Rule 12:** the Planner renders only in the browser, on the device's date; no
+  server path runs Planner code. If a rebuild moves any of it into a Server Component, its date
+  math must be redone in the ward's zone. **Later, names → member ids:** a
+  `planner_name_links (ward_id, planner_name, member_id)` table filled from the member-list
+  check, resolved on read, so old records never need rewriting. Not built.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
   env: {
     APP_VERSION: process.env.VERCEL_GIT_COMMIT_SHA ?? "",
   },
+  // The Sacrament Planner frame route reads its HTML with fs at request time, and Vercel bundles
+  // only files a route imports, so the assets are named here or the deployed route cannot find them.
+  outputFileTracingIncludes: {
+    "/api/sacrament-planner/frame": ["./lib/sacramentPlanner/assets/**"],
+  },
 };
 
 export default nextConfig;

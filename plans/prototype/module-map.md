@@ -26,6 +26,7 @@ means nothing.
 | **NEW** | No WLT counterpart. A new phase. |
 | **STUB** | A tile in the prototype that was never built. Nothing to take. |
 | **CONFLICT** | Overlaps a WLT v1 scope guardrail. Needs a decision, not a build. |
+| **ADAPTER** | Not from the prototype. Existing code run unchanged behind an adapter (ITER-045). |
 
 ---
 
@@ -36,6 +37,7 @@ means nothing.
 | Prototype | WLT counterpart | Verdict | Notes |
 |---|---|---|---|
 | Sacrament | `/sacrament` hub over `/assignments`, `/prayers`, `/music`, `/program` | **RESKIN+** | 8 new behaviours — §2.1 |
+| Sacrament Planner *(handoff, not from the prototype)* | `/sacrament-planner`, behind the Sacrament tile | **ADAPTER** | ITER-045. The bishopric's finished Planner, run unchanged in a same-origin frame over `planner_documents`. It **replaces the Sacrament hub's tile**; the hub stays in the code for the super admin. No pipelines are connected (plans/sacrament-planner-adapter.md) |
 | Music | `/music` | **RESKIN+** | 4 new behaviours — §2.2. **Navigation — §6.2** |
 | Conducting + Conducting Template | — | **NEW** | The run-of-show sheet — §2.3 |
 | Program + Program Template | `/program`, `/public/[slug]` | **RESKIN+** | 3 new behaviours — §2.4. **Navigation — §6.2** |

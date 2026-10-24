@@ -69,7 +69,7 @@ migrates FROM it later, never the reverse. **Plan in this order** — each needs
 - ITER-041 — _completed 2026-10-15 (a234706, 4c1e1fd)_
 - ITER-042 — _cancelled 2026-10-23 (the user has other plans)_
 - ITER-044 — _completed 2026-10-23 (00cb58d)_
-- [ ] ITER-045 — Sacrament Planner replaces what is behind the Sacrament tile → [scope](.iterate/scopes/ITER-045.md)
+- [ ] ITER-045 — Sacrament Planner replaces what is behind the Sacrament tile → [scope](.iterate/scopes/ITER-045.md) | [plan](plans/sacrament-planner-adapter.md)
   _Raised 2026-10-23. The bishopric's working Sacrament Planner moves in as is, on the app's member
   list and logins, with its real records imported. Bishopric only for now. Needs ITER-044 first.
   Brief: `sacrament-planner-handoff/HANDOFF.md`._
@@ -78,6 +78,11 @@ migrates FROM it later, never the reverse. **Plan in this order** — each needs
 
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
+
+- [ ] ITER-047 — The light/dark button on the top bar → [scope](.iterate/scopes/ITER-047.md)
+  _Raised 2026-10-24 reviewing the scenario 093 walk: move the theme control out of the ☰ menu onto
+  the bar beside "← Dashboard". Small, but it changes the bar on every page and must fit at 375px.
+  The Sacrament Planner already follows the app's theme (ITER-045)._
 
 - [ ] ITER-046 — Module access by title, set by the super admin → [scope](.iterate/scopes/ITER-046.md)
   _Reason: rebuilds the access model (replaces per-ward release, ward self-service and access

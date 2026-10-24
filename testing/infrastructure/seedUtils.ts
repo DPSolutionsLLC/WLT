@@ -2442,3 +2442,47 @@ export async function optOutOfNotification(options: {
     "user_id,trigger_key",
   );
 }
+
+// ============================================================================
+// Sacrament Planner (ITER-045, migration 093)
+// ============================================================================
+
+// One Planner document, stored exactly as the Planner writes it. `updated_by` is null, as it is
+// for every imported row; a real save always names its writer.
+export async function createPlannerDocument(options: {
+  collection: string;
+  documentId: string;
+  data: Record<string, unknown>;
+  layer?: "real" | "practice";
+}): Promise<string> {
+  return insertRow(
+    "planner_documents",
+    {
+      ward_id: TEST_WARD_ID,
+      layer: options.layer ?? "real",
+      collection: options.collection,
+      document_id: options.documentId,
+      data: options.data,
+    },
+    "ward_id,layer,collection,document_id",
+  );
+}
+
+// The agenda history the Planner shows on History and Meetings. Keyed by ward, so it has no `id`
+// for insertRow to read back.
+export async function setPlannerHistory(options: {
+  agendaRows: unknown[];
+  meetings: Record<string, unknown>;
+  conducting: Record<string, unknown>;
+}): Promise<void> {
+  const { error } = await getAdminClient().from("planner_history").upsert(
+    {
+      ward_id: TEST_WARD_ID,
+      agenda_rows: options.agendaRows,
+      meetings: options.meetings,
+      conducting: options.conducting,
+    },
+    { onConflict: "ward_id" },
+  );
+  if (error) throw new Error(`Could not seed planner_history: ${error.message}`);
+}

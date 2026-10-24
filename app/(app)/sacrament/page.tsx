@@ -8,6 +8,7 @@ import { listAssignments } from "@/lib/assignments/queries";
 import { shortcutNavigationItems } from "@/lib/auth/navigation";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
+import { redirectUnlessSuperAdmin } from "@/lib/sacramentPlanner/legacyGate";
 import {
   formatDateOnly,
   lastDayOfMonth,
@@ -117,6 +118,7 @@ export type SacramentPageProps = {
 
 export default async function SacramentPage({ searchParams }: SacramentPageProps) {
   const user = await requireSessionUser();
+  redirectUnlessSuperAdmin(user);
   const supabase = await createServerSupabaseClient();
 
   // Resolved ONCE and passed to every can() below (CLAUDE.md rule 10). cache() does not dedupe

@@ -151,15 +151,15 @@ describe("role-filtered navigation", () => {
     expect(permitted[0].permission).toBe("sacrament.view_assignments");
   });
 
-  // The other side of the collision p4-sacrament-a settled: /sacrament is now the sacrament
-  // MEETING hub, gated on talks.view, and a youth account must not be able to reach it. The two
-  // rows are one path segment apart, so this is asserted rather than assumed.
-  it("keeps a sacrament_manager out of the sacrament MEETING hub", () => {
-    const hub = NAVIGATION_ITEMS.find((item) => item.href === "/sacrament");
+  // The other side of the collision p4-sacrament-a settled: the Sacrament tile is the sacrament
+  // MEETING — the Sacrament Planner since ITER-045, gated on planner.use — and a youth account
+  // must not be able to reach it. Asserted rather than assumed.
+  it("keeps a sacrament_manager out of the sacrament MEETING tile", () => {
+    const tile = NAVIGATION_ITEMS.find((item) => item.href === "/sacrament-planner");
 
-    expect(hub, "/sacrament has left NAVIGATION_ITEMS").toBeDefined();
-    expect(hub?.permission).toBe("talks.view");
-    expect(can(sessionUser("sacrament_manager"), "talks.view", ROLE_PERMISSIONS)).toBe(false);
+    expect(tile, "/sacrament-planner has left NAVIGATION_ITEMS").toBeDefined();
+    expect(tile?.permission).toBe("planner.use");
+    expect(can(sessionUser("sacrament_manager"), "planner.use", ROLE_PERMISSIONS)).toBe(false);
   });
 
   it("renders no app-shell navigation for a sacrament_manager", () => {
@@ -212,22 +212,27 @@ describe("role-filtered navigation", () => {
   // route is untouched and still works; what changed is that it is no longer a DASHBOARD ENTRY
   // POINT. /sacrament is, and a Sunday's Topics and Talks pills are how /assignments is reached.
   // Three tiles for one module is what the hub exists to undo.
-  it("points the Sacrament hub at /sacrament, gated on talks.view", () => {
-    const hub = NAVIGATION_ITEMS.find((item) => item.href === "/sacrament");
+  // ITER-045: the tile opens the Sacrament Planner. The old hub at /sacrament stays in the code
+  // for the super admin (lib/sacramentPlanner/legacyGate.ts) and is no longer a dashboard entry.
+  it("points the Sacrament tile at the Planner, gated on planner.use", () => {
+    const tile = NAVIGATION_ITEMS.find((item) => item.label === "Sacrament");
 
-    expect(hub).toBeDefined();
-    expect(hub?.label).toBe("Sacrament");
-    expect(hub?.permission).toBe("talks.view");
-    expect(hub?.built).toBe(true);
+    expect(tile?.href).toBe("/sacrament-planner");
+    expect(tile?.permission).toBe("planner.use");
+    expect(tile?.built).toBe(true);
+    expect(NAVIGATION_ITEMS.map((item) => item.href)).not.toContain("/sacrament");
   });
 
-  it("shows the hub to every role that holds talks.view and to no other", () => {
+  // planner.use, not talks.view: the music coordinator holds talks.view and the Planner is
+  // bishopric only until ITER-046.
+  it("shows the Sacrament tile to the bishopric and super admin only", () => {
     for (const role of ROLES) {
-      const canSeeHub = hrefsFor(role).includes("/sacrament");
-      const expected = can(sessionUser(role), "talks.view", ROLE_PERMISSIONS);
+      const seesTile = hrefsFor(role).includes("/sacrament-planner");
+      const expected = role === "bishop" || role === "counselor" || role === "super_admin";
 
-      expect(canSeeHub, `role "${role}" disagrees on /sacrament`).toBe(expected);
+      expect(seesTile, `role "${role}" disagrees on /sacrament-planner`).toBe(expected);
     }
+    expect(hrefsFor("music_coordinator")).not.toContain("/sacrament-planner");
   });
 
   // The other half of the same change, asserted so the absorbed tiles cannot quietly return. A
@@ -433,7 +438,7 @@ describe("released-module narrowing", () => {
   it("shows the Sacrament tile alone when only Sacrament meeting is released", () => {
     const hrefs = dashboardHrefs(withList(["sacrament", "tithing"]));
 
-    expect(hrefs).toContain("/sacrament");
+    expect(hrefs).toContain("/sacrament-planner");
     expect(hrefs).toContain("/tithing");
     for (const href of SPLIT_TILES) {
       expect(hrefs, `"${href}" belongs to a module this ward has not released`).not.toContain(href);
@@ -447,7 +452,7 @@ describe("released-module narrowing", () => {
   it("shows every tile to a super admin, whatever the list says", () => {
     const hrefs = dashboardHrefs(withList(["sacrament", "tithing"], true));
 
-    for (const href of ["/sacrament", ...SPLIT_TILES]) {
+    for (const href of ["/sacrament-planner", ...SPLIT_TILES]) {
       expect(hrefs).toContain(href);
     }
   });

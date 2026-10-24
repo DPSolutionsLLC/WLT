@@ -2,6 +2,7 @@
 
 **Type:** Modification
 **Status:** Backlogged
+**Plan:** plans/sacrament-planner-adapter.md
 **Created:** 2026-10-23
 
 ## Summary

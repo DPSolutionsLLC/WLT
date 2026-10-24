@@ -2213,6 +2213,86 @@ export type Database = {
           },
         ]
       }
+      planner_documents: {
+        Row: {
+          collection: string
+          data: Json
+          document_id: string
+          id: string
+          layer: string
+          updated_at: string
+          updated_by: string | null
+          ward_id: string
+        }
+        Insert: {
+          collection: string
+          data: Json
+          document_id: string
+          id?: string
+          layer: string
+          updated_at?: string
+          updated_by?: string | null
+          ward_id: string
+        }
+        Update: {
+          collection?: string
+          data?: Json
+          document_id?: string
+          id?: string
+          layer?: string
+          updated_at?: string
+          updated_by?: string | null
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planner_documents_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planner_documents_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planner_history: {
+        Row: {
+          agenda_rows: Json
+          conducting: Json
+          imported_at: string
+          meetings: Json
+          ward_id: string
+        }
+        Insert: {
+          agenda_rows: Json
+          conducting: Json
+          imported_at?: string
+          meetings: Json
+          ward_id: string
+        }
+        Update: {
+          agenda_rows?: Json
+          conducting?: Json
+          imported_at?: string
+          meetings?: Json
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planner_history_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: true
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prayer_assignments: {
         Row: {
           asked_at: string | null

@@ -32,6 +32,9 @@ export const PERMISSIONS = [
   "topics.view",
   "topics.manage",
 
+  // The Sacrament Planner behind the Sacrament tile (ITER-045). Bishopric only until ITER-046.
+  "planner.use",
+
   "knowledge.view",
   "knowledge.manage",
 
@@ -114,6 +117,10 @@ export const ADMIN_PERMISSIONS = PERMISSIONS.filter(
 //            open, and the assigner would have no way to know. Nothing here is a privilege worth
 //            configuring: it reaches only the holder's own rows (migration 081 is owner-only).
 //
+// planner.* — the Sacrament Planner (ITER-045). Bishopric only until ITER-046 replaces it with
+//            title-based access. Migration 093 refuses everyone but the bishopric whatever this
+//            list says, so a ward widening it would offer a tile whose page then refuses them.
+//
 // audit.view is deliberately NOT locked. It is in ADMIN_PERMISSIONS for the bishopric-equivalence
 // loop, but it grants reading rather than writing, and a ward may legitimately want its secretary
 // to see the audit log.
@@ -121,6 +128,7 @@ export const NON_OVERRIDABLE_PERMISSIONS: readonly KnownPermission[] = PERMISSIO
   (permission) =>
     permission.startsWith("admin.") ||
     permission.startsWith("sacrament.") ||
+    permission.startsWith("planner.") ||
     permission === "personal_tools.use",
 );
 

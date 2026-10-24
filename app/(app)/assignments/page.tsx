@@ -10,6 +10,7 @@ import {
 import { reliabilityFlags, type ReliabilityFlagKind } from "@/lib/assignments/reliabilityFlags";
 import { BISHOPRIC_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
+import { redirectUnlessSuperAdmin } from "@/lib/sacramentPlanner/legacyGate";
 import {
   formatDateOnly,
   lastDayOfMonth,
@@ -36,6 +37,7 @@ export type AssignmentsPageProps = {
 
 export default async function AssignmentsPage({ searchParams }: AssignmentsPageProps) {
   const user = await requireSessionUser();
+  redirectUnlessSuperAdmin(user);
   const supabase = await createServerSupabaseClient();
   const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 

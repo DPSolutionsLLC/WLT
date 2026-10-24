@@ -400,17 +400,21 @@ describe("mergeRoleAccess — deltas", () => {
 describe("mergeRoleAccess — non-overridable permissions", () => {
   // `personal_tools.use` is the ONE named exception, added deliberately in P5: switching To Do off
   // for a role would strand every agenda assignment to that role on a list its owner cannot open.
+  // `planner.*` is the second (ITER-045): the Sacrament Planner is bishopric only until ITER-046,
+  // and migration 093 refuses everybody else whatever a ward configures.
   // Any other permission appearing here is still a mistake this test should catch.
-  it("locks every admin.* and sacrament.* permission, plus personal_tools.use", () => {
+  it("locks every admin.*, sacrament.* and planner.* permission, plus personal_tools.use", () => {
     expect(NON_OVERRIDABLE_PERMISSIONS.length).toBeGreaterThan(0);
     expect(NON_OVERRIDABLE_PERMISSIONS).toContain("personal_tools.use");
+    expect(NON_OVERRIDABLE_PERMISSIONS).toContain("planner.use");
 
     for (const permission of NON_OVERRIDABLE_PERMISSIONS) {
       expect(
         permission.startsWith("admin.") ||
           permission.startsWith("sacrament.") ||
+          permission.startsWith("planner.") ||
           permission === "personal_tools.use",
-        `"${permission}" is locked but is neither admin.*, sacrament.* nor personal_tools.use`,
+        `"${permission}" is locked but is neither admin.*, sacrament.*, planner.* nor personal_tools.use`,
       ).toBe(true);
     }
   });

@@ -469,6 +469,36 @@ confirmed_at    timestamptz
 created_at      timestamptz DEFAULT now()
 ```
 
+### `planner_documents` *(ITER-045, migration 093)*
+The Sacrament Planner's documents, stored as the Planner writes them. Written only through
+`PUT`/`DELETE /api/sacrament-planner/documents`; read by the bridge through the user's own client.
+```sql
+id            uuid PRIMARY KEY DEFAULT gen_random_uuid()  -- surrogate: a realtime DELETE carries only this
+ward_id       uuid NOT NULL REFERENCES wards(id) ON DELETE CASCADE
+layer         text NOT NULL  -- 'real' | 'practice' (the Planner's t_ collections)
+collection    text NOT NULL  -- 'sundays' | 'deferrals' | 'considers' | 'nameFixes' | 'rowFixes' |
+                             -- 'goesBy' | 'marks' | 'holds' | 'people' | 'settings'
+document_id   text NOT NULL  -- the Planner's own id, 1-200 characters
+data          jsonb NOT NULL -- an object
+updated_at    timestamptz NOT NULL DEFAULT now()
+updated_by    uuid REFERENCES users(id) ON DELETE SET NULL  -- null only on imported rows
+UNIQUE (ward_id, layer, collection, document_id)
+-- RLS: ward_id = current_ward_id() and is_bishopric() on every verb; INSERT/UPDATE also
+-- updated_by = auth.uid(). Restrictive release policy: 'sacrament'. In supabase_realtime.
+```
+
+### `planner_history` *(ITER-045, migration 093)*
+The Planner's imported agenda history, injected where its page says `__DATA__`.
+```sql
+ward_id       uuid PRIMARY KEY REFERENCES wards(id) ON DELETE CASCADE
+agenda_rows   jsonb NOT NULL  -- [id, date, type, role, printed, auto, status, note, key, file][]
+meetings      jsonb NOT NULL  -- { date: [type, file, note] }
+conducting    jsonb NOT NULL  -- { date: name }
+imported_at   timestamptz NOT NULL DEFAULT now()
+-- RLS: SELECT only, same predicate. No write policy; the import script uses the service role.
+-- Restrictive release policy: 'sacrament'. Not in the realtime publication.
+```
+
 ### `hymn_selections`
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()

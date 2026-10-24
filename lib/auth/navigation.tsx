@@ -119,24 +119,24 @@ export const NAVIGATION_SECTIONS: readonly {
 
 export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
   // ---------------------------------------------------------------------------
-  // ONE TILE FOR THE MEETING, WHERE THERE WERE THREE — p4-sacrament-a
+  // THE SACRAMENT PLANNER IS BEHIND THIS TILE — ITER-045
   // ---------------------------------------------------------------------------
-  // This row REPLACED separate Talks (/assignments) and Prayers (/prayers) tiles. Both routes
-  // are untouched and still work; they are reached through the hub's per-Sunday pills instead of
-  // from the dashboard, so anybody with one bookmarked keeps working. Leaving their tiles here
-  // would put three tiles on the dashboard for one module, which is the thing the hub exists to
-  // undo.
+  // The bishopric's own Sacrament Planner, run unchanged inside the app (plans/
+  // sacrament-planner-adapter.md). The old hub at /sacrament, with /assignments and /prayers, is
+  // kept in the code as reference and opens for the super admin only (D2,
+  // lib/sacramentPlanner/legacyGate.ts); everyone else is sent here.
   //
-  // `talks.view`, which is what both of those pages already gate on. Prayers ride on it rather
-  // than a permission of their own: a prayer is part of planning the meeting, and there is
-  // deliberately no `prayers.*` in PERMISSIONS (talks-c).
+  // `planner.use`, not `talks.view`, because the music coordinator holds `talks.view` and the
+  // Planner is BISHOPRIC ONLY until ITER-046 brings access by title. The permission is
+  // non-overridable, and migration 093 refuses anybody without a bishopric calling whatever a ward
+  // configures.
   //
   // THE BLURB NAMES THE MEETING, NOT THE ORDINANCE. The `Sacrament Ordinances` row further down
   // is the other sense of the word and the two must be tellable apart at a glance.
   {
     label: "Sacrament",
-    href: "/sacrament",
-    permission: "talks.view",
+    href: "/sacrament-planner",
+    permission: "planner.use",
     section: "meetings",
     blurb: "Every Sunday's meeting — topics, speakers, prayers, music and the programme.",
     icon: <Mic />,

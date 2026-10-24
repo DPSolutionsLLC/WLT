@@ -37,8 +37,10 @@ export const RELEASED_MODULES = [
     label: "Sacrament meeting",
     description: "The Sacrament tile: each Sunday's talks, prayers and topics.",
     built: true,
-    permissionPrefixes: ["talks.", "topics."],
-    routePrefixes: ["/sacrament", "/assignments", "/prayers", "/talks"],
+    permissionPrefixes: ["talks.", "topics.", "planner."],
+    // `/sacrament-planner` is its own entry: matching is whole-segment, so `/sacrament` does not
+    // claim it.
+    routePrefixes: ["/sacrament", "/sacrament-planner", "/assignments", "/prayers", "/talks"],
     tables: [
       "assignments",
       "assignment_approvals",
@@ -48,6 +50,8 @@ export const RELEASED_MODULES = [
       "prayer_assignments",
       "topics",
       "topic_candidates",
+      "planner_documents",
+      "planner_history",
     ],
   },
   {

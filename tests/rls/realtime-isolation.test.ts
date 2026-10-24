@@ -399,3 +399,199 @@ describe("realtime isolation for assignment_comments", () => {
     expect(music.received).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// planner_documents (ITER-045, migration 093)
+// ---------------------------------------------------------------------------
+// The same proof for the Sacrament Planner's store, in the same shape: warm until a probe arrives,
+// then forbidden first and control second. It adds one claim of its own. A DELETE event is sent to
+// every subscriber WITHOUT RLS, carrying the primary key — which is why 093 keys the table by a
+// random `id` rather than by (ward, layer, collection, document id). The last test asserts that a
+// delete tells an unfiltered ward B subscriber nothing but that id.
+describe("realtime isolation for planner_documents", () => {
+  let fixtures: Fixtures;
+  const subscriptions: { channel: RealtimeChannel }[] = [];
+
+  type PlannerEvent = {
+    eventType: string;
+    id?: string;
+    wardId?: string;
+    documentId?: string;
+    keys: string[];
+  };
+
+  type PlannerSubscription = { handle: FixtureHandle; received: PlannerEvent[] };
+
+  let probeCount = 0;
+
+  async function subscribePlanner(
+    handle: FixtureHandle,
+    channelName: string,
+  ): Promise<PlannerSubscription> {
+    const client = await asRole(fixtures, handle);
+    const {
+      data: { session },
+    } = await client.auth.getSession();
+    if (!session) throw new Error(`Fixture "${handle}" has no session for realtime`);
+    await client.realtime.setAuth(session.access_token);
+
+    const received: PlannerEvent[] = [];
+    const channel = client.channel(`${channelName}-${fixtures.runId}`);
+    channel.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "planner_documents" },
+      (payload) => {
+        const row = (payload.eventType === "DELETE" ? payload.old : payload.new) as Record<
+          string,
+          unknown
+        >;
+        received.push({
+          eventType: payload.eventType,
+          id: row.id as string | undefined,
+          wardId: row.ward_id as string | undefined,
+          documentId: row.document_id as string | undefined,
+          keys: Object.keys(row).sort(),
+        });
+      },
+    );
+
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`Channel "${channelName}" never reached SUBSCRIBED`)),
+        SUBSCRIBE_TIMEOUT_MS,
+      );
+      channel.subscribe((status, error) => {
+        if (status === "SUBSCRIBED") {
+          clearTimeout(timer);
+          resolve();
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          clearTimeout(timer);
+          reject(new Error(`Channel "${channelName}" failed: ${status} ${error?.message ?? ""}`));
+        }
+      });
+    });
+
+    subscriptions.push({ channel });
+    return { handle, received };
+  }
+
+  async function insertDocument(wardId: string, documentId: string): Promise<string> {
+    const { data, error } = await fixtures.service
+      .from("planner_documents")
+      .insert({
+        ward_id: wardId,
+        layer: "real",
+        collection: "marks",
+        document_id: documentId,
+        data: { name: "Doe, Jane", by: "Tester" },
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(`Could not insert a planner document: ${error.message}`);
+    return data.id;
+  }
+
+  const sawInsert = (subscription: PlannerSubscription, id: string) =>
+    subscription.received.some((event) => event.eventType === "INSERT" && event.id === id);
+
+  async function waitUntilLive(subscription: PlannerSubscription, wardId: string): Promise<void> {
+    const deadline = Date.now() + LIVENESS_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      probeCount += 1;
+      const probeId = await insertDocument(wardId, `probe-${fixtures.runId}-${probeCount}`);
+      const window = Date.now() + PROBE_WINDOW_MS;
+      while (Date.now() < window) {
+        if (sawInsert(subscription, probeId)) {
+          subscription.received.length = 0;
+          return;
+        }
+        await wait(200);
+      }
+    }
+    throw new Error(
+      `The planner channel for "${subscription.handle}" never delivered a probe. Check that ` +
+        "migration 093 is applied (npm run db:push).",
+    );
+  }
+
+  async function awaitEvent(
+    subscription: PlannerSubscription,
+    matches: (event: PlannerEvent) => boolean,
+  ): Promise<void> {
+    const deadline = Date.now() + CONTROL_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      if (subscription.received.some(matches)) return;
+      await wait(200);
+    }
+    throw new Error(
+      `The control event never reached "${subscription.handle}", so its silence proves nothing.`,
+    );
+  }
+
+  beforeAll(async () => {
+    fixtures = await seedFixtures(["bishop", "wardBBishop"]);
+  });
+
+  afterAll(async () => {
+    for (const { channel } of subscriptions) {
+      try {
+        await channel.unsubscribe();
+      } catch (error) {
+        console.warn("Could not unsubscribe a realtime channel", error);
+      }
+    }
+    for (const handle of ["bishop", "wardBBishop"] as const) {
+      const client = await asRole(fixtures, handle);
+      await client.removeAllChannels();
+      client.realtime.disconnect();
+    }
+    await fixtures?.cleanup();
+  });
+
+  it("delivers a ward's own Planner save to that ward's bishop", async () => {
+    const bishop = await subscribePlanner("bishop", "planner-a-own");
+    await waitUntilLive(bishop, fixtures.wardAId);
+
+    const id = await insertDocument(fixtures.wardAId, `own-${fixtures.runId}`);
+    await awaitEvent(bishop, (event) => event.eventType === "INSERT" && event.id === id);
+
+    expect(sawInsert(bishop, id)).toBe(true);
+  });
+
+  it("never delivers ward A's Planner save to an UNFILTERED ward B subscriber", async () => {
+    const wardB = await subscribePlanner("wardBBishop", "planner-b-unfiltered");
+    await waitUntilLive(wardB, fixtures.wardBId);
+
+    const forbiddenId = await insertDocument(fixtures.wardAId, `forbidden-${fixtures.runId}`);
+    const controlId = await insertDocument(fixtures.wardBId, `control-${fixtures.runId}`);
+    await awaitEvent(wardB, (event) => event.eventType === "INSERT" && event.id === controlId);
+
+    expect(sawInsert(wardB, forbiddenId), "Ward B received a ward A Planner row").toBe(false);
+    expect(
+      wardB.received.filter((event) => event.eventType !== "DELETE").every(
+        (event) => event.wardId === fixtures.wardBId,
+      ),
+    ).toBe(true);
+  });
+
+  it("tells another ward nothing but an opaque id when a document is deleted", async () => {
+    const wardB = await subscribePlanner("wardBBishop", "planner-b-deletes");
+    await waitUntilLive(wardB, fixtures.wardBId);
+
+    const documentId = `secret-${fixtures.runId}`;
+    const deletedId = await insertDocument(fixtures.wardAId, documentId);
+    const { error } = await fixtures.service.from("planner_documents").delete().eq("id", deletedId);
+    if (error) throw new Error(error.message);
+    const controlId = await insertDocument(fixtures.wardBId, `after-delete-${fixtures.runId}`);
+    await awaitEvent(wardB, (event) => event.eventType === "INSERT" && event.id === controlId);
+
+    // Observed 2026-10-23: ward B DOES receive ward A's DELETE. If Supabase ever stops sending it
+    // across wards this loop checks nothing, which is the better outcome, not a failure.
+    const leaked = wardB.received.filter((event) => event.eventType === "DELETE");
+    for (const event of leaked) {
+      expect(event.keys).toEqual(["id"]);
+      expect(event.documentId).toBeUndefined();
+      expect(event.wardId).toBeUndefined();
+    }
+  });
+});

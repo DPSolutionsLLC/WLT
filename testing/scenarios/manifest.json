@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 90,
+  "scenarioCount": 91,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -150,6 +150,7 @@
       "checklist": [
         "The bishop's dashboard shows exactly two tiles, Sacrament and Tithing, plus \"More tools are",
         "`/sacrament` renders with no error; its shortcut row has no Topic history, Program, Music or",
+        "No Sunday card on `/sacrament` links to `/program/…` or `/music…` (the date heading and the",
         "`/assignments/<a Sunday id>` and `/prayers` open",
         "Typing `/music`, `/program`, `/calendar` and `/talks/topics` each lands on `/dashboard`",
         "The bishop's own client reads **no** row from `programs` or `conducting_rotation`, but",
@@ -2387,6 +2388,45 @@
         "Is the email toggle in the right place on Music, and does its wording say what it does?"
       ],
       "seedCommand": "npm run seed -- talks/scenario-088-music-topics-handoff"
+    },
+    {
+      "id": "talks:scenario-093-sacrament-planner-in-the-app",
+      "path": "talks/scenario-093-sacrament-planner-in-the-app",
+      "name": "The Sacrament Planner inside the app",
+      "scope": "ITER-045",
+      "part": 1,
+      "tags": [
+        "full",
+        "sacrament",
+        "access",
+        "realtime"
+      ],
+      "prerequisites": "migration 093 applied",
+      "purpose": "Proves that the Sacrament tile opens the bishopric's Sacrament Planner under the app's chrome\nbar, for the bishopric only. Who you are inside it follows the login. Practice mode stays\nseparate from the real records. A save by one person reaches another live. This needs a walk\nrather than a unit test: it takes two simultaneous logins, a phone-width window, both themes,\nand the Planner's own screens, which no component test renders.",
+      "checklist": [
+        "The bishop's dashboard shows a Sacrament tile linking to `/sacrament-planner`",
+        "The music coordinator's dashboard has no Sacrament tile, and `/sacrament-planner` shows \"Not permitted … limited to the bishopric\"",
+        "The frame's header reads \"Using as **Mark Andersen**\" for the bishop and \"Using as **Dana Whitmore**\" for the counselor",
+        "There is no \"You are\" menu anywhere: not in the header, and not in the phone's More sheet",
+        "A Practice mode switch is in the header on desktop and in the More sheet on a phone",
+        "Pray About shows the bishop only Laura Brooks, and the counselor only Ethan Brooks",
+        "Who's Next leaves out Nora Lindqvist (deferred) and To Decide shows Samuel Okafor \"waiting on Dana Whitmore, Paul Hendry\". Nora is not in To Decide: a deferral returns there only when its time is up",
+        "The counselor's saved speaker is in `planner_documents` (layer `real`, collection `sundays`) with `updated_by` = the counselor, plus a `planner.document_saved` audit row whose detail is only `collection`, `documentId` and `layer`",
+        "The counselor's save appears in the bishop's window within a few seconds, with no reload",
+        "Undo and Redo put a real change back and forth, in the database as well as on screen",
+        "A practice change lands in layer `practice` only, does not appear in the counselor's window, and after \"Clear test changes\" no practice rows remain for the ward",
+        "`/sacrament` and `/prayers` redirect the bishop to `/sacrament-planner`; the admin (super admin) is NOT redirected from `/sacrament`",
+        "Download CSV saves `sacrament-speaker-history.csv`",
+        "The Planner's AI route returns a draft for the Planner's own prompt",
+        "The Planner has no light/dark button of its own, and switching the app's theme switches the Planner with no reload (decided reviewing this walk)",
+        "No horizontal overflow at 375px; the Planner's bottom tab bar sits at the bottom of the screen, not below it",
+        "The Planner sits under the app's chrome bar with its own banner and bottom tab bar, and looks like the old Planner page, in light and in dark (user, 2026-10-24)",
+        "The Practice mode switch in the phone's More sheet reads as a switch you would find and understand (user, 2026-10-24)",
+        "The outer page scrolling 32px at phone width (to show the version footer below the Planner) is acceptable (user: leave it)",
+        "Pressing \"Write it fresh with Claude\" on a real message fills the message box, and nothing is sent or saved",
+        "On a real phone, Call and Text open the Phone and Messages apps (Ethan shows his mother's number, marked as hers)"
+      ],
+      "seedCommand": "npm run seed -- talks/scenario-093-sacrament-planner-in-the-app"
     },
     {
       "id": "todos:scenario-075-a-todo-that-became-a-project",

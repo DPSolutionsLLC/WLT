@@ -26,6 +26,7 @@ import {
 import { reliabilityFlags } from "@/lib/assignments/reliabilityFlags";
 import { BISHOPRIC_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
+import { redirectUnlessSuperAdmin } from "@/lib/sacramentPlanner/legacyGate";
 import { formatDateOnly, formatSundayLabel, monthOf, parseDateOnly } from "@/lib/calendar/dates";
 import { conductingNameMap, getSunday, listBishopricUsers } from "@/lib/calendar/queries";
 import { readDefaultSpeakingSlots } from "@/lib/calendar/wardCalendarSettings";
@@ -80,6 +81,7 @@ const OPEN_SLOT_ASK: TalkAskInput = {
 
 export default async function SundayAssignmentsPage({ params }: SundayAssignmentsPageProps) {
   const user = await requireSessionUser();
+  redirectUnlessSuperAdmin(user);
   const supabase = await createServerSupabaseClient();
   const roleAccess = await resolveRoleAccess(supabase, user.wardId, user.orgType);
 

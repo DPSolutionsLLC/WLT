@@ -66,3 +66,8 @@ walk-review-ai-c.html
 # (names, phone numbers, street addresses, birth dates). It is a design reference, not source,
 # and it must never enter git history. Harvest its decisions into plans/prototype/ instead.
 /prototype/
+
+# The Sacrament Planner handoff (ITER-045). body.html and HANDOFF.md carry real names, and data/
+# holds the member list and the bishopric's records. The edited, name-free assets live in
+# lib/sacramentPlanner/assets/; everything with names stays here or in the database.
+/sacrament-planner-handoff/
