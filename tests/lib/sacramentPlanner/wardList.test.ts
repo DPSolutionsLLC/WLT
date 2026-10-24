@@ -76,19 +76,54 @@ describe("toPlannerWardList", () => {
     expect(rows.map((row) => row[2])).toEqual(["M", ""]);
   });
 
-  it("reaches somebody with no phone through the oldest adult in their household", () => {
+  it("reaches somebody with no phone through a man in their household before an older woman", () => {
     const rows = toPlannerWardList(
       [
         member({ householdId: "h1", firstName: "Kid", birthDate: "2015-05-05" }),
-        member({ householdId: "h1", firstName: "Dad", birthDate: "1985-01-01", phone: "111" }),
-        member({ householdId: "h1", firstName: "Grandma", birthDate: "1950-01-01", phone: "222" }),
+        member({
+          householdId: "h1",
+          firstName: "Dad",
+          birthDate: "1985-01-01",
+          gender: "male",
+          phone: "111",
+        }),
+        member({
+          householdId: "h1",
+          firstName: "Grandma",
+          birthDate: "1950-01-01",
+          gender: "female",
+          phone: "222",
+        }),
         member({ householdId: "h1", firstName: "Teen", birthDate: "2010-01-01", phone: "333" }),
       ],
       TODAY,
     );
     const kid = rows.find((row) => row[0] === "Doe, Kid");
-    expect(kid?.[3]).toBe("222");
-    expect(kid?.[4]).toBe("Doe, Grandma");
+    expect(kid?.[3]).toBe("111");
+    expect(kid?.[4]).toBe("Doe, Dad");
+  });
+
+  it("picks the oldest of several men, and the oldest woman when no man has a phone", () => {
+    const withMen = toPlannerWardList(
+      [
+        member({ householdId: "h1", firstName: "Kid", birthDate: "2015-05-05" }),
+        member({ householdId: "h1", firstName: "Son", birthDate: "2000-01-01", gender: "male", phone: "1" }),
+        member({ householdId: "h1", firstName: "Dad", birthDate: "1970-01-01", gender: "male", phone: "2" }),
+      ],
+      TODAY,
+    );
+    expect(withMen.find((row) => row[0] === "Doe, Kid")?.[4]).toBe("Doe, Dad");
+
+    const withoutMen = toPlannerWardList(
+      [
+        member({ householdId: "h1", firstName: "Kid", birthDate: "2015-05-05" }),
+        member({ householdId: "h1", firstName: "Dad", birthDate: "1970-01-01", gender: "male" }),
+        member({ householdId: "h1", firstName: "Aunt", birthDate: "1990-01-01", gender: "female", phone: "3" }),
+        member({ householdId: "h1", firstName: "Mom", birthDate: "1972-01-01", gender: "female", phone: "4" }),
+      ],
+      TODAY,
+    );
+    expect(withoutMen.find((row) => row[0] === "Doe, Kid")?.[4]).toBe("Doe, Mom");
   });
 
   it("never reaches somebody through a minor's phone", () => {

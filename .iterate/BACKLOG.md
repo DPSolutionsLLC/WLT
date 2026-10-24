@@ -1,6 +1,6 @@
 # Backlog
 
-_Last updated: 2026-10-23_
+_Last updated: 2026-10-24_
 
 ---
 
@@ -70,6 +70,7 @@ migrates FROM it later, never the reverse. **Plan in this order** — each needs
 - ITER-042 — _cancelled 2026-10-23 (the user has other plans)_
 - ITER-044 — _completed 2026-10-23 (00cb58d)_
 - [ ] ITER-045 — Sacrament Planner replaces what is behind the Sacrament tile → [scope](.iterate/scopes/ITER-045.md) | [plan](plans/sacrament-planner-adapter.md)
+  _Slice A committed 2026-10-24 (48806a6): the Planner runs behind the tile on migration 093. Slice B committed 2026-10-24: `npm run planner:check` found Buffalo Ward's list matches the Planner's on all 353 names and every record name; the household phone now goes to a man before the oldest adult (the user's choice). Next: deploy, then Slice C (import, stop for spot-checks)._
   _Raised 2026-10-23. The bishopric's working Sacrament Planner moves in as is, on the app's member
   list and logins, with its real records imported. Bishopric only for now. Needs ITER-044 first.
   Brief: `sacrament-planner-handoff/HANDOFF.md`._

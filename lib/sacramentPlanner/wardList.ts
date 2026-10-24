@@ -75,12 +75,20 @@ function olderFirst(left: Person, right: Person): number {
   return a < b ? -1 : 1;
 }
 
-// A person with no phone of their own is reached through the oldest adult in their household who
-// has one, and the Planner says whose phone it is.
+function menFirst(left: Person, right: Person): number {
+  const leftIsMan = left.member.gender === "male" ? 0 : 1;
+  const rightIsMan = right.member.gender === "male" ? 0 : 1;
+  return leftIsMan - rightIsMan;
+}
+
+// A person with no phone of their own is reached through an adult in their household who has one,
+// and the Planner says whose phone it is. A man is chosen before a woman, then the oldest, because
+// that is the choice the Planner's own list made (decided by the user from the Slice B check,
+// 2026-10-24: all eleven differing households had the husband or father on the old list).
 function householdContact(person: Person, household: readonly Person[]): Person | null {
   const candidates = household
     .filter((other) => other !== person && other.phone !== "" && isAdult(other))
-    .sort(olderFirst);
+    .sort((left, right) => menFirst(left, right) || olderFirst(left, right));
   return candidates[0] ?? null;
 }
 
