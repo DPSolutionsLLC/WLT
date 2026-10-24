@@ -2,7 +2,7 @@
 id: sacrament-planner-adapter
 type: feature
 iter: ITER-045
-commits: []
+commits: ["48806a6"]
 date: 2026-10-24
 files:
   - supabase/migrations/093_sacrament_planner.sql
