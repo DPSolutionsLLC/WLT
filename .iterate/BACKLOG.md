@@ -54,6 +54,10 @@ finalize per kind → speakers and prayers to To Do; topics to the music coordin
 the conductor. **Plan in this order** — each builds on the one before — and **ITER-035 depends on
 Prayer Items (P7), which is not built.** The paused f3b (assistant / conductor window) sits on top
 of ITER-036. Too large for one session; one plan, sliced._
+_**NEEDS A FRESH LOOK (2026-10-24).** Both remaining items were planned on the app's own sacrament
+hub, which ITER-045 replaced with the Sacrament Planner. The Planner already has its own Pray About
+and To Decide lists, and its saves reach no other module (no pipelines are connected). Re-scope
+against the Planner before planning either._
 - [ ] ITER-035 — Sacrament candidates and Prayer Items → [scope](.iterate/scopes/ITER-035.md)
 - ITER-036 — _completed 2026-10-02 (fa 3f4c835, fb 17daa9d)_
 - [ ] ITER-037 — Leftover candidates fill the rest of the rotation → [scope](.iterate/scopes/ITER-037.md)
@@ -70,7 +74,7 @@ migrates FROM it later, never the reverse. **Plan in this order** — each needs
 - ITER-042 — _cancelled 2026-10-23 (the user has other plans)_
 - ITER-044 — _completed 2026-10-23 (00cb58d)_
 - [ ] ITER-045 — Sacrament Planner replaces what is behind the Sacrament tile → [scope](.iterate/scopes/ITER-045.md) | [plan](plans/sacrament-planner-adapter.md)
-  _Slice A committed 2026-10-24 (48806a6): the Planner runs behind the tile on migration 093. Slice B committed 2026-10-24: `npm run planner:check` found Buffalo Ward's list matches the Planner's on all 353 names and every record name; the household phone now goes to a man before the oldest adult (the user's choice). Next: deploy, then Slice C (import, stop for spot-checks)._
+  _Slice A committed 2026-10-24 (48806a6): the Planner runs behind the tile on migration 093. Slice B committed 2026-10-24: `npm run planner:check` found Buffalo Ward's list matches the Planner's on all 353 names and every record name; the household phone now goes to a man before the oldest adult (the user's choice). Slice C done 2026-10-24: 273 records and 922 history lines imported into Buffalo Ward and verified; the user's own calling and the Planner's counselor order were corrected by script at their request. Ready to close with `/commit`._
   _Raised 2026-10-23. The bishopric's working Sacrament Planner moves in as is, on the app's member
   list and logins, with its real records imported. Bishopric only for now. Needs ITER-044 first.
   Brief: `sacrament-planner-handoff/HANDOFF.md`._

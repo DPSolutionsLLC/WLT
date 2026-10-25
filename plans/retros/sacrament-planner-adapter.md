@@ -35,7 +35,8 @@ TypeScript bridge fills its `window.claude.use("db" | "user" | "sample" | "downl
 with `planner_documents` (migration 093, bishopric-only RLS, live through Supabase Realtime), the
 login, the app's AI route and a normal file download. The member list and agenda history are
 injected per request by an authenticated frame route. The old hub's pages redirect everyone but the
-super admin. Slices B (member-list check) and C (import) are not started.
+super admin. Slices B (member-list check) and C (import) are in
+[sacrament-planner-import](sacrament-planner-import.md).
 
 ## Key decisions
 - **A surrogate `id` key, not the natural key the plan named.** Supabase sends a realtime DELETE to

@@ -1556,6 +1556,17 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   math must be redone in the ward's zone. **Later, names → member ids:** a
   `planner_name_links (ward_id, planner_name, member_id)` table filled from the member-list
   check, resolved on read, so old records never need rewriting. Not built.
+  **IMPORTED 2026-10-24 into Buffalo Ward.** `npm run planner:check` (read-only; its report holds
+  names, so it writes only under the gitignored handoff folder) matched all 353 names and every
+  record name. A person with no phone borrows **a man's** number in their household before the
+  oldest adult's (`wardList.ts`), which is what the old list did — the user's decision. `npm run
+  planner:import` dry-runs by default, writes nothing if any document fails the save route's
+  checks, **never deletes**, and so is safe to re-run on a fresh export. Both scripts repeat two
+  reads (members, and the audit insert) because the app's helpers import `next/headers`.
+  **Who you are in the Planner is the CALLING**, so a wrong calling shows the wrong name: the user
+  appeared as the bishop until his own calling was corrected. **Nobody can change their own role
+  on Admin → Users**, and Admin is unreleased in Buffalo, so a super admin's own calling there can
+  be changed by nobody — an open gap, to be scoped.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS
