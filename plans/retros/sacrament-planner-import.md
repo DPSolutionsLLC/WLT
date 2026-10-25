@@ -2,7 +2,7 @@
 id: sacrament-planner-import
 type: feature
 iter: ITER-045
-commits: []
+commits: ["6283a6a", "7346f4b"]
 date: 2026-10-24
 files:
   - supabase/scripts/plannerWardListCheck.ts
