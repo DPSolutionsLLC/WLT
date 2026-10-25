@@ -73,11 +73,7 @@ migrates FROM it later, never the reverse. **Plan in this order** — each needs
 - ITER-041 — _completed 2026-10-15 (a234706, 4c1e1fd)_
 - ITER-042 — _cancelled 2026-10-23 (the user has other plans)_
 - ITER-044 — _completed 2026-10-23 (00cb58d)_
-- [ ] ITER-045 — Sacrament Planner replaces what is behind the Sacrament tile → [scope](.iterate/scopes/ITER-045.md) | [plan](plans/sacrament-planner-adapter.md)
-  _Slice A committed 2026-10-24 (48806a6): the Planner runs behind the tile on migration 093. Slice B committed 2026-10-24: `npm run planner:check` found Buffalo Ward's list matches the Planner's on all 353 names and every record name; the household phone now goes to a man before the oldest adult (the user's choice). Slice C done 2026-10-24: 273 records and 922 history lines imported into Buffalo Ward and verified; the user's own calling and the Planner's counselor order were corrected by script at their request. Ready to close with `/commit`._
-  _Raised 2026-10-23. The bishopric's working Sacrament Planner moves in as is, on the app's member
-  list and logins, with its real records imported. Bishopric only for now. Needs ITER-044 first.
-  Brief: `sacrament-planner-handoff/HANDOFF.md`._
+- ITER-045 — _completed 2026-10-24 (48806a6, 6283a6a, 7346f4b)_
 
 ---
 
@@ -338,6 +334,7 @@ _Items that need testing or further exploration before scoping. Each entry shoul
 
 ## Completed
 
+- [x] ITER-045 — Sacrament Planner replaces what is behind the Sacrament tile _(completed 2026-10-24, 48806a6 + 6283a6a + 7346f4b — the bishopric's Planner runs unchanged behind the Sacrament tile on migration 093, its member list checked against the app's (all 353 names matched; household phone now goes to a man first) and its 273 records and 922 history lines imported into Buffalo Ward and verified. No pipelines connected; GROUP-02 needs re-scoping against the Planner. Open: a super admin cannot change their own calling)_
 - [x] ITER-044 — Release the Sacrament tile on its own _(completed 2026-10-23, 00cb58d — "Sacrament meeting" now releases the Sacrament tile alone; Topic history, Program, Music and Calendar are their own tickboxes and Speakers & Prayers is gone (migration 092, NOT YET APPLIED). Scenario 092 walked; the hub's links to unreleased Program/Music accepted until ITER-045. GROUP-03 next: ITER-045)_
 - [x] ITER-041 — Released modules per ward, and a ward you can create _(completed 2026-10-15, a234706 + 4c1e1fd — adding a ward on Stakes & Wards provisions a real ward and can give the super admin a calling there; each ward gets a super-admin-only released-modules list that narrows `can()`, bounces unreleased pages and refuses their tables (migration 091). Scenarios 090 and 091 walked; a phone-width pill overflow and an off-screen created message fixed. Slice c (onboarding Buffalo) is a runbook in the retro: deploy first. GROUP-03 next: ITER-042)_
 - [x] ITER-040 — Roster import: paste the church's ward list report _(completed 2026-10-14, d20c367 — the CSV upload is replaced by a paste of the LCR ward list report, rebuilt by tab count, matched on full name + birth date, and reviewed as a checklist (new / changed / addresses / no longer listed, move-outs unticked, partial-paste guard). Migration 090 adds the member fields and `apply_roster_paste`, which never deletes. Scenario 089 walked; two small defects fixed. GROUP-03 next: ITER-041)_

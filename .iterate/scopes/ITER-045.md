@@ -1,7 +1,9 @@
 # ITER-045: Sacrament Planner replaces what is behind the Sacrament tile
 
 **Type:** Modification
-**Status:** In progress — Slice A committed 2026-10-24 (48806a6); Slice B committed 2026-10-24; Slice C after deploy
+**Status:** Completed
+**Completed:** 2026-10-24
+**Commit:** 48806a6, 6283a6a, 7346f4b
 **Plan:** plans/sacrament-planner-adapter.md
 **Created:** 2026-10-23
 
