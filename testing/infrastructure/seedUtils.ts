@@ -2532,3 +2532,61 @@ export async function createZoomRemoteLink(options: {
     "ward_id,position",
   );
 }
+
+// ============================================================================
+// Zoom join-link pool and invitees (ITER-053, migration 095)
+// ============================================================================
+
+// One placeholder link in the pool. Upserted on (ward_id, placeholder_email), so re-seeding the
+// same scenario replaces rather than collides.
+export async function createZoomJoinLink(options: {
+  placeholderName: string;
+  placeholderEmail: string;
+  joinUrl: string;
+  createdBy?: string;
+  createdAt?: string;
+}): Promise<string> {
+  return insertRow(
+    "zoom_join_links",
+    {
+      id: testUuid(`zoom-join-link:${options.placeholderEmail}`),
+      ward_id: TEST_WARD_ID,
+      placeholder_name: options.placeholderName,
+      placeholder_email: options.placeholderEmail.toLowerCase(),
+      join_url: options.joinUrl,
+      created_by: options.createdBy ?? null,
+      created_at: options.createdAt ?? new Date().toISOString(),
+    },
+    "ward_id,placeholder_email",
+  );
+}
+
+// A person holding a link (pass `joinLinkId`) or waiting for one (omit it).
+export async function createZoomInvitee(options: {
+  displayName: string;
+  memberId?: string;
+  phone?: string;
+  email?: string;
+  notes?: string;
+  assignedBy?: string;
+  joinLinkId?: string;
+}): Promise<string> {
+  const given = options.joinLinkId !== undefined;
+  return insertRow(
+    "zoom_invitees",
+    {
+      id: testUuid(`zoom-invitee:${options.displayName}`),
+      ward_id: TEST_WARD_ID,
+      display_name: options.displayName,
+      member_id: options.memberId ?? null,
+      phone: options.phone ?? null,
+      email: options.email?.toLowerCase() ?? null,
+      notes: options.notes ?? null,
+      source: "visit",
+      assigned_by: options.assignedBy ?? null,
+      join_link_id: options.joinLinkId ?? null,
+      link_given_at: given ? new Date().toISOString() : null,
+    },
+    "id",
+  );
+}

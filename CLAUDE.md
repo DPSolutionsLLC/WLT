@@ -1587,6 +1587,28 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   **notifies nobody (D2)**; the tab reads "Needs a new link". **The URL never enters an audit row
   or a response.** Assistant clerks are not modelled: a second `ward_secretary` calling makes the
   Ward Clerk row read "More than one person holds this calling".
+- **A ZOOM JOIN LINK IS A CAPABILITY, HIDDEN AT THE COLUMN LEVEL — DECIDED 2026-10-28 (ITER-053,
+  migration 095, plans/zoom-link-pool-and-invitees.md).** With no Zoom API, the bishopric registers
+  placeholder guests in Zoom by hand and pastes each one's personal join link into a **Link pool**
+  (`zoom_join_links`); a bishopric member on a visit gives a person the **next free link** from a
+  phone (`zoom_invitees`, a roster member or a typed name) and hands it over with **Text it / Share /
+  Show QR code**. **`authenticated` has SELECT on every pool column EXCEPT `join_url` (P2)** — the
+  first column grant in this codebase, so **`select("*")` on `zoom_join_links` through a user's
+  client is a 42501**, and any embed must name its columns. A URL reaches a browser only through
+  `POST /api/zoom/invitees` and `GET|POST /api/zoom/invitees/[id]/link`, behind
+  `canManageInvitees()` (`zoom.manage_invitees`, non-overridable, AND a bishopric calling), and
+  **never enters an audit row**. Both tables have **a SELECT policy and no write policy**; the
+  readers are the bishopric, the ward clerk and the executive secretary (`canViewInvitees()`
+  mirrors it for the tab). **"Next free" is one SQL function**, `assign_next_zoom_link()`
+  (`for update skip locked`, service role only), and `join_link_id unique` makes one link, one
+  person a database fact. **An empty pool still saves the person as waiting (D1)**; **a given link
+  is never taken back (D2)**, so only a FREE link can be removed. **The bishopric edits an invitee
+  and the audit row names the changed FIELDS, never their values (D3).** The picker offers active
+  members only (D4). The low-pool warning is **computed on read and notifies nobody (P1)**.
+  `display_name` is a snapshot kept beside `member_id`, so ITER-054's attendance attaches to the
+  PERSON and survives a roster change. **Not built:** taking a link back, pausing one, a low-pool
+  notification, deleting an invitee, Zoom API registration. The *Waiting for a link* to-do is
+  slice z2c.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

@@ -18,13 +18,15 @@ export function parseZoomView(value: unknown): ZoomView {
   return parsed.success ? parsed.data : DEFAULT_ZOOM_VIEW;
 }
 
-// Which tabs a reader sees, in order (ITER-053). `invitees` joins in slice z2b; until then its
-// panel does not exist, so it is never offered.
+// Which tabs a reader sees, in order (ITER-053). Invitees is read by the bishopric, the clerk and
+// the executive secretary; the pool and the remote links only by the bishopric.
 export function visibleZoomTabs(reader: {
+  canViewInvitees: boolean;
   canManageInvitees: boolean;
   canManageRemoteLinks: boolean;
 }): ZoomTab[] {
   const tabs: ZoomTab[] = ["remote"];
+  if (reader.canViewInvitees) tabs.push("invitees");
   if (reader.canManageInvitees) tabs.push("pool");
   if (reader.canManageRemoteLinks) tabs.push("links");
   return tabs;

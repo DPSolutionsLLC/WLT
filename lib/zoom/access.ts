@@ -22,3 +22,15 @@ export function canManageInvitees(user: SessionUser, roleAccess: RoleAccess): bo
     (BISHOPRIC_ROLES as readonly string[]).includes(user.role)
   );
 }
+
+const INVITEE_READER_ROLES: readonly string[] = [
+  ...BISHOPRIC_ROLES,
+  "ward_secretary",
+  "executive_secretary",
+];
+
+// Who sees the Invitees tab — a mirror of migration 095's SELECT policy on zoom_invitees, so a
+// calling that holds `zoom.view` by a ward override is not shown a list RLS would leave empty.
+export function canViewInvitees(user: SessionUser, roleAccess: RoleAccess): boolean {
+  return can(user, "zoom.view", roleAccess) && INVITEE_READER_ROLES.includes(user.role);
+}

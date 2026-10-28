@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 92,
+  "scenarioCount": 93,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -3710,6 +3710,49 @@
         "The page is legible one-handed at 375px, in light and dark."
       ],
       "seedCommand": "npm run seed -- zoom/scenario-094-zoom-remote-links"
+    },
+    {
+      "id": "zoom:scenario-095-zoom-link-pool",
+      "path": "zoom/scenario-095-zoom-link-pool",
+      "name": "Zoom link pool, hand-out and invitees",
+      "scope": "ITER-053",
+      "part": 2,
+      "tags": [
+        "zoom",
+        "full",
+        "permissions",
+        "mobile"
+      ],
+      "prerequisites": "none",
+      "purpose": "Proves the bishopric can hand out Zoom join links from a phone (a roster member or a typed name,\nthen Text it / Share / Show QR), that an empty pool saves the person as waiting, and that the clerk\nand executive secretary see the list without any way to read a link. The RLS and route tests prove\nthe rules; this proves the screens say them at phone width. Seeding helps because it needs a\nnearly empty pool, a given link, a moved-out member and six callings.\n\n**Slices.** Built across z2a (pool), z2b (invitees and hand-out) and z2c (the waiting to-do). The\nchecks marked **(z2c)** cannot pass until z2c is built — skip them when walking z2b.",
+      "checklist": [
+        "Lena Ortiz does not appear in the picker; typing her name as a non-member works.",
+        "Picking Thomas Reed fills his phone (555-201-7788).",
+        "The hand-outs get the next free placeholder in order: Thomas → Guest 02, Lena → Guest 03.",
+        "Text it shows Open in Messages on a phone (Copy plus an explanation on desktop), and the message contains `example.org/j/guest02`.",
+        "Show QR code draws a code that scans to `https://example.org/j/guest02`.",
+        "After the second hand-out the window and the banner above the tabs say no links are left.",
+        "Sam Visitor is listed under *Waiting for a link*, and the window said \"Sam Visitor is saved, but there are no free links.\"",
+        "**(z2c)** A \"Give Sam Visitor a Zoom link\" to-do is on the 1st counselor's list, with no checkbox and no working delete.",
+        "The paste preview names the bad line by number, and Add stays disabled until it is fixed.",
+        "After pasting, the result says 1 person is waiting; Give a link on Sam's row gives the oldest new link.",
+        "**(z2c)** The to-do closes with a timeline line.",
+        "The edit wrote a `zoom_invitee_updated` audit row whose detail is `{ inviteeId, changedFields: [\"phone\"] }`, with no phone number in it.",
+        "Show link on Grace Holt opens the hand-off for `example.org/j/guest01`.",
+        "✕ removes a free link; a given link has no ✕.",
+        "The clerk and the executive secretary see **Remote control** and **Invitees** only, with names and placeholders and no buttons, and rows that are not tappable.",
+        "The Elders Quorum president has no Zoom tile, and `/zoom` shows Not permitted.",
+        "No page's HTML contains `example.org/j/` except inside an open hand-off window.",
+        "No audit row contains `https://`, a phone number, an email or notes.",
+        "No horizontal overflow at 375px; every button is at least 44×44.",
+        "The hand-out window is quick to do one-handed on a visit, and Give link is the obvious next press.",
+        "Text it / Share / Show QR code read as three equal choices, and the QR is large enough to scan from across a table.",
+        "The text message reads warmly and makes clear the link is just for them.",
+        "The waiting sentence tells the leader plainly what happened and what comes next.",
+        "The invitee rows are easy to scan, and the \"Last watched — · Sundays watched —\" line does not read as broken.",
+        "Legible in light and dark."
+      ],
+      "seedCommand": "npm run seed -- zoom/scenario-095-zoom-link-pool"
     }
   ]
 }

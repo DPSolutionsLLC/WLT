@@ -7,7 +7,8 @@ import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import { readPageView } from "@/lib/users/userSettings";
-import { canManageInvitees, canManageRemoteLinks } from "@/lib/zoom/access";
+import { canManageInvitees, canManageRemoteLinks, canViewInvitees } from "@/lib/zoom/access";
+import { listInvitees } from "@/lib/zoom/invitees";
 import { describePoolLevel, listPool } from "@/lib/zoom/joinLinkPool";
 import { describeRemoteLinkRow } from "@/lib/zoom/remoteLinkRow";
 import { listRemoteLinkAdminEntries, readOwnRemoteLinkState } from "@/lib/zoom/remoteLinks";
@@ -49,9 +50,16 @@ export default async function ZoomPage({ searchParams }: ZoomPageProps) {
       )
     : null;
 
-  const pool = managesInvitees ? await listPool(supabase) : null;
+  const viewsInvitees = canViewInvitees(user, roleAccess);
+
+  const [pool, invitees, wardName] = await Promise.all([
+    managesInvitees ? listPool(supabase) : Promise.resolve(null),
+    viewsInvitees ? listInvitees(supabase) : Promise.resolve(null),
+    managesInvitees ? readWardName(user.wardId, supabase) : Promise.resolve(null),
+  ]);
 
   const visibleTabs = visibleZoomTabs({
+    canViewInvitees: viewsInvitees,
     canManageInvitees: managesInvitees,
     canManageRemoteLinks: managesRemoteLinks,
   });
@@ -75,9 +83,30 @@ export default async function ZoomPage({ searchParams }: ZoomPageProps) {
         linkWentAway={params.remote === "none"}
         linkRows={linkRows}
         pool={pool}
+        invitees={invitees}
+        canManageInvitees={managesInvitees}
+        user={user}
+        wardName={wardName}
         visibleTabs={visibleTabs}
         initialTab={initialZoomTab(initialView.tab, visibleTabs)}
       />
     </div>
   );
+}
+
+// The ward's name for the hand-out message ("watch Buffalo Ward sacrament meeting"). A failure is
+// logged and the message says "our sacrament meeting" instead — one phrase of courtesy text must not
+// take the page down (the dashboard's readWardName() precedent).
+async function readWardName(
+  wardId: string,
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+): Promise<string | null> {
+  const { data, error } = await supabase.from("wards").select("name").eq("id", wardId).maybeSingle();
+
+  if (error) {
+    console.error("Could not read the ward name for the Zoom page", { wardId, error: error.message });
+    return null;
+  }
+
+  return data?.name ?? null;
 }

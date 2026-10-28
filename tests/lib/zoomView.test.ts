@@ -2,18 +2,22 @@ import { describe, expect, it } from "vitest";
 import { initialZoomTab, parseZoomView, visibleZoomTabs } from "@/lib/zoom/zoomView";
 
 describe("visibleZoomTabs", () => {
-  it("gives the bishopric the pool and the remote links", () => {
-    expect(visibleZoomTabs({ canManageInvitees: true, canManageRemoteLinks: true })).toEqual([
-      "remote",
-      "pool",
-      "links",
-    ]);
+  it("gives the bishopric every tab, in order", () => {
+    expect(
+      visibleZoomTabs({ canViewInvitees: true, canManageInvitees: true, canManageRemoteLinks: true }),
+    ).toEqual(["remote", "invitees", "pool", "links"]);
   });
 
-  it("gives a clerk only the remote control", () => {
-    expect(visibleZoomTabs({ canManageInvitees: false, canManageRemoteLinks: false })).toEqual([
-      "remote",
-    ]);
+  it("gives a clerk the remote control and the invitee list, and nothing that writes", () => {
+    expect(
+      visibleZoomTabs({ canViewInvitees: true, canManageInvitees: false, canManageRemoteLinks: false }),
+    ).toEqual(["remote", "invitees"]);
+  });
+
+  it("gives a reader who cannot see invitees only the remote control", () => {
+    expect(
+      visibleZoomTabs({ canViewInvitees: false, canManageInvitees: false, canManageRemoteLinks: false }),
+    ).toEqual(["remote"]);
   });
 });
 

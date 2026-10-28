@@ -1,14 +1,17 @@
 "use client";
 
 import { useRef, useState, type KeyboardEvent } from "react";
+import { InviteesPanel } from "@/app/(app)/zoom/InviteesPanel";
 import { LinkPoolPanel } from "@/app/(app)/zoom/LinkPoolPanel";
 import { RemoteControlPanel } from "@/app/(app)/zoom/RemoteControlPanel";
 import { RemoteLinksPanel } from "@/app/(app)/zoom/RemoteLinksPanel";
 import { FormError } from "@/components/ui/FormError";
+import type { ZoomInvitee } from "@/lib/zoom/invitees";
 import type { PoolSummary } from "@/lib/zoom/joinLinkPool";
 import type { RemoteLinkRow } from "@/lib/zoom/remoteLinkRow";
 import type { RemoteLinkOwnState } from "@/lib/zoom/remoteLinks";
 import type { ZoomTab } from "@/lib/zoom/zoomView";
+import type { SessionUser } from "@/types/domain";
 
 // The Zoom page's tabs (ITER-051, ITER-053, module-map §6.5). The page decides which tabs a reader
 // sees (visibleZoomTabs()); a reader with one tab gets that panel alone and no tab bar. The tab is
@@ -46,6 +49,10 @@ export type ZoomTabsProps = {
   // Null when the reader cannot see that tab.
   linkRows: RemoteLinkRow[] | null;
   pool: PoolSummary | null;
+  invitees: ZoomInvitee[] | null;
+  canManageInvitees: boolean;
+  user: SessionUser;
+  wardName: string | null;
   visibleTabs: readonly ZoomTab[];
   initialTab: ZoomTab;
 };
@@ -55,6 +62,10 @@ export function ZoomTabs({
   linkWentAway,
   linkRows,
   pool,
+  invitees,
+  canManageInvitees,
+  user,
+  wardName,
   visibleTabs,
   initialTab,
 }: ZoomTabsProps) {
@@ -74,6 +85,16 @@ export function ZoomTabs({
   if (visibleTabs.length <= 1) return remotePanel;
 
   function panelFor(tab: ZoomTab) {
+    if (tab === "invitees" && invitees) {
+      return (
+        <InviteesPanel
+          invitees={invitees}
+          canManage={canManageInvitees}
+          user={user}
+          wardName={wardName}
+        />
+      );
+    }
     if (tab === "pool" && pool) return <LinkPoolPanel initialPool={pool} />;
     if (tab === "links" && linkRows) return <RemoteLinksPanel initialRows={linkRows} />;
     return remotePanel;

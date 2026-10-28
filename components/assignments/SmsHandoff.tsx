@@ -16,6 +16,8 @@ export type SmsHandoffProps = {
   // Whether this platform can act on an sms: link at all. Resolved by the component, but
   // overridable so a test can render both branches without a user agent.
   supportsSmsLinks?: boolean;
+  // Who the message is for, in the no-phone sentence. Talks say "speaker"; Zoom says "person".
+  subject?: string;
 };
 
 const DESKTOP_EXPLANATION =
@@ -54,7 +56,7 @@ function readServerPointer(): boolean {
   return false;
 }
 
-export function SmsHandoff({ phone, body, supportsSmsLinks }: SmsHandoffProps) {
+export function SmsHandoff({ phone, body, supportsSmsLinks, subject = "speaker" }: SmsHandoffProps) {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState<string>();
 
@@ -103,7 +105,7 @@ export function SmsHandoff({ phone, body, supportsSmsLinks }: SmsHandoffProps) {
 
       {phone === null && (
         <p className="text-sm text-muted">
-          There is no phone number on file for this speaker, so there is nothing to open. Copy
+          There is no phone number on file for this {subject}, so there is nothing to open. Copy
           the message and send it however you normally reach them.
         </p>
       )}
