@@ -1,7 +1,9 @@
 # ITER-051: Zoom tile with each leader's stream remote-control button
 
 **Type:** Feature
-**Status:** Backlogged
+**Status:** Completed
+**Completed:** 2026-10-27
+**Commit:** c096432
 **Plan:** plans/zoom-remote-links.md
 **Created:** 2026-10-27
 **Group:** GROUP-05 — Zoom stream: remote controls and invitees

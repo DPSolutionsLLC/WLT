@@ -1,6 +1,6 @@
 # Backlog
 
-_Last updated: 2026-10-24_
+_Last updated: 2026-10-27_
 
 ---
 
@@ -74,6 +74,25 @@ migrates FROM it later, never the reverse. **Plan in this order** — each needs
 - ITER-042 — _cancelled 2026-10-23 (the user has other plans)_
 - ITER-044 — _completed 2026-10-23 (00cb58d)_
 - ITER-045 — _completed 2026-10-24 (48806a6, 6283a6a, 7346f4b)_
+
+### [GROUP-04] Sacrament Planner refinements
+_Raised 2026-10-24 by the user while using the Planner (ITER-045). Small changes to the imported
+Planner's own screens. Each is a deliberate, user-requested edit to `lib/sacramentPlanner/assets/`,
+which is otherwise left untouched. Plan after ITER-045 Slice C is live._
+- [ ] ITER-048 — Fast & Testimony Sundays start with no speakers → [scope](.iterate/scopes/ITER-048.md)
+- [ ] ITER-049 — Pray About shows open slots before you place someone → [scope](.iterate/scopes/ITER-049.md)
+- [ ] ITER-050 — Calls history: look back at past Sundays → [scope](.iterate/scopes/ITER-050.md)
+
+### [GROUP-05] Zoom stream: remote controls and invitees
+_Raised 2026-10-27. The Zoom tile — first slice of P10's Zoom module, built without Zoom API
+access. Update the Zoom row in `plans/prototype/module-map.md` before planning.
+Suggested order: 051 → 053 → 052 → 054. Future (design for, don't build): Zoom API registration and attendance._
+- ITER-051 — _completed 2026-10-27 (c096432)_
+- [ ] ITER-053 — Zoom link pool, visit hand-out, and invitee list → [scope](.iterate/scopes/ITER-053.md)
+- [ ] ITER-052 — Public Zoom self-registration with bishopric approval → [scope](.iterate/scopes/ITER-052.md)
+  _Depends on ITER-053's link pool._
+- [ ] ITER-054 — Weekly Zoom attendance import → [scope](.iterate/scopes/ITER-054.md)
+  _Get a real exported Zoom report from the church account before planning._
 
 ---
 
@@ -308,6 +327,8 @@ Each of these is large or complex enough to tackle on its own.
 ## Deferred
 _Items that need testing or further exploration before scoping. Each entry should include enough context to restart the conversation in a future session._
 
+- **Pause / resume a Zoom stream link** — Temporarily or permanently block one invitee's personal Zoom join link, and later turn it back on (GROUP-05). No Zoom API access; the web portal offers approve / deny / cancel on registrants. The app can mark someone paused in its own records, but that does not stop a URL the person already holds — only Zoom can. **Key considerations:** unknown whether a cancelled registrant can be re-approved, and if so whether their join link stays the same. **Action needed:** the user tests with one placeholder registrant in the ward's Zoom account (cancel, then try to re-approve; compare the link) before this is scoped.
+- **Per-person email alerts on/off, app-wide** — Each leader chooses whether app notifications also arrive by email (SMS later, not now). Raised 2026-10-27 during the Zoom discussion (new-registration emails). Partial precedent exists: `notification_user_prefs.email_enabled` for the two music triggers, toggled on `/music`; its known limit is one row per (user, trigger), not per ward. **Key considerations:** bigger than Zoom — touches every notification trigger; where the switch lives (account settings vs. per module). **Action needed:** a discovery conversation of its own.
 - [ ] ITER-032 — The date input still reads the reader's clock → [scope](.iterate/scopes/ITER-032.md)
   _Found 2026-08-30 walking scenario 050 (`050-D2`), and **deferred by the user the same day, on a
   correct reading**: "another ward in another timezone is not going to be even interacting with a
@@ -334,6 +355,7 @@ _Items that need testing or further exploration before scoping. Each entry shoul
 
 ## Completed
 
+- [x] ITER-051 — Zoom tile with each leader's stream remote-control button _(completed 2026-10-27, c096432 — the Zoom tile opens each leader's own stream-remote link through a redirect; the bishop and counselors paste and turn off the five positions' links on a Remote links tab, status only. Migration 094, holder-only reads, and a calling change turns stale links off. Zoom must be ticked for Buffalo Ward under Edit released modules. Open: no screen changes a counselor's number; reinstating a released calling does not work)_
 - [x] ITER-045 — Sacrament Planner replaces what is behind the Sacrament tile _(completed 2026-10-24, 48806a6 + 6283a6a + 7346f4b — the bishopric's Planner runs unchanged behind the Sacrament tile on migration 093, its member list checked against the app's (all 353 names matched; household phone now goes to a man first) and its 273 records and 922 history lines imported into Buffalo Ward and verified. No pipelines connected; GROUP-02 needs re-scoping against the Planner. Open: a super admin cannot change their own calling)_
 - [x] ITER-044 — Release the Sacrament tile on its own _(completed 2026-10-23, 00cb58d — "Sacrament meeting" now releases the Sacrament tile alone; Topic history, Program, Music and Calendar are their own tickboxes and Speakers & Prayers is gone (migration 092, NOT YET APPLIED). Scenario 092 walked; the hub's links to unreleased Program/Music accepted until ITER-045. GROUP-03 next: ITER-045)_
 - [x] ITER-041 — Released modules per ward, and a ward you can create _(completed 2026-10-15, a234706 + 4c1e1fd — adding a ward on Stakes & Wards provisions a real ward and can give the super admin a calling there; each ward gets a super-admin-only released-modules list that narrows `can()`, bounces unreleased pages and refuses their tables (migration 091). Scenarios 090 and 091 walked; a phone-width pill overflow and an off-screen created message fixed. Slice c (onboarding Buffalo) is a runbook in the retro: deploy first. GROUP-03 next: ITER-042)_
