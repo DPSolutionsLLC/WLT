@@ -2,7 +2,7 @@
 id: zoom-link-pool-and-invitees
 type: feature
 iter: ITER-053
-commits: ["5f092ff", "a35db26"]
+commits: ["5f092ff", "a35db26", "d7c4ca9"]
 date: 2026-10-28
 files:
   - supabase/migrations/095_zoom_link_pool_and_invitees.sql
