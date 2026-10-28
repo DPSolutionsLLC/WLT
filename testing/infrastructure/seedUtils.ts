@@ -2486,3 +2486,49 @@ export async function setPlannerHistory(options: {
   );
   if (error) throw new Error(`Could not seed planner_history: ${error.message}`);
 }
+
+// ============================================================================
+// Zoom stream remote links (ITER-051, migration 094)
+// ============================================================================
+
+// The calling createTestUser() gave this person in the harness ward. Its id is derived exactly as
+// upsertCalling() derives it.
+export function testCallingId(userId: string, wardId: string = TEST_WARD_ID): string {
+  return testUuid(`calling:${userId}:${wardId}`);
+}
+
+// Releases a person's calling in the harness ward, as endCalling() would, so a later seed can call
+// somebody else to it.
+export async function releaseTestCalling(userId: string): Promise<void> {
+  const { error } = await getAdminClient()
+    .from("ward_role_assignments")
+    .update({ is_active: false, ended_on: new Date().toISOString().slice(0, 10) })
+    .eq("id", testCallingId(userId));
+  if (error) throw new Error(`Could not release the calling for ${userId}: ${error.message}`);
+}
+
+// One position's remote link, bound to the calling of `holderUserId`. `deactivatedReason` writes
+// a turned-off row, which holds no URL (migration 094's constraint).
+export async function createZoomRemoteLink(options: {
+  position: "bishop" | "counselor_1" | "counselor_2" | "ward_clerk" | "executive_secretary";
+  holderUserId: string;
+  setBy: string;
+  url?: string;
+  deactivatedReason?: "holder_changed" | "turned_off";
+}): Promise<string> {
+  const off = options.deactivatedReason !== undefined;
+  return insertRow(
+    "zoom_remote_links",
+    {
+      ward_id: TEST_WARD_ID,
+      position: options.position,
+      url: off ? null : (options.url ?? `https://example.org/?remote=${options.position}`),
+      holder_calling_id: testCallingId(options.holderUserId),
+      set_by: options.setBy,
+      deactivated_at: off ? new Date().toISOString() : null,
+      deactivated_reason: options.deactivatedReason ?? null,
+      deactivated_by: off ? options.setBy : null,
+    },
+    "ward_id,position",
+  );
+}

@@ -64,6 +64,7 @@ describe("last active bishop guard", () => {
     const result = await updateWardUser(
       {
         wardId: fixtures.wardAId,
+        actorUserId: fixtures.user("bishop").id,
         targetUserId: bishop.id,
         changes: { isActive: false },
       },
@@ -83,6 +84,7 @@ describe("last active bishop guard", () => {
     const result = await updateWardUser(
       {
         wardId: fixtures.wardAId,
+        actorUserId: fixtures.user("bishop").id,
         targetUserId: bishop.id,
         changes: { role: "counselor" },
       },
@@ -100,6 +102,7 @@ describe("last active bishop guard", () => {
     const result = await updateWardUser(
       {
         wardId: fixtures.wardAId,
+        actorUserId: fixtures.user("bishop").id,
         targetUserId: fixtures.user("wardCouncilMember").id,
         changes: { role: "bishop" },
       },
@@ -120,6 +123,7 @@ describe("last active bishop guard", () => {
     const result = await updateWardUser(
       {
         wardId: fixtures.wardAId,
+        actorUserId: fixtures.user("bishop").id,
         targetUserId: second.id,
         changes: { isActive: false },
       },
@@ -140,6 +144,7 @@ describe("last active bishop guard", () => {
     const result = await updateWardUser(
       {
         wardId: fixtures.wardAId,
+        actorUserId: fixtures.user("bishop").id,
         targetUserId: bishop.id,
         changes: { isActive: false },
       },
@@ -154,6 +159,7 @@ describe("last active bishop guard", () => {
     const result = await updateWardUser(
       {
         wardId: fixtures.wardAId,
+        actorUserId: fixtures.user("bishop").id,
         targetUserId: fixtures.user("counselor1").id,
         changes: { isActive: false },
       },
@@ -172,6 +178,7 @@ describe("last active bishop guard", () => {
     const result = await updateWardUser(
       {
         wardId: fixtures.wardAId,
+        actorUserId: fixtures.user("bishop").id,
         targetUserId: wardBBishop.id,
         changes: { isActive: false },
       },
@@ -189,6 +196,7 @@ describe("last active bishop guard", () => {
     const result = await updateWardUser(
       {
         wardId: fixtures.wardAId,
+        actorUserId: fixtures.user("bishop").id,
         targetUserId: fixtures.user("counselor1").id,
         changes: { orgId: fixtures.wardBOrgId },
       },

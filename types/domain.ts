@@ -259,8 +259,20 @@ export const RELEASED_MODULE_KEYS = [
   "ai_settings",
   "admin",
   "sacrament_ordinances",
+  "zoom",
 ] as const;
 export type ReleasedModuleKey = (typeof RELEASED_MODULE_KEYS)[number];
+
+// The five positions that hold a stream remote-control link (ITER-051, migration 094). The order is
+// the order the Remote links tab lists them.
+export const REMOTE_LINK_POSITIONS = [
+  "bishop",
+  "counselor_1",
+  "counselor_2",
+  "ward_clerk",
+  "executive_secretary",
+] as const;
+export type RemoteLinkPosition = (typeof REMOTE_LINK_POSITIONS)[number];
 
 export const ORGANIZATION_TYPES = [
   "bishopric",

@@ -217,6 +217,15 @@ export const RELEASED_MODULES = [
       "sacrament_assignment_managers",
     ],
   },
+  {
+    key: "zoom",
+    label: "Zoom",
+    description: "Each leader's stream remote control.",
+    built: true,
+    permissionPrefixes: ["zoom."],
+    routePrefixes: ["/zoom"],
+    tables: ["zoom_remote_links"],
+  },
 ] as const satisfies readonly {
   key: ReleasedModuleKey;
   label: string;

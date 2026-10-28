@@ -34,6 +34,10 @@ Personal nicknames layered over the canonical name, resolved in exactly one plac
 
 ## Zoom
 
+> **Built: ITER-051 remote links (2026-10-27, migration 094, `plans/zoom-remote-links.md`).** The
+> Zoom tile and each leader's stream Remote control link, with a bishopric-only Remote links tab.
+> It needs none of the infrastructure below. GROUP-05 continues with ITER-053 → 052 → 054.
+
 **The risk named plainly:** almost all of this module's value needs infrastructure that does not
 exist — Zoom Server-to-Server OAuth, a webhook receiver, a scheduled distribution job, email
 sending, and an OBS companion agent on a dedicated machine for muting during ordinances. The

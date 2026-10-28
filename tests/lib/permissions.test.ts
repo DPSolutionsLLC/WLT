@@ -403,18 +403,20 @@ describe("mergeRoleAccess — non-overridable permissions", () => {
   // `planner.*` is the second (ITER-045): the Sacrament Planner is bishopric only until ITER-046,
   // and migration 093 refuses everybody else whatever a ward configures.
   // Any other permission appearing here is still a mistake this test should catch.
-  it("locks every admin.*, sacrament.* and planner.* permission, plus personal_tools.use", () => {
+  it("locks every admin.*, sacrament.* and planner.* permission, plus personal_tools.use and zoom.manage_remote_links", () => {
     expect(NON_OVERRIDABLE_PERMISSIONS.length).toBeGreaterThan(0);
     expect(NON_OVERRIDABLE_PERMISSIONS).toContain("personal_tools.use");
     expect(NON_OVERRIDABLE_PERMISSIONS).toContain("planner.use");
+    expect(NON_OVERRIDABLE_PERMISSIONS).toContain("zoom.manage_remote_links");
 
     for (const permission of NON_OVERRIDABLE_PERMISSIONS) {
       expect(
         permission.startsWith("admin.") ||
           permission.startsWith("sacrament.") ||
           permission.startsWith("planner.") ||
-          permission === "personal_tools.use",
-        `"${permission}" is locked but is neither admin.*, sacrament.*, planner.* nor personal_tools.use`,
+          permission === "personal_tools.use" ||
+          permission === "zoom.manage_remote_links",
+        `"${permission}" is locked but is neither admin.*, sacrament.*, planner.*, personal_tools.use nor zoom.manage_remote_links`,
       ).toBe(true);
     }
   });
@@ -1079,6 +1081,47 @@ describe("personal_tools.use", () => {
     silenceWarnings();
     const merged = mergeRoleAccess({ sacrament_manager: { add: ["personal_tools.use"] } });
     expect(can(sessionUser("sacrament_manager"), "personal_tools.use", merged)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ZOOM (ITER-051). The five remote-link callings open the tile; only the bishopric manages the
+// links, and no ward can hand that to another calling.
+// ---------------------------------------------------------------------------
+describe("zoom permissions", () => {
+  const VIEWERS: readonly Role[] = [
+    "bishop",
+    "counselor",
+    "ward_secretary",
+    "executive_secretary",
+    "super_admin",
+  ];
+
+  it.each(VIEWERS)("gives %s zoom.view", (role) => {
+    expect(can(sessionUser(role), "zoom.view", ROLE_PERMISSIONS)).toBe(true);
+  });
+
+  it.each(ROLES.filter((role) => !VIEWERS.includes(role)))("withholds zoom.view from %s", (role) => {
+    expect(can(sessionUser(role), "zoom.view", ROLE_PERMISSIONS)).toBe(false);
+  });
+
+  it("gives zoom.manage_remote_links to the bishopric and to no other ward role", () => {
+    const holders = ROLES.filter(
+      (role) =>
+        role !== "super_admin" &&
+        can(sessionUser(role), "zoom.manage_remote_links", ROLE_PERMISSIONS),
+    );
+    expect(holders.sort()).toEqual(["bishop", "counselor"]);
+  });
+
+  it("locks zoom.manage_remote_links against a ward delta", () => {
+    silenceWarnings();
+    const merged = mergeRoleAccess({ org_president: { add: ["zoom.manage_remote_links"] } });
+    expect(can(sessionUser("org_president"), "zoom.manage_remote_links", merged)).toBe(false);
+  });
+
+  it("leaves zoom.view overridable", () => {
+    expect(NON_OVERRIDABLE_PERMISSIONS).not.toContain("zoom.view");
   });
 });
 

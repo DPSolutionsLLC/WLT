@@ -76,7 +76,8 @@ ReleasedModuleKey[] | null` and `isSuperAdmin: boolean` (both required). `PUT
 
 Module keys (ITER-044, migration 092): `sacrament`, `topic_history`, `program`, `music`,
 `calendar`, `agendas`, `roster`, `visits`, `youth`, `tithing`, `personal_tools`, `knowledge`,
-`ai_settings`, `admin`, `sacrament_ordinances`. `sacrament` is the Sacrament tile alone
+`ai_settings`, `admin`, `sacrament_ordinances`, and `zoom` (ITER-051, owning `zoom.*`, `/zoom` and
+`zoom_remote_links`). `sacrament` is the Sacrament tile alone
 (`talks.*`, `topics.*`). **`topic_history` owns a route and nothing else**: its page reads the
 talks, which are Sacrament's, so it is hidden by route (the bounce, and `isReachable()` in
 `lib/auth/navigation.tsx`). **`music` owns no table**: `hymn_selections`, `musical_numbers` and
@@ -498,6 +499,30 @@ imported_at   timestamptz NOT NULL DEFAULT now()
 -- RLS: SELECT only, same predicate. No write policy; the import script uses the service role.
 -- Restrictive release policy: 'sacrament'. Not in the realtime publication.
 ```
+
+### `zoom_remote_links` *(ITER-051, migration 094)*
+One stream remote-control link per position. Readable **only by its holder**; the bishopric pastes
+links and never reads one back.
+```sql
+id                 uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id            uuid NOT NULL REFERENCES wards(id) ON DELETE CASCADE
+position           text NOT NULL  -- 'bishop' | 'counselor_1' | 'counselor_2' | 'ward_clerk' | 'executive_secretary'
+url                text           -- https:// only, <= 2000 chars; NULL exactly when turned off
+holder_calling_id  uuid REFERENCES ward_role_assignments(id) ON DELETE SET NULL  -- the calling it was pasted for
+set_by             uuid REFERENCES users(id) ON DELETE SET NULL
+set_at             timestamptz NOT NULL DEFAULT now()
+deactivated_at     timestamptz
+deactivated_reason text           -- 'holder_changed' | 'turned_off'; NULL exactly when live
+deactivated_by     uuid REFERENCES users(id) ON DELETE SET NULL
+UNIQUE (ward_id, position)
+-- RLS: SELECT only — ward_id = current_ward_id() and deactivated_at is null and
+-- holds_remote_link(holder_calling_id, position) (the calling is active, is the reader's, is in
+-- this ward, its account is active, and its role/counselor number still match the position).
+-- No bishopric arm. No write policy: the routes write with the service role.
+-- Restrictive release policy: 'zoom'. Not in the realtime publication.
+```
+`updateCalling()` and `endCalling()` turn off (`holder_changed`) every live link whose calling no
+longer matches, so an undone change never revives a link.
 
 ### `hymn_selections`
 ```sql
@@ -1644,6 +1669,23 @@ events that are not cancelled — and merging them in ONE pure function,
 modules' existing routes: `PATCH /api/visit-appointments/[id] { action: "cancel" }` and
 `PATCH /api/todos/[id] { scheduledFor: null }`. P6's meeting invites join as a fourth source of the
 same function, and the conflict check must call it rather than assembling a second list.
+
+### Zoom  *(ITER-051 — `zoom.view`; managing links: `zoom.manage_remote_links`, non-overridable, plus a bishopric calling)*
+```
+GET    /api/zoom/remote-control             303 to the caller's own live link (read through the caller's
+                                            client, so RLS decides), else 303 to /zoom?remote=none.
+                                            Cache-Control: no-store, Referrer-Policy: no-referrer. No audit row.
+PUT    /api/zoom/remote-links/[position]    { url } — set or replace. 409 when nobody, or more than one
+                                            person, holds the calling. Audited zoom_remote_link_set /
+                                            zoom_remote_link_replaced with { position, holderUserId,
+                                            previousHolderUserId }
+DELETE /api/zoom/remote-links/[position]    Turn off. 404 when nothing is live. Audited
+                                            zoom_remote_link_turned_off with { position, reason,
+                                            previousHolderUserId }
+```
+Both write routes answer `{ row }` — the tab's status row, never the link. **The URL never appears
+in an audit row or a response.** `zoom.view` is held by the bishopric, the ward clerk
+(`ward_secretary`) and the executive secretary.
 
 ### Page views  *(any signed-in user)*
 ```

@@ -1567,6 +1567,26 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   appeared as the bishop until his own calling was corrected. **Nobody can change their own role
   on Admin → Users**, and Admin is unreleased in Buffalo, so a super admin's own calling there can
   be changed by nobody — an open gap, to be scoped.
+- **A STREAM REMOTE LINK BELONGS TO A POSITION AND ONLY ITS HOLDER CAN READ IT — DECIDED
+  2026-10-27 (ITER-051, migration 094, plans/zoom-remote-links.md).** The Zoom tile opens on a
+  **Remote control** button pointing at `GET /api/zoom/remote-control`, which redirects to the
+  reader's own link, so the URL is never in a page's HTML. `zoom_remote_links` holds one row per
+  position (bishop, counselor 1 and 2, ward clerk, executive secretary) and has **a SELECT policy
+  and no write policy**; its SELECT has **no bishopric arm (D3)** — the bishopric pastes links on the
+  **Remote links tab of the Zoom page, not Admin (D1)**, behind `zoom.manage_remote_links`
+  (non-overridable) AND a bishopric calling (`canManageRemoteLinks()`, `canUsePlanner()`'s shape),
+  and only ever sees status. **Computed on read AND stamped on write, for different reasons:**
+  `holds_remote_link()` re-checks on every read that the bound calling is active, is the reader's,
+  is in this ward, sits on an active account and still matches the position (a role or counselor
+  number change updates the calling IN PLACE, so a 1st ↔ 2nd swap needs the match, D5); and
+  `updateCalling()` / `endCalling()` — **the only two functions that change an existing calling** —
+  call `retireRemoteLinksForCalling()`, which stamps `holder_changed` so an undone change never
+  revives a link. `tests/lib/remoteLinkRetireSites.test.ts` reads the source to hold both, and to
+  keep `lib/zoom/remoteLinks.ts` the only file that queries the table. Both take a **required**
+  `actorUserId`. **A turned-off row holds no URL** (a CHECK). Turning off on a holder change
+  **notifies nobody (D2)**; the tab reads "Needs a new link". **The URL never enters an audit row
+  or a response.** Assistant clerks are not modelled: a second `ward_secretary` calling makes the
+  Ward Clerk row read "More than one person holds this calling".
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

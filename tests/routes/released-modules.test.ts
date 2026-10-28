@@ -88,7 +88,9 @@ describe("PUT /api/wards/[id]/released-modules", () => {
 
   it("refuses a module key the app does not have", async () => {
     await actAs(fixtures, "superAdmin");
-    const { status } = await put(fixtures.wardBId, { modules: ["tithing", "zoom"] });
+    // `speakers` was a key until migration 092 removed it. (`zoom` was the example here until
+    // ITER-051 made it a real module.)
+    const { status } = await put(fixtures.wardBId, { modules: ["tithing", "speakers"] });
 
     expect(status).toBe(400);
     expect(await readList(fixtures.wardBId)).toBeNull();

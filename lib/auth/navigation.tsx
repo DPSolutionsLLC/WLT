@@ -18,6 +18,7 @@ import {
   Target,
   Trophy,
   Users,
+  Video,
 } from "lucide-react";
 import type { TileAccent } from "@/components/ui/Tile";
 import { isModuleReleased, moduleForPath } from "@/lib/access/releasedModules";
@@ -110,7 +111,7 @@ export const NAVIGATION_SECTIONS: readonly {
 }[] = [
   { id: "meetings", label: "Meetings & Programs", accent: "pine" },
   { id: "people", label: "People & Care", accent: "rust" },
-  // RENDERS FROM P5, with To Do and My Appointments. Message and Zoom are P10 and have no rows yet, because a placeholder row is the exact bug the `built` gate closes.
+  // RENDERS FROM P5, with To Do and My Appointments; Zoom joined in ITER-051. Message is P10 and has no row yet, because a placeholder row is the exact bug the `built` gate closes.
   // The grid still renders nothing for a role with no visible tile here (stake officers, the
   // youth account), so an empty heading never appears.
   { id: "tasks", label: "Tasks & Communication", accent: "gold" },
@@ -291,6 +292,17 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
     section: "tasks",
     blurb: "Everything you have said you will be at, in one list.",
     icon: <CalendarClock />,
+    accent: "gold",
+    built: true,
+  },
+  // ITER-051: each leader's stream remote control. The Remote links tab inside is bishopric-only.
+  {
+    label: "Zoom",
+    href: "/zoom",
+    permission: "zoom.view",
+    section: "tasks",
+    blurb: "Your remote control for the sacrament meeting stream.",
+    icon: <Video />,
     accent: "gold",
     built: true,
   },

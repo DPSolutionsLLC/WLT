@@ -191,11 +191,13 @@ export async function PATCH(request: Request) {
           userId: input.userId,
           wardId: input.wardId,
           changes: { isActive: true },
+          actorUserId: user.id,
         })
       : await endCalling({
           userId: input.userId,
           wardId: input.wardId,
           endedOn: input.endedOn ?? null,
+          actorUserId: user.id,
         });
 
     if (!calling) {

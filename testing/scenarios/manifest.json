@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 91,
+  "scenarioCount": 92,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -3677,6 +3677,39 @@
         "Is the roster panel's empty state legible one-handed at 375px, in both themes?"
       ],
       "seedCommand": "npm run seed -- youth/scenario-063-a-schedule-with-nobody-on-it-yet"
+    },
+    {
+      "id": "zoom:scenario-094-zoom-remote-links",
+      "path": "zoom/scenario-094-zoom-remote-links",
+      "name": "Zoom remote links — each leader's own stream remote",
+      "scope": "ITER-051",
+      "part": 1,
+      "tags": [
+        "zoom",
+        "smoke",
+        "permissions"
+      ],
+      "prerequisites": "none",
+      "purpose": "Proves each leader sees only their own Remote control button, the bishopric manages the five\nlinks without ever seeing one, and a calling change turns a link off. The RLS and route tests\nprove the rules; this proves the screens say them. Seeding helps because the state needs five\ncallings, links bound to specific callings, a released former counselor and a vacant position.",
+      "checklist": [
+        "Remote control opens the reader's own link in a new tab, and the Zoom page's HTML contains no `example.org` text.",
+        "Remote links lists Bishop, 1st Counselor, 2nd Counselor, Ward Clerk, Executive Secretary, in that order, each with the holder's name and email.",
+        "Executive Secretary reads \"No one called\" and has no Paste button.",
+        "2nd Counselor reads \"Needs a new link — the last one was for Ruth Hallam.\"",
+        "The Paste/Replace window opens with an empty field.",
+        "An `http://` link is refused with \"Paste the full link, starting with https://.\"",
+        "After Turn off, the bishop's Remote control tab says \"No remote link set — ask the bishopric.\"",
+        "The ward clerk sees no tab bar, and the remote area says \"No remote link set — ask the bishopric.\"",
+        "After the counselor swap, both counselor rows read \"Needs a new link\", and each counselor's remote area says \"No remote link set — ask the bishopric.\"",
+        "Each change wrote a `zoom_remote_link_set`, `zoom_remote_link_replaced` or `zoom_remote_link_turned_off` audit row carrying the position and no link text.",
+        "The Elders Quorum president has no Zoom tile, and `/zoom` shows Not permitted.",
+        "No horizontal overflow at 375px; every button is at least 44×44.",
+        "The Remote control button reads as the one obvious thing to press on the page.",
+        "Each row's status line says plainly what state the link is in and what to do next.",
+        "The Turn off confirmation makes it clear the leader loses access straight away.",
+        "The page is legible one-handed at 375px, in light and dark."
+      ],
+      "seedCommand": "npm run seed -- zoom/scenario-094-zoom-remote-links"
     }
   ]
 }

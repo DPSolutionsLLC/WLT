@@ -41,6 +41,9 @@ export type UpdateWardUserParams = {
   wardId: string;
   targetUserId: string;
   changes: UpdateUserInput;
+  // Who made the change. Passed to updateCalling(), which turns off any stream remote link the
+  // change made stale and audits that under this person (ITER-051).
+  actorUserId: string;
 };
 
 export type UpdateWardUserResult =
@@ -294,7 +297,7 @@ export async function updateWardUser(
   params: UpdateWardUserParams,
   client?: SupabaseClient<Database>,
 ): Promise<UpdateWardUserResult> {
-  const { wardId, targetUserId, changes } = params;
+  const { wardId, targetUserId, changes, actorUserId } = params;
   const readClient = client ?? (await createServerSupabaseClient());
 
   const existing = await listWardUsers(wardId, readClient);
@@ -400,6 +403,7 @@ export async function updateWardUser(
             ? { counselorPosition: changes.counselorPosition }
             : {}),
         },
+        actorUserId,
       },
       service,
     );

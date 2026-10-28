@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CALLING_COLUMNS, toCalling } from "@/lib/callings/queries";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
+import { retireRemoteLinksForCalling } from "@/lib/zoom/remoteLinks";
 import type { Database } from "@/types/database";
 import type { Calling, Role } from "@/types/domain";
 
@@ -24,6 +25,11 @@ import type { Calling, Role } from "@/types/domain";
 // NO AUDIT ROW IS WRITTEN HERE. The route writes it (conventions.md §Route Handler Shape), the
 // same as every other mutation in the app; writing one in both places would double every entry in
 // the trail. lib/auth/youthAccounts.ts carries the identical note for the identical reason.
+//
+// The calling change is still audited by the route. Turning off a stream remote link that the
+// change made stale (ITER-051) is a DIFFERENT mutation, and retireRemoteLinksForCalling() audits
+// it. updateCalling() and endCalling() are the only functions that change an existing calling, so
+// both call it; tests/lib/remoteLinkRetireSites.test.ts keeps it that way.
 
 export type CreateCallingParams = {
   userId: string;
@@ -47,12 +53,16 @@ export type UpdateCallingParams = {
     counselorPosition?: 1 | 2 | null;
     isActive?: boolean;
   };
+  // Required, with no default: a missing one is a compile error rather than a link turned off by
+  // nobody (ITER-005's lesson).
+  actorUserId: string;
 };
 
 export type EndCallingParams = {
   userId: string;
   wardId: string;
   endedOn?: string | null;
+  actorUserId: string;
 };
 
 function resolveClient(client?: SupabaseClient<Database>): SupabaseClient<Database> {
@@ -142,7 +152,11 @@ export async function updateCalling(
     throw new Error(`Could not update the calling: ${error.message}`);
   }
 
-  return data ? toCalling(data) : null;
+  if (!data) return null;
+
+  const calling = toCalling(data);
+  await retireRemoteLinksForCalling({ calling, actorUserId: params.actorUserId }, service);
+  return calling;
 }
 
 // RELEASE. Never a delete: a calling somebody held is a record of what happened, and the partial
@@ -174,7 +188,11 @@ export async function endCalling(
     throw new Error(`Could not end the calling: ${error.message}`);
   }
 
-  return data ? toCalling(data) : null;
+  if (!data) return null;
+
+  const calling = toCalling(data);
+  await retireRemoteLinksForCalling({ calling, actorUserId: params.actorUserId }, service);
+  return calling;
 }
 
 // ---------------------------------------------------------------------------

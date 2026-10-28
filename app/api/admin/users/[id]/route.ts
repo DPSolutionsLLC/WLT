@@ -28,7 +28,7 @@ export async function PATCH(
     const changes = updateUserSchema.parse(await readJsonBody(request));
 
     const result = await updateWardUser(
-      { wardId: user.wardId, targetUserId, changes },
+      { wardId: user.wardId, targetUserId, changes, actorUserId: user.id },
       supabase,
     );
 

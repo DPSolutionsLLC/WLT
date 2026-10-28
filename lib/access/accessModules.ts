@@ -182,7 +182,11 @@ export const ACCESS_MODULES: readonly AccessModule[] = [
 //     and silently have no effect, because `mergeRoleAccess` restores the code default. The
 //     assertion below is what keeps that true if a module is ever edited carelessly.
 //
-//   stakeAdmin, todo, prayerRoll, prayerItems, zoom, wltCommunicate, ministeringSandbox — no WLT
+//   zoom — WLT has a Zoom module since ITER-051, but its remote links are non-overridable and its
+//     invitee half (ITER-053) is not built, so there is still nothing worth requesting. Revisit
+//     with ITER-053.
+//
+//   stakeAdmin, todo, prayerRoll, prayerItems, wltCommunicate, ministeringSandbox — no WLT
 //     module exists yet. A permission granted before its page is how CLAUDE.md §9's dead sidebar
 //     links happened; a MODULE offered before its page would be worse, because somebody would be
 //     told they had been given something that does not exist.

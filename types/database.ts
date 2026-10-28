@@ -4308,6 +4308,74 @@ export type Database = {
           },
         ]
       }
+      zoom_remote_links: {
+        Row: {
+          deactivated_at: string | null
+          deactivated_by: string | null
+          deactivated_reason: string | null
+          holder_calling_id: string | null
+          id: string
+          position: string
+          set_at: string
+          set_by: string | null
+          url: string | null
+          ward_id: string
+        }
+        Insert: {
+          deactivated_at?: string | null
+          deactivated_by?: string | null
+          deactivated_reason?: string | null
+          holder_calling_id?: string | null
+          id?: string
+          position: string
+          set_at?: string
+          set_by?: string | null
+          url?: string | null
+          ward_id: string
+        }
+        Update: {
+          deactivated_at?: string | null
+          deactivated_by?: string | null
+          deactivated_reason?: string | null
+          holder_calling_id?: string | null
+          id?: string
+          position?: string
+          set_at?: string
+          set_by?: string | null
+          url?: string | null
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_remote_links_deactivated_by_fkey"
+            columns: ["deactivated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zoom_remote_links_holder_calling_id_fkey"
+            columns: ["holder_calling_id"]
+            isOneToOne: false
+            referencedRelation: "ward_role_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zoom_remote_links_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zoom_remote_links_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       public_program: {
@@ -4380,6 +4448,10 @@ export type Database = {
         Args: { target_user: string }
         Returns: boolean
       }
+      holds_remote_link: {
+        Args: { p_calling_id: string; p_position: string }
+        Returns: boolean
+      }
       is_active_sacrament_manager: { Args: never; Returns: boolean }
       is_bishopric: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
@@ -4410,6 +4482,14 @@ export type Database = {
         }[]
       }
       refresh_goal_status: { Args: never; Returns: number }
+      remote_link_position_matches: {
+        Args: {
+          p_counselor_position: number
+          p_position: string
+          p_role: string
+        }
+        Returns: boolean
+      }
       remove_talk: { Args: { p_assignment_id: string }; Returns: Json }
       session_context: {
         Args: never

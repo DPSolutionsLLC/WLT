@@ -59,7 +59,7 @@ modules exist; the detailed sections further down describe each one.
 | To Do | ✅ P5 | Module 18 — the spine four other modules hang off |
 | My Appointments | ✅ P5 | Module 19 — visits, scheduled to-dos and youth sign-ups in one list |
 | Message | 🔜 P10 | **Newly in scope 2026-09-20** |
-| Zoom | 🔜 P10 | **Newly in scope 2026-09-20**, with a named infrastructure risk |
+| Zoom | 🟡 ITER-051 | Each leader's stream Remote control is built; stream attendance is P10, with a named infrastructure risk |
 
 ### Finance & Admin
 
@@ -1082,6 +1082,23 @@ visit from an unauthenticated link, and the request shows who spoke on the dates
 watched.
 
 **Much of this module depends on infrastructure that does not exist yet** — see Out of Scope.
+
+### Remote control — built (ITER-051)
+
+The ward's stream is run from a separate remote-control app, and each leader has their own link
+into it. The **Zoom** tile opens on one large **Remote control** button that opens the reader's own
+link in a new tab. Five positions have one: the bishop, the 1st and 2nd counselors, the ward clerk
+and the executive secretary. Anyone else with the tile sees "Your calling has no stream remote."
+
+The bishop and counselors also see a **Remote links** tab listing the five positions, who holds
+each, and the link's state. They paste or replace a link in a small window, and can **Turn off** a
+link straight away (a lost phone, a leaked link). **A pasted link is never shown again** — not to
+the bishopric, not to anyone but the leader it belongs to.
+
+A link belongs to the **position, held by that person**. Releasing someone, changing their role, or
+swapping the counselors' numbers turns the link off at once; the row then reads "Needs a new link"
+until a fresh one is pasted. Nobody is notified — the tab says so. Every set, replace and turn-off
+is in the audit log, without the link.
 
 ---
 

@@ -73,6 +73,11 @@ export const PERMISSIONS = [
   // To Do and My Appointments — a leader's OWN tools (P5). One permission for both tiles.
   "personal_tools.use",
 
+  // Zoom (ITER-051). `view` opens the tile and the reader's own stream remote; managing the five
+  // remote links is the bishopric's alone.
+  "zoom.view",
+  "zoom.manage_remote_links",
+
   "sacrament.view_assignments",
   "sacrament.update_assignments",
   "sacrament.mark_sent",
@@ -121,6 +126,9 @@ export const ADMIN_PERMISSIONS = PERMISSIONS.filter(
 //            title-based access. Migration 093 refuses everyone but the bishopric whatever this
 //            list says, so a ward widening it would offer a tile whose page then refuses them.
 //
+// zoom.manage_remote_links — pasting the stream's remote-control links (ITER-051). A ward must not
+//            be able to hand the stream's remote controls to another calling.
+//
 // audit.view is deliberately NOT locked. It is in ADMIN_PERMISSIONS for the bishopric-equivalence
 // loop, but it grants reading rather than writing, and a ward may legitimately want its secretary
 // to see the audit log.
@@ -129,7 +137,8 @@ export const NON_OVERRIDABLE_PERMISSIONS: readonly KnownPermission[] = PERMISSIO
     permission.startsWith("admin.") ||
     permission.startsWith("sacrament.") ||
     permission.startsWith("planner.") ||
-    permission === "personal_tools.use",
+    permission === "personal_tools.use" ||
+    permission === "zoom.manage_remote_links",
 );
 
 export const BISHOPRIC_ROLES = ["bishop", "counselor"] as const;
@@ -191,6 +200,7 @@ const WARD_SECRETARY_PERMISSIONS: readonly KnownPermission[] = [
   "tithing.manage",
   "notifications.view",
   "personal_tools.use",
+  "zoom.view",
 ];
 
 // THE EXECUTIVE SECRETARY. Re-derived from `bishopric-secretary`, taken literally alongside the
@@ -217,6 +227,7 @@ const EXECUTIVE_SECRETARY_PERMISSIONS: readonly KnownPermission[] = [
   "agendas.publish",
   "notifications.view",
   "personal_tools.use",
+  "zoom.view",
 ];
 
 // ---------------------------------------------------------------------------
