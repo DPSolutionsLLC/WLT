@@ -2,7 +2,7 @@
 id: zoom-remote-links
 type: feature
 iter: ITER-051
-commits: []
+commits: ["c096432"]
 date: 2026-10-27
 files:
   - supabase/migrations/094_zoom_remote_links.sql
