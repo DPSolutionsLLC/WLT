@@ -274,6 +274,11 @@ export const REMOTE_LINK_POSITIONS = [
 ] as const;
 export type RemoteLinkPosition = (typeof REMOTE_LINK_POSITIONS)[number];
 
+// How a person came to hold a Zoom join link (ITER-053). ITER-052 adds "self_registration", and
+// migration 095b's CHECK on zoom_invitees.source must move with it.
+export const ZOOM_INVITEE_SOURCES = ["visit"] as const;
+export type ZoomInviteeSource = (typeof ZOOM_INVITEE_SOURCES)[number];
+
 export const ORGANIZATION_TYPES = [
   "bishopric",
   "elders_quorum",

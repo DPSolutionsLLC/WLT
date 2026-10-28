@@ -1,23 +1,25 @@
 "use client";
 
 import { useRef, useState, type KeyboardEvent } from "react";
+import { LinkPoolPanel } from "@/app/(app)/zoom/LinkPoolPanel";
 import { RemoteControlPanel } from "@/app/(app)/zoom/RemoteControlPanel";
 import { RemoteLinksPanel } from "@/app/(app)/zoom/RemoteLinksPanel";
 import { FormError } from "@/components/ui/FormError";
+import type { PoolSummary } from "@/lib/zoom/joinLinkPool";
 import type { RemoteLinkRow } from "@/lib/zoom/remoteLinkRow";
 import type { RemoteLinkOwnState } from "@/lib/zoom/remoteLinks";
 import type { ZoomTab } from "@/lib/zoom/zoomView";
 
-// The Zoom page's tabs (ITER-051, module-map §6.5). A reader who cannot manage links has one
-// screen, so they get the Remote control panel alone and no tab bar. The tab is remembered on the
-// account, so the page reopens as it was left.
+// The Zoom page's tabs (ITER-051, ITER-053, module-map §6.5). The page decides which tabs a reader
+// sees (visibleZoomTabs()); a reader with one tab gets that panel alone and no tab bar. The tab is
+// remembered on the account, so the page reopens as it was left.
 
 const TAB_LABELS: Record<ZoomTab, string> = {
   remote: "Remote control",
+  invitees: "Invitees",
+  pool: "Link pool",
   links: "Remote links",
 };
-
-const TAB_ORDER: readonly ZoomTab[] = ["remote", "links"];
 
 async function saveTab(tab: ZoomTab): Promise<void> {
   const response = await fetch("/api/session/page-view", {
@@ -41,19 +43,41 @@ async function saveTab(tab: ZoomTab): Promise<void> {
 export type ZoomTabsProps = {
   ownState: RemoteLinkOwnState;
   linkWentAway: boolean;
-  // Null when the reader cannot manage links: no tab bar at all.
+  // Null when the reader cannot see that tab.
   linkRows: RemoteLinkRow[] | null;
+  pool: PoolSummary | null;
+  visibleTabs: readonly ZoomTab[];
   initialTab: ZoomTab;
 };
 
-export function ZoomTabs({ ownState, linkWentAway, linkRows, initialTab }: ZoomTabsProps) {
-  const [activeTab, setActiveTab] = useState<ZoomTab>(linkRows ? initialTab : "remote");
+export function ZoomTabs({
+  ownState,
+  linkWentAway,
+  linkRows,
+  pool,
+  visibleTabs,
+  initialTab,
+}: ZoomTabsProps) {
+  const [activeTab, setActiveTab] = useState<ZoomTab>(
+    visibleTabs.includes(initialTab) ? initialTab : "remote",
+  );
   const [saveError, setSaveError] = useState<string | undefined>();
-  const tabRefs = useRef<Record<ZoomTab, HTMLButtonElement | null>>({ remote: null, links: null });
+  const tabRefs = useRef<Record<ZoomTab, HTMLButtonElement | null>>({
+    remote: null,
+    invitees: null,
+    pool: null,
+    links: null,
+  });
 
   const remotePanel = <RemoteControlPanel state={ownState} linkWentAway={linkWentAway} />;
 
-  if (!linkRows) return remotePanel;
+  if (visibleTabs.length <= 1) return remotePanel;
+
+  function panelFor(tab: ZoomTab) {
+    if (tab === "pool" && pool) return <LinkPoolPanel initialPool={pool} />;
+    if (tab === "links" && linkRows) return <RemoteLinksPanel initialRows={linkRows} />;
+    return remotePanel;
+  }
 
   function choose(tab: ZoomTab) {
     if (tab === activeTab) return;
@@ -68,16 +92,20 @@ export function ZoomTabs({ ownState, linkWentAway, linkRows, initialTab }: ZoomT
     if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
     event.preventDefault();
     const step = event.key === "ArrowRight" ? 1 : -1;
-    const index = TAB_ORDER.indexOf(activeTab);
-    const next = TAB_ORDER[(index + step + TAB_ORDER.length) % TAB_ORDER.length];
+    const index = visibleTabs.indexOf(activeTab);
+    const next = visibleTabs[(index + step + visibleTabs.length) % visibleTabs.length];
     choose(next);
     tabRefs.current[next]?.focus();
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="tablist" aria-label="Zoom" className="flex gap-1 border-b border-border">
-        {TAB_ORDER.map((tab) => {
+      <div
+        role="tablist"
+        aria-label="Zoom"
+        className="flex gap-1 overflow-x-auto border-b border-border"
+      >
+        {visibleTabs.map((tab) => {
           const selected = tab === activeTab;
           return (
             <button
@@ -94,7 +122,7 @@ export function ZoomTabs({ ownState, linkWentAway, linkRows, initialTab }: ZoomT
               onClick={() => choose(tab)}
               onKeyDown={onKeyDown}
               className={
-                "-mb-px min-h-11 border-b-2 px-4 text-sm font-medium focus-visible:outline-2 " +
+                "min-h-11 shrink-0 whitespace-nowrap border-b-2 px-3 text-sm font-medium focus-visible:outline-2 " +
                 "focus-visible:outline-offset-2 focus-visible:outline-primary " +
                 (selected
                   ? "border-primary text-foreground"
@@ -110,7 +138,7 @@ export function ZoomTabs({ ownState, linkWentAway, linkRows, initialTab }: ZoomT
       <FormError message={saveError} />
 
       <div role="tabpanel" id={`zoom-panel-${activeTab}`} aria-labelledby={`zoom-tab-${activeTab}`}>
-        {activeTab === "remote" ? remotePanel : <RemoteLinksPanel initialRows={linkRows} />}
+        {panelFor(activeTab)}
       </div>
     </div>
   );

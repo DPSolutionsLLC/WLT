@@ -403,11 +403,12 @@ describe("mergeRoleAccess — non-overridable permissions", () => {
   // `planner.*` is the second (ITER-045): the Sacrament Planner is bishopric only until ITER-046,
   // and migration 093 refuses everybody else whatever a ward configures.
   // Any other permission appearing here is still a mistake this test should catch.
-  it("locks every admin.*, sacrament.* and planner.* permission, plus personal_tools.use and zoom.manage_remote_links", () => {
+  it("locks every admin.*, sacrament.* and planner.* permission, plus personal_tools.use and the two zoom.manage_* permissions", () => {
     expect(NON_OVERRIDABLE_PERMISSIONS.length).toBeGreaterThan(0);
     expect(NON_OVERRIDABLE_PERMISSIONS).toContain("personal_tools.use");
     expect(NON_OVERRIDABLE_PERMISSIONS).toContain("planner.use");
     expect(NON_OVERRIDABLE_PERMISSIONS).toContain("zoom.manage_remote_links");
+    expect(NON_OVERRIDABLE_PERMISSIONS).toContain("zoom.manage_invitees");
 
     for (const permission of NON_OVERRIDABLE_PERMISSIONS) {
       expect(
@@ -415,8 +416,9 @@ describe("mergeRoleAccess — non-overridable permissions", () => {
           permission.startsWith("sacrament.") ||
           permission.startsWith("planner.") ||
           permission === "personal_tools.use" ||
-          permission === "zoom.manage_remote_links",
-        `"${permission}" is locked but is neither admin.*, sacrament.*, planner.*, personal_tools.use nor zoom.manage_remote_links`,
+          permission === "zoom.manage_remote_links" ||
+          permission === "zoom.manage_invitees",
+        `"${permission}" is locked but is neither admin.*, sacrament.*, planner.*, personal_tools.use nor a zoom.manage_* permission`,
       ).toBe(true);
     }
   });
@@ -1085,8 +1087,9 @@ describe("personal_tools.use", () => {
 });
 
 // ---------------------------------------------------------------------------
-// ZOOM (ITER-051). The five remote-link callings open the tile; only the bishopric manages the
-// links, and no ward can hand that to another calling.
+// ZOOM (ITER-051, ITER-053). The five remote-link callings open the tile; only the bishopric
+// manages the remote links, the join-link pool and the invitees, and no ward can hand either to
+// another calling.
 // ---------------------------------------------------------------------------
 describe("zoom permissions", () => {
   const VIEWERS: readonly Role[] = [
@@ -1118,6 +1121,20 @@ describe("zoom permissions", () => {
     silenceWarnings();
     const merged = mergeRoleAccess({ org_president: { add: ["zoom.manage_remote_links"] } });
     expect(can(sessionUser("org_president"), "zoom.manage_remote_links", merged)).toBe(false);
+  });
+
+  it("gives zoom.manage_invitees to the bishopric and to no other ward role", () => {
+    const holders = ROLES.filter(
+      (role) =>
+        role !== "super_admin" && can(sessionUser(role), "zoom.manage_invitees", ROLE_PERMISSIONS),
+    );
+    expect(holders.sort()).toEqual(["bishop", "counselor"]);
+  });
+
+  it("locks zoom.manage_invitees against a ward delta", () => {
+    silenceWarnings();
+    const merged = mergeRoleAccess({ ward_secretary: { add: ["zoom.manage_invitees"] } });
+    expect(can(sessionUser("ward_secretary"), "zoom.manage_invitees", merged)).toBe(false);
   });
 
   it("leaves zoom.view overridable", () => {

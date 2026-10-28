@@ -1,3 +1,4 @@
+import { PoolLowBanner } from "@/app/(app)/zoom/PoolLowBanner";
 import { ZoomTabs } from "@/app/(app)/zoom/ZoomTabs";
 import { ContextualBackLink } from "@/components/layout/ContextualBackLink";
 import { NotPermitted } from "@/components/ui/NotPermitted";
@@ -6,16 +7,18 @@ import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import { readPageView } from "@/lib/users/userSettings";
-import { canManageRemoteLinks } from "@/lib/zoom/access";
+import { canManageInvitees, canManageRemoteLinks } from "@/lib/zoom/access";
+import { describePoolLevel, listPool } from "@/lib/zoom/joinLinkPool";
 import { describeRemoteLinkRow } from "@/lib/zoom/remoteLinkRow";
 import { listRemoteLinkAdminEntries, readOwnRemoteLinkState } from "@/lib/zoom/remoteLinks";
-import { parseZoomView } from "@/lib/zoom/zoomView";
+import { initialZoomTab, parseZoomView, visibleZoomTabs } from "@/lib/zoom/zoomView";
 
 // Zoom — each leader's stream remote control (ITER-051, plans/zoom-remote-links.md).
 //
 // The reader's own state is read through THEIR client, so migration 094's holder-only policy
 // decides it. The bishopric's tab is read through the service role AFTER canManageRemoteLinks(),
-// and selects no link: status only (D3).
+// and selects no link: status only (D3). The join-link pool (ITER-053) is read through the
+// reader's own client, whose column grant leaves out `join_url` — so no URL can reach this page.
 //
 // can() rather than assertCan(): a ForbiddenError escaping a Server Component is a 500 whose
 // message Next.js strips in production.
@@ -37,12 +40,21 @@ export default async function ZoomPage({ searchParams }: ZoomPageProps) {
   const params = await searchParams;
   const ownState = await readOwnRemoteLinkState(supabase, user);
 
-  const linkRows = canManageRemoteLinks(user, roleAccess)
+  const managesRemoteLinks = canManageRemoteLinks(user, roleAccess);
+  const managesInvitees = canManageInvitees(user, roleAccess);
+
+  const linkRows = managesRemoteLinks
     ? (await listRemoteLinkAdminEntries(user.wardId, createServiceSupabaseClient())).map(
         describeRemoteLinkRow,
       )
     : null;
 
+  const pool = managesInvitees ? await listPool(supabase) : null;
+
+  const visibleTabs = visibleZoomTabs({
+    canManageInvitees: managesInvitees,
+    canManageRemoteLinks: managesRemoteLinks,
+  });
   const initialView = parseZoomView(await readPageView(user.id, "zoom", supabase));
 
   return (
@@ -56,11 +68,15 @@ export default async function ZoomPage({ searchParams }: ZoomPageProps) {
         </p>
       </div>
 
+      {pool ? <PoolLowBanner level={describePoolLevel(pool.freeCount)} /> : null}
+
       <ZoomTabs
         ownState={ownState}
         linkWentAway={params.remote === "none"}
         linkRows={linkRows}
-        initialTab={initialView.tab}
+        pool={pool}
+        visibleTabs={visibleTabs}
+        initialTab={initialZoomTab(initialView.tab, visibleTabs)}
       />
     </div>
   );

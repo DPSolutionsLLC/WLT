@@ -1,7 +1,8 @@
 # ITER-053: Zoom link pool, visit hand-out, and invitee list
 
 **Type:** Feature
-**Status:** Backlogged
+**Status:** In Progress
+**Plan:** plans/zoom-link-pool-and-invitees.md
 **Created:** 2026-10-27
 **Group:** GROUP-05 — Zoom stream: remote controls and invitees
 
@@ -64,7 +65,15 @@ pool is also what ITER-052's public self-registration draws from, so **this item
 - Out of scope: pausing a link (Deferred, needs a Zoom test), attendance import (ITER-054),
   self-registration (ITER-052).
 
-## Open Questions
+## Decisions (settled with the user 2026-10-28, during `/planning`)
+- **Empty pool:** save the person as *Waiting for a link*; a to-do on the leader's list closes
+  itself when a link is given.
+- **Take back:** not in this slice; a given link stays with its person.
+- **Editing:** bishop and both counselors, audited by field name only; clerk and executive
+  secretary read-only.
+- **Picker:** active members only; anyone else is entered as a typed name.
+
+## Open Questions (answered above)
 - What does the leader see if the pool is **empty** mid-visit?
 - Can a link be taken back from someone and returned to the pool (and what happens to their
   history)? Ties to the deferred pause/resume item.

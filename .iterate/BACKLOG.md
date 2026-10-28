@@ -7,6 +7,7 @@ _Last updated: 2026-10-27_
 ## In Progress
 Items currently being planned or actively worked.
 
+- [ ] ITER-053 — Zoom link pool, visit hand-out, and invitee list → [scope](.iterate/scopes/ITER-053.md) | [plan](plans/zoom-link-pool-and-invitees.md)
 - [ ] ITER-039 — Move the app to wardleadershiptools.com and send email from it → [scope](.iterate/scopes/ITER-039.md) | [plan](plans/custom-domain-and-email-sender.md)
 - [ ] ITER-034 — Youth Support: the module the user actually wants → [scope](.iterate/scopes/ITER-034.md) — **PARKED 2026-08-31**
   _Raised by the user 2026-08-31 after walking 062 and 063, and **this is the destination Phase 8
@@ -88,7 +89,7 @@ _Raised 2026-10-27. The Zoom tile — first slice of P10's Zoom module, built wi
 access. Update the Zoom row in `plans/prototype/module-map.md` before planning.
 Suggested order: 051 → 053 → 052 → 054. Future (design for, don't build): Zoom API registration and attendance._
 - ITER-051 — _completed 2026-10-27 (c096432)_
-- [ ] ITER-053 — Zoom link pool, visit hand-out, and invitee list → [scope](.iterate/scopes/ITER-053.md)
+- ITER-053 — _in progress (see In Progress)_
 - [ ] ITER-052 — Public Zoom self-registration with bishopric approval → [scope](.iterate/scopes/ITER-052.md)
   _Depends on ITER-053's link pool._
 - [ ] ITER-054 — Weekly Zoom attendance import → [scope](.iterate/scopes/ITER-054.md)

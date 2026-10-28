@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_JOIN_LINK_PASTE_CHARACTERS } from "@/lib/zoom/joinLinkPaste";
 import { REMOTE_LINK_POSITIONS } from "@/types/domain";
 
 const NOT_A_LINK = "Paste the full link, starting with https://.";
@@ -20,3 +21,14 @@ export const setRemoteLinkSchema = z.object({
 });
 
 export type SetRemoteLinkInput = z.infer<typeof setRemoteLinkSchema>;
+
+// ITER-053. The server always re-parses `text` itself (lib/zoom/joinLinkPaste.ts); `apply: false`
+// is the preview and writes nothing.
+export const joinLinkPasteSchema = z.object({
+  text: z
+    .string({ error: "Paste the links into the box." })
+    .max(MAX_JOIN_LINK_PASTE_CHARACTERS, "That paste is too long. Add the links in smaller batches."),
+  apply: z.boolean({ error: "Say whether to add the links or only preview them." }),
+});
+
+export const joinLinkIdSchema = z.uuid("That link is not one this page knows about.");

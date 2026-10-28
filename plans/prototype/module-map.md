@@ -64,7 +64,7 @@ means nothing.
 | My Appointments | — | **NEW** | Aggregates visits + todos + youth, role-scoped |
 | Orphaned Actions | — | **STUB** | Tile only, never built |
 | Message | — | **CONFLICT** | In-app messaging is on WLT's v1 out-of-scope list |
-| Zoom | `/zoom` (remote links) | **NEW (slice 1, ITER-051)** + **CONFLICT** (rest) | Slice 1 built 2026-10-27: a Remote control button opening each leader's own stream-remote link, and a bishopric-only Remote links tab (migration 094). The OAuth / webhook / OBS half is still CONFLICT and unchanged; GROUP-05 (051 → 053 → 052 → 054) builds the rest without the Zoom API. |
+| Zoom | `/zoom` (remote links, link pool, invitees) | **NEW (slices 1–2, ITER-051, ITER-053)** + **CONFLICT** (rest) | Slice 1 built 2026-10-27: a Remote control button opening each leader's own stream-remote link, and a bishopric-only Remote links tab (migration 094). Slice 2 (ITER-053, migration 095, 2026-10-28): a bishopric-only **Link pool** of hand-registered placeholder join links (pasted in bulk; the URL is hidden from every client at the column level), a phone-first **visit hand-out** giving a person the next free link with Text it / Share / QR, and an **Invitees** list the clerk and executive secretary read. Built in three commits: z2a pool, z2b invitees and hand-out, z2c the waiting-for-a-link to-do. The OAuth / webhook / OBS half is still CONFLICT and unchanged; GROUP-05 (051 → 053 → 052 → 054) builds the rest without the Zoom API. |
 
 ### Finance & Admin
 
@@ -634,7 +634,7 @@ says so at the Topics row, because the next reader will wonder whether rule 3 wa
 | Ministering | `viewMode` + multi-expand `Set` | — | ✓ |
 | Ward Import | `viewMode` history/roster/corrections + selection `Set`s | — | — |
 | Tithing Calc | Tabs (`entry`…) | — | ✓ |
-| Zoom | Tabs (`recipients`…). **WLT, ITER-051:** tabs `Remote control` (everyone with Zoom) and `Remote links` (bishop and counselors only); a reader with one tab gets no tab bar. Tab remembered per user | — | ✓ |
+| Zoom | Tabs (`recipients`…). **WLT, ITER-051 + ITER-053:** tabs `Remote control` and `Invitees` (everyone with Zoom), `Link pool` and `Remote links` (bishop and counselors only); a reader with one tab gets no tab bar, and a remembered tab the reader cannot see falls back to `Remote control`. The Invitees tab opens on a **Give a Zoom link** button above compact rows (the prototype's "Add recipient" over cards); a bishopric row opens a small window with Show link and Edit. The low-pool warning is a line above the tabs. Tab remembered per user | — | ✓ |
 | Hymn Database | Flat list + search | — | — |
 | Message, Account | Flat | — | ✓ |
 

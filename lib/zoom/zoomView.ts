@@ -1,10 +1,10 @@
 import { z } from "zod";
 
 // Which Zoom tab a leader last had open, remembered on their account (the user's standing rule:
-// every page reopens as it was left). A reader who cannot manage links always gets `remote`, even
-// with `links` stored — the page decides that, not this parse.
+// every page reopens as it was left). A reader who cannot see a stored tab gets `remote` — the page
+// decides that through visibleZoomTabs(), not this parse.
 
-export const ZOOM_TABS = ["remote", "links"] as const;
+export const ZOOM_TABS = ["remote", "invitees", "pool", "links"] as const;
 export type ZoomTab = (typeof ZOOM_TABS)[number];
 
 export const zoomViewSchema = z.object({ tab: z.enum(ZOOM_TABS) });
@@ -16,4 +16,20 @@ export const DEFAULT_ZOOM_VIEW: ZoomView = { tab: "remote" };
 export function parseZoomView(value: unknown): ZoomView {
   const parsed = zoomViewSchema.safeParse(value);
   return parsed.success ? parsed.data : DEFAULT_ZOOM_VIEW;
+}
+
+// Which tabs a reader sees, in order (ITER-053). `invitees` joins in slice z2b; until then its
+// panel does not exist, so it is never offered.
+export function visibleZoomTabs(reader: {
+  canManageInvitees: boolean;
+  canManageRemoteLinks: boolean;
+}): ZoomTab[] {
+  const tabs: ZoomTab[] = ["remote"];
+  if (reader.canManageInvitees) tabs.push("pool");
+  if (reader.canManageRemoteLinks) tabs.push("links");
+  return tabs;
+}
+
+export function initialZoomTab(stored: ZoomTab, visible: readonly ZoomTab[]): ZoomTab {
+  return visible.includes(stored) ? stored : "remote";
 }

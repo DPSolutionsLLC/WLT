@@ -3349,6 +3349,7 @@ export type Database = {
           updated_at: string
           user_id: string
           ward_id: string
+          zoom_invitee_id: string | null
         }
         Insert: {
           action_item_id?: string | null
@@ -3374,6 +3375,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           ward_id: string
+          zoom_invitee_id?: string | null
         }
         Update: {
           action_item_id?: string | null
@@ -3399,6 +3401,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           ward_id?: string
+          zoom_invitee_id?: string | null
         }
         Relationships: [
           {
@@ -3462,6 +3465,13 @@ export type Database = {
             columns: ["ward_id"]
             isOneToOne: false
             referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_zoom_invitee_id_fkey"
+            columns: ["zoom_invitee_id"]
+            isOneToOne: false
+            referencedRelation: "zoom_invitees"
             referencedColumns: ["id"]
           },
         ]
@@ -4308,6 +4318,128 @@ export type Database = {
           },
         ]
       }
+      zoom_invitees: {
+        Row: {
+          assigned_by: string | null
+          created_at: string
+          display_name: string
+          email: string | null
+          id: string
+          join_link_id: string | null
+          link_given_at: string | null
+          member_id: string | null
+          notes: string | null
+          phone: string | null
+          source: string
+          updated_at: string
+          ward_id: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          created_at?: string
+          display_name: string
+          email?: string | null
+          id?: string
+          join_link_id?: string | null
+          link_given_at?: string | null
+          member_id?: string | null
+          notes?: string | null
+          phone?: string | null
+          source?: string
+          updated_at?: string
+          ward_id: string
+        }
+        Update: {
+          assigned_by?: string | null
+          created_at?: string
+          display_name?: string
+          email?: string | null
+          id?: string
+          join_link_id?: string | null
+          link_given_at?: string | null
+          member_id?: string | null
+          notes?: string | null
+          phone?: string | null
+          source?: string
+          updated_at?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_invitees_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zoom_invitees_join_link_id_ward_id_fkey"
+            columns: ["join_link_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "zoom_join_links"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "zoom_invitees_member_id_ward_id_fkey"
+            columns: ["member_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "zoom_invitees_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zoom_join_links: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          join_url: string
+          placeholder_email: string
+          placeholder_name: string
+          ward_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          join_url: string
+          placeholder_email: string
+          placeholder_name: string
+          ward_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          join_url?: string
+          placeholder_email?: string
+          placeholder_name?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_join_links_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zoom_join_links_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       zoom_remote_links: {
         Row: {
           deactivated_at: string | null
@@ -4428,6 +4560,10 @@ export type Database = {
         Args: { p_plan: Json; p_ward_id: string }
         Returns: Json
       }
+      assign_next_zoom_link: {
+        Args: { p_invitee_id: string; p_ward_id: string }
+        Returns: string
+      }
       assigned_unit_ids: { Args: never; Returns: string[] }
       can_act_in_ward: {
         Args: { target_user: string; target_ward: string }
@@ -4491,6 +4627,10 @@ export type Database = {
         Returns: boolean
       }
       remove_talk: { Args: { p_assignment_id: string }; Returns: Json }
+      remove_unassigned_zoom_link: {
+        Args: { p_link_id: string; p_ward_id: string }
+        Returns: boolean
+      }
       session_context: {
         Args: never
         Returns: {

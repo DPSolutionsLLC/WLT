@@ -73,10 +73,12 @@ export const PERMISSIONS = [
   // To Do and My Appointments — a leader's OWN tools (P5). One permission for both tiles.
   "personal_tools.use",
 
-  // Zoom (ITER-051). `view` opens the tile and the reader's own stream remote; managing the five
-  // remote links is the bishopric's alone.
+  // Zoom (ITER-051, ITER-053). `view` opens the tile, the reader's own stream remote and the
+  // invitee list; managing the five remote links, the join-link pool and the invitees is the
+  // bishopric's alone.
   "zoom.view",
   "zoom.manage_remote_links",
+  "zoom.manage_invitees",
 
   "sacrament.view_assignments",
   "sacrament.update_assignments",
@@ -129,6 +131,9 @@ export const ADMIN_PERMISSIONS = PERMISSIONS.filter(
 // zoom.manage_remote_links — pasting the stream's remote-control links (ITER-051). A ward must not
 //            be able to hand the stream's remote controls to another calling.
 //
+// zoom.manage_invitees — the join-link pool and who holds a link (ITER-053). A ward must not hand
+//            non-members' personal details and their join links to another calling.
+//
 // audit.view is deliberately NOT locked. It is in ADMIN_PERMISSIONS for the bishopric-equivalence
 // loop, but it grants reading rather than writing, and a ward may legitimately want its secretary
 // to see the audit log.
@@ -138,7 +143,8 @@ export const NON_OVERRIDABLE_PERMISSIONS: readonly KnownPermission[] = PERMISSIO
     permission.startsWith("sacrament.") ||
     permission.startsWith("planner.") ||
     permission === "personal_tools.use" ||
-    permission === "zoom.manage_remote_links",
+    permission === "zoom.manage_remote_links" ||
+    permission === "zoom.manage_invitees",
 );
 
 export const BISHOPRIC_ROLES = ["bishop", "counselor"] as const;
