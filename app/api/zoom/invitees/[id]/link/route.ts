@@ -6,6 +6,7 @@ import { respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
+import { closeWaitingLinkTodos, ZoomLinkWriteError } from "@/lib/todos/zoomLinks";
 import { inviteeIdSchema } from "@/lib/validation/zoom";
 import { canManageInvitees } from "@/lib/zoom/access";
 import { giveWaitingInviteeALink, readInvitee, readJoinUrl } from "@/lib/zoom/invitees";
@@ -14,7 +15,8 @@ import { countFreeLinks, describePoolLevel } from "@/lib/zoom/joinLinkPool";
 // ONE PERSON'S JOIN LINK (ITER-053).
 //
 //   GET  — the URL, to show or text it again. The bishopric only; a read, so no audit row.
-//   POST — give a waiting person the next free link (D1).
+//   POST — give a waiting person the next free link (D1), closing their "Give ___ a Zoom link"
+//          to-do (z2c).
 //
 // No signed-in client can select `join_url` (migration 095), so this route, behind
 // canManageInvitees(), is the only way a URL reaches a browser after the hand-out.
@@ -76,16 +78,32 @@ export async function POST(_request: Request, { params }: RouteContext) {
       return NextResponse.json({ error: "They already have a link." }, { status: 409 });
     }
 
-    await writeAuditLog(
-      {
-        wardId: user.wardId,
-        userId: user.id,
-        action: "zoom_invitee_link_given",
-        module: "zoom",
-        detail: { inviteeId, joinLinkId: result.joinLinkId },
-      },
-      supabase,
-    );
+    const auditGiven = (closedTodoIds: string[]) =>
+      writeAuditLog(
+        {
+          wardId: user.wardId,
+          userId: user.id,
+          action: "zoom_invitee_link_given",
+          module: "zoom",
+          detail: { inviteeId, joinLinkId: result.joinLinkId, closedTodoIds },
+        },
+        supabase,
+      );
+
+    // The to-do may be another bishopric member's — whoever did the hand-out. Closing it is right
+    // either way: the job it asked for is done.
+    let closedTodoIds: string[];
+    try {
+      closedTodoIds = await closeWaitingLinkTodos({ wardId: user.wardId, inviteeId }, service);
+    } catch (error) {
+      if (error instanceof ZoomLinkWriteError) {
+        await auditGiven([]);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      throw error;
+    }
+
+    await auditGiven(closedTodoIds);
 
     const [invitee, joinUrl, freeCount] = await Promise.all([
       readInvitee({ wardId: user.wardId, inviteeId }, service),

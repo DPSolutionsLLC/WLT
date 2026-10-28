@@ -29,6 +29,12 @@ describe("describeLogEntry", () => {
     );
   });
 
+  it("uses a source's own sentence when it wrote one (a Zoom link to-do)", () => {
+    expect(describeLogEntry({ kind: "source_completed", body: "A Zoom link was given." })).toBe(
+      "A Zoom link was given.",
+    );
+  });
+
   // Sacrament slice f. `ask_declined`'s body is the REASON LABEL, never the free-text note.
   it("says what a talk's ask was answered or closed with", () => {
     expect(describeLogEntry({ kind: "ask_accepted", body: null })).toBe("Accepted");

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CalendarClock, Mic, Music, Pencil, Plus } from "lucide-react";
+import { CalendarClock, Mic, Music, Pencil, Plus, Video } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import { Pill, type PillTone } from "@/components/ui/Pill";
@@ -121,6 +121,8 @@ export function TodoCard({
   // A Sunday's music (ITER-038 mb) has no checkbox either: submitting, approving or sending back
   // on Music closes it, and the server refuses a tick or an untick.
   const musicLink = todo.musicLink;
+  // So does "Give ___ a Zoom link" (ITER-053 z2c): giving them a link on Zoom closes it.
+  const zoomLink = todo.zoomLink;
   const bodyId = `todo-body-${todo.id}`;
   const stepFieldId = `todo-step-${todo.id}`;
 
@@ -230,6 +232,13 @@ export function TodoCard({
             className="flex h-11 w-11 shrink-0 items-center justify-center text-muted"
           >
             <Music className="h-4 w-4" />
+          </span>
+        ) : zoomLink !== null ? (
+          <span
+            aria-hidden="true"
+            className="flex h-11 w-11 shrink-0 items-center justify-center text-muted"
+          >
+            <Video className="h-4 w-4" />
           </span>
         ) : isAsk ? (
           // No checkbox on an ask. An open one is answered with Accepted / Declined in the action
@@ -351,6 +360,17 @@ export function TodoCard({
             >
               <span className="inline-flex h-7 items-center justify-center rounded-md border border-border px-2 text-xs font-medium text-foreground group-hover:bg-surface group-focus-visible:outline-2 group-focus-visible:outline-offset-2 group-focus-visible:outline-primary">
                 Open music
+              </span>
+            </Link>
+          </span>
+        ) : zoomLink !== null ? (
+          <span className="ml-auto flex items-center gap-0.5">
+            <Link
+              href="/zoom?from=todos"
+              className="group inline-flex min-h-11 items-center justify-center px-0.5 focus-visible:outline-none"
+            >
+              <span className="inline-flex h-7 items-center justify-center rounded-md border border-border px-2 text-xs font-medium text-foreground group-hover:bg-surface group-focus-visible:outline-2 group-focus-visible:outline-offset-2 group-focus-visible:outline-primary">
+                Open Zoom
               </span>
             </Link>
           </span>

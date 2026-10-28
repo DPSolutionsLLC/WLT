@@ -14,8 +14,8 @@ and executive secretary see the list without any way to read a link. The RLS and
 the rules; this proves the screens say them at phone width. Seeding helps because it needs a
 nearly empty pool, a given link, a moved-out member and six callings.
 
-**Slices.** Built across z2a (pool), z2b (invitees and hand-out) and z2c (the waiting to-do). The
-checks marked **(z2c)** cannot pass until z2c is built — skip them when walking z2b.
+**Slices.** Built across z2a (pool), z2b (invitees and hand-out) and z2c (the waiting to-do). All
+three are built, so every check below applies, including those marked **(z2c)**.
 
 ## Seed Data
 
@@ -39,7 +39,8 @@ Every address ends `@harness.wardleadershiptools.test`.
 1. `npm run seed -- zoom/scenario-095-zoom-link-pool`
 2. `npm run dev`, then open http://localhost:3000 at **375px wide**.
 3. As the **1st counselor**: Zoom → **Invitees** → **Give a Zoom link**. Search the picker for
-   "Ortiz", then pick **Thomas Reed** → **Give link**. Try **Text it**, **Share** (phone only) and
+   "Ortiz", then pick **Thomas Reed** → **Give link**. Try **Text it**, **Share** (shown wherever the
+   browser can share, which includes desktop Chrome on Windows) and
    **Show QR code**. Press **Done**.
 4. **Give a Zoom link** again → **Not on the roster? Type their name** → "Lena Ortiz", phone
    `555 010 2020` → **Give link**. Read the sentence under the hand-off.
@@ -99,4 +100,44 @@ Every address ends `@harness.wardleadershiptools.test`.
 
 ## Walkthrough record
 
-Not yet walked.
+**2026-10-28 — driven by Claude** (Playwright, 375×812, local dev server, hosted database; every
+write read back with the service-role client). Screenshots and the review page are in
+`testing/walk-screenshots/095/` (git-excluded). All 19 machine checks passed; the 6 "needs a human
+eye" items are with the user, unanswered.
+
+Observed:
+- Picker: Lena Ortiz absent; "Ortiz" → "No members match this filter." Thomas Reed filled `555-201-7788`.
+- Order: Thomas → Guest 02, Lena (typed, `555 010 2020`) → Guest 03; after pasting 4–6, Sam → Guest 04.
+- Text it on desktop: Copy message + explanation; clipboard held the message with
+  `https://example.org/j/guest02`. With touch emulation (`pointer: coarse`): Open in Messages →
+  `sms:5552013344?&body=…guest01…`.
+- QR: compared module by module with `qrcode`'s grid for `https://example.org/j/guest02` (no decoder
+  available) — 841/841 match. 280×280 CSS px.
+- Empty pool: window said "Sam Visitor is saved, but there are no free links. They're on the
+  Invitees list as waiting, and there's a to-do on your list to give them one." The banner above the
+  tabs updated about 3s later, after the page refresh.
+- **(z2c)** One open to-do "Give Sam Visitor a Zoom link" on Dana Whitmore's list, tag Zoom, video
+  icon, no checkbox; audit `waitingTodoId` matched. ✕ (arm, confirm) → 409, row kept, "This closes
+  itself once they're given a link." PATCH `{complete:true}` → 400.
+- Paste: "Line 2: There is no email address on this line.", Add disabled; after fixing, "Added 3
+  links. 1 person is waiting for a link — give them one on the Invitees tab."
+- **(z2c)** Give a link on Sam's row closed the to-do with one `source_completed` line, "A Zoom link
+  was given." (11:40 AM ward time); audit `closedTodoIds` named it.
+- Edit: audit `{ inviteeId, changedFields: ["phone"] }`. Show link on Grace → guest01.
+- Link pool: free links have ✕ (44×44), given links none; removing Guest 06 deleted the row and
+  wrote `zoom_join_link_removed`. The list took about 4s to update.
+- Clerk and executive secretary: tabs Remote control + Invitees only, no buttons in the list, no
+  `example.org/j/` in the HTML; as clerk POST/PATCH/GET-link → 403 ×3, nothing changed.
+- Elders Quorum president: no Zoom tile; `/zoom` → Not permitted.
+- Failure behaviour: moved-out `memberId` → 400 "Pick the person again — that roster record isn't
+  available." (nothing written); Give a link with an empty pool → 409 "There are no free links.
+  Paste more on the Link pool tab."; second give → 409 "They already have a link."
+- 11 Zoom audit rows, none with a URL, phone number, email or note. Scroll width 375 throughout.
+
+Noticed, not defects: after picking a person, Give link starts at y=808 on an 812-high screen, so it
+needs a scroll; at 375px the tab strip clips "Remote links" to "Re…". The walk also created two
+extra invitees through the API (Pat Walkcheck, Quinn Walkcheck) to reach an empty pool; re-seed
+before walking again.
+
+Checklist correction: step 3 said Share is "phone only". It appears wherever `navigator.share`
+exists, which includes desktop Chrome on Windows.

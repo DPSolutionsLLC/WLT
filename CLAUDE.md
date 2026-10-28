@@ -1607,8 +1607,11 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   members only (D4). The low-pool warning is **computed on read and notifies nobody (P1)**.
   `display_name` is a snapshot kept beside `member_id`, so ITER-054's attendance attaches to the
   PERSON and survives a roster change. **Not built:** taking a link back, pausing one, a low-pool
-  notification, deleting an invitee, Zoom API registration. The *Waiting for a link* to-do is
-  slice z2c.
+  notification, deleting an invitee, Zoom API registration. **A waiting person puts "Give ___ a
+  Zoom link" on the hand-out leader's To Do (z2c, `todos.zoom_invitee_id`)**, written only by
+  `lib/todos/zoomLinks.ts` (service role). Giving them a link closes EVERY open copy, whoever holds
+  it, with a `source_completed` line carrying its own sentence. Like a music to-do it has no
+  checkbox, and it cannot be deleted while open.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

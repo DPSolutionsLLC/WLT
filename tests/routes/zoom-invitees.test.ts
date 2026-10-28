@@ -45,6 +45,24 @@ async function showLink(id: string) {
   );
 }
 
+async function patchTodo(todoId: string, body: unknown) {
+  const { PATCH } = await import("@/app/api/todos/[id]/route");
+  return readResponse(
+    await PATCH(jsonRequest(`http://localhost/api/todos/${todoId}`, { method: "PATCH", body }), {
+      params: Promise.resolve({ id: todoId }),
+    }),
+  );
+}
+
+async function deleteTodo(todoId: string) {
+  const { DELETE } = await import("@/app/api/todos/[id]/route");
+  return readResponse(
+    await DELETE(jsonRequest(`http://localhost/api/todos/${todoId}`, { method: "DELETE" }), {
+      params: Promise.resolve({ id: todoId }),
+    }),
+  );
+}
+
 async function giveLink(id: string) {
   const { POST } = await import("@/app/api/zoom/invitees/[id]/link/route");
   return readResponse(
@@ -121,13 +139,34 @@ describe("/api/zoom/invitees", () => {
     wardBMemberId = await seedMember(fixtures.wardBId, "Elsewhere", "active");
   });
 
+  async function zoomTodos(inviteeId: string) {
+    const { data, error } = await fixtures.service
+      .from("todos")
+      .select("id, user_id, title, tag, assigned_by, completed_at, closed_reason")
+      .eq("ward_id", fixtures.wardAId)
+      .eq("zoom_invitee_id", inviteeId);
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  async function timelineKinds(todoId: string) {
+    const { data, error } = await fixtures.service
+      .from("todo_log_entries")
+      .select("kind, body")
+      .eq("todo_id", todoId);
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
   beforeEach(async () => {
+    await fixtures.service.from("todos").delete().eq("ward_id", fixtures.wardAId).not("zoom_invitee_id", "is", null);
     await fixtures.service.from("zoom_invitees").delete().eq("ward_id", fixtures.wardAId);
     await fixtures.service.from("zoom_join_links").delete().eq("ward_id", fixtures.wardAId);
     await fixtures.service.from("audit_log").delete().eq("ward_id", fixtures.wardAId).like("action", "zoom_%");
   });
 
   afterAll(async () => {
+    await fixtures?.service.from("todos").delete().eq("ward_id", fixtures.wardAId).not("zoom_invitee_id", "is", null);
     await fixtures?.service.from("zoom_invitees").delete().eq("ward_id", fixtures.wardAId);
     await fixtures?.cleanup();
   });
@@ -282,5 +321,85 @@ describe("/api/zoom/invitees", () => {
     const rows = await auditRows("zoom_invitee_link_given");
     expect(rows).toHaveLength(1);
     expect(JSON.stringify(rows)).not.toContain("https://");
+  });
+
+  // ---------------------------------------------------------------------------
+  // z2c — the "Give ___ a Zoom link" to-do (D1)
+  // ---------------------------------------------------------------------------
+
+  it("puts exactly one open to-do on the leader's own list when the pool is empty", async () => {
+    await actAs(fixtures, "counselor1");
+    const waiting = (await handOut(typedPerson)).body as HandOutBody;
+
+    const todos = await zoomTodos(waiting.invitee.id);
+    expect(todos).toHaveLength(1);
+    expect(todos[0]).toMatchObject({
+      user_id: fixtures.user("counselor1").id,
+      title: "Give Visitor Person a Zoom link",
+      tag: "Zoom",
+      assigned_by: null,
+      completed_at: null,
+    });
+
+    const rows = await auditRows("zoom_invitee_created");
+    expect(rows[0]?.detail).toMatchObject({ linkGiven: false, waitingTodoId: todos[0]?.id });
+  });
+
+  it("writes no to-do when a link was given", async () => {
+    await seedLinks(["t01"]);
+    await actAs(fixtures, "counselor1");
+    const given = (await handOut(typedPerson)).body as HandOutBody;
+    expect(await zoomTodos(given.invitee.id)).toHaveLength(0);
+    expect((await auditRows("zoom_invitee_created"))[0]?.detail).toMatchObject({
+      waitingTodoId: null,
+    });
+  });
+
+  it("closes counselor1's to-do with a timeline line when the bishop gives the link", async () => {
+    await actAs(fixtures, "counselor1");
+    const waiting = (await handOut(typedPerson)).body as HandOutBody;
+    const [todo] = await zoomTodos(waiting.invitee.id);
+    expect(todo).toBeDefined();
+
+    await seedLinks(["c01"]);
+    await actAs(fixtures, "bishop");
+    expect((await giveLink(waiting.invitee.id)).status).toBe(200);
+
+    const [closed] = await zoomTodos(waiting.invitee.id);
+    expect(closed?.completed_at).not.toBeNull();
+    expect(closed?.closed_reason).toBeNull();
+    expect(await timelineKinds(todo!.id)).toEqual([
+      { kind: "source_completed", body: "A Zoom link was given." },
+    ]);
+
+    const rows = await auditRows("zoom_invitee_link_given");
+    expect(rows[0]?.detail).toMatchObject({ closedTodoIds: [todo!.id] });
+  });
+
+  it("refuses a tick and a delete on an open Zoom to-do, and deletes it once closed", async () => {
+    await actAs(fixtures, "counselor1");
+    const waiting = (await handOut(typedPerson)).body as HandOutBody;
+    const [todo] = await zoomTodos(waiting.invitee.id);
+    const todoId = todo!.id;
+
+    const tick = await patchTodo(todoId, { complete: true });
+    expect(tick.status).toBe(400);
+    expect((tick.body as { error: string }).error).toBe(
+      "This closes itself once they're given a link on Zoom.",
+    );
+
+    const refused = await deleteTodo(todoId);
+    expect(refused.status).toBe(409);
+    expect((refused.body as { error: string }).error).toBe(
+      "This closes itself once they're given a link.",
+    );
+    expect(await zoomTodos(waiting.invitee.id)).toHaveLength(1);
+
+    await seedLinks(["d01"]);
+    expect((await giveLink(waiting.invitee.id)).status).toBe(200);
+
+    const deleted = await deleteTodo(todoId);
+    expect(deleted.status).toBeLessThan(300);
+    expect(await zoomTodos(waiting.invitee.id)).toHaveLength(0);
   });
 });

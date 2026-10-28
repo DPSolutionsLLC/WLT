@@ -18,7 +18,8 @@ import type { SessionUser } from "@/types/domain";
 // GIVE A ZOOM LINK — the phone-first hand-out a bishopric member does on a visit (ITER-053, z2b).
 //
 // Step 1 is the person; step 2 is the link, handed over with Text it / Share / Show QR. An empty
-// pool still saves the person, as waiting (D1), and step 2 says so in a sentence.
+// pool still saves the person, as waiting with a to-do on the leader's list (D1, z2c), and step 2
+// says so in a sentence.
 
 export type HandOutResult = {
   invitee: ZoomInvitee;
@@ -38,7 +39,7 @@ async function readError(response: Response, fallback: string): Promise<string> 
 export function waitingSentence(displayName: string): string {
   return (
     `${displayName} is saved, but there are no free links. ` +
-    "They're on the Invitees list as waiting."
+    "They're on the Invitees list as waiting, and there's a to-do on your list to give them one."
   );
 }
 

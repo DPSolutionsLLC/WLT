@@ -20,8 +20,9 @@ export function describeLogEntry(entry: Pick<TodoLogEntry, "kind" | "body">): st
       return "Scheduled";
     case "unscheduled":
       return "Unscheduled";
+    // An agenda item writes no body; a Zoom link to-do writes its own sentence (ITER-053 z2c).
     case "source_completed":
-      return "Marked complete on the agenda";
+      return entry.body ?? "Marked complete on the agenda";
     case "ask_accepted":
       return "Accepted";
     case "ask_declined":

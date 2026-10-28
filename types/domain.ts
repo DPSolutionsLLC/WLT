@@ -1724,6 +1724,10 @@ export type Todo = {
   // to-do. It closes itself when the music moves on, so it has no checkbox and cannot be removed
   // while open.
   musicLink: { sundayId: string; role: MusicTodoRole } | null;
+  // The Zoom invitee this "Give ___ a Zoom link" to-do is about (ITER-053 z2c, migration 095c);
+  // null for every other to-do. It closes itself when they are given a link, so — like a music
+  // to-do — it has no checkbox and cannot be removed while open.
+  zoomLink: { inviteeId: string } | null;
   // Set only on an ask that left this list unanswered — see TODO_CLOSED_REASONS.
   closedReason: TodoClosedReason | null;
   // When the owner was told this ask's talk is off (Sacrament slice f2b, migration 084).

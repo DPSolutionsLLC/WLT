@@ -20,6 +20,7 @@ const OPEN_ASK =
   "Record their answer instead — Accepted or Declined, or Told them if the talk is off.";
 const OPEN_MUSIC =
   "This comes from a Sunday's music and closes itself when the music moves on.";
+const OPEN_ZOOM = "This closes itself once they're given a link.";
 
 export async function GET(
   _request: Request,
@@ -131,6 +132,9 @@ export async function DELETE(
     }
     if (outcome === "open_music") {
       return NextResponse.json({ error: OPEN_MUSIC }, { status: 409 });
+    }
+    if (outcome === "open_zoom") {
+      return NextResponse.json({ error: OPEN_ZOOM }, { status: 409 });
     }
 
     await writeAuditLog(

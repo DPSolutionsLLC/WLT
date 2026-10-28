@@ -5,7 +5,7 @@ iter: ITER-053
 commits: ["5f092ff", "a35db26"]
 date: 2026-10-28
 files:
-  - supabase/migrations/095_zoom_join_links_and_invitees.sql
+  - supabase/migrations/095_zoom_link_pool_and_invitees.sql
   - lib/zoom/invitees.ts
   - lib/zoom/inviteeRow.ts
   - lib/zoom/joinLinkMessage.ts
@@ -24,17 +24,25 @@ files:
   - app/(app)/zoom/EditInviteeModal.tsx
   - app/(app)/zoom/LinkHandoff.tsx
   - components/assignments/SmsHandoff.tsx
+  - lib/todos/zoomLinks.ts
+  - lib/todos/queries.ts
+  - lib/todos/logLines.ts
+  - app/api/todos/[id]/route.ts
+  - app/(app)/todos/TodoCard.tsx
 related: [zoom-remote-links, sacrament-music-people, released-modules-per-ward]
 ---
 
 ## What was done
-ITER-053 in two of three slices. **z2a (5f092ff)** added the Link pool: migration 095's
+ITER-053 in three slices. **z2a (5f092ff)** added the Link pool: migration 095's
 `zoom_join_links` and `zoom_invitees`, the paste-and-check flow, and the low-pool warning.
-**z2b (this change)** added the Invitees tab. A bishopric member on a visit gives a person (a roster
+**z2b (a35db26)** added the Invitees tab. A bishopric member on a visit gives a person (a roster
 member or a typed name) the next free link from a phone, then hands it over with **Text it**,
 **Share** or **Show QR code**. A person can also be saved as waiting when the pool is empty, given
 a link later, or edited. The ward clerk and executive secretary see the list without buttons.
-**z2c** (the "Waiting for a link" to-do) is not built, so ITER-053 stays In Progress.
+**z2c (this change)** added the *Waiting for a link* to-do (D1). A hand-out with an empty pool
+puts "Give ___ a Zoom link" on that leader's To Do. Giving the person a link closes every open
+copy, whoever holds it, with the timeline line "A Zoom link was given." Like a music to-do, it has
+no checkbox and cannot be deleted while open.
 
 ## Key decisions
 - **The join URL leaves the server in exactly two places:** the POST that gives a link, and
@@ -51,7 +59,20 @@ a link later, or edited. The ward clerk and executive secretary see the list wit
 - **A waiting row opens a window with Give a link**, rather than putting a button on the row. This
   keeps one row shape for both sections, matching the compact-list preference.
 
+- **z2c reuses existing values, so it needed no migration** (095c had already added
+  `todos.zoom_invitee_id` and its one-open-per-owner index). The to-do closes with `completed_at`,
+  a null `closed_reason` and a `source_completed` line. The tick and delete refusals sit beside
+  the music ones in `lib/todos/queries.ts` (`ZOOM_TODO_TICK`, `open_zoom`), not in a second
+  mechanism.
+- **The invitee is audited even when its to-do fails.** A `ZoomLinkWriteError` after the invitee
+  insert (or after the link is given) still writes the audit row, with `waitingTodoId: null` or
+  `closedTodoIds: []`, and then answers 500. This is z2b's own finding about rule 6, applied again.
+
 ## What the build found
+- **A `source_completed` line always read "Marked complete on the agenda"**, whatever its body
+  held. So a Zoom to-do's timeline would have named an agenda that does not exist. The plan
+  assumed the body would show; it did not. `describeLogEntry()` now shows the body when one is
+  written; an agenda item's line writes none and reads as before.
 - **An audit row could go missing.** If `assign_next_zoom_link` failed after the invitee insert,
   the route returned a 500 without auditing the insert that did happen (rule 6).
   `ZoomLinkAssignError` now carries the new row's id, and the route audits it with `linkGiven:
@@ -62,7 +83,10 @@ a link later, or edited. The ward clerk and executive secretary see the list wit
   content on this machine.
 
 ## Verification
-Full suite 347 files / 5118 tests passed; the production build succeeded; lint has 0 errors, and
-tsc plus the harness typecheck are clean. Scenario 095 seeds, but **the user skipped the walk**, so
-its "needs a human eye" items (one-handed use, the message wording, QR size) are unconfirmed. Walk
-it alongside z2c.
+z2b: full suite 347 files / 5118 tests passed and the production build succeeded. Its walk was
+skipped.
+
+z2c: full suite 347 files / 5123 tests passed (5 new: four route tests in
+`tests/routes/zoom-invitees.test.ts`, one log-line test). The production build succeeded, lint
+has 0 errors, and tsc plus the harness typecheck are clean. Scenario 095 now covers all three
+slices and has not been walked yet.
