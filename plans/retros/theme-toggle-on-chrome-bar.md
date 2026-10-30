@@ -2,7 +2,7 @@
 id: theme-toggle-on-chrome-bar
 type: feature
 iter: [ITER-047]
-commits: []
+commits: ["f40ea65"]
 date: 2026-10-30
 files:
   - components/layout/ThemeToggle.tsx
