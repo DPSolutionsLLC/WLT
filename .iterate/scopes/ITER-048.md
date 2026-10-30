@@ -1,7 +1,9 @@
 # ITER-048: Fast & Testimony Sundays start with no speakers
 
 **Type:** Modification
-**Status:** In Progress
+**Status:** Completed
+**Completed:** 2026-10-30
+**Commit:** 9853e5a
 **Plan:** plans/sacrament-planner-refinements.md
 **Created:** 2026-10-24
 **Group:** GROUP-04 — Sacrament Planner refinements

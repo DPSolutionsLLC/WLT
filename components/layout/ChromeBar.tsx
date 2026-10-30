@@ -6,11 +6,17 @@ import { AccountMenu } from "@/components/layout/AccountMenu";
 import { HelpButton } from "@/components/layout/HelpButton";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { ReportIssueButton } from "@/components/layout/ReportIssueButton";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { Pill } from "@/components/ui/Pill";
 import type { SessionUser } from "@/types/domain";
 
-// The bar above every page except the dashboard: the way home, where you are, and the five
-// controls that belong to the app rather than to the page.
+// The bar above every page: the way home, where you are, and the five controls that belong to
+// the app rather than to the page (report, help, theme, bell, account — six items with the back
+// link).
+//
+// ITER-047 moved the theme button here from the account menu. Below `sm` the back link shows only
+// "←" (the word stays in its accessible name): at 375px a fifth 44px control overflowed the bar by
+// ~11px even with the ward name at zero width, and the arrow-only link frees ~58px.
 //
 // ---------------------------------------------------------------------------
 // ⚠️ THE BACK LINK IS STATIC — ALWAYS /dashboard, UNCONDITIONALLY
@@ -74,15 +80,15 @@ export function ChromeBar({ title, user, callingLabel }: ChromeBarProps) {
       {isDashboard ? null : (
         <Link
           href="/dashboard"
-          className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-md px-2 text-sm font-medium text-primary hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-md px-2 text-sm font-medium text-primary hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           <span aria-hidden="true">←</span>
-          Dashboard
+          <span className="sr-only sm:not-sr-only">Dashboard</span>
         </Link>
       )}
 
       {/* min-w-0: a flex item's default `min-width: auto` refuses to shrink below its content, so
-          without it this row overflows at 375px beside five controls
+          without it this row overflows at 375px beside the controls
           (plans/retros/youth-g-occasions-and-event-detail.md). */}
       <p className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{title}</p>
 
@@ -106,6 +112,7 @@ export function ChromeBar({ title, user, callingLabel }: ChromeBarProps) {
             it was opened from rather than with /dashboard. */}
         <ReportIssueButton pagePath={pathname} />
         <HelpButton />
+        <ThemeToggle initialPreference={user.themePreference} />
         <NotificationBell />
         <AccountMenu user={user} callingLabel={callingLabel} wardName={title} />
       </div>

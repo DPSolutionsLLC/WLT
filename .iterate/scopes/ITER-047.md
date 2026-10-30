@@ -1,8 +1,13 @@
 # ITER-047: The light/dark button on the top bar
 
 **Type:** Modification
-**Status:** Backlogged
+**Status:** In Progress
+**Plan:** plans/theme-toggle-on-chrome-bar.md
 **Created:** 2026-10-24
+
+**Decisions (2026-10-30, during `/planning`):** moved off the ☰ menu (not copied); keeps all three
+states (Light / Dark / System, shown as sun / moon / monitor); the back link shows only "←" below
+`sm` to make room at 375px.
 
 ## Summary
 Move the app's light/dark control out of the ☰ account menu onto the top bar itself, beside

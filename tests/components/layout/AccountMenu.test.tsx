@@ -61,6 +61,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// ITER-047 D1: moved, not copied. One theme control, on the chrome bar.
+describe("AccountMenu", () => {
+  it("no longer carries a theme control", () => {
+    openMenu(USER);
+    expect(screen.queryByRole("button", { name: /Change theme/ })).toBeNull();
+    expect(screen.queryByText("Appearance")).toBeNull();
+  });
+});
+
 describe("AccountMenu admin view notice", () => {
   it("tells a super admin in a narrowed ward that they see more than its leaders do", () => {
     openMenu({ ...USER, isSuperAdmin: true, releasedModules: ["tithing"] });

@@ -2,15 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { WardSwitcher } from "@/components/layout/WardSwitcher";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import type { SessionUser } from "@/types/domain";
 
-// Who you are, which ward you are acting in, how the app looks, and the way out. Everything
-// TopNav used to carry, in a menu rather than strung across the bar — the chrome bar has five
-// controls on it and a phone is 375px wide.
+// Who you are, which ward you are acting in, and the way out. Everything TopNav used to carry,
+// in a menu rather than strung across the bar — a phone is 375px wide. The theme button moved
+// onto the bar itself (ITER-047), so there is one theme control and two copies cannot disagree.
 //
 // ---------------------------------------------------------------------------
 // IT DOES NOT LINK TO /account
@@ -98,11 +97,6 @@ export function AccountMenu({ user, callingLabel, wardName }: AccountMenuProps) 
 
           {/* Renders nothing at all for the great majority of people, who hold one calling. */}
           <WardSwitcher />
-
-          <div className="flex flex-col gap-2">
-            <p className="text-xs font-medium tracking-wide text-muted uppercase">Appearance</p>
-            <ThemeToggle initialPreference={user.themePreference} />
-          </div>
 
           <Button variant="secondary" onClick={() => void handleSignOut()} disabled={isSigningOut}>
             {isSigningOut ? "Signing out…" : "Sign out"}

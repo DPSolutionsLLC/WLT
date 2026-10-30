@@ -107,6 +107,30 @@ describe("ChromeBar", () => {
     expect(screen.getByRole("button", { name: "Your account" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Report an issue" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Help" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Change theme/ })).toBeInTheDocument();
+  });
+
+  // ITER-047: the theme control moved here from the account menu, between Help and the bell.
+  it("carries the theme button on a module page, right after Help", () => {
+    renderAt("/visits");
+
+    const buttons = screen.getAllByRole("button");
+    const theme = screen.getByRole("button", { name: /Change theme/ });
+    const help = screen.getByRole("button", { name: "Help" });
+    expect(buttons.indexOf(theme)).toBe(buttons.indexOf(help) + 1);
+  });
+
+  // ITER-047 D3: at 375px the bar has no room for the word beside five icon controls, so below
+  // `sm` only the arrow shows. The word stays in the accessible name at every width. jsdom applies
+  // no CSS, so the classes are what is asserted.
+  it("hides the back link's word below sm, keeping it in the accessible name", () => {
+    renderAt("/visits");
+
+    const link = screen.getByRole("link", { name: "Dashboard" });
+    const word = screen.getByText("Dashboard");
+    expect(word.tagName).toBe("SPAN");
+    expect(word).toHaveClass("sr-only", "sm:not-sr-only");
+    expect(link).toHaveClass("min-w-11");
   });
 
   it("omits only the back link on the dashboard", () => {

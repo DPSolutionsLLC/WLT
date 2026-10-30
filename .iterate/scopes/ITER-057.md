@@ -1,7 +1,9 @@
 # ITER-057: Who's Next selection panel hides the bottom of the list on a phone
 
 **Type:** Bug Fix
-**Status:** In Progress
+**Status:** Completed
+**Completed:** 2026-10-30
+**Commit:** 9853e5a
 **Plan:** plans/sacrament-planner-refinements.md
 **Created:** 2026-10-29
 

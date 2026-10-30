@@ -1,7 +1,9 @@
 # ITER-056: Place on Sunday straight from Who's Next
 
 **Type:** Modification
-**Status:** In Progress
+**Status:** Completed
+**Completed:** 2026-10-30
+**Commit:** 9853e5a
 **Plan:** plans/sacrament-planner-refinements.md
 **Created:** 2026-10-29
 

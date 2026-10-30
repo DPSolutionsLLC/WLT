@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Monitor, Moon, Sun } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import type { ThemePreference } from "@/types/domain";
 
@@ -18,6 +20,14 @@ const LABELS: Record<ThemePreference, string> = {
   light: "Light",
   dark: "Dark",
   system: "System",
+};
+
+// The icon shows the CURRENT choice, not the next one. Three states on purpose (ITER-047 D2): a
+// two-state flip like the prototype's would take "follow my phone" away after one tap.
+const ICONS: Record<ThemePreference, LucideIcon> = {
+  light: Sun,
+  dark: Moon,
+  system: Monitor,
 };
 
 function applyPreference(preference: ThemePreference): void {
@@ -69,14 +79,17 @@ export function ThemeToggle({ initialPreference }: ThemeToggleProps) {
     }
   }
 
+  const Icon = ICONS[preference];
+
   return (
     <button
       type="button"
       onClick={handleClick}
-      className="min-h-11 rounded-md border border-border px-3 text-sm text-foreground hover:bg-surface-raised"
+      title={`Theme: ${LABELS[preference]}`}
+      className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-muted hover:bg-surface-raised hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
     >
       <span className="sr-only">Change theme. Currently {LABELS[preference]}.</span>
-      <span aria-hidden="true">{LABELS[preference]}</span>
+      <Icon aria-hidden="true" className="size-5" />
     </button>
   );
 }
