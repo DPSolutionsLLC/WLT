@@ -2,7 +2,7 @@
 id: sacrament-planner-refinements
 type: feature
 iter: [ITER-057, ITER-056, ITER-048, ITER-049, ITER-050]
-commits: []
+commits: ["9853e5a"]
 date: 2026-10-30
 files:
   - lib/sacramentPlanner/assets/body.html
