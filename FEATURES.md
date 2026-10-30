@@ -759,6 +759,11 @@ Running totals across all submissions:
 - Auto-clear 48 hours after the first entry of a worksheet is saved. Later entries do not
   extend the window
 
+### On the Phone
+While the calculator is open and on screen, the phone's screen stays on. It goes back to
+sleeping normally when you leave the calculator or switch apps. Phones that cannot do this
+behave as before.
+
 ### One Shared Worksheet
 The bishopric shares a single in-progress count per ward — there is no per-person worksheet.
 Entries appear live on every open device, so one person can enter submissions while a second

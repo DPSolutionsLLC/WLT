@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TithingCounter } from "@/app/(tithing)/tithing/TithingCounter";
 
@@ -473,5 +473,29 @@ describe("TithingCounter", () => {
       // navigation.
       expect(clickWasHonoured).toBe(false);
     });
+  });
+});
+
+// The hook's own rules are in useScreenWakeLock.test.ts. This only proves the calculator uses it.
+// Every test above runs with no navigator.wakeLock, so they already cover the unsupported browser.
+describe("screen wake lock", () => {
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, "wakeLock");
+  });
+
+  it("keeps the screen on while the calculator is open and lets it go on leaving", async () => {
+    const release = vi.fn(async () => {});
+    const sentinel = Object.assign(new EventTarget(), { released: false, type: "screen", release });
+    const request = vi.fn(async () => sentinel);
+    Object.defineProperty(navigator, "wakeLock", { value: { request }, configurable: true });
+
+    const { unmount } = render(<TithingCounter />);
+    await act(async () => {});
+
+    expect(request).toHaveBeenCalledWith("screen");
+
+    unmount();
+
+    expect(release).toHaveBeenCalledOnce();
   });
 });

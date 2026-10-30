@@ -6,6 +6,7 @@ import styles from "@/app/(tithing)/tithing/tithing.module.css";
 import type { DraftCheck } from "@/app/(tithing)/tithing/CheckRows";
 import { EntryForm } from "@/app/(tithing)/tithing/EntryForm";
 import { SummaryPanel } from "@/app/(tithing)/tithing/SummaryPanel";
+import { useScreenWakeLock } from "@/app/(tithing)/tithing/useScreenWakeLock";
 import {
   emptyDenominationInputs,
   toDenominationInputs,
@@ -36,6 +37,9 @@ import { entryTotals, type CheckAmount, type TithingEntry } from "@/lib/tithing/
 //   2. A refresh, a phone going to sleep and reloading the tab, or a stray back-swipe destroys
 //      an in-progress count with nothing to recover from. That is why leaving is guarded below,
 //      and it is the reason this decision is worth revisiting if a real count is ever lost.
+//      The screen is now kept on while this screen is visible (useScreenWakeLock), which makes
+//      the sleep case less likely but does not remove it — a phone can still be locked by hand,
+//      and a browser may refuse.
 //
 // If persistence is ever wanted, it belongs behind the plan's tables and RLS, NOT in browser
 // storage — dollar amounts on a shared or borrowed phone is the worse of the two.
@@ -74,6 +78,8 @@ export function TithingCounter() {
 
   const checkIdCounter = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useScreenWakeLock();
 
   const nextCheckId = useCallback(() => {
     checkIdCounter.current += 1;

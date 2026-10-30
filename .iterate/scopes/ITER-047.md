@@ -1,7 +1,9 @@
 # ITER-047: The light/dark button on the top bar
 
 **Type:** Modification
-**Status:** In Progress
+**Status:** Completed
+**Completed:** 2026-10-30
+**Commit:** f40ea65
 **Plan:** plans/theme-toggle-on-chrome-bar.md
 **Created:** 2026-10-24
 

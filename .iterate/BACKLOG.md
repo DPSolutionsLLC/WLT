@@ -8,7 +8,7 @@ _Last updated: 2026-10-30_
 Items currently being planned or actively worked.
 
 - [ ] ITER-039 — Move the app to wardleadershiptools.com and send email from it → [scope](.iterate/scopes/ITER-039.md) | [plan](plans/custom-domain-and-email-sender.md)
-- [ ] ITER-047 — The light/dark button on the top bar → [scope](.iterate/scopes/ITER-047.md) | [plan](plans/theme-toggle-on-chrome-bar.md)
+- [ ] ITER-043 — Keep the screen on while the tithing calculator is open → [scope](.iterate/scopes/ITER-043.md) | [plan](plans/tithing-screen-wake-lock.md)
 - [ ] ITER-034 — Youth Support: the module the user actually wants → [scope](.iterate/scopes/ITER-034.md) — **PARKED 2026-08-31**
   _Raised by the user 2026-08-31 after walking 062 and 063, and **this is the destination Phase 8
   has been approximating**. The module is renamed **Youth Support**, because ward and church youth
@@ -325,12 +325,6 @@ Each of these is large or complex enough to tackle on its own.
   _Reason: architectural. Adds a fourth date-bearing model to the schema, a new sharing/audience
   boundary enforced by RLS, and will realistically split into three or four plans of its own._
 
-- [ ] ITER-043 — Keep the screen on while the tithing calculator is open → [scope](.iterate/scopes/ITER-043.md)
-  _Raised 2026-10-15. Automatic, only while the calculator is visible, iPhone and Android. One
-  open question: what to show when a phone cannot keep the screen awake._
-  _Reason: small and self-contained — the only tithing item in the backlog, so nothing to group it
-  with. A good quick win between larger pieces._
-
 ---
 
 ## Deferred
@@ -364,6 +358,7 @@ _Items that need testing or further exploration before scoping. Each entry shoul
 
 ## Completed
 
+- [x] ITER-047 — The light/dark button on the top bar _(completed 2026-10-30, f40ea65 — a Sun / Moon / Monitor icon button on the chrome bar between Help and the bell, still three states; the ☰ menu lost its Appearance row; the back link shows only "←" below sm. Measured at 375px: no overflow, every control 44×44)_
 - [x] ITER-057 — Who's Next selection panel hides the bottom of the list on a phone _(completed 2026-10-30, 9853e5a — the list keeps room for the floating panel, which folds to one line and is remembered per device)_
 - [x] ITER-056 — Place on Sunday straight from Who's Next _(completed 2026-10-30, 9853e5a — every ticked person placed in one save and one Undo; do-not-ask and full slots skipped and named)_
 - [x] ITER-048 — Fast & Testimony Sundays start with no speakers _(completed 2026-10-30, 9853e5a — a type switch adds or removes only empty slots; saved Sundays untouched)_

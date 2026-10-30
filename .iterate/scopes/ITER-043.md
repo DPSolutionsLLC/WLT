@@ -1,7 +1,8 @@
 # ITER-043: Keep the screen on while the tithing calculator is open
 
 **Type:** Feature
-**Status:** Backlogged
+**Status:** In Progress
+**Plan:** plans/tithing-screen-wake-lock.md
 **Created:** 2026-10-15
 
 ## Summary
@@ -36,7 +37,9 @@ calculator app that keeps the screen awake.
   on a table with another app open.
 
 ## Open Questions
-- **When a phone or browser cannot keep the screen on** (some older devices): should the
+- **ANSWERED 2026-10-30 (planning): quietly do nothing** — the calculator behaves as today; a
+  refused request is logged with `console.warn`, nothing is shown.
+- *(Original question)* **When a phone or browser cannot keep the screen on** (some older devices): should the
   calculator (a) quietly behave as it does today, or (b) show a small, unobtrusive note that the
   screen may dim? Asked during discovery and not yet answered — settle at the start of planning.
   Note the project's "no silent failures" principle leans toward (b), but this is not an error the
