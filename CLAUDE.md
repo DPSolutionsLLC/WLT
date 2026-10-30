@@ -1551,7 +1551,9 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   edited only for the reasons listed in the plan's Task 2: real names out (moved to imported
   settings documents), identity from the login, `planner:`-prefixed storage keys, and no theme
   button of its own (it follows the app's light/dark through `PlannerFrame.tsx`). Do not
-  "improve" it. **Rule 12:** the Planner renders only in the browser, on the device's date; no
+  "improve" it. GROUP-04 (2026-10-30) added user-requested edits G1–G5, listed in
+  `plans/sacrament-planner-refinements.md`; its pure slot rules sit between marked lines and are
+  unit-tested by reading the file. **Rule 12:** the Planner renders only in the browser, on the device's date; no
   server path runs Planner code. If a rebuild moves any of it into a Server Component, its date
   math must be redone in the ward's zone. **Later, names → member ids:** a
   `planner_name_links (ward_id, planner_name, member_id)` table filled from the member-list

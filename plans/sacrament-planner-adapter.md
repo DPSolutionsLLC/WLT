@@ -216,6 +216,7 @@ This plan runs as **three slices with two hard stops**. Do not run past a stop.
   `name` in `sacrament-planner-handoff/data/ward-list-used-by-planner.json` (both "Last, First"
   and "First Last" forms). Search all three asset files for each one. **Zero hits** is required.
   Report the result in the commit summary.
+- **Later edits:** see `plans/sacrament-planner-refinements.md` (G1–G5).
 
 #### Task 3: Collections and layers
 **File:** `lib/sacramentPlanner/collections.ts` (create)

@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 93,
+  "scenarioCount": 94,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -2429,6 +2429,40 @@
       "seedCommand": "npm run seed -- talks/scenario-093-sacrament-planner-in-the-app"
     },
     {
+      "id": "talks:scenario-096-planner-refinements",
+      "path": "talks/scenario-096-planner-refinements",
+      "name": "Sacrament Planner refinements",
+      "scope": "ITER-057",
+      "part": 1,
+      "tags": [
+        "full",
+        "sacrament",
+        "planner",
+        "phone"
+      ],
+      "prerequisites": "migration 093 applied",
+      "purpose": "Proves the five changes the bishopric asked for in the Sacrament Planner (GROUP-04: ITER-057,\nITER-056, ITER-048, ITER-049, ITER-050, plan `plans/sacrament-planner-refinements.md`). Who's Next's\nselection panel no longer hides the last rows on a phone, folds to one line and can place every\nticked person on a Sunday at once. Fast & Testimony Sundays start with no speaker slots. Pray About\ncards show how full a Sunday is and warn instead of quietly adding a slot. Calls can look back over\npast Sundays. The slot rules are unit-tested (`tests/lib/sacramentPlanner/slotRules.test.ts`); the\nwiring is not, because the Planner is one HTML document in an iframe that no component test renders.\nEvery state here takes many clicks to reach by hand, so the seed makes each one a page load.",
+      "checklist": [
+        "With one Okafor ticked, the last search result scrolls fully above the panel, open and folded",
+        "The folded panel is one line with the count, Place, Pray About and ▸; it is still folded after a reload; desktop shows no fold button",
+        "Place on Sunday is disabled while When is \"Any Sunday in …\"",
+        "Ticking the do-not-ask member plus two others, Talk, S2, Place on Sunday: two are penciled in on S2, the toast names Ruth Okafor as skipped \"on the do-not-ask list\", no Pray About card was created, and one Undo removes both",
+        "The first Sunday of next month shows hymns and prayers only; switching to Regular adds two empty speakers and a rest hymn; typing a topic in one, switching back to Fast removes only the other",
+        "The S1 talk card reads \"3 of 3 speaking slots filled\"; Place shows the warning; See who's speaking lists three names and opens S1; Add a speaker anyway places Laura in a fourth slot",
+        "+ / − on S2 change the slot count by one; − on S1 (all named) says every slot has someone and writes nothing",
+        "The prayer card for S2 reads \"2 of 2 prayers filled\" and Place shows \"Both prayers … are filled\"",
+        "See the month lists each remaining Sunday of that month; Place here puts Nora on the chosen one and removes the card",
+        "Calls opens on upcoming, unchanged; Past Sundays shows P1, P2 and P3 newest first; Oldest first reverses them; a window excluding P2 hides it; searching \"Lindqvist\" finds P1",
+        "P1 has the usual controls; P2 and P3 have none and show outcomes, the decline line and a \"Read only\" chip",
+        "The past view's window and sort are still set after a reload; the search is not",
+        "Both themes; no horizontal scroll at 375px; every new button at least 44px tall on a phone",
+        "The folded panel's short labels (\"Place\", \"Pray About\") read clearly enough at 375px, where the full words do not fit on one line",
+        "The full warning on a Pray About card reads as a choice to make, not as an error",
+        "A read-only past Sunday reads as finished history rather than as something broken"
+      ],
+      "seedCommand": "npm run seed -- talks/scenario-096-planner-refinements"
+    },
+    {
       "id": "todos:scenario-075-a-todo-that-became-a-project",
       "path": "todos/scenario-075-a-todo-that-became-a-project",
       "name": "A to-do that became a project",
@@ -3724,7 +3758,7 @@
         "mobile"
       ],
       "prerequisites": "none",
-      "purpose": "Proves the bishopric can hand out Zoom join links from a phone (a roster member or a typed name,\nthen Text it / Share / Show QR), that an empty pool saves the person as waiting, and that the clerk\nand executive secretary see the list without any way to read a link. The RLS and route tests prove\nthe rules; this proves the screens say them at phone width. Seeding helps because it needs a\nnearly empty pool, a given link, a moved-out member and six callings.\n\n**Slices.** Built across z2a (pool), z2b (invitees and hand-out) and z2c (the waiting to-do). The\nchecks marked **(z2c)** cannot pass until z2c is built — skip them when walking z2b.",
+      "purpose": "Proves the bishopric can hand out Zoom join links from a phone (a roster member or a typed name,\nthen Text it / Share / Show QR), that an empty pool saves the person as waiting, and that the clerk\nand executive secretary see the list without any way to read a link. The RLS and route tests prove\nthe rules; this proves the screens say them at phone width. Seeding helps because it needs a\nnearly empty pool, a given link, a moved-out member and six callings.\n\n**Slices.** Built across z2a (pool), z2b (invitees and hand-out) and z2c (the waiting to-do). All\nthree are built, so every check below applies, including those marked **(z2c)**.",
       "checklist": [
         "Lena Ortiz does not appear in the picker; typing her name as a non-member works.",
         "Picking Thomas Reed fills his phone (555-201-7788).",

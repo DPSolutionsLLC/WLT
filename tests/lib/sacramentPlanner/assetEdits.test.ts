@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { SLOT_RULES_END, SLOT_RULES_START } from "@/tests/helpers/plannerSlotRules";
 
 // THE PLANNER'S OWN CODE IS IMPORTED, AND EDITED ONLY FOR LISTED REASONS (ITER-045, plan Task 2).
 // No component test can render it, so this reads the file the way explicitTimeZone.test.ts reads
@@ -9,6 +10,11 @@ import { describe, expect, it } from "vitest";
 
 const BODY = readFileSync(
   path.join(process.cwd(), "lib", "sacramentPlanner", "assets", "body.html"),
+  "utf8",
+);
+
+const EXTRA_CSS = readFileSync(
+  path.join(process.cwd(), "lib", "sacramentPlanner", "assets", "extra.css"),
   "utf8",
 );
 
@@ -45,8 +51,50 @@ describe("the Sacrament Planner's edited assets", () => {
 
   it("prefixes every one of its storage keys with planner: (E3)", () => {
     const keys = [...BODY.matchAll(/localStorage\.\w+\("([^"]*)"/g)].map((match) => match[1]);
-    expect(keys.length).toBe(10);
+    expect(keys.length).toBe(14);
     expect(keys.filter((key) => !key.startsWith("planner:"))).toEqual([]);
+  });
+
+  // GROUP-04 (plans/sacrament-planner-refinements.md), edits G1–G5.
+  it("remembers the folded panel and the Calls past view per device under planner: keys (D1)", () => {
+    expect(BODY).toContain('localStorage.getItem("planner:bulkFold")');
+    expect(BODY).toContain('localStorage.setItem("planner:bulkFold"');
+    expect(BODY).toContain('localStorage.getItem("planner:callsPast")');
+    expect(BODY).toContain('localStorage.setItem("planner:callsPast"');
+  });
+
+  it("reserves room for the selection panel on a phone (G1)", () => {
+    expect(BODY).toContain('style.setProperty("--bulkh"');
+    expect(EXTRA_CSS).toContain("var(--bulkh, 0px)");
+  });
+
+  it("places every ticked person with one write (G2)", () => {
+    expect(BODY).toContain('id="bulkPlace"');
+    expect(functionBody("placeMany")).toContain("placeIntoSlots(");
+  });
+
+  it("starts a Fast & Testimony Sunday with no empty speaker slots (G3)", () => {
+    expect(functionBody("blankSunday0")).toContain("withoutEmptySpeakers(");
+  });
+
+  it("uses one placement rule for Pray About and Who's Next, warning when full (G4)", () => {
+    expect(functionBody("placeConsider")).toContain("placeIntoSlots(");
+    expect(functionBody("placeMany")).toContain('"warn"');
+  });
+
+  it("refuses call actions on a Sunday that has locked (G5)", () => {
+    expect(BODY).toContain("const callLocked = date => !callEditable(");
+    expect(functionBody("refuseLocked")).toContain("callLocked(");
+    const handlers = ["callacc", "calldec", "callmsg", "callundo", "swapopen", "swapto", "slotremove", "slotdrop", "declsave"];
+    for (const handler of handlers) expect(BODY).toContain(`if (d.${handler}) { `);
+    expect([...BODY.matchAll(/if \(refuseLocked\(d\.(\w+), t\)\) return;/g)].map((match) => match[1]).sort()).toEqual(
+      [...handlers].sort(),
+    );
+  });
+
+  it("keeps the slot-rules markers exactly once each", () => {
+    expect(BODY.split(SLOT_RULES_START).length - 1).toBe(1);
+    expect(BODY.split(SLOT_RULES_END).length - 1).toBe(1);
   });
 
   // Decided reviewing scenario 093: the app's theme decides, set on this page by PlannerFrame.tsx.

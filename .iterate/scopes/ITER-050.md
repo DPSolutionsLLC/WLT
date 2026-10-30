@@ -1,7 +1,8 @@
 # ITER-050: Calls history — look back at past Sundays
 
 **Type:** Modification
-**Status:** Backlogged
+**Status:** In Progress
+**Plan:** plans/sacrament-planner-refinements.md
 **Created:** 2026-10-24
 **Group:** GROUP-04 — Sacrament Planner refinements
 

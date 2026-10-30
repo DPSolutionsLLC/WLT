@@ -49,15 +49,21 @@
       <div class="duemeta"><span id="dueCount"></span><span id="dueSortChip"></span></div>
       <p class="note">Longest since their last one at the top. Tick boxes to send people to Pray About or to defer them. Click a name for their history and record; click a date to see that Sunday's program.</p>
       <div class="bulk" id="bulk" hidden>
+        <button class="btn small icon bulkfold phoneonly" id="bulkFold" type="button" aria-expanded="true" aria-label="Fold the selection panel">▾</button>
         <strong id="bulkCount" style="align-self:center"></strong>
-        <label class="field"><span>Pray about for</span><select id="bulkKind"><option value="talk">A talk</option><option value="prayer">A prayer</option></select></label>
-        <label class="field"><span>When</span><select id="bulkWhen"></select></label>
-        <label class="field" style="flex:1 1 180px"><span>Topic idea (optional)</span><input type="text" id="bulkTopic"></label>
-        <button class="btn primary" id="bulkConsider">Add to Pray About</button>
-        <span style="flex-basis:100%;height:0"></span>
-        <label class="field"><span>Or defer · reason</span><select id="bulkReason"></select></label>
-        <label class="field" style="flex:1 1 180px"><span>Note (optional)</span><input type="text" id="bulkNote"></label>
-        <button class="btn" id="bulkDefer">Defer</button><button class="btn link" id="bulkClear">Clear selection</button>
+        <div class="bulkmore">
+          <label class="field"><span>Pray about for</span><select id="bulkKind"><option value="talk">A talk</option><option value="prayer">A prayer</option></select></label>
+          <label class="field"><span>When</span><select id="bulkWhen"></select></label>
+          <label class="field" style="flex:1 1 180px"><span>Topic idea (optional)</span><input type="text" id="bulkTopic"></label>
+        </div>
+        <button class="btn" id="bulkPlace" aria-label="Place on Sunday">Place<span class="bulklong"> on Sunday</span></button>
+        <button class="btn primary" id="bulkConsider" aria-label="Add to Pray About"><span class="bulklong">Add to </span>Pray About</button>
+        <div class="bulkmore">
+          <span style="flex-basis:100%;height:0"></span>
+          <label class="field"><span>Or defer · reason</span><select id="bulkReason"></select></label>
+          <label class="field" style="flex:1 1 180px"><span>Note (optional)</span><input type="text" id="bulkNote"></label>
+          <button class="btn" id="bulkDefer">Defer</button><button class="btn link" id="bulkClear">Clear selection</button>
+        </div>
       </div>
     </div>
     <div class="scroll"><table><thead><tr><th style="width:30px"><input type="checkbox" class="chk" id="chkAll" aria-label="Select all shown"></th><th style="width:36px" class="starth"><button class="clrstar" id="clearFlagsH" type="button" hidden></button></th><th>#</th><th><button class="sorth" data-sortcol="name">Name</button></th><th class="num"><button class="sorth" data-sortcol="age">Age</button></th><th><button class="sorth" data-sortcol="lastTalk">Last talk</button></th><th><button class="sorth" data-sortcol="lastPrayer">Last prayer</button></th><th class="num"><button class="sorth" data-sortcol="talks">Talks</button></th><th class="num"><button class="sorth" data-sortcol="prayers">Prayers</button></th><th class="num"><button class="sorth" data-sortcol="since">Days since</button></th><th><button class="sorth" data-sortcol="sched">Scheduled</button></th></tr></thead><tbody id="dueBody"></tbody></table></div>
@@ -92,9 +98,14 @@
 
   <section class="panel" id="p-calls" hidden>
     <div class="head">
-      <div class="controls"><div class="field"><span>Whose calls</span><select id="callOwner"></select></div>
+      <div class="controls"><div class="field keep"><span>View</span><select id="callView"><option value="up">Upcoming</option><option value="past">Past Sundays</option></select></div>
+        <div class="field callpast" hidden><span>Find</span><input type="search" id="callFind" placeholder="Name"></div>
+        <div class="field"><span>Whose calls</span><select id="callOwner"></select></div>
+        <div class="field callpast" hidden><span>From</span><input type="date" id="callFrom"></div>
+        <div class="field callpast" hidden><span>To</span><input type="date" id="callTo"></div>
+        <div class="field callpast" hidden><span>Sort</span><select id="callSort"><option value="desc">Newest first</option><option value="asc">Oldest first</option></select></div>
         <div class="field"><span>Cards</span><div style="display:flex;gap:6px"><button class="btn" data-allcards="calls:open">Expand all</button><button class="btn" data-allcards="calls:closed">Collapse all</button></div></div></div>
-      <p class="note">Everyone on a finalized Sunday. Mark how each call went. A decline reopens the slot on the Sundays tab and is kept on the person's record. Sundays where everyone has accepted fold up on their own, and each Sunday drops off this list once it has passed.</p>
+      <p class="note">Everyone on a finalized Sunday. Mark how each call went. A decline reopens the slot on the Sundays tab and is kept on the person's record. Sundays where everyone has accepted fold up on their own, and each Sunday drops off this list once it has passed. Use View → Past Sundays to look back. Calls stay editable for 9 days after the Sunday.</p>
     </div>
     <div class="scroll bare"><div id="callList" class="plan"></div></div>
   </section>
@@ -204,6 +215,7 @@ const DATA = __DATA__;
 const NONE = "__none__", NONE_LABEL = "(not a ward member)", IGNORE = "ignore";
 const ROLES = ["Opening Prayer","Closing Prayer","Speaker","Youth Speaker"];
 const TYPES = ["Regular","Fast & Testimony","Primary Program","Musical / Christmas","Ward Conference","Stake Conference","General Conference","Special"];
+const FAST = "Fast & Testimony";
 const REVIEW_STATUSES = ["Ambiguous","Check","Not in ward list","Surname only – likely","Likely – goes by middle name","Spelling/nickname variant"];
 const REASONS = ["Not attending","Lives elsewhere right now","Asked not to be asked","Other"];
 const DECLINES = ["Prefers not to","Out of town or unavailable that date","Other"];
@@ -219,6 +231,7 @@ const ward = DATA.ward.map(w => ({name:w[0],age:w[1],gender:w[2],phone:w[3]||"",
 const state = { goesBy:{}, ask:{date:"", sel:new Set()}, fu:{date:"", sel:new Set(), sig:""}, fold:{plan:{}, calls:{}, pray:{}, follow:{}}, show:{prayers:true, speakers:true, music:true}, contacts:null, msgKind:"music", band:"", deferrals:{}, holds:{}, considers:{}, bishopric:null, rotation:null, me:"", meChosen:false, selected:new Set(),
   nameFixes:{}, rowFixes:{}, added:{}, marks:{}, sundays:{}, extraDates:new Set(), dirty:new Set(),
   owners:{pray:null, plan:null, calls:null}, declining:null,
+  bulkFolded:false, prayNote:{}, prayDate:{}, fillOpen:new Set(), monthView:null, callsPast:{on:false, from:"", to:"", sort:"desc", q:""},
   canWrite:false, db:null, raw:{}, undo:[], redo:[], curGroup:null, replaying:false, dueSort:null, tab:"due", dueMode:"prayer", hLimit:150, open:null, editing:null };
 
 const $ = id => document.getElementById(id);
@@ -241,7 +254,7 @@ const kindOf = role => isPrayer(role) ? "prayer" : "talk";
 const firstLast = n => { const i = n.indexOf(","); return i < 0 ? n : n.slice(i+1).trim() + " " + n.slice(0,i).trim(); };
 const dis = () => state.canWrite ? "" : "disabled";
 
-function toast(msg){ const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true,2600); }
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true,Math.max(2600,msg.length*50)); }
 
 // ---------- people, bishopric, rotation ----------
 function allPeople(){
@@ -337,11 +350,76 @@ function normSunday(v){
 }
 function blankSunday(date){ return withMarkers(blankSunday0(date)); }
 function blankSunday0(date){
-  return {date, type: +date.slice(8) <= 7 ? "Fast & Testimony" : "Regular", notes:"", v:2,
-    slots:[{id:rid(),role:"Opening Hymn",number:"",title:""},{id:rid(),role:"Opening Prayer",name:"",topic:"",status:"open"},{id:rid(),role:"Sacrament Hymn",number:"",title:""},
+  const type = +date.slice(8) <= 7 ? FAST : "Regular";
+  const slots = [{id:rid(),role:"Opening Hymn",number:"",title:""},{id:rid(),role:"Opening Prayer",name:"",topic:"",status:"open"},{id:rid(),role:"Sacrament Hymn",number:"",title:""},
       {id:rid(),role:"Speaker",name:"",topic:"",status:"open"},{id:rid(),role:"Rest Hymn",number:"",title:""},{id:rid(),role:"Speaker",name:"",topic:"",status:"open"},
-      {id:rid(),role:"Closing Hymn",number:"",title:""},{id:rid(),role:"Closing Prayer",name:"",topic:"",status:"open"}]};
+      {id:rid(),role:"Closing Hymn",number:"",title:""},{id:rid(),role:"Closing Prayer",name:"",topic:"",status:"open"}];
+  return {date, type, notes:"", v:2, slots: type === FAST ? withoutEmptySpeakers(slots) : slots};
 }
+// ---------- slot rules (read by tests/helpers/plannerSlotRules.ts) ----------
+// Pure: these use only isTalk, isPrayer, rid and each other, never state, the page or TODAY, so a test can run them.
+function isEmptyWork(sl){
+  if (isTalk(sl.role)) return !sl.name && !String(sl.topic || "").trim() && !(sl.refs || []).some(r => r && (r.url || r.label));
+  if (sl.role === "Rest Hymn") return !String(sl.number || "").trim() && !String(sl.title || "").trim();
+  return false;
+}
+function closingIndex(slots){ const at = slots.findIndex(sl => sl.role === "Closing Hymn" || sl.role === "Closing Prayer"); return at < 0 ? slots.length : at; }
+function placeIntoSlots(slots, name, kind, topic, whenFull){
+  if (slots.some(sl => sl.name === name && sl.status !== "open")) return {ok:false, reason:"already"};
+  const next = slots.map(sl => ({...sl}));
+  const fill = sl => { sl.name = name; sl.status = "tentative"; if (topic) sl.topic = topic; };
+  if (kind === "prayer") {
+    const target = next.find(sl => sl.role === "Opening Prayer" && !sl.name) || next.find(sl => sl.role === "Closing Prayer" && !sl.name);
+    if (!target) return {ok:false, reason:"prayersFull"};
+    fill(target); return {ok:true, slots:next};
+  }
+  const open = next.find(sl => isTalk(sl.role) && !sl.name);
+  if (open) { fill(open); return {ok:true, slots:next}; }
+  if (whenFull !== "add") return {ok:false, reason:"talksFull"};
+  next.splice(closingIndex(next), 0, {id:rid(), role:"Speaker", name, topic:topic || "", status:"tentative"});
+  return {ok:true, slots:next};
+}
+function withoutLoneRestHymn(slots){
+  if (slots.some(sl => isTalk(sl.role))) return slots.slice();
+  return slots.filter(sl => !(sl.role === "Rest Hymn" && isEmptyWork(sl)));
+}
+function withoutEmptySpeakers(slots){ return withoutLoneRestHymn(slots.filter(sl => !(isTalk(sl.role) && isEmptyWork(sl)))); }
+function withDefaultSpeakers(slots){
+  if (slots.some(sl => isTalk(sl.role))) return slots.slice();
+  const next = slots.slice(), speaker = () => ({id:rid(), role:"Speaker", name:"", topic:"", status:"open"});
+  const middle = slots.some(sl => sl.role === "Rest Hymn" || sl.role === "Musical Number") ? [] : [{id:rid(), role:"Rest Hymn", number:"", title:""}];
+  next.splice(closingIndex(next), 0, speaker(), ...middle, speaker());
+  return next;
+}
+function withRestHymnIfTwoSpeakers(slots){
+  const talks = slots.map((sl, i) => [sl, i]).filter(([sl]) => isTalk(sl.role));
+  if (talks.length < 2 || slots.some(sl => sl.role === "Rest Hymn" || sl.role === "Musical Number")) return slots.slice();
+  const next = slots.slice();
+  next.splice(talks[Math.ceil(talks.length / 2) - 1][1] + 1, 0, {id:rid(), role:"Rest Hymn", number:"", title:""});
+  return next;
+}
+function withSpeakerAdded(slots){
+  const next = slots.slice();
+  next.splice(closingIndex(next), 0, {id:rid(), role:"Speaker", name:"", topic:"", status:"open"});
+  return next;
+}
+function withoutLastEmptySpeaker(slots){
+  for (let i = slots.length - 1; i >= 0; i--) if (isTalk(slots[i].role) && isEmptyWork(slots[i])) return slots.filter((_, k) => k !== i);
+  return null;
+}
+function slotFill(slots, kind){
+  const mine = slots.filter(sl => kind === "prayer" ? isPrayer(sl.role) : isTalk(sl.role));
+  return {filled: mine.filter(sl => sl.name && sl.status !== "open").length, total: mine.length, people: mine.map(sl => ({role: sl.role, name: sl.name || "", status: sl.name ? sl.status : "open"}))};
+}
+function daysBetween(from, to){ return Math.round((Date.parse(to + "T00:00:00Z") - Date.parse(from + "T00:00:00Z")) / 864e5); }
+function callEditable(date, today, inHistory){ return !inHistory && (date >= today || daysBetween(date, today) <= 9); }
+function callMatches(slot, query){
+  const q = String(query || "").trim().toLowerCase(); if (!q) return true;
+  const turned = n => { const i = n.indexOf(","); return i < 0 ? n : n.slice(i + 1).trim() + " " + n.slice(0, i).trim(); };
+  const names = [slot.name, ...(slot.history || []).map(h => h.name), ...(slot.past || []).map(p => p.name)].filter(Boolean);
+  return names.some(n => n.toLowerCase().includes(q) || turned(n).toLowerCase().includes(q));
+}
+// ---------- end slot rules ----------
 function planEntries(){
   const out = [];
   for (const s of Object.values(state.sundays)){
@@ -639,7 +717,21 @@ function renderBulk(){
   if (!$("bulkReason").options.length) $("bulkReason").innerHTML = REASONS.map(r => `<option>${r}</option>`).join("");
   const sig = state.me + "|" + JSON.stringify(rotation());
   if ($("bulkWhen").dataset.sig !== sig) { $("bulkWhen").innerHTML = whenOptions(defaultWhen()); $("bulkWhen").dataset.sig = sig; }
+  const folded = state.bulkFolded && isPhone(), fb = $("bulkFold");
+  $("bulk").classList.toggle("folded", folded);
+  fb.textContent = folded ? "▸" : "▾"; fb.setAttribute("aria-expanded", String(!folded)); fb.setAttribute("aria-label", folded ? "Open the selection panel" : "Fold the selection panel");
+  renderBulkPlace(); reserveBulkSpace();
 }
+// Place on Sunday needs one Sunday; "Any Sunday in …" is what Pray About is for
+function renderBulkPlace(){
+  const b = $("bulkPlace"), specific = $("bulkWhen").value.startsWith("d:");
+  b.disabled = !state.canWrite || !specific;
+  b.title = specific ? "" : "Pick a Sunday under When to place directly. For a month, use Add to Pray About.";
+}
+// on a phone the panel floats over the list, so the list keeps that much room free at its foot (read by extra.css)
+function reserveBulkSpace(){ const b = $("bulk"); document.documentElement.style.setProperty("--bulkh", (b.hidden ? 0 : b.offsetHeight + 8) + "px"); }
+function loadBulkFold(){ try { state.bulkFolded = localStorage.getItem("planner:bulkFold") === "folded"; } catch {} }
+function saveBulkFold(){ try { localStorage.setItem("planner:bulkFold", state.bulkFolded ? "folded" : "open"); } catch {} }
 
 // ---------- program popup ----------
 function programDates(){ return [...new Set(C.res.map(x => x.r.date))].sort(); }
@@ -1065,19 +1157,100 @@ function renderPray(){
     const s = C.stats[c.name] || EMPTY, dl = lastDecline(c.name), t = considerTarget(c);
     const dates = sundaysIn(t.ym).filter(d => d > TODAY), used = usedSince(c);
     const closed = (state.fold.pray[c.id] || (isPhone() ? "closed" : "open")) === "closed";
+    const placeDate = placeDateFor(c, dates), note = state.prayNote[c.id];
+    const placeRow = note && note.kind === "full" && note.date === placeDate ? fullWarnHtml(c, placeDate, note.full)
+      : `<select data-placedate aria-label="Sunday">${dates.map(d => `<option value="${d}" ${d===placeDate?'selected':''}>${fmtShort(d)}</option>`).join("")}</select>
+        <button class="btn small primary" data-place="${c.id}" ${dis()} ${dates.length?'':'disabled'}>Place on Sunday</button><button class="btn small" data-release="${c.id}" ${dis()}>Release</button>`;
     return `<article class="pcard2 ${closed?'folded':''}" data-cid="${c.id}">
       <div><div class="name pname" style="font-size:15px"><button class="btn small icon fold" data-fold="pray|${c.id}" aria-expanded="${!closed}" aria-label="${closed?'Expand':'Collapse'} ${esc(c.name)}">${closed?'▸':'▾'}</button> ${esc(c.name)} <span class="chip ${c.kind==='talk'?'s-plan':c.kind==='deferral'?'s-pdef':'s-ok'}">${c.kind === "talk" ? "Talk" : c.kind === "deferral" ? "♡ Praying about their deferral" : "Prayer"}</span> ${deferChip(c.name)}${c.topic ? ` <span class="ptopic dim">· ${esc(c.topic)}</span>` : ""}</div>
         <div class="dim pmeta" style="font-size:12.5px">Last talk ${s.lastTalk?dateBtn(s.lastTalk,c.name):'never'} · last prayer ${s.lastPrayer?dateBtn(s.lastPrayer,c.name):'never'} · added by ${esc(c.owner)} ${fmtShort(c.at)}</div>
         ${used.length ? `<div class="usedline">⚑ ${used.join(" · ")}</div>` : ''}
         ${dl ? `<div class="warnline">${esc(dl.action)} on ${fmt(dl.at)}${dl.reason?` · ${esc(dl.reason)}`:''}${dl.note?` · “${esc(dl.note)}”`:''} (${esc(dl.by)})</div>` : ''}</div>
-      <div class="pa">${c.kind === "deferral" ? `${deferState(c.name) ? `<button class="btn small" data-bringback="${esc(c.name)}" ${dis()}>Bring back now</button>` : '<span class="dim" style="font-size:12.5px">No longer deferred</span>'}` : `<select data-placedate aria-label="Sunday">${dates.map(d => `<option value="${d}" ${d===c.target?'selected':''}>${fmtShort(d)}</option>`).join("")}</select>
-        <button class="btn small primary" data-place="${c.id}" ${dis()} ${dates.length?'':'disabled'}>Place on Sunday</button>`}<button class="btn small" data-release="${c.id}" ${dis()}>Release</button></div>
+      <div class="pa">${c.kind === "deferral" ? `${deferState(c.name) ? `<button class="btn small" data-bringback="${esc(c.name)}" ${dis()}>Bring back now</button>` : '<span class="dim" style="font-size:12.5px">No longer deferred</span>'}<button class="btn small" data-release="${c.id}" ${dis()}>Release</button>` : placeRow}</div>
+      ${c.kind === "deferral" ? "" : fillLineHtml(c, placeDate)}
       <div class="pt"><input type="text" data-ctopic value="${esc(c.topic||"")}" placeholder="${c.kind==='talk'?'Topic idea':c.kind==='deferral'?'Thoughts on how to help them come back':'Notes'}"><select data-cwhen aria-label="Change when">${whenOptions(t.key)}</select><button class="btn small" data-csave="${c.id}" ${dis()}>Save changes</button></div>
     </article>`;
   };
   $("prayList").innerHTML = keys.map(k => { const g = groups[k]; const own = monthOwner(g.t.ym);
     return `<section class="group"><h2>${esc(g.t.label)} <span class="owner">${esc(own)}'s month · ${g.items.length}</span></h2>${g.items.sort((a,b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name)).map(card).join("")}</section>`; }).join("")
     || `<p class="note">Nothing to pray about yet. On Who's Next, tick people (or click a name) and choose “Add to Pray About”.</p>`;
+  if (state.monthView) renderMonthView();
+}
+// ---------- Pray About: how full a Sunday is, + / − slots, the full warning, the month view ----------
+const placeDateFor = (c, dates) => { const want = state.prayDate[c.id] || c.target; return dates.includes(want) ? want : (dates[0] || ""); };
+const cardTopic = c => { const i = document.querySelector(`.pcard2[data-cid="${CSS.escape(c.id)}"] [data-ctopic]`); return i ? i.value.trim() : (c.topic || ""); };
+function fillWords(date, kind){
+  const f = slotFill((state.sundays[date] || blankSunday(date)).slots, kind);
+  if (kind === "prayer") return `${f.filled} of ${f.total} prayer${f.total === 1 ? "" : "s"} filled`;
+  return f.total ? `${f.filled} of ${f.total} speaking slot${f.total === 1 ? "" : "s"} filled` : `No speaking slots on ${fmtShort(date)}`;
+}
+function slotButtons(date){
+  return `<span class="slotbtns"><button class="btn small" type="button" data-slotadd="${date}" aria-label="Add a speaking slot on ${fmt(date)}" ${dis()}>+ slot</button><button class="btn small" type="button" data-slotsub="${date}" aria-label="Remove an empty speaking slot on ${fmt(date)}" ${dis()}>− slot</button></span>`;
+}
+const allNamedHtml = date => `<div class="warnline" role="status">Every speaking slot has someone. Open the Sunday to change it. <button class="btn small link" type="button" data-gotoplan="${date}">Open ${fmtShort(date)}</button></div>`;
+function fillLineHtml(c, date){
+  if (!considerTarget(c).date) return `<div class="fillline" data-fillline><button class="btn small" type="button" data-seemonth="${c.id}">See the month</button></div>`;
+  if (!date) return "";
+  const note = state.prayNote[c.id], named = note && note.kind === "allNamed" && note.date === date ? allNamedHtml(date) : "";
+  if (c.kind === "prayer") return `<div class="fillline" data-fillline>${fillWords(date, "prayer")}</div>`;
+  const open = state.fillOpen.has(c.id);
+  return `<div class="fillline" data-fillline><button class="btn small link fillcount" type="button" data-fillopen="${c.id}" aria-expanded="${open}" title="Add or remove speaking slots">${fillWords(date, "talk")}</button>${open ? slotButtons(date) : ""}${named}</div>`;
+}
+function fullWarnHtml(c, date, full){
+  const talk = full === "talk";
+  return `<div class="pwarn" role="alert"><span>${talk ? `${fmtShort(date)} has no open speaking slot.` : `Both prayers on ${fmtShort(date)} are filled.`}</span>
+    ${talk ? `<button class="btn small primary" type="button" data-placeanyway="${c.id}|${date}" ${dis()}>Add a speaker anyway</button>` : ""}
+    <button class="btn small" type="button" data-slotpeople="${date}|${talk ? "talk" : "prayer"}">See who's ${talk ? "speaking" : "praying"}</button>
+    <button class="btn small link" type="button" data-warncancel="${c.id}">Cancel</button></div>`;
+}
+async function changeSpeakerSlots(date, add){
+  if (!needMe()) return false;
+  if (unsavedSunday(date)) { toast(`${fmt(date)} has unsaved edits on the Sundays tab. Save or discard them there first.`); return false; }
+  if (DATA.meetings[date]) { toast("That Sunday is already in the agenda history"); return false; }
+  const s = JSON.parse(JSON.stringify(state.sundays[date] || blankSunday(date))), fast = s.type === FAST;
+  let slots = add ? withSpeakerAdded(s.slots) : withoutLastEmptySpeaker(s.slots);
+  if (!slots) return "allNamed";
+  if (fast) slots = add ? withRestHymnIfTwoSpeakers(slots) : withoutLoneRestHymn(slots);
+  s.slots = slots; s.owner = ownerOf(date);
+  const n = slots.filter(sl => isTalk(sl.role)).length;
+  return write(db => db.collection("sundays").doc(date).set(s), `${fmtShort(date)}: ${n} speaking slot${n === 1 ? "" : "s"}`);
+}
+function peopleLines(people){
+  return people.map(p => `<span class="dim">${esc(p.role)}</span><span>${p.name ? esc(firstLast(p.name)) : '<span class="dim">Open</span>'} <span class="chip ${STATUS_CLASS[p.status] || ""}">${STATUS_LABEL[p.status] || ""}</span></span>`).join("");
+}
+function openSlotPeople(date, kind){
+  const f = slotFill((state.sundays[date] || blankSunday(date)).slots, kind), what = kind === "prayer" ? "Prayers" : "Speakers";
+  $("overlay").innerHTML = `<div class="modal slotpop" role="dialog" aria-modal="true" aria-labelledby="slotTitle">
+    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><h3 id="slotTitle">${fmtShort(date)} · ${what}</h3><span class="dim">${fillWords(date, kind)}</span></div>
+    <div class="slotlist">${peopleLines(f.people) || `<span class="dim">None on this Sunday</span><span></span>`}</div>
+    <div class="pactions"><button class="btn" type="button" data-gotoplan="${date}">Open this Sunday</button><button class="btn primary" type="button" data-closeprog>Close</button></div></div>`;
+  $("overlay").hidden = false; $("overlay").querySelector("[data-closeprog]").focus();
+}
+function openMonth(cid){ state.monthView = {cid, notes:{}}; renderMonthView(true); const b = $("overlay").querySelector("[data-closeprog]"); if (b) b.focus(); }
+// rebuilt from state on every render, so the counts stay true after a write from inside it
+function renderMonthView(opening){
+  const mv = state.monthView, ov = $("overlay");
+  if (!mv) return;
+  if (!opening && !ov.querySelector("[data-monthview]")) { state.monthView = null; return; }
+  const c = state.considers[mv.cid];
+  if (!c) { state.monthView = null; closeProgram(); return; }
+  const t = considerTarget(c), talk = c.kind === "talk", dates = sundaysIn(t.ym).filter(d => d > TODAY);
+  const block = d => {
+    const s = state.sundays[d] || blankSunday(d), f = slotFill(s.slots, c.kind), note = mv.notes[d];
+    const head = `<div class="mvhead"><h4>${fmt(d)}</h4><span class="dim">${esc(s.type)}</span><span class="grow"></span><span class="dim">${fillWords(d, c.kind)}</span></div>`;
+    const open = `<button class="btn small" type="button" data-gotoplan="${d}">Open this Sunday</button>`;
+    if (DATA.meetings[d]) return `<section class="mvday">${head}<p class="note">In the agenda history</p></section>`;
+    if (unsavedSunday(d)) return `<section class="mvday">${head}<p class="note">Unsaved edits on the Sundays tab</p><div class="mvact">${open}</div></section>`;
+    const warn = note && note.kind === "full" ? `<div class="pwarn" role="alert"><span>${talk ? `${fmtShort(d)} has no open speaking slot.` : `Both prayers on ${fmtShort(d)} are filled.`}</span>${talk ? `<button class="btn small primary" type="button" data-placeanyway="${c.id}|${d}" ${dis()}>Add a speaker anyway</button>` : ""}<button class="btn small link" type="button" data-mvclear="${d}">Cancel</button></div>`
+      : note && note.kind === "allNamed" ? allNamedHtml(d) : "";
+    return `<section class="mvday">${head}<div class="slotlist">${peopleLines(f.people) || `<span class="dim">No ${talk ? "speaking slots" : "prayers"}</span><span></span>`}</div>${warn}
+      <div class="mvact"><button class="btn small primary" type="button" data-placehere="${c.id}|${d}" ${dis()}>Place here</button>${talk ? slotButtons(d) : ""}${open}</div></section>`;
+  };
+  const keep = ov.querySelector(".modal") ? ov.querySelector(".modal").scrollTop : 0;
+  ov.innerHTML = `<div class="modal monthpop" role="dialog" aria-modal="true" aria-labelledby="monthTitle" data-monthview>
+    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><h3 id="monthTitle">${esc(t.label)} · ${talk ? "Talk" : "Prayer"} for ${esc(firstLast(c.name))}</h3><span class="grow"></span><button class="btn small" type="button" data-closeprog>Close</button></div>
+    ${dates.map(block).join("") || `<p class="note">No Sundays left in ${esc(fmtMonth(t.ym))}.</p>`}</div>`;
+  ov.hidden = false; if (!opening) ov.querySelector(".modal").scrollTop = keep;
 }
 // has someone else used this person since it went on the list?
 function usedSince(c){
@@ -1103,26 +1276,53 @@ async function addConsider(name, kind, when, topic){
   const doc = {id, name, kind, target: k === "d" ? v : "", month: k === "d" ? ymOf(v) : v, topic: topic || "", owner: state.me, at: TODAY};
   return write(db => db.collection("considers").doc(id).set(doc));
 }
-async function placeConsider(c, date, topic){
-  if (document.querySelector(`.pcard.dirty[data-date="${date}"]`)) { toast(`${fmt(date)} has unsaved edits on the Sundays tab. Save or discard them there first, then place ${firstLast(c.name)}.`); return; }
+// Pray About's Place and Who's Next's Place on Sunday share one rule, placeIntoSlots. A full Sunday
+// warns instead of quietly growing a slot; only "Add a speaker anyway" adds one.
+const unsavedSunday = date => !!document.querySelector(`.pcard.dirty[data-date="${date}"]`);
+async function placeConsider(c, date, topic, opts){
+  if (unsavedSunday(date)) { toast(`${fmt(date)} has unsaved edits on the Sundays tab. Save or discard them there first, then place ${firstLast(c.name)}.`); return false; }
   const s = JSON.parse(JSON.stringify(state.sundays[date] || blankSunday(date)));
-  if (DATA.meetings[date]) { toast("That Sunday is already in the agenda history"); return; }
-  const slots = s.slots;
-  if (slots.some(sl => sl.name === c.name && sl.status !== "open")) { toast(`${c.name} is already on ${fmtShort(date)}`); return; }
-  const fill = sl => { sl.name = c.name; sl.status = "tentative"; if (topic) sl.topic = topic; };
-  if (c.kind === "prayer") {
-    const target = slots.find(sl => sl.role === "Opening Prayer" && !sl.name) || slots.find(sl => sl.role === "Closing Prayer" && !sl.name);
-    if (!target) { toast(`Both prayers on ${fmtShort(date)} are already filled`); return; }
-    fill(target);
-  } else {
-    const open = slots.find(sl => isTalk(sl.role) && !sl.name);
-    if (open) fill(open);
-    else { const at = slots.findIndex(sl => sl.role === "Closing Hymn" || sl.role === "Closing Prayer"); slots.splice(at < 0 ? slots.length : at, 0, {id:rid(), role:"Speaker", name:c.name, topic:topic||"", status:"tentative"}); }
+  if (DATA.meetings[date]) { toast("That Sunday is already in the agenda history"); return false; }
+  if (holdState(c.name)) { toast(`${firstLast(c.name)} is on the do-not-ask list until ${fmt(holdState(c.name).until)}`); return false; }
+  const r = placeIntoSlots(s.slots, c.name, c.kind, topic, opts && opts.addAnyway ? "add" : "warn");
+  if (!r.ok) {
+    if (r.reason === "already") { toast(`${c.name} is already on ${fmtShort(date)}`); return false; }
+    return {full: r.reason === "prayersFull" ? "prayer" : "talk"};
   }
-  s.owner = ownerOf(date);
+  s.slots = r.slots; s.owner = ownerOf(date);
   if (await write(db => db.collection("sundays").doc(date).set(s))) {
     await write(db => db.collection("considers").doc(c.id).delete(), `${c.name} placed on ${fmt(date)}`);
+    return true;
   }
+  return false;
+}
+// the ticked people, in the order Who's Next shows them (anyone ticked but filtered out of view comes last)
+function selectedInListOrder(){
+  const shown = [...document.querySelectorAll("#dueBody input[data-sel]")].map(i => i.dataset.sel).filter(n => state.selected.has(n));
+  return [...shown, ...[...state.selected].filter(n => !shown.includes(n))];
+}
+const SKIP_WHY = {already: date => `already on ${fmtShort(date)}`, prayersFull: () => "both prayers are filled", talksFull: () => "no open speaking slot"};
+// One Sunday document with every placement applied, written once: one write is one Undo step, and a
+// loop of single writes would let each one overwrite the last before the realtime copy caught up.
+async function placeMany(names, kind, date, topic){
+  if (!needMe()) return;
+  if (unsavedSunday(date)) { toast(`${fmt(date)} has unsaved edits on the Sundays tab. Save or discard them there first, then place them.`); return; }
+  if (DATA.meetings[date]) { toast("That Sunday is already in the agenda history"); return; }
+  const s = JSON.parse(JSON.stringify(state.sundays[date] || blankSunday(date)));
+  let slots = s.slots; const placed = [], skipped = [];
+  for (const name of names) {
+    if (holdState(name)) { skipped.push({name, why:"on the do-not-ask list"}); continue; }
+    const r = placeIntoSlots(slots, name, kind, kind === "talk" ? topic : "", "warn");
+    if (r.ok) { slots = r.slots; placed.push(name); }
+    else skipped.push({name, why: SKIP_WHY[r.reason](date), full: r.reason === "talksFull"});
+  }
+  const skipText = skipped.length ? ` · Skipped: ${skipped.map(x => `${firstLast(x.name)} (${x.why})`).join(", ")}${skipped.some(x => x.full) ? ". Add speaking slots on the Sunday, or use + on a Pray About card." : ""}` : "";
+  if (!placed.length) { toast(`Nobody was placed on ${fmtShort(date)}${skipText}`); return; }
+  s.slots = slots; s.owner = ownerOf(date);
+  if (!(await write(db => db.collection("sundays").doc(date).set(s), `${placed.length} penciled in on ${fmtShort(date)}${skipText}`))) return;
+  for (const n of placed) state.selected.delete(n);
+  if (!skipped.length) $("bulkTopic").value = "";
+  renderDue();
 }
 
 // ---------- references ----------
@@ -1339,7 +1539,7 @@ function renderPlan(){
       <div class="phead">${foldBtn(date, fs)}<h3>${fmt(date)}</h3><span class="owner"><b>${esc(ownerOf(date))}</b>'s month</span> ${summary} ${saved ? msgChips(date, s) : ""}<span class="grow"></span>
         <button type="button" class="metabtn" data-metaedit title="Open the card fully to change these">${metaText(s.conducting, s.type, date)}</button>
         <span class="metasel"><select data-conduct="${date}" aria-label="Conducting" title="Who's conducting" ${dis()}>${ownerOf(date) ? "" : `<option value="">No conductor set</option>`}${bishopric().map(m => `<option value="${m.name === ownerOf(date) ? "" : esc(m.name)}" ${(s.conducting || ownerOf(date)) === m.name ?'selected':''}>${esc(conductLabel(m.name))}</option>`).join("")}</select>
-        <select data-type="${date}" aria-label="Meeting type" ${dis()}>${TYPES.map(t => `<option ${t===s.type?'selected':''}>${t}</option>`).join("")}</select><button type="button" class="btn small" data-metadone>Done</button></span></div>
+        <select data-type="${date}" data-prev="${esc(s.type)}" aria-label="Meeting type" ${dis()}>${TYPES.map(t => `<option ${t===s.type?'selected':''}>${t}</option>`).join("")}</select><button type="button" class="btn small" data-metadone>Done</button></span></div>
       <div class="psum">${sumHtml(s)}</div>
       <div class="slots pbody">
         <div class="sharedtopic"><label class="chkline"><input type="checkbox" class="chk" data-sharedchk="${date}" ${s.sharedTopic?'checked':''} ${dis()}> One topic for all speakers</label><input type="text" data-sharedtopic="${date}" value="${esc(s.sharedTopic ? ((s.slots.find(sl => isTalk(sl.role) && sl.topic) || {}).topic || "") : "")}" placeholder="Topic for every speaker" aria-label="Topic for every speaker" ${s.sharedTopic?'':'hidden'} ${dis()}></div>
@@ -1430,6 +1630,16 @@ function readCard(date){
   const keep = {}; if (stored) for (const k of ["msgSent","fuClosed"]) if (stored[k]) keep[k] = stored[k];  // card-independent fields survive a save
   return {date, v:2, owner: ownerOf(date), type: c.querySelector("[data-type]").value, ...(c.querySelector("[data-sharedchk]")?.checked ? {sharedTopic: true} : {}), ...(c.querySelector("[data-conduct]")?.value ? {conducting: c.querySelector("[data-conduct]").value} : {}), notes: c.querySelector("[data-notes]").value.trim(), slots, ...keep};
 }
+function redrawSlots(date, slots){ const list = document.querySelector(`[data-list="${date}"]`); list.innerHTML = slots.map(sl => itemRow(date, sl)).join(""); fillSummaries(list); markDirty(date); }
+// A type switch changes the card on screen as unsaved edits; Save keeps them. Only two switches move
+// slots, and only empty ones: a name, a topic or a reference is work, and work is never removed here.
+function slotsForType(sel){
+  const date = sel.dataset.type, prev = sel.dataset.prev || "", next = sel.value; sel.dataset.prev = next;
+  const toFast = next === FAST && prev !== FAST, toRegular = prev === FAST && next === "Regular";
+  if (!toFast && !toRegular) return;
+  const s = readCard(date), slots = toFast ? withoutEmptySpeakers(s.slots) : withDefaultSpeakers(s.slots);
+  if (slots.length !== s.slots.length) redrawSlots(date, slots);
+}
 async function savePlan(date, finalize){
   if (!needMe()) return;
   const s = readCard(date);
@@ -1456,15 +1666,49 @@ function showSuggest(id, kind){
 }
 
 // ---------- Calls ----------
-function callItems(){
-  const out = [];
+// view "up" is the list as it always was; "past" looks back over passed Sundays and those in the agenda history
+function callItems(view){
+  const past = view === "past", cp = state.callsPast, q = past ? cp.q : "", out = [];
   for (const s of Object.values(state.sundays)){
-    if (!s || DATA.meetings[s.date] || s.date < TODAY) continue;
+    if (!s) continue;
+    const gone = !!DATA.meetings[s.date] || s.date < TODAY;
+    if (past !== gone) continue;
     if (!matchOwner("calls", sundayOwner(s.date))) continue;
-    const items = s.slots.filter(sl => isPerson(sl.role) && ((sl.name && (sl.status === "calling" || sl.status === "accepted")) || (!sl.name && ((sl.history||[]).length || (sl.past||[]).length))));
+    if (past && ((cp.from && s.date < cp.from) || (cp.to && s.date > cp.to))) continue;
+    const items = s.slots.filter(sl => isPerson(sl.role) && ((sl.name && (sl.status === "calling" || sl.status === "accepted")) || (!sl.name && ((sl.history||[]).length || (sl.past||[]).length))) && callMatches(sl, q));
     if (items.length) out.push({s, items});
   }
-  return out.sort((a,b) => a.s.date.localeCompare(b.s.date));
+  const dir = past && cp.sort !== "asc" ? -1 : 1;
+  return out.sort((a,b) => a.s.date.localeCompare(b.s.date) * dir);
+}
+const callLocked = date => !callEditable(date, TODAY, !!DATA.meetings[date]);
+// a screen left open overnight must not edit a Sunday that has just locked
+function refuseLocked(key, t){
+  if (!t.closest("#p-calls") || !callLocked(key.split("|")[0])) return false;
+  toast("This Sunday can no longer be changed here."); return true;
+}
+function loadCallsPast(){ try { const v = JSON.parse(localStorage.getItem("planner:callsPast") || "null"); if (v) state.callsPast = {...state.callsPast, on:!!v.on, from:v.from || "", to:v.to || "", sort:v.sort === "asc" ? "asc" : "desc"}; } catch {} }
+function saveCallsPast(){ const {on, from, to, sort} = state.callsPast; try { localStorage.setItem("planner:callsPast", JSON.stringify({on, from, to, sort})); } catch {} }
+function renderCallControls(){
+  const cp = state.callsPast;
+  $("callView").value = cp.on ? "past" : "up"; $("callSort").value = cp.sort;
+  if ($("callFrom").value !== cp.from) $("callFrom").value = cp.from;
+  if ($("callTo").value !== cp.to) $("callTo").value = cp.to;
+  for (const el of document.querySelectorAll("#p-calls .callpast")) el.hidden = !cp.on;
+}
+// earlier records under a slot: declines, and whoever was swapped or taken off while the record survives
+function callRecords(sl){
+  const lines = [...(sl.history || []).map(h => ({at:h.at, text:`${firstLast(h.name)} declined ${fmtShort(h.at)}${h.reason ? ` · ${h.reason}` : ""}`})),
+    ...(sl.past || []).map(p => ({at:p.at, text:`${sl.name ? "Swapped out" : "Taken off"}: ${firstLast(p.name)} (was ${(STATUS_LABEL[p.status] || p.status || "open").toLowerCase()})`}))];
+  return lines.sort((a, b) => String(a.at).localeCompare(String(b.at))).map(l => `<div class="dim callrec">${esc(l.text)}</div>`).join("");
+}
+function readOnlyCallRow(sl){
+  const role = `<div class="role ${isPrayer(sl.role)?'p':''}">${esc(sl.role)}${sl.topic?` · <span style="color:var(--ink);font-weight:500">${esc(sl.topic)}</span>`:''}</div>`;
+  if (!sl.name) return `<div class="crow ro"><div>${role}<div class="name" style="color:var(--bad)">Needs someone</div>${callRecords(sl)}</div></div>`;
+  const outcome = sl.status === "accepted" ? `<span class="chip s-acc">Accepted${sl.answeredBy ? ` · ${esc(shortName(sl.answeredBy))}` : ""}</span>`
+    : sl.msgAt ? `<span class="chip s-call">Left message ${fmtShort(sl.msgAt)}</span> <span class="dim">Never marked accepted</span>`
+    : `<span class="chip s-none">Not marked</span>`;
+  return `<div class="crow ro"><div>${role}<div class="name" style="font-size:15px">${esc(firstLast(sl.name))}</div>${callRecords(sl)}</div><div></div><div class="cact">${outcome}</div></div>`;
 }
 function swapPanel(s, sl, key){
   const onSunday = new Set(s.slots.filter(x => x.name).map(x => x.name));
@@ -1496,9 +1740,11 @@ async function doSwap(key, name, cid){
   renderCalls();
 }
 function renderCalls(){
-  const groups = callItems(), toCall = groups.reduce((n,g) => n + g.items.filter(sl => sl.status === "calling").length, 0);
+  renderCallControls();
+  const past = state.callsPast.on, upcoming = callItems("up"), groups = past ? callItems("past") : upcoming;
+  const toCall = upcoming.reduce((n,g) => n + g.items.filter(sl => sl.status === "calling").length, 0);
   $("callCount").textContent = toCall || ""; $("callCount").hidden = !toCall;
-  const tentative = Object.values(state.sundays).filter(s => s && !DATA.meetings[s.date] && s.date >= TODAY && matchOwner("calls", sundayOwner(s.date)) && s.slots.some(sl => isPerson(sl.role) && sl.name && sl.status === "tentative")).length;
+  const tentative = past ? 0 : Object.values(state.sundays).filter(s => s && !DATA.meetings[s.date] && s.date >= TODAY && matchOwner("calls", sundayOwner(s.date)) && s.slots.some(sl => isPerson(sl.role) && sl.name && sl.status === "tentative")).length;
   const row = (s, sl) => {
     const key = `${s.date}|${sl.id}`;
     if (!sl.name) { const hs = sl.history || [], ps = sl.past || [], h = hs[hs.length-1], pp = ps[ps.length-1];
@@ -1532,9 +1778,10 @@ function renderCalls(){
         for (const sl of g.items) { if (!sl.name) n.open++; else if (sl.status === "accepted") n.acc++; else if (sl.msgAt) n.msg++; else n.call++; }
         const done = !n.call && !n.msg && !n.open, closed = isFolded("calls", g.s.date, done);
         const counts = [n.call ? `<span class="chip s-call">${n.call} to call</span>` : "", n.msg ? `<span class="chip s-call">${n.msg} left message</span>` : "", n.acc ? `<span class="chip s-acc">${n.acc} accepted</span>` : "", n.open ? `<span class="chip s-open">${n.open} need${n.open>1?'':'s'} someone</span>` : "", done ? `<span class="chip s-acc">All set</span>` : ""].join(" ");
-        return `<article class="ccard ${closed?'folded':''}" data-cdate="${g.s.date}"><div class="phead"><button class="btn small icon fold" data-fold="calls|${g.s.date}" aria-expanded="${!closed}" aria-label="${closed?'Expand':'Collapse'} ${fmt(g.s.date)}">${closed?'▸':'▾'}</button><h3 style="margin:0;font:600 19px/1.2 var(--display)">${fmt(g.s.date)}</h3><span class="owner"><b>${esc(ownerOf(g.s.date))}</b>'s month · ${esc(g.s.type)}</span> ${counts}<span class="grow"></span><button class="btn small" data-ask="${g.s.date}">Message</button></div><div class="pbody">${g.items.map(sl => row(g.s, sl)).join("")}</div></article>`;
+        const locked = callLocked(g.s.date), lockChip = locked ? ` <span class="chip s-none" title="${DATA.meetings[g.s.date] ? "In the agenda history" : "More than 9 days ago"}">Read only</span>` : "";
+        return `<article class="ccard ${closed?'folded':''}" data-cdate="${g.s.date}"><div class="phead"><button class="btn small icon fold" data-fold="calls|${g.s.date}" aria-expanded="${!closed}" aria-label="${closed?'Expand':'Collapse'} ${fmt(g.s.date)}">${closed?'▸':'▾'}</button><h3 style="margin:0;font:600 19px/1.2 var(--display)">${fmt(g.s.date)}</h3><span class="owner"><b>${esc(ownerOf(g.s.date))}</b>'s month · ${esc(g.s.type)}</span> ${counts}${lockChip}<span class="grow"></span>${locked ? "" : `<button class="btn small" data-ask="${g.s.date}">Message</button>`}</div><div class="pbody">${g.items.map(sl => locked ? readOnlyCallRow(sl) : row(g.s, sl)).join("")}</div></article>`;
       }).join("")
-    || `<p class="note">No one to call. Finalize a Sunday on the Sundays tab and its names show up here.</p>`);
+    || (past ? `<p class="note">No past calls match these filters.</p>` : `<p class="note">No one to call. Finalize a Sunday on the Sundays tab and its names show up here.</p>`));
 }
 // ---------- swapping people in a slot ----------
 // Whoever is taken out is remembered on the slot (until the Sunday passes). Put them back and their
@@ -1968,6 +2215,9 @@ document.addEventListener("click", async e => {
     $("youthBtn").setAttribute("aria-pressed", state.band === "youth"); $("adultBtn").setAttribute("aria-pressed", state.band === "adult");
     $("minAge").disabled = $("maxAge").disabled = !!state.band; renderDue(); return; }
   if (t.id === "bulkClear") { state.selected.clear(); renderDue(); return; }
+  if (t.id === "bulkFold") { state.bulkFolded = !state.bulkFolded; saveBulkFold(); renderBulk(); return; }
+  if (t.id === "bulkPlace") { const when = $("bulkWhen").value; if (!when.startsWith("d:")) return;
+    t.disabled = true; await placeMany(selectedInListOrder(), $("bulkKind").value, when.slice(2), $("bulkTopic").value.trim()); t.disabled = false; renderBulkPlace(); return; }
   if (t.id === "bulkConsider") { if (!needMe()) return; const kind = $("bulkKind").value, when = $("bulkWhen").value, topic = $("bulkTopic").value.trim();
     t.disabled = true; let ok = 0, dup = 0; for (const n of state.selected) { const r = await addConsider(n, kind, when, topic); if (r === "dup") dup++; else if (r) ok++; }
     t.disabled = false; state.selected.clear(); $("bulkTopic").value = ""; toast(`${ok} added to Pray About${dup?` · ${dup} already there`:''}`); renderDue(); return; }
@@ -1999,7 +2249,27 @@ document.addEventListener("click", async e => {
   if (d.mark !== undefined) { if (!needMe()) return; const n = d.mark, on = isMarked(n), id = (on && (state.markIds||{})[state.me + "|" + n]) || hash(state.me + "|" + n);
     await write(db => on ? db.collection("marks").doc(id).delete() : db.collection("marks").doc(id).set({name:n, by:state.me}), on ? `Flag removed from ${n}` : `${n} flagged`); return; }
   // pray about
-  if (d.place) { if (!needMe()) return; const c = state.considers[d.place], card = t.closest("[data-cid]"); await placeConsider(c, card.querySelector("[data-placedate]").value, card.querySelector("[data-ctopic]").value.trim()); return; }
+  if (d.place) { if (!needMe()) return; const c = state.considers[d.place], card = t.closest("[data-cid]"), date = card.querySelector("[data-placedate]").value;
+    const r = await placeConsider(c, date, card.querySelector("[data-ctopic]").value.trim());
+    if (r && r.full) { state.prayNote[c.id] = {kind:"full", full:r.full, date}; renderPray(); } return; }
+  if (d.placeanyway) { if (!needMe()) return; const [cid, date] = d.placeanyway.split("|"), c = state.considers[cid]; if (!c) return;
+    delete state.prayNote[cid]; if (state.monthView) delete state.monthView.notes[date];
+    const r = await placeConsider(c, date, cardTopic(c), {addAnyway:true});
+    if (r === true && state.monthView) { state.monthView = null; closeProgram(); } else renderPray(); return; }
+  if (d.placehere) { if (!needMe()) return; const [cid, date] = d.placehere.split("|"), c = state.considers[cid]; if (!c) return;
+    const r = await placeConsider(c, date, cardTopic(c));
+    if (r === true) { state.monthView = null; closeProgram(); }
+    else if (r && r.full && state.monthView) { state.monthView.notes[date] = {kind:"full", full:r.full}; renderMonthView(); } return; }
+  if (d.warncancel) { delete state.prayNote[d.warncancel]; renderPray(); return; }
+  if (d.mvclear) { if (state.monthView) delete state.monthView.notes[d.mvclear]; renderMonthView(); return; }
+  if (d.fillopen) { state.fillOpen.has(d.fillopen) ? state.fillOpen.delete(d.fillopen) : state.fillOpen.add(d.fillopen); renderPray(); return; }
+  if (d.slotadd || d.slotsub) { const date = d.slotadd || d.slotsub, inMonth = !!t.closest("[data-monthview]"), cid = t.closest("[data-cid]")?.dataset.cid;
+    t.disabled = true; const r = await changeSpeakerSlots(date, !!d.slotadd); t.disabled = false;
+    if (r === "allNamed") { if (inMonth) state.monthView.notes[date] = {kind:"allNamed"}; else if (cid) state.prayNote[cid] = {kind:"allNamed", date}; }
+    else if (r) { if (inMonth && state.monthView) delete state.monthView.notes[date]; if (cid) delete state.prayNote[cid]; }
+    renderPray(); return; }
+  if (d.slotpeople) { const [date, kind] = d.slotpeople.split("|"); openSlotPeople(date, kind); return; }
+  if (d.seemonth) { openMonth(d.seemonth); return; }
   if (t.id === "undoBtn") { await replay(state.undo, state.redo, false, "Undid"); return; }
   if (t.id === "redoBtn") { await replay(state.redo, state.undo, true, "Redid"); return; }
   if (t.id === "clearPractice") { if (!isTest()) return;
@@ -2038,7 +2308,12 @@ document.addEventListener("click", async e => {
   if (d.pick) { const row = document.querySelector(`.srow[data-sid="${CSS.escape(d.into)}"]`); if (row) { row.querySelector("[data-sname]").value = d.pick; markDirty(row.closest(".pcard").dataset.date); } t.parentElement.innerHTML = ""; return; }
   if (d.addspeaker) { const date = d.addspeaker;
     const shared = document.querySelector(`[data-sharedchk="${date}"]`)?.checked ? document.querySelector(`[data-sharedtopic="${date}"]`).value : "";
-    const row = insertItem(date, slotRow(date, {id:rid(), role:"Speaker", name:"", topic:shared, status:"open"})); markDirty(date); openRow(row); row.querySelector("[data-sname]").focus(); return; }
+    let row = insertItem(date, slotRow(date, {id:rid(), role:"Speaker", name:"", topic:shared, status:"open"})); markDirty(date);
+    if (t.closest(".pcard").querySelector("[data-type]").value === FAST) {
+      const s = readCard(date), slots = withRestHymnIfTwoSpeakers(s.slots);
+      if (slots.length !== s.slots.length) { const sid = row.dataset.sid; redrawSlots(date, slots); row = document.querySelector(`[data-list="${date}"] .srow[data-sid="${CSS.escape(sid)}"]`); }
+    }
+    openRow(row); row.querySelector("[data-sname]").focus(); return; }
   if (t.hasAttribute("data-rmslot")) { const row = t.closest(".srow"), date = row.closest(".pcard").dataset.date; row.remove(); markDirty(date); return; }
   if (d.metaedit !== undefined) { const card = t.closest(".pcard"); if (card.classList.contains("folded") || !state.canWrite) return; card.classList.add("metaediting"); card.querySelector("[data-conduct]").focus(); return; }
   if (d.metadone !== undefined) { const card = t.closest(".pcard"); card.classList.remove("metaediting"); card.querySelector(".metabtn").innerHTML = metaText(card.querySelector("[data-conduct]").value, card.querySelector("[data-type]").value, card.dataset.date); return; }
@@ -2086,7 +2361,7 @@ document.addEventListener("click", async e => {
     if (await write(db => db.collection("sundays").doc(date).set(s2), "Marked as messaged")) { state.sundays[date] = normSunday(s2); renderAsk(true); } return; }
   if (d.gofollow) { closeProgram(); state.fu.date = d.gofollow; state.fu.sel = new Set(); state.fold.follow[d.gofollow] = "open"; openTab("follow"); renderFollow();
     const c = document.querySelector(`.fucard[data-fdate="${d.gofollow}"]`); if (c) c.scrollIntoView({block:"start"}); return; }
-  if (d.slotremove) { e.preventDefault(); if (!needMe()) return; const [dt, sid] = d.slotremove.split("|"), sl = (state.sundays[dt]||{slots:[]}).slots.find(x => x.id === sid); if (!sl || !sl.name) return;
+  if (d.slotremove) { e.preventDefault(); if (refuseLocked(d.slotremove, t)) return; if (!needMe()) return; const [dt, sid] = d.slotremove.split("|"), sl = (state.sundays[dt]||{slots:[]}).slots.find(x => x.id === sid); if (!sl || !sl.name) return;
     if (document.querySelector(`.pcard.dirty[data-date="${dt}"]`)) { toast(`${fmt(dt)} has unsaved edits on the Sundays tab. Save or discard them first.`); return; }
     const who = firstLast(sl.name);
     if (await updateSlot(dt, sid, x => { swapPerson(x, ""); x.status = "open"; },
@@ -2125,25 +2400,25 @@ document.addEventListener("click", async e => {
     if (DATA.meetings[v]) { toast("That Sunday is already in the agenda history"); return; }
     state.extraDates.add(v); renderPlan(); document.querySelector(`.pcard[data-date="${v}"]`)?.scrollIntoView({block:"start"}); return; }
   // calls
-  if (d.gotoplan) { state.owners.plan = "*"; renderOwnerSelects(); openTab("plan"); renderPlan(); document.querySelector(`.pcard[data-date="${d.gotoplan}"]`)?.scrollIntoView({block:"start"}); return; }
-  if (d.callmsg) { if (!needMe()) return; const [dt, sid] = d.callmsg.split("|"); await updateSlot(dt, sid, sl => { sl.msgAt = TODAY; }, "Noted: left a message"); return; }
-  if (d.callacc) { if (!needMe()) return; const [dt, sid] = d.callacc.split("|"), sl = state.sundays[dt].slots.find(x => x.id === sid);
+  if (d.gotoplan) { if (t.closest("#overlay")) { state.monthView = null; closeProgram(); } state.owners.plan = "*"; renderOwnerSelects(); openTab("plan"); renderPlan(); document.querySelector(`.pcard[data-date="${d.gotoplan}"]`)?.scrollIntoView({block:"start"}); return; }
+  if (d.callmsg) { if (refuseLocked(d.callmsg, t)) return; if (!needMe()) return; const [dt, sid] = d.callmsg.split("|"); await updateSlot(dt, sid, sl => { sl.msgAt = TODAY; }, "Noted: left a message"); return; }
+  if (d.callacc) { if (refuseLocked(d.callacc, t)) return; if (!needMe()) return; const [dt, sid] = d.callacc.split("|"), sl = state.sundays[dt].slots.find(x => x.id === sid);
     if (await updateSlot(dt, sid, x => { x.status = "accepted"; x.answeredBy = state.me; x.answeredAt = TODAY; }, `${sl.name} accepted`)) addLog(sl.name, {action:`Accepted ${kindOf(sl.role)==='talk'?'a talk':'a prayer'} for ${fmtShort(dt)}`}); return; }
-  if (d.callundo) { const [dt, sid] = d.callundo.split("|"); await updateSlot(dt, sid, x => { x.status = "calling"; delete x.answeredBy; delete x.answeredAt; }, "Back to not answered"); return; }
-  if (d.slotdrop) { if (!needMe()) return; const [dt, sid] = d.slotdrop.split("|"), s = state.sundays[dt], sl = s && s.slots.find(x => x.id === sid); if (!sl || sl.name) return;
+  if (d.callundo) { if (refuseLocked(d.callundo, t)) return; const [dt, sid] = d.callundo.split("|"); await updateSlot(dt, sid, x => { x.status = "calling"; delete x.answeredBy; delete x.answeredAt; }, "Back to not answered"); return; }
+  if (d.slotdrop) { if (refuseLocked(d.slotdrop, t)) return; if (!needMe()) return; const [dt, sid] = d.slotdrop.split("|"), s = state.sundays[dt], sl = s && s.slots.find(x => x.id === sid); if (!sl || sl.name) return;
     if (document.querySelector(`.pcard.dirty[data-date="${dt}"]`)) { toast(`${fmt(dt)} has unsaved edits on the Sundays tab. Save or discard them first.`); return; }
     if (isTalk(sl.role)) {
       const next = JSON.parse(JSON.stringify(s)); next.slots = next.slots.filter(x => x.id !== sid);
       await write(db => db.collection("sundays").doc(dt).set(next), `Empty speaker slot removed from ${fmtShort(dt)}. Undo (↶) brings it back.`);
     } else await updateSlot(dt, sid, x => { delete x.history; delete x.past; }, `Empty ${sl.role.toLowerCase()} taken off Calls. It's still open on the Sundays tab.`);
     state.swapping = null; return; }
-  if (d.swapopen) { state.swapping = state.swapping === d.swapopen ? null : d.swapopen; state.declining = null; renderCalls(); return; }
+  if (d.swapopen) { if (refuseLocked(d.swapopen, t)) return; state.swapping = state.swapping === d.swapopen ? null : d.swapopen; state.declining = null; renderCalls(); return; }
   if (d.swapcancel !== undefined) { state.swapping = null; renderCalls(); return; }
-  if (d.swapto) { const name = d.swapfromtyped !== undefined ? (personFromInput(t.closest(".swapgrp").querySelector("[data-swaptype]").value) || t.closest(".swapgrp").querySelector("[data-swaptype]").value.trim()) : d.swapname;
+  if (d.swapto) { if (refuseLocked(d.swapto, t)) return; const name = d.swapfromtyped !== undefined ? (personFromInput(t.closest(".swapgrp").querySelector("[data-swaptype]").value) || t.closest(".swapgrp").querySelector("[data-swaptype]").value.trim()) : d.swapname;
     if (!name || name === NONE) { toast("Type or pick a name first"); return; } await doSwap(d.swapto, name, d.swapcid); return; }
-  if (d.calldec) { state.swapping = null; state.declining = d.calldec; renderCalls(); return; }
+  if (d.calldec) { if (refuseLocked(d.calldec, t)) return; state.swapping = null; state.declining = d.calldec; renderCalls(); return; }
   if (t.hasAttribute("data-declcancel")) { state.declining = null; renderCalls(); return; }
-  if (d.declsave) { if (!needMe()) return; const [dt, sid] = d.declsave.split("|"), box = t.closest(".decl");
+  if (d.declsave) { if (refuseLocked(d.declsave, t)) return; if (!needMe()) return; const [dt, sid] = d.declsave.split("|"), box = t.closest(".decl");
     const reason = box.querySelector("[data-dreason2]").value, after = box.querySelector("[data-dafter]").value, note = box.querySelector("[data-dnote2]").value.trim();
     if (after && after <= TODAY) { toast("The 'available after' date should be in the future"); return; }
     state.declining = null; await declineSlot(dt, sid, reason, after, note); return; }
@@ -2188,7 +2463,11 @@ document.addEventListener("change", async e => {
   if (t.id === "actingAs" || t.id === "actingAs2") { const was = isTest(); state.me = t.value; state.meChosen = true; try { localStorage.setItem("planner:me", state.me); } catch {}
     if (was !== isTest()) { state.owners = {pray:null, plan:null, calls:null}; startData(); toast(isTest() ? "Test user: practice mode. Nothing you do touches the real records." : "Back to the real records"); } else renderAll(); }
   if (t.id === "recSel") { if (t.value) openTab(t.value); else openTab(state.tab); }
+  if (t.id === "bulkWhen") renderBulkPlace();
+  if (t.dataset.placedate !== undefined) { const card = t.closest("[data-cid]"), c = card && state.considers[card.dataset.cid]; if (!c) return;
+    state.prayDate[c.id] = t.value; delete state.prayNote[c.id]; const fl = card.querySelector("[data-fillline]"); if (fl) fl.outerHTML = fillLineHtml(c, t.value); }
   if (t.dataset.conduct !== undefined || t.dataset.type !== undefined) { const card = t.closest(".pcard"); if (card) card.querySelector(".metabtn").innerHTML = metaText(card.querySelector("[data-conduct]").value, card.querySelector("[data-type]").value, card.dataset.date); }
+  if (t.dataset.type !== undefined) slotsForType(t);
   if (t.dataset.exc !== undefined) { if (!needMe()) { renderRotExc(); return; } const ym = t.dataset.exc, r = rotation(), exceptions = {...(r.exceptions || {})};
     if (t.value) exceptions[ym] = t.value; else delete exceptions[ym];
     for (const k of Object.keys(exceptions)) if (k < ymOf(TODAY)) delete exceptions[k];  // past months no longer matter
@@ -2206,6 +2485,9 @@ document.addEventListener("change", async e => {
     t.checked ? state.fu.sel.add(t.dataset.fusel) : state.fu.sel.delete(t.dataset.fusel); renderFollow(); }
   if (t.id === "planOwner") { state.owners.plan = t.value; renderPlan(); }
   if (t.id === "callOwner") { state.owners.calls = t.value; renderCalls(); }
+  if (["callView","callSort","callFrom","callTo"].includes(t.id)) { const cp = state.callsPast;
+    if (t.id === "callView") cp.on = t.value === "past"; if (t.id === "callSort") cp.sort = t.value; if (t.id === "callFrom") cp.from = t.value; if (t.id === "callTo") cp.to = t.value;
+    saveCallsPast(); renderCalls(); }
   if (t.dataset.mrole !== undefined) { const row = t.closest(".srow"), date = row.closest(".pcard").dataset.date;
     row.outerHTML = musicRow(date, {id:row.dataset.sid, role:t.value, number:"", title:(row.querySelector("[data-mtitle]")||{}).value || "", performer:""}); markDirty(date); }
 });
@@ -2270,6 +2552,7 @@ for (const id of ["minAge","maxAge","dueSearch","dueShow"]) $(id).addEventListen
 for (const id of ["hSearch","hRole","hStatus"]) $(id).addEventListener("input", () => { state.hLimit = 150; renderHistory(); });
 for (const id of ["rSearch","rStatus"]) $(id).addEventListener("input", renderReview);
 $("mSearch").addEventListener("input", renderMeetings);
+$("callFind").addEventListener("input", () => { state.callsPast.q = $("callFind").value.trim(); renderCalls(); });
 $("overlay").addEventListener("click", e => { if (e.target === $("overlay")) closeProgram(); });
 document.addEventListener("keydown", e => {
   if (e.key === "Escape" && $("personModal") && !$("overlay").innerHTML) { closePersonModal(); return; }
@@ -2295,7 +2578,9 @@ async function exportCsv(){
 function showRO(msg){ $("ro").textContent = msg; $("ro").hidden = false; $("sync").textContent = "View only"; $("sync").className = "sync ro"; }
 
 // ---------- boot ----------
-loadFold(); setupFilters();
+loadFold(); loadBulkFold(); loadCallsPast(); setupFilters();
+if (window.ResizeObserver) new ResizeObserver(reserveBulkSpace).observe($("bulk"));
+phoneMQ.addEventListener("change", renderBulk);
 applyTheme("auto");  // the app sets light or dark on this page (PlannerFrame.tsx); the Planner has no theme control of its own
 try { const m = localStorage.getItem("planner:me"); if (m) { state.me = m; state.meChosen = true; } } catch {}
 try { const t = localStorage.getItem("planner:tab"); if (t && $("p-" + t)) openTab(t); } catch {}

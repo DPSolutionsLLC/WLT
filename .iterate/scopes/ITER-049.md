@@ -1,7 +1,8 @@
 # ITER-049: Pray About shows open slots before you place someone
 
 **Type:** Modification
-**Status:** Backlogged
+**Status:** In Progress
+**Plan:** plans/sacrament-planner-refinements.md
 **Created:** 2026-10-24
 **Group:** GROUP-04 — Sacrament Planner refinements
 

@@ -1,7 +1,9 @@
 # ITER-053: Zoom link pool, visit hand-out, and invitee list
 
 **Type:** Feature
-**Status:** In Progress
+**Status:** Completed
+**Completed:** 2026-10-28
+**Commit:** 5f092ff + a35db26 + d7c4ca9
 **Plan:** plans/zoom-link-pool-and-invitees.md
 **Created:** 2026-10-27
 **Group:** GROUP-05 — Zoom stream: remote controls and invitees

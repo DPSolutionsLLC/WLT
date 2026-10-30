@@ -97,7 +97,7 @@ a.btn{text-decoration:none;color:inherit;display:inline-block}
   .sub,.acting,#exportBtn,header nav#tabs{display:none}
   .sync{font-size:0;width:10px;height:10px;padding:0;border-radius:50%;background:var(--none)}
   .sync.on{background:var(--ok)} .sync.ro{background:var(--warn)}
-  main{padding-block:10px calc(70px + env(safe-area-inset-bottom,0px))}
+  main{padding-block:10px calc(70px + var(--bulkh, 0px) + env(safe-area-inset-bottom,0px))}
   .bnav{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:12;background:var(--surface);border-top:1px solid var(--line);
     padding:4px max(4px,env(safe-area-inset-right,0px)) calc(4px + env(safe-area-inset-bottom,0px)) max(4px,env(safe-area-inset-left,0px))}
   .bnav button{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px;font-size:11px;font-weight:600;color:var(--muted);padding:6px 2px;border-radius:8px;position:relative;text-align:center;min-height:44px;justify-content:center}
@@ -129,6 +129,14 @@ a.btn{text-decoration:none;color:inherit;display:inline-block}
   /* bulk bar pinned above the tab bar */
   .bulk{position:fixed;left:8px;right:8px;bottom:calc(66px + env(safe-area-inset-bottom,0px));z-index:11;max-height:55dvh;overflow:auto;box-shadow:0 8px 30px rgba(0,0,0,.2)}
   .bulk .field{flex:1 1 140px}
+  .bulk .btn{min-height:44px}
+  .bulk .bulkfold{min-width:44px;justify-content:center;align-items:center;font-size:16px}
+  .bulk.folded{flex-wrap:nowrap;align-items:center;gap:6px;padding:6px 8px}
+  .bulk.folded .bulkmore{display:none}
+  .bulk.folded .bulklong{display:none}
+  .bulk.folded .bulkfold{order:1}
+  .bulk.folded #bulkCount{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fillline .btn,.slotbtns .btn,.pwarn .btn,.mvact .btn,.slotpop .pactions .btn{min-height:44px}
   /* tables become lists */
   .scroll table{min-width:0}
   .scroll thead{display:none}
@@ -395,3 +403,18 @@ body.practice .usingas b{color:var(--accent)}
 /* v52 pending deferral in list */
 .pendbox{display:flex;flex-direction:column;gap:8px;background:var(--warn-soft);border-radius:8px;padding:10px 12px;font-size:13px}
 .s-pdef{background:color-mix(in srgb,var(--mark) 22%,var(--surface));color:var(--ink);font-weight:700}
+/* GROUP-04 (plans/sacrament-planner-refinements.md) */
+.bulkmore{display:contents}
+.fillline{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.fillline .fillcount{font-size:12.5px;padding-inline:0}
+.slotbtns{display:inline-flex;gap:6px}
+.pwarn{display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--warn-soft);border-radius:8px;padding:8px 10px;font-size:13px;width:100%}
+.pwarn > span{flex:1 1 180px}
+.slotlist{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;font-size:13.5px;align-items:center}
+.modal.slotpop,.modal.monthpop{width:min(520px,100%)}
+.mvday{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-top:1px solid var(--line)}
+.mvhead{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.mvhead h4{margin:0;font:600 15px/1.2 var(--body)}
+.mvact{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.callrec{font-size:12.5px}
+.crow.ro .name{margin-bottom:2px}
