@@ -2,7 +2,7 @@
 id: tithing-screen-wake-lock
 type: feature
 iter: [ITER-043]
-commits: []
+commits: ["e847092"]
 date: 2026-10-30
 files:
   - app/(tithing)/tithing/useScreenWakeLock.ts
