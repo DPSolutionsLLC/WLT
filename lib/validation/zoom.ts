@@ -45,13 +45,13 @@ function emptyToNull(value: unknown): unknown {
   return trimmed.length === 0 ? null : trimmed;
 }
 
-const inviteeDisplayName = z
+export const inviteeDisplayName = z
   .string({ error: "Enter their name." })
   .trim()
   .min(1, "Enter their name.")
   .max(120, "That name is too long. Names can be at most 120 characters.");
 
-const inviteePhone = z.preprocess(
+export const inviteePhone = z.preprocess(
   emptyToNull,
   z
     .string()
@@ -60,7 +60,7 @@ const inviteePhone = z.preprocess(
     .nullable(),
 );
 
-const inviteeEmail = z.preprocess(
+export const inviteeEmail = z.preprocess(
   (value) => {
     const cleaned = emptyToNull(value);
     return typeof cleaned === "string" ? cleaned.toLowerCase() : cleaned;

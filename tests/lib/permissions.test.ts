@@ -403,12 +403,13 @@ describe("mergeRoleAccess — non-overridable permissions", () => {
   // `planner.*` is the second (ITER-045): the Sacrament Planner is bishopric only until ITER-046,
   // and migration 093 refuses everybody else whatever a ward configures.
   // Any other permission appearing here is still a mistake this test should catch.
-  it("locks every admin.*, sacrament.* and planner.* permission, plus personal_tools.use and the two zoom.manage_* permissions", () => {
+  it("locks every admin.*, sacrament.* and planner.* permission, plus personal_tools.use and the three zoom.manage_* permissions", () => {
     expect(NON_OVERRIDABLE_PERMISSIONS.length).toBeGreaterThan(0);
     expect(NON_OVERRIDABLE_PERMISSIONS).toContain("personal_tools.use");
     expect(NON_OVERRIDABLE_PERMISSIONS).toContain("planner.use");
     expect(NON_OVERRIDABLE_PERMISSIONS).toContain("zoom.manage_remote_links");
     expect(NON_OVERRIDABLE_PERMISSIONS).toContain("zoom.manage_invitees");
+    expect(NON_OVERRIDABLE_PERMISSIONS).toContain("zoom.manage_registration_questions");
 
     for (const permission of NON_OVERRIDABLE_PERMISSIONS) {
       expect(
@@ -417,7 +418,8 @@ describe("mergeRoleAccess — non-overridable permissions", () => {
           permission.startsWith("planner.") ||
           permission === "personal_tools.use" ||
           permission === "zoom.manage_remote_links" ||
-          permission === "zoom.manage_invitees",
+          permission === "zoom.manage_invitees" ||
+          permission === "zoom.manage_registration_questions",
         `"${permission}" is locked but is neither admin.*, sacrament.*, planner.*, personal_tools.use nor a zoom.manage_* permission`,
       ).toBe(true);
     }
@@ -1135,6 +1137,23 @@ describe("zoom permissions", () => {
     silenceWarnings();
     const merged = mergeRoleAccess({ ward_secretary: { add: ["zoom.manage_invitees"] } });
     expect(can(sessionUser("ward_secretary"), "zoom.manage_invitees", merged)).toBe(false);
+  });
+
+  // ITER-052: the questions on the public sign-up page. The clerk and the executive secretary edit
+  // them beside the bishopric; approving sign-ups stays with zoom.manage_invitees.
+  it("gives zoom.manage_registration_questions to the bishopric, the clerk and the executive secretary only", () => {
+    const holders = ROLES.filter(
+      (role) =>
+        role !== "super_admin" &&
+        can(sessionUser(role), "zoom.manage_registration_questions", ROLE_PERMISSIONS),
+    );
+    expect(holders.sort()).toEqual(["bishop", "counselor", "executive_secretary", "ward_secretary"]);
+  });
+
+  it("locks zoom.manage_registration_questions against a ward delta", () => {
+    silenceWarnings();
+    const merged = mergeRoleAccess({ org_president: { add: ["zoom.manage_registration_questions"] } });
+    expect(can(sessionUser("org_president"), "zoom.manage_registration_questions", merged)).toBe(false);
   });
 
   it("leaves zoom.view overridable", () => {

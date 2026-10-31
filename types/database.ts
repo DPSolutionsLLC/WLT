@@ -3350,6 +3350,7 @@ export type Database = {
           user_id: string
           ward_id: string
           zoom_invitee_id: string | null
+          zoom_registration_id: string | null
         }
         Insert: {
           action_item_id?: string | null
@@ -3376,6 +3377,7 @@ export type Database = {
           user_id: string
           ward_id: string
           zoom_invitee_id?: string | null
+          zoom_registration_id?: string | null
         }
         Update: {
           action_item_id?: string | null
@@ -3402,6 +3404,7 @@ export type Database = {
           user_id?: string
           ward_id?: string
           zoom_invitee_id?: string | null
+          zoom_registration_id?: string | null
         }
         Relationships: [
           {
@@ -3472,6 +3475,13 @@ export type Database = {
             columns: ["zoom_invitee_id"]
             isOneToOne: false
             referencedRelation: "zoom_invitees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_zoom_registration_id_fkey"
+            columns: ["zoom_registration_id"]
+            isOneToOne: false
+            referencedRelation: "zoom_registrations"
             referencedColumns: ["id"]
           },
         ]
@@ -4440,6 +4450,275 @@ export type Database = {
           },
         ]
       }
+      zoom_registration_questions: {
+        Row: {
+          audience: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          is_required: boolean
+          kind: string
+          position: number
+          prompt: string
+          shown_when_yes_to: string | null
+          updated_at: string
+          ward_id: string
+        }
+        Insert: {
+          audience: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          kind: string
+          position: number
+          prompt: string
+          shown_when_yes_to?: string | null
+          updated_at?: string
+          ward_id: string
+        }
+        Update: {
+          audience?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          kind?: string
+          position?: number
+          prompt?: string
+          shown_when_yes_to?: string | null
+          updated_at?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_registration_questions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zoom_registration_questions_shown_when_yes_to_fkey"
+            columns: ["shown_when_yes_to", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "zoom_registration_questions"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "zoom_registration_questions_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zoom_registration_responses: {
+        Row: {
+          registration_id: string
+          responded_at: string
+          response: string
+          user_id: string
+          ward_id: string
+        }
+        Insert: {
+          registration_id: string
+          responded_at?: string
+          response: string
+          user_id: string
+          ward_id: string
+        }
+        Update: {
+          registration_id?: string
+          responded_at?: string
+          response?: string
+          user_id?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_registration_responses_registration_id_ward_id_fkey"
+            columns: ["registration_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "zoom_registrations"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "zoom_registration_responses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zoom_registration_settings: {
+        Row: {
+          auto_approve: boolean
+          created_at: string
+          email_bishopric_on_new: boolean
+          is_open: boolean
+          updated_at: string
+          updated_by: string | null
+          ward_id: string
+        }
+        Insert: {
+          auto_approve?: boolean
+          created_at?: string
+          email_bishopric_on_new?: boolean
+          is_open?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          ward_id: string
+        }
+        Update: {
+          auto_approve?: boolean
+          created_at?: string
+          email_bishopric_on_new?: boolean
+          is_open?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_registration_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zoom_registration_settings_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: true
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zoom_registrations: {
+        Row: {
+          answers: Json
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          display_name: string
+          email: string | null
+          held_reason: string | null
+          id: string
+          invitee_id: string | null
+          matched_at: string | null
+          matched_by: string | null
+          member_id: string | null
+          phone: string
+          phone_digits: string
+          referral_code: string
+          referred_by_registration_id: string | null
+          says_member: boolean
+          status: string
+          status_token_hash: string
+          updated_at: string
+          ward_id: string
+        }
+        Insert: {
+          answers?: Json
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decline_note?: string | null
+          display_name: string
+          email?: string | null
+          held_reason?: string | null
+          id?: string
+          invitee_id?: string | null
+          matched_at?: string | null
+          matched_by?: string | null
+          member_id?: string | null
+          phone: string
+          phone_digits: string
+          referral_code: string
+          referred_by_registration_id?: string | null
+          says_member: boolean
+          status?: string
+          status_token_hash: string
+          updated_at?: string
+          ward_id: string
+        }
+        Update: {
+          answers?: Json
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decline_note?: string | null
+          display_name?: string
+          email?: string | null
+          held_reason?: string | null
+          id?: string
+          invitee_id?: string | null
+          matched_at?: string | null
+          matched_by?: string | null
+          member_id?: string | null
+          phone?: string
+          phone_digits?: string
+          referral_code?: string
+          referred_by_registration_id?: string | null
+          says_member?: boolean
+          status?: string
+          status_token_hash?: string
+          updated_at?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_registrations_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zoom_registrations_invitee_id_ward_id_fkey"
+            columns: ["invitee_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "zoom_invitees"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "zoom_registrations_matched_by_fkey"
+            columns: ["matched_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zoom_registrations_member_id_ward_id_fkey"
+            columns: ["member_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "zoom_registrations_referred_by_registration_id_ward_id_fkey"
+            columns: ["referred_by_registration_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "zoom_registrations"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "zoom_registrations_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       zoom_remote_links: {
         Row: {
           deactivated_at: string | null
@@ -4560,6 +4839,17 @@ export type Database = {
         Args: { p_plan: Json; p_ward_id: string }
         Returns: Json
       }
+      approve_zoom_registration: {
+        Args: {
+          p_decided_by: string
+          p_registration_id: string
+          p_ward_id: string
+        }
+        Returns: {
+          invitee_id: string
+          join_link_id: string
+        }[]
+      }
       assign_next_zoom_link: {
         Args: { p_invitee_id: string; p_ward_id: string }
         Returns: string
@@ -4631,6 +4921,20 @@ export type Database = {
         Args: { p_link_id: string; p_ward_id: string }
         Returns: boolean
       }
+      respond_to_zoom_registration: {
+        Args: {
+          p_registration_id: string
+          p_response: string
+          p_user_id: string
+          p_ward_id: string
+        }
+        Returns: {
+          invitee_id: string
+          join_link_id: string
+          status: string
+          waiting_on: string[]
+        }[]
+      }
       session_context: {
         Args: never
         Returns: {
@@ -4672,6 +4976,26 @@ export type Database = {
       }
       ward_allows_cross_org_visibility: { Args: never; Returns: boolean }
       ward_module_released: { Args: { p_module: string }; Returns: boolean }
+      zoom_registration_form: {
+        Args: { p_slug: string }
+        Returns: {
+          is_open: boolean
+          questions: Json
+          ward_name: string
+        }[]
+      }
+      zoom_registration_status: {
+        Args: { p_token: string }
+        Returns: {
+          display_name: string
+          join_url: string
+          link_given: boolean
+          referral_code: string
+          slug: string
+          status: string
+          ward_name: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

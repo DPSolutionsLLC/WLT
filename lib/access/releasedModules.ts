@@ -220,11 +220,20 @@ export const RELEASED_MODULES = [
   {
     key: "zoom",
     label: "Zoom",
-    description: "Each leader's stream remote control, the link pool and who holds a link.",
+    description:
+      "Each leader's stream remote control, the link pool, who holds a link, and public sign-ups.",
     built: true,
     permissionPrefixes: ["zoom."],
     routePrefixes: ["/zoom"],
-    tables: ["zoom_remote_links", "zoom_join_links", "zoom_invitees"],
+    tables: [
+      "zoom_remote_links",
+      "zoom_join_links",
+      "zoom_invitees",
+      "zoom_registration_settings",
+      "zoom_registration_questions",
+      "zoom_registrations",
+      "zoom_registration_responses",
+    ],
   },
 ] as const satisfies readonly {
   key: ReleasedModuleKey;

@@ -4,7 +4,9 @@ import type { Database } from "@/types/database";
 
 export type WriteAuditLogParams = {
   wardId: string;
-  userId: string;
+  // Null when the action came from a member of the public (the Zoom sign-up page, ITER-052) or
+  // from the system acting on its own (an automatic approval). audit_log.user_id is nullable.
+  userId: string | null;
   action: string;
   module: string;
   detail?: Record<string, unknown>;

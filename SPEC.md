@@ -524,6 +524,58 @@ UNIQUE (ward_id, position)
 `updateCalling()` and `endCalling()` turn off (`holder_changed`) every live link whose calling no
 longer matches, so an undone change never revives a link.
 
+### Zoom sign-ups *(ITER-052, migration 096)*
+A public request for a stream link, reached from a QR code or a shared link. **A sign-up is a
+request, not an invitee**: approval creates an ordinary `zoom_invitees` row
+(`source = 'self_registration'`) and gives it the next free pool link. Every table below has **a
+SELECT policy and no write policy** — readable by the bishopric, the ward clerk and the executive
+secretary in `current_ward_id()`, with the restrictive `'zoom'` release policy — and anon has no
+grant on any of them.
+```sql
+-- zoom_registration_settings: one row per ward
+ward_id                uuid PRIMARY KEY REFERENCES wards(id) ON DELETE CASCADE
+is_open                boolean NOT NULL DEFAULT false
+auto_approve           boolean NOT NULL DEFAULT false
+email_bishopric_on_new boolean NOT NULL DEFAULT true   -- only matters with auto_approve on
+updated_by, updated_at, created_at
+
+-- zoom_registration_questions: the ward's own questions; turned off, never deleted
+id, ward_id, prompt (1-200), kind ('yes_no' | 'short_text'), audience ('everyone' | 'members' |
+'non_members'), is_required, position, is_active, created_by, created_at, updated_at,
+shown_when_yes_to  -- 097: a FOLLOW-UP, asked only when this yes/no question (same ward) is answered
+                   -- Yes; null = ordinary. One level deep, parent must be yes/no (checked in
+                   -- lib/zoom/registrationQuestions.ts). is_required applies only while it is asked.
+
+-- zoom_registrations
+id, ward_id, display_name, phone, phone_digits, email (lower-cased or NULL), says_member,
+answers jsonb      -- SNAPSHOT: [{questionId, prompt, kind, answer}]
+status             -- 'pending' | 'approved' | 'declined'
+held_reason        -- 'approvals_on' | 'daily_limit' | 'same_phone' | NULL
+status_token_hash  -- SHA-256 hex of the registrant's secret token; HIDDEN from authenticated by a
+                   -- column grant, so select("*") through a user's client is a 42501
+referral_code      -- 10 letters/digits, for "Share with a friend"; never the token
+referred_by_registration_id, member_id (composite to members), matched_by, matched_at,
+decided_by (NULL = approved automatically), decided_at, decline_note (bishopric only, never
+shown to the registrant, never audited), invitee_id UNIQUE (composite to zoom_invitees)
+
+-- zoom_registration_responses: each bishopric member's answer (z3b)
+registration_id, ward_id, user_id, response ('approve' | 'talk_first'), responded_at
+PRIMARY KEY (registration_id, user_id)
+```
+`public_pages.page_type` gains `'zoom_registration'`; `zoom_invitees.source` gains
+`'self_registration'`; `todos.zoom_registration_id` carries the "Match ___ to the roster" to-do (z3b).
+
+Functions (all `security definer`):
+- `zoom_registration_form(slug)` returns `ward_name, is_open, questions` — **anon**. One row only for
+  an active `zoom_registration` page; `is_open` is false when closed or when Zoom is unreleased.
+- `zoom_registration_status(token)` returns `slug, ward_name, display_name, status, link_given,
+  join_url, referral_code` — **anon**. Found by the token's SHA-256; `join_url` only once approved
+  with a link.
+- `approve_zoom_registration(ward, registration, decided_by)` — **service role**. Status, invitee and
+  link in one transaction; no row when no longer pending.
+- `respond_to_zoom_registration(ward, registration, user, response)` — **service role** (z3b).
+  Approval is unanimous across the active bishopric callings at the moment of each response.
+
 ### `hymn_selections`
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
@@ -1686,6 +1738,28 @@ DELETE /api/zoom/remote-links/[position]    Turn off. 404 when nothing is live. 
 Both write routes answer `{ row }` — the tab's status row, never the link. **The URL never appears
 in an audit row or a response.** `zoom.view` is held by the bishopric, the ward clerk
 (`ward_secretary`) and the executive secretary.
+
+### Zoom sign-ups  *(ITER-052 — settings: `zoom.manage_invitees` + a bishopric calling; questions: `zoom.manage_registration_questions`, non-overridable, held by the bishopric, the clerk and the executive secretary)*
+```
+POST   /api/public/zoom-registrations        NO SESSION. { slug, displayName, phone, email?, saysMember,
+                                             answers, ref?, website } — validates, applies the honeypot
+                                             and the caps, writes with the service role. 201 { statusUrl };
+                                             404 "This sign-up page isn't available." for every way of not
+                                             existing; 429 over 40 sign-ups in 24 hours. Audited
+                                             zoom_registration_submitted with user_id NULL, ids/booleans only.
+POST   /api/zoom/registration-settings       Set up (idempotent; starts closed; adds the missionary question)
+PUT    /api/zoom/registration-settings       { isOpen?, autoApprove?, emailBishopricOnNew? } — audited with
+                                             changedFields only
+POST   /api/zoom/registration-questions      Add (at most 8 active). Audited with the id, never the wording
+PATCH  /api/zoom/registration-questions/[id] { prompt?, audience?, isRequired?, isActive?, move? } — kind is fixed
+```
+Intake order (`decideIntake()`): over the ward cap, refused; approvals on, held; a phone seen
+before, held; ten automatic approvals already in 24 hours, held; otherwise approved at once. An
+empty pool on approval puts "Give ___ a Zoom link" on every serving bishopric member's To Do.
+
+The public pages are `/public/[slug]` (the form, a third branch beside the programme) and
+`/public/[slug]/status/[token]` (dynamic, `no-referrer`). Both read only through the two anon
+functions; nothing under `app/public/` touches the service role.
 
 ### Page views  *(any signed-in user)*
 ```

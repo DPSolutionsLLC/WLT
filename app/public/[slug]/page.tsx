@@ -1,9 +1,13 @@
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { ProgramPanel } from "./ProgramPanel";
+import { RegistrationForm } from "./RegistrationForm";
 import { getPublicProgram, hasPublicAssignmentsPage } from "@/lib/program/publicQueries";
+import { getRegistrationForm } from "@/lib/zoom/publicRegistration";
 
-// /public/[slug] — the application's only unauthenticated page, and the shell both public pages
-// share. This plan builds the program branch; phase 10 fills in the assignments one.
+// /public/[slug] — the application's unauthenticated page, and the shell every public page shares:
+// the programme, the Zoom stream sign-up (ITER-052) and Phase 10's assignments. Which read answers
+// for the slug IS the page type (program-c), so nothing here reads public_pages.
 //
 // ---------------------------------------------------------------------------------------------
 // ONE OUTCOME FOR EVERY WAY OF NOT EXISTING
@@ -24,7 +28,9 @@ import { getPublicProgram, hasPublicAssignmentsPage } from "@/lib/program/public
 // CACHING
 // ---------------------------------------------------------------------------------------------
 // Five minutes. Long enough that a congregation arriving at once is served from cache; short
-// enough that a correction made on Sunday morning is not stuck until the meeting is over.
+// enough that a correction made on Sunday morning is not stuck until the meeting is over. The Zoom
+// sign-up form shares it: its settings route calls revalidatePath() on every change, so opening or
+// closing sign-ups shows at once.
 // program-d's distribute route calls revalidatePath() so a genuine change appears immediately
 // rather than up to five minutes later.
 //
@@ -45,6 +51,23 @@ export default async function PublicSlugPage({
     return <ProgramPanel page={page} />;
   }
 
+  // The Zoom stream sign-up (ITER-052). A closed page still answers, honestly: a QR code already
+  // printed should say sign-ups are closed rather than that the page does not exist.
+  const registration = await getRegistrationForm(slug);
+  if (registration) {
+    if (!registration.isOpen) return <SignUpsClosed />;
+    // useSearchParams() (for ?ref=) needs a Suspense boundary.
+    return (
+      <Suspense>
+        <RegistrationForm
+          slug={slug}
+          wardName={registration.wardName}
+          questions={registration.questions}
+        />
+      </Suspense>
+    );
+  }
+
   // Phase 10's branch. Written now rather than left out, because an active assignments slug is a
   // page somebody was given a link to — telling them it is not ready yet is a different and more
   // honest answer than telling them it does not exist.
@@ -53,6 +76,17 @@ export default async function PublicSlugPage({
   }
 
   notFound();
+}
+
+function SignUpsClosed() {
+  return (
+    <main className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+      <h1 className="text-lg font-semibold text-foreground">Sign-ups are closed</h1>
+      <p className="max-w-sm text-sm text-muted">
+        Sign-ups for the stream are closed right now. Please speak with a member of the bishopric.
+      </p>
+    </main>
+  );
 }
 
 function NotAvailableYet() {

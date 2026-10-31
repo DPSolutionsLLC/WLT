@@ -34,3 +34,13 @@ const INVITEE_READER_ROLES: readonly string[] = [
 export function canViewInvitees(user: SessionUser, roleAccess: RoleAccess): boolean {
   return can(user, "zoom.view", roleAccess) && INVITEE_READER_ROLES.includes(user.role);
 }
+
+// Who edits the questions on the public sign-up page (ITER-052): the bishopric, the ward clerk and
+// the executive secretary. The calling check is what stops a super admin's can() bypass reaching a
+// window whose tables migration 096 lets only those callings read.
+export function canManageRegistrationQuestions(user: SessionUser, roleAccess: RoleAccess): boolean {
+  return (
+    can(user, "zoom.manage_registration_questions", roleAccess) &&
+    INVITEE_READER_ROLES.includes(user.role)
+  );
+}

@@ -22,9 +22,10 @@ import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
   // Static, so no query runs to build it and no ward data reaches a <head> nobody reviewed. The
-  // page's own heading carries the ward name and the date.
-  title: "Sacrament Meeting",
-  description: "The program for this week's sacrament meeting.",
+  // page's own heading carries the ward name. Generic, because this shell serves the programme and
+  // the Zoom stream sign-up (ITER-052) alike.
+  title: "Ward page",
+  description: "A page shared by your ward.",
 
   // ---------------------------------------------------------------------------------------------
   // NOINDEX. THIS IS LOAD-BEARING, NOT BOILERPLATE.

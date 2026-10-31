@@ -4,7 +4,7 @@ import { z } from "zod";
 // every page reopens as it was left). A reader who cannot see a stored tab gets `remote` — the page
 // decides that through visibleZoomTabs(), not this parse.
 
-export const ZOOM_TABS = ["remote", "invitees", "pool", "links"] as const;
+export const ZOOM_TABS = ["remote", "invitees", "registrations", "pool", "links"] as const;
 export type ZoomTab = (typeof ZOOM_TABS)[number];
 
 export const zoomViewSchema = z.object({ tab: z.enum(ZOOM_TABS) });
@@ -18,15 +18,16 @@ export function parseZoomView(value: unknown): ZoomView {
   return parsed.success ? parsed.data : DEFAULT_ZOOM_VIEW;
 }
 
-// Which tabs a reader sees, in order (ITER-053). Invitees is read by the bishopric, the clerk and
-// the executive secretary; the pool and the remote links only by the bishopric.
+// Which tabs a reader sees, in order (ITER-053, ITER-052). Invitees and Sign-ups are read by the
+// bishopric, the clerk and the executive secretary; the pool and the remote links only by the
+// bishopric.
 export function visibleZoomTabs(reader: {
   canViewInvitees: boolean;
   canManageInvitees: boolean;
   canManageRemoteLinks: boolean;
 }): ZoomTab[] {
   const tabs: ZoomTab[] = ["remote"];
-  if (reader.canViewInvitees) tabs.push("invitees");
+  if (reader.canViewInvitees) tabs.push("invitees", "registrations");
   if (reader.canManageInvitees) tabs.push("pool");
   if (reader.canManageRemoteLinks) tabs.push("links");
   return tabs;

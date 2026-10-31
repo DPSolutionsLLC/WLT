@@ -3,23 +3,26 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { InviteesPanel } from "@/app/(app)/zoom/InviteesPanel";
 import { LinkPoolPanel } from "@/app/(app)/zoom/LinkPoolPanel";
+import { RegistrationsPanel, type RegistrationsPanelProps } from "@/app/(app)/zoom/RegistrationsPanel";
 import { RemoteControlPanel } from "@/app/(app)/zoom/RemoteControlPanel";
 import { RemoteLinksPanel } from "@/app/(app)/zoom/RemoteLinksPanel";
 import { FormError } from "@/components/ui/FormError";
 import type { ZoomInvitee } from "@/lib/zoom/invitees";
 import type { PoolSummary } from "@/lib/zoom/joinLinkPool";
 import type { RemoteLinkRow } from "@/lib/zoom/remoteLinkRow";
+import { pendingCount } from "@/lib/zoom/registrationRow";
 import type { RemoteLinkOwnState } from "@/lib/zoom/remoteLinks";
 import type { ZoomTab } from "@/lib/zoom/zoomView";
 import type { SessionUser } from "@/types/domain";
 
-// The Zoom page's tabs (ITER-051, ITER-053, module-map §6.5). The page decides which tabs a reader
+// The Zoom page's tabs (ITER-051, ITER-053, ITER-052, module-map §6.5). The page decides which tabs a reader
 // sees (visibleZoomTabs()); a reader with one tab gets that panel alone and no tab bar. The tab is
 // remembered on the account, so the page reopens as it was left.
 
 const TAB_LABELS: Record<ZoomTab, string> = {
   remote: "Remote control",
   invitees: "Invitees",
+  registrations: "Sign-ups",
   pool: "Link pool",
   links: "Remote links",
 };
@@ -50,6 +53,8 @@ export type ZoomTabsProps = {
   linkRows: RemoteLinkRow[] | null;
   pool: PoolSummary | null;
   invitees: ZoomInvitee[] | null;
+  // Null when the reader cannot see the Sign-ups tab.
+  signUps: Omit<RegistrationsPanelProps, "canManage"> | null;
   canManageInvitees: boolean;
   user: SessionUser;
   wardName: string | null;
@@ -63,6 +68,7 @@ export function ZoomTabs({
   linkRows,
   pool,
   invitees,
+  signUps,
   canManageInvitees,
   user,
   wardName,
@@ -76,11 +82,18 @@ export function ZoomTabs({
   const tabRefs = useRef<Record<ZoomTab, HTMLButtonElement | null>>({
     remote: null,
     invitees: null,
+    registrations: null,
     pool: null,
     links: null,
   });
 
   const remotePanel = <RemoteControlPanel state={ownState} linkWentAway={linkWentAway} />;
+  const waitingSignUps = signUps ? pendingCount(signUps.registrations) : 0;
+
+  function labelFor(tab: ZoomTab): string {
+    if (tab === "registrations" && waitingSignUps > 0) return `${TAB_LABELS[tab]} · ${waitingSignUps}`;
+    return TAB_LABELS[tab];
+  }
 
   if (visibleTabs.length <= 1) return remotePanel;
 
@@ -94,6 +107,9 @@ export function ZoomTabs({
           wardName={wardName}
         />
       );
+    }
+    if (tab === "registrations" && signUps) {
+      return <RegistrationsPanel {...signUps} canManage={canManageInvitees} />;
     }
     if (tab === "pool" && pool) return <LinkPoolPanel initialPool={pool} />;
     if (tab === "links" && linkRows) return <RemoteLinksPanel initialRows={linkRows} />;
@@ -150,7 +166,7 @@ export function ZoomTabs({
                   : "border-transparent text-muted hover:text-foreground")
               }
             >
-              {TAB_LABELS[tab]}
+              {labelFor(tab)}
             </button>
           );
         })}

@@ -79,6 +79,9 @@ export const PERMISSIONS = [
   "zoom.view",
   "zoom.manage_remote_links",
   "zoom.manage_invitees",
+  // The ward's questions on the public sign-up page (ITER-052). The bishopric, the ward clerk and
+  // the executive secretary edit them; approving sign-ups stays with zoom.manage_invitees.
+  "zoom.manage_registration_questions",
 
   "sacrament.view_assignments",
   "sacrament.update_assignments",
@@ -134,6 +137,10 @@ export const ADMIN_PERMISSIONS = PERMISSIONS.filter(
 // zoom.manage_invitees — the join-link pool and who holds a link (ITER-053). A ward must not hand
 //            non-members' personal details and their join links to another calling.
 //
+// zoom.manage_registration_questions — the questions asked of the public on the sign-up page
+//            (ITER-052). Migration 096 lets only the bishopric, the clerk and the executive
+//            secretary read them, so a ward widening it would offer a window whose list is empty.
+//
 // audit.view is deliberately NOT locked. It is in ADMIN_PERMISSIONS for the bishopric-equivalence
 // loop, but it grants reading rather than writing, and a ward may legitimately want its secretary
 // to see the audit log.
@@ -144,7 +151,8 @@ export const NON_OVERRIDABLE_PERMISSIONS: readonly KnownPermission[] = PERMISSIO
     permission.startsWith("planner.") ||
     permission === "personal_tools.use" ||
     permission === "zoom.manage_remote_links" ||
-    permission === "zoom.manage_invitees",
+    permission === "zoom.manage_invitees" ||
+    permission === "zoom.manage_registration_questions",
 );
 
 export const BISHOPRIC_ROLES = ["bishop", "counselor"] as const;
@@ -207,6 +215,7 @@ const WARD_SECRETARY_PERMISSIONS: readonly KnownPermission[] = [
   "notifications.view",
   "personal_tools.use",
   "zoom.view",
+  "zoom.manage_registration_questions",
 ];
 
 // THE EXECUTIVE SECRETARY. Re-derived from `bishopric-secretary`, taken literally alongside the
@@ -234,6 +243,7 @@ const EXECUTIVE_SECRETARY_PERMISSIONS: readonly KnownPermission[] = [
   "notifications.view",
   "personal_tools.use",
   "zoom.view",
+  "zoom.manage_registration_questions",
 ];
 
 // ---------------------------------------------------------------------------

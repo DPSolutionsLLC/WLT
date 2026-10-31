@@ -59,7 +59,7 @@ modules exist; the detailed sections further down describe each one.
 | To Do | ✅ P5 | Module 18 — the spine four other modules hang off |
 | My Appointments | ✅ P5 | Module 19 — visits, scheduled to-dos and youth sign-ups in one list |
 | Message | 🔜 P10 | **Newly in scope 2026-09-20** |
-| Zoom | 🟡 ITER-051 | Each leader's stream Remote control is built; stream attendance is P10, with a named infrastructure risk |
+| Zoom | 🟡 ITER-051, ITER-053, ITER-052 | Each leader's stream Remote control, the link pool and invitees, and public sign-ups (first slice) are built; stream attendance is P10, with a named infrastructure risk |
 
 ### Finance & Admin
 
@@ -1104,6 +1104,30 @@ A link belongs to the **position, held by that person**. Releasing someone, chan
 swapping the counselors' numbers turns the link off at once; the row then reads "Needs a new link"
 until a fresh one is pasted. Nobody is notified — the tab says so. Every set, replace and turn-off
 is in the audit log, without the link.
+
+### Sign-ups — built (ITER-052, first slice)
+
+A **public page**, reached by a QR code or a shared link, where anyone can ask for a link to watch
+the stream. They give their name, phone, an optional email, say whether they are a member of the
+ward, and answer a few questions the ward chooses (by default: "Would you welcome a visit from the
+missionaries?" for non-members, and — only if they say **Yes** — "What's your address?", which they
+must then answer). A question can be a **follow-up** like this to any yes/no question, so a detail is
+asked only of the people it is needed from. They land on their own **private status page** — keep it, add it
+to the home screen — which shows "waiting", their personal **Join the stream** link once approved,
+or a kind "we weren't able to give you a link right now" with no reason. **Share with a friend**
+shares the sign-up page with their referral code, never their own link.
+
+With **Approve automatically** on, the link appears at once from the same pool the bishopric hands
+out on visits. A phone number seen before, or more than ten automatic approvals in a day, is held
+for a person instead, and more than forty sign-ups in a day are turned away until tomorrow. An empty
+pool still approves the person, and every member of the bishopric gets "Give ___ a Zoom link".
+
+The **Sign-ups** tab on Zoom lists the requests — waiting first, then recent — with each person's
+answers, who referred them, and flags such as "Same phone as an earlier request". The bishopric
+opens or closes the page and chooses how sign-ups are approved in **Settings**, where the link and a
+printable QR code live. The bishopric, the ward clerk and the executive secretary edit the
+**Questions** (turned off, never deleted). Approving, "Let's talk first", declining and matching to
+the roster come next, then emails.
 
 ---
 

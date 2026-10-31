@@ -37,6 +37,12 @@ Personal nicknames layered over the canonical name, resolved in exactly one plac
 > **Built: ITER-051 remote links (2026-10-27, migration 094, `plans/zoom-remote-links.md`).** The
 > Zoom tile and each leader's stream Remote control link, with a bishopric-only Remote links tab.
 > It needs none of the infrastructure below. GROUP-05 continues with ITER-053 → 052 → 054.
+>
+> **Built: ITER-052 sign-ups, slice z3a (2026-10-30, migration 096,
+> `plans/zoom-self-registration.md`).** A public sign-up page (QR or shared link) with the ward's own
+> questions, a private status page per registrant, automatic approval from the ITER-053 link pool,
+> and a Sign-ups tab with settings and questions. Approvals and roster matching (z3b) and emails (z3c)
+> follow. No Zoom API.
 
 **The risk named plainly:** almost all of this module's value needs infrastructure that does not
 exist — Zoom Server-to-Server OAuth, a webhook receiver, a scheduled distribution job, email

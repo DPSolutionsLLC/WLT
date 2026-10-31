@@ -1614,6 +1614,38 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   `lib/todos/zoomLinks.ts` (service role). Giving them a link closes EVERY open copy, whoever holds
   it, with a `source_completed` line carrying its own sentence. Like a music to-do it has no
   checkbox, and it cannot be deleted while open.
+- **A ZOOM SIGN-UP IS A REQUEST, NOT AN INVITEE — DECIDED 2026-10-30 (ITER-052, migration 096,
+  plans/zoom-self-registration.md).** A public page at `/public/[slug]` (a third branch beside the
+  programme, `page_type = 'zoom_registration'`) lets anyone ask for a stream link. The request is
+  its own table, `zoom_registrations`; **approval creates an ordinary `zoom_invitees` row**
+  (`source = 'self_registration'`), so the pool, the waiting state, the "Give ___ a Zoom link" to-do
+  and ITER-054's attendance are ITER-053's one mechanism, and a pending or declined person never
+  appears on the Invitees list (P1). **Status, invitee and link land together in
+  `approve_zoom_registration()`** (P3), called by auto-approve and, in z3b, by the last of the
+  bishopric's approvals. **Public reads are two anon `security definer` functions** returning narrow
+  shapes (`zoom_registration_form`, `zoom_registration_status`); **the one public write is a route
+  handler with the service role** (`POST /api/public/zoom-registrations`), never an anon RPC,
+  because an RPC could be called straight from the public anon key past every limit (P5). Nothing
+  under `app/public/` touches the service role. **The status token is 32 random bytes; only its
+  SHA-256 is stored, and `status_token_hash` is hidden from `authenticated` by a column grant**, so
+  `select("*")` on `zoom_registrations` is a 42501 (P6); the referral code is separate, so sharing
+  can never share a person's own link. **Abuse protection stores no IP address** (P7): a honeypot
+  that answers like a success and writes nothing, 40 sign-ups per rolling 24 hours (then 429), 10
+  automatic approvals per rolling 24 hours (then held), and a phone seen before is never approved
+  automatically. **A declined person sees one neutral sentence and no reason, and may sign up
+  again**; "Declined before" and "Same phone as an earlier request" are computed on read (D2). Every
+  new table has a SELECT policy and no write policy. Audit rows carry ids, booleans and field names
+  only — the public submit is the first audit row with a **null `user_id`**. Questions are turned
+  off, never deleted, and each answer is stored as a snapshot beside its prompt (P8).
+  **A question can be a FOLLOW-UP to a yes/no question (migration 097,
+  `zoom_registration_questions.shown_when_yes_to`)**, asked only when that question is answered Yes —
+  decided walking scenario 097 so that an **address is asked only of somebody who wants the
+  missionaries to visit**. New pages start with "What's your address?" (required) under the
+  missionary question. **One rule, `questionsFor()` in `lib/zoom/registrationAnswers.ts`, decides what
+  is asked for both the form and the submit route**: a follow-up whose question is off, not asked of
+  this person, or not answered Yes is not asked, its "must answer" does not apply, and an answer sent
+  to it anyway is **not stored**. One level deep, parent yes/no — checked in
+  `lib/zoom/registrationQuestions.ts` with a sentence, because a CHECK cannot read another row.
 - **Address geocoding.** The visit-tracker map needs lat/lng. No geocoding provider is
   chosen. Map view is optional — ship the list view first.
 - **Google Calendar sync** for youth activities needs OAuth and token refresh. ICS

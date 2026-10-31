@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 94,
+  "scenarioCount": 95,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -3787,6 +3787,51 @@
         "Legible in light and dark."
       ],
       "seedCommand": "npm run seed -- zoom/scenario-095-zoom-link-pool"
+    },
+    {
+      "id": "zoom:scenario-097-zoom-self-registration",
+      "path": "zoom/scenario-097-zoom-self-registration",
+      "name": "Zoom sign-ups — the public page and auto-approve",
+      "scope": "ITER-052",
+      "part": 1,
+      "tags": [
+        "zoom",
+        "full",
+        "public",
+        "privacy"
+      ],
+      "prerequisites": "none",
+      "purpose": "Proves a member of the public can scan a QR code, ask for a stream link on a phone, and land on\ntheir own status page — with the link at once when auto-approve is on — and that the bishopric's\nSign-ups tab shows the requests, settings and questions. The public form, the status page and\nauto-approve only mean anything signed out at phone width; seeding a ward with sign-ups open, a\npart-filled pool and four existing requests makes every state reachable in minutes.\n\n**Slice.** Built in z3a. Approve / Let's talk first / Not this time / Match arrive in z3b (scenario\n098) and emails in z3c, so the cards have no buttons yet.",
+      "checklist": [
+        "The form shows the ward name, the missionary question only after **No**, \"How did you hear about us?\" for both answers, never the turned-off question, and no other ward data.",
+        "\"What's your address?\" appears, set in under the missionary question, only after **Yes** to it, and disappears again on **No**.",
+        "Sending with Yes and no address shows \"Please answer: What's your address?\" and writes nothing.",
+        "Taylor Newcomer's stored answers hold the address after the missionary answer; a sign-up that said No has no address stored, even if one was typed before switching to No.",
+        "Taylor Newcomer lands on a status page with **Join the stream** (Guest 02) and the \"just for you\" line.",
+        "Share with a friend shares the sign-up page with `?ref=`, never the status or join URL.",
+        "Morgan Friend gets Guest 03; their card reads \"Referred by Taylor Newcomer\".",
+        "Casey Third's status page says \"Your link is on its way\", and the bishop and both counselors each have \"Give Casey Third a Zoom link\".",
+        "The repeat of Taylor's phone is held (Waiting), not approved, and its card reads \"Same phone as an earlier request\".",
+        "Taylor Newcomer's own card (the earlier request) and Riley Approved's card do **not** read \"Same phone as an earlier request\" — only the later request carries it.",
+        "Riley Approved's page shows Guest 01's link; Dana Declined's shows only \"We weren't able to give you a stream link right now. Please speak with the bishop.\" — no note, no share button; Kim Referred's says the request is with the bishopric.",
+        "A wrong token on a status page (change one character) shows Page not found.",
+        "The tab reads \"Sign-ups · N\" with N the waiting count; Waiting is oldest first, Recent newest first, grouped by day with alternating shading.",
+        "Riley Approved's card shows all three answers, the address included; Kim Referred's shows \"Held: lots of sign-ups today\" and \"Referred by Riley Approved\".",
+        "Switching the page off shows \"Sign-ups are closed\" on the public page within a reload; switching it on brings the form back.",
+        "In Questions, the address sits indented under the missionary question, reads \"Only after Yes above\", and has no ↑ ↓ of its own. Turning the missionary question off marks it \"Not asked while its question is off\", and the public form shows neither.",
+        "Settings and Questions changes wrote `zoom_registration_settings_changed` / `zoom_registration_question_changed` audit rows naming fields only.",
+        "The clerk and the executive secretary see the Sign-ups tab with a **Questions** button and no **Settings** button; the Elders Quorum president has no Zoom tile.",
+        "No `zoom_registration_submitted` audit row has a `user_id`, a name, a phone, an email, an answer or a token.",
+        "The status page's HTML has `<meta name=\"referrer\" content=\"no-referrer\">`.",
+        "375px: no horizontal scroll on the form, the status page or the Sign-ups tab; every button at least 44×44.",
+        "The form reads as friendly and trustworthy to somebody who is not a member, and says plainly what the details are for.",
+        "The status page makes the Join button the obvious thing, and the \"just for you\" line is clear without being alarming.",
+        "The declined page is kind and neutral.",
+        "The sign-up cards are easy to scan; the flags stand out without shouting.",
+        "The QR prints and scans from a printed programme.",
+        "Legible in light and dark."
+      ],
+      "seedCommand": "npm run seed -- zoom/scenario-097-zoom-self-registration"
     }
   ]
 }

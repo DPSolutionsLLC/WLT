@@ -10,7 +10,12 @@ const QUIET_ZONE_MODULES = 4;
 const RASTER_WIDTH = 320;
 
 export async function joinLinkQrDataUri(joinUrl: string): Promise<string> {
-  const trimmed = joinUrl.trim();
+  return urlQrDataUri(joinUrl);
+}
+
+// Any link as a QR code — the sign-up page's QR for printing (ITER-052) uses this too.
+export async function urlQrDataUri(url: string): Promise<string> {
+  const trimmed = url.trim();
   if (trimmed === "") {
     throw new Error("Cannot build a QR code for an empty link.");
   }

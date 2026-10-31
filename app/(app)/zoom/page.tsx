@@ -7,9 +7,19 @@ import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import { readPageView } from "@/lib/users/userSettings";
-import { canManageInvitees, canManageRemoteLinks, canViewInvitees } from "@/lib/zoom/access";
+import {
+  canManageInvitees,
+  canManageRegistrationQuestions,
+  canManageRemoteLinks,
+  canViewInvitees,
+} from "@/lib/zoom/access";
 import { listInvitees } from "@/lib/zoom/invitees";
 import { describePoolLevel, listPool } from "@/lib/zoom/joinLinkPool";
+import { resolveSiteUrl } from "@/lib/program/queries";
+import { listQuestions } from "@/lib/zoom/registrationQuestions";
+import { listRegistrations } from "@/lib/zoom/registrations";
+import { readRegistrationSettings } from "@/lib/zoom/registrationSettings";
+import { registrationPageUrl } from "@/lib/zoom/registrationTokens";
 import { describeRemoteLinkRow } from "@/lib/zoom/remoteLinkRow";
 import { listRemoteLinkAdminEntries, readOwnRemoteLinkState } from "@/lib/zoom/remoteLinks";
 import { initialZoomTab, parseZoomView, visibleZoomTabs } from "@/lib/zoom/zoomView";
@@ -52,11 +62,31 @@ export default async function ZoomPage({ searchParams }: ZoomPageProps) {
 
   const viewsInvitees = canViewInvitees(user, roleAccess);
 
-  const [pool, invitees, wardName] = await Promise.all([
+  const [pool, invitees, wardName, registrations, registrationSettings, questions] = await Promise.all([
     managesInvitees ? listPool(supabase) : Promise.resolve(null),
     viewsInvitees ? listInvitees(supabase) : Promise.resolve(null),
     managesInvitees ? readWardName(user.wardId, supabase) : Promise.resolve(null),
+    viewsInvitees ? listRegistrations(user.wardId, supabase) : Promise.resolve(null),
+    viewsInvitees ? readRegistrationSettings(user.wardId, supabase) : Promise.resolve(null),
+    viewsInvitees ? listQuestions(user.wardId, supabase) : Promise.resolve(null),
   ]);
+
+  // The public sign-ups (ITER-052), read through the reader's own client: migration 096's policy
+  // admits the same three callings as the Invitees tab, and no status token is ever selected.
+  const siteUrl = resolveSiteUrl();
+  const signUps =
+    registrations && questions
+      ? {
+          registrations,
+          settings: registrationSettings,
+          registrationUrl: registrationSettings
+            ? registrationPageUrl(siteUrl, registrationSettings.slug)
+            : null,
+          siteIsTemporary: siteUrl !== null && new URL(siteUrl).hostname.endsWith(".vercel.app"),
+          questions,
+          canManageQuestions: canManageRegistrationQuestions(user, roleAccess),
+        }
+      : null;
 
   const visibleTabs = visibleZoomTabs({
     canViewInvitees: viewsInvitees,
@@ -84,6 +114,7 @@ export default async function ZoomPage({ searchParams }: ZoomPageProps) {
         linkRows={linkRows}
         pool={pool}
         invitees={invitees}
+        signUps={signUps}
         canManageInvitees={managesInvitees}
         user={user}
         wardName={wardName}

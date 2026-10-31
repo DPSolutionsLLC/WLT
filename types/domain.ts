@@ -274,10 +274,25 @@ export const REMOTE_LINK_POSITIONS = [
 ] as const;
 export type RemoteLinkPosition = (typeof REMOTE_LINK_POSITIONS)[number];
 
-// How a person came to hold a Zoom join link (ITER-053). ITER-052 adds "self_registration", and
-// migration 095b's CHECK on zoom_invitees.source must move with it.
-export const ZOOM_INVITEE_SOURCES = ["visit"] as const;
+// How a person came to hold a Zoom join link (ITER-053, ITER-052). Mirrors the CHECK on
+// zoom_invitees.source, which migration 096d widened; the two move together.
+export const ZOOM_INVITEE_SOURCES = ["visit", "self_registration"] as const;
 export type ZoomInviteeSource = (typeof ZOOM_INVITEE_SOURCES)[number];
+
+// A public Zoom sign-up (ITER-052, migration 096e). Each list mirrors a CHECK on the table.
+export const ZOOM_REGISTRATION_STATUSES = ["pending", "approved", "declined"] as const;
+export type ZoomRegistrationStatus = (typeof ZOOM_REGISTRATION_STATUSES)[number];
+
+// Why a request was held rather than approved automatically (plan P7).
+export const ZOOM_REGISTRATION_HELD_REASONS = ["approvals_on", "daily_limit", "same_phone"] as const;
+export type ZoomRegistrationHeldReason = (typeof ZOOM_REGISTRATION_HELD_REASONS)[number];
+
+export const ZOOM_REGISTRATION_QUESTION_KINDS = ["yes_no", "short_text"] as const;
+export type ZoomRegistrationQuestionKind = (typeof ZOOM_REGISTRATION_QUESTION_KINDS)[number];
+
+export const ZOOM_REGISTRATION_QUESTION_AUDIENCES = ["everyone", "members", "non_members"] as const;
+export type ZoomRegistrationQuestionAudience =
+  (typeof ZOOM_REGISTRATION_QUESTION_AUDIENCES)[number];
 
 export const ORGANIZATION_TYPES = [
   "bishopric",
@@ -1363,7 +1378,8 @@ export const SACRAMENT_ASSIGNMENT_TYPES = [
 export type SacramentAssignmentType =
   (typeof SACRAMENT_ASSIGNMENT_TYPES)[number];
 
-export const PUBLIC_PAGE_TYPES = ["sacrament_assignments", "program"] as const;
+// Mirrors the CHECK on public_pages.page_type; migration 096a added the Zoom sign-up page.
+export const PUBLIC_PAGE_TYPES = ["sacrament_assignments", "program", "zoom_registration"] as const;
 export type PublicPageType = (typeof PUBLIC_PAGE_TYPES)[number];
 
 export type Permission = `${string}.${string}`;

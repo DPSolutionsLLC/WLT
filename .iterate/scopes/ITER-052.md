@@ -1,7 +1,8 @@
 # ITER-052: Public Zoom self-registration with bishopric approval
 
 **Type:** Feature
-**Status:** Backlogged
+**Status:** In Progress
+**Plan:** plans/zoom-self-registration.md
 **Created:** 2026-10-27
 **Group:** GROUP-05 — Zoom stream: remote controls and invitees
 
@@ -86,3 +87,14 @@ the pool; to the person it should look the same.
   that the moment to register them in Zoom by hand with their real details instead?
 - Where the referral `?ref=` identifies a sharer who is themselves only an invitee (not an app
   user) — fine, but confirm that's the intent.
+
+## Decisions (settled with the user 2026-10-30, during `/planning`)
+- **"Let's talk first"** shows on the request only; no extra notification.
+- **A declined registrant** sees a neutral note on their status page (no reason) and may register
+  again; the new request is marked "Declined before".
+- **The member-match task** goes on every serving bishopric member's To Do; the first match closes
+  every copy.
+- **Everyone gets a placeholder pool link.** Auto-approve on → at once; approvals on → once
+  approved, then shown on their status page and emailed automatically if they gave an address.
+- **Referral sharer** — anyone holding a status page; assumed and stated to the user.
+- Planning decisions P1–P15 are in the plan.

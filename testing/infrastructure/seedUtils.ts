@@ -2561,6 +2561,112 @@ export async function createZoomJoinLink(options: {
   );
 }
 
+// ============================================================================
+// Zoom sign-ups (ITER-052, migration 096)
+// ============================================================================
+
+// A deterministic STATUS TOKEN for a seeded sign-up, so a walk can open that person's status page.
+// 43 base64url characters, the shape migration 096's status function accepts; only its SHA-256 is
+// stored, exactly as the app does it (lib/zoom/registrationTokens.ts).
+export function testStatusToken(label: string): string {
+  return createHash("sha256").update(`wlt-harness-token:${label}`).digest("base64url");
+}
+
+export function testStatusTokenHash(label: string): string {
+  return createHash("sha256").update(testStatusToken(label)).digest("hex");
+}
+
+export async function createZoomRegistrationSettings(options: {
+  isOpen?: boolean;
+  autoApprove?: boolean;
+  emailBishopricOnNew?: boolean;
+}): Promise<void> {
+  const { error } = await getAdminClient()
+    .from("zoom_registration_settings")
+    .upsert(
+      {
+        ward_id: TEST_WARD_ID,
+        is_open: options.isOpen ?? true,
+        auto_approve: options.autoApprove ?? false,
+        email_bishopric_on_new: options.emailBishopricOnNew ?? true,
+      },
+      { onConflict: "ward_id" },
+    );
+  if (error) throw new Error(`Could not seed zoom_registration_settings: ${error.message}`);
+}
+
+export async function createZoomRegistrationQuestion(options: {
+  prompt: string;
+  kind: "yes_no" | "short_text";
+  audience: "everyone" | "members" | "non_members";
+  position: number;
+  isRequired?: boolean;
+  isActive?: boolean;
+  // A follow-up (migration 097): asked only when this yes/no question is answered Yes.
+  shownWhenYesTo?: string;
+}): Promise<string> {
+  return insertRow(
+    "zoom_registration_questions",
+    {
+      id: testUuid(`zoom-registration-question:${options.prompt}`),
+      ward_id: TEST_WARD_ID,
+      prompt: options.prompt,
+      kind: options.kind,
+      audience: options.audience,
+      position: options.position,
+      is_required: options.isRequired ?? false,
+      is_active: options.isActive ?? true,
+      shown_when_yes_to: options.shownWhenYesTo ?? null,
+    },
+    "id",
+  );
+}
+
+// A sign-up in any state. An approved one needs `inviteeId` (create the invitee first); its status
+// token is testStatusToken(displayName).
+export async function createZoomRegistration(options: {
+  displayName: string;
+  phone: string;
+  email?: string;
+  saysMember: boolean;
+  status?: "pending" | "approved" | "declined";
+  heldReason?: "approvals_on" | "daily_limit" | "same_phone" | null;
+  answers?: { questionId: string; prompt: string; kind: "yes_no" | "short_text"; answer: string | boolean }[];
+  referralCode: string;
+  referredByRegistrationId?: string;
+  inviteeId?: string;
+  decidedBy?: string;
+  declineNote?: string;
+  createdAt?: string;
+}): Promise<string> {
+  const status = options.status ?? "pending";
+  const createdAt = options.createdAt ?? new Date().toISOString();
+  return insertRow(
+    "zoom_registrations",
+    {
+      id: testUuid(`zoom-registration:${options.displayName}`),
+      ward_id: TEST_WARD_ID,
+      display_name: options.displayName,
+      phone: options.phone,
+      phone_digits: options.phone.replace(/\D/g, ""),
+      email: options.email?.toLowerCase() ?? null,
+      says_member: options.saysMember,
+      answers: options.answers ?? [],
+      status,
+      held_reason: status === "pending" ? (options.heldReason ?? "approvals_on") : null,
+      status_token_hash: testStatusTokenHash(options.displayName),
+      referral_code: options.referralCode,
+      referred_by_registration_id: options.referredByRegistrationId ?? null,
+      invitee_id: options.inviteeId ?? null,
+      decided_by: options.decidedBy ?? null,
+      decided_at: status === "pending" ? null : createdAt,
+      decline_note: options.declineNote ?? null,
+      created_at: createdAt,
+    },
+    "id",
+  );
+}
+
 // A person holding a link (pass `joinLinkId`) or waiting for one (omit it).
 export async function createZoomInvitee(options: {
   displayName: string;
@@ -2570,6 +2676,7 @@ export async function createZoomInvitee(options: {
   notes?: string;
   assignedBy?: string;
   joinLinkId?: string;
+  source?: "visit" | "self_registration";
 }): Promise<string> {
   const given = options.joinLinkId !== undefined;
   return insertRow(
@@ -2582,7 +2689,7 @@ export async function createZoomInvitee(options: {
       phone: options.phone ?? null,
       email: options.email?.toLowerCase() ?? null,
       notes: options.notes ?? null,
-      source: "visit",
+      source: options.source ?? "visit",
       assigned_by: options.assignedBy ?? null,
       join_link_id: options.joinLinkId ?? null,
       link_given_at: given ? new Date().toISOString() : null,
