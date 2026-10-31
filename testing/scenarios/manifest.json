@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 95,
+  "scenarioCount": 96,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -3832,6 +3832,39 @@
         "Legible in light and dark."
       ],
       "seedCommand": "npm run seed -- zoom/scenario-097-zoom-self-registration"
+    },
+    {
+      "id": "zoom:scenario-098-zoom-registration-approvals",
+      "path": "zoom/scenario-098-zoom-registration-approvals",
+      "name": "Zoom sign-ups — bishopric approval and roster matching",
+      "scope": "ITER-052",
+      "part": 2,
+      "tags": [
+        "zoom",
+        "full",
+        "approvals",
+        "todos"
+      ],
+      "prerequisites": "none",
+      "purpose": "Proves that with approvals on, a public sign-up waits until **every serving member of the\nbishopric** approves; that \"Let's talk first\" and \"Not this time\" behave as decided (D1, D2); that a\nreleased calling stops blocking a request; and that \"I'm a member\" puts a match to-do on all three\nbishopric lists which the first match closes everywhere. These need several users' answers at once,\nso the seed puts four requests in four different states.\n\n**Slice.** Built in z3b. Emails arrive in z3c, so nothing is emailed yet.",
+      "checklist": [
+        "Before step 3, as the 2nd counselor: Alex reads \"Approved by Mark Andersen · Waiting on: Dana Whitmore, you\"; Jordan reads \"Approved by Mark Andersen, you · Wants to talk first: Dana Whitmore\", with **Approve** shown pressed.",
+        "After step 3, Alex reads \"Waiting on: Dana Whitmore\" and stays under Waiting.",
+        "After step 4, Alex moves to Recent as \"Approved · Guest 01\"; Alex's status page shows **Join the stream**; the Link pool has no free links.",
+        "Casey's status page shows only \"We weren't able to give you a stream link right now. Please speak with the bishop.\" — no note.",
+        "Casey's card reads Declined and, for the bishopric only, \"Private note: …\". The clerk's view of the same card has no note, and `decline_note` is refused to the clerk's own client (42501).",
+        "The `zoom_registration_declined` audit row says `declinedWithMessage: true` and holds no note text.",
+        "\"Match Sam Fielding to the roster\" has **no checkbox**; its ✕ → Remove? is refused with \"This closes itself once they're matched on Zoom → Sign-ups.\" shown under the card; a direct `PATCH /api/todos/[id] { complete: true }` is refused (400) with the same sentence.",
+        "After the match, the to-do is closed on all three lists with the timeline line \"They were matched to the roster.\"; Sam's card reads \"Matched to Sam Fielding\"; the audit row holds ids and `previousMemberId: false`, no name.",
+        "After the deactivation, Jordan's card offers **Finish approval** and explains it: \"Dana Whitmore wanted to talk first and is no longer in the bishopric. Everyone serving now has approved.\"; pressing it approves Jordan. With the pool empty, Jordan reads \"Approved · waiting for a link\" and the bishop and 2nd counselor each have \"Give Jordan Blake a Zoom link\".",
+        "The clerk sees every card, with no buttons at all.",
+        "375px: no horizontal scroll on the Sign-ups tab or either window; every button at least 44×44.",
+        "The approval line is easy to read at a glance: who has approved, who wants to talk first, who is still waited on.",
+        "The \"Not this time\" window makes plain what the person will see and that the note is private.",
+        "The buttons on a card do not crowd the details at phone width.",
+        "Legible in light and dark."
+      ],
+      "seedCommand": "npm run seed -- zoom/scenario-098-zoom-registration-approvals"
     }
   ]
 }

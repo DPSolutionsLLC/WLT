@@ -122,7 +122,8 @@ export function TodoCard({
   // on Music closes it, and the server refuses a tick or an untick.
   const musicLink = todo.musicLink;
   // So does "Give ___ a Zoom link" (ITER-053 z2c): giving them a link on Zoom closes it.
-  const zoomLink = todo.zoomLink;
+  // So does "Match ___ to the roster" (ITER-052 z3b): matching them on Zoom → Sign-ups closes it.
+  const isZoomTodo = todo.zoomLink !== null || todo.zoomRegistrationLink !== null;
   const bodyId = `todo-body-${todo.id}`;
   const stepFieldId = `todo-step-${todo.id}`;
 
@@ -233,7 +234,7 @@ export function TodoCard({
           >
             <Music className="h-4 w-4" />
           </span>
-        ) : zoomLink !== null ? (
+        ) : isZoomTodo ? (
           <span
             aria-hidden="true"
             className="flex h-11 w-11 shrink-0 items-center justify-center text-muted"
@@ -363,7 +364,7 @@ export function TodoCard({
               </span>
             </Link>
           </span>
-        ) : zoomLink !== null ? (
+        ) : isZoomTodo ? (
           <span className="ml-auto flex items-center gap-0.5">
             <Link
               href="/zoom?from=todos"

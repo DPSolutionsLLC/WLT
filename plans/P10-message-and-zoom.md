@@ -41,8 +41,11 @@ Personal nicknames layered over the canonical name, resolved in exactly one plac
 > **Built: ITER-052 sign-ups, slice z3a (2026-10-30, migration 096,
 > `plans/zoom-self-registration.md`).** A public sign-up page (QR or shared link) with the ward's own
 > questions, a private status page per registrant, automatic approval from the ITER-053 link pool,
-> and a Sign-ups tab with settings and questions. Approvals and roster matching (z3b) and emails (z3c)
-> follow. No Zoom API.
+> and a Sign-ups tab with settings and questions. No Zoom API.
+>
+> **Built: slice z3b (2026-10-31, migration 098).** Bishopric approval (unanimous among whoever
+> serves), Let's talk first, Not this time with a bishopric-only note, Finish approval after a
+> release, and "Match ___ to the roster" to-dos closed by the first match. Emails (z3c) follow.
 
 **The risk named plainly:** almost all of this module's value needs infrastructure that does not
 exist — Zoom Server-to-Server OAuth, a webhook receiver, a scheduled distribution job, email

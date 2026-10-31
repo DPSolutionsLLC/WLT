@@ -1637,6 +1637,16 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   new table has a SELECT policy and no write policy. Audit rows carry ids, booleans and field names
   only — the public submit is the first audit row with a **null `user_id`**. Questions are turned
   off, never deleted, and each answer is stored as a snapshot beside its prompt (P8).
+  **z3b (2026-10-31, migration 098): the bishopric decides.** Approve / Let's talk first / Not this
+  time / Finish approval go through `PATCH /api/zoom/registrations/[id]` (`canManageInvitees()`);
+  unanimity is decided inside `respond_to_zoom_registration()`, and "Waiting on" is computed on read
+  against `listBishopricUsers()` (`waitingOnNames()`), so a released calling stops blocking with no
+  write. **`decline_note` is no longer granted to `authenticated`** — the clerk and executive
+  secretary read the same tab — so it is read only by `readDeclineNotes()` with the service role after
+  `canManageInvitees()`; never add it to `REGISTRATION_COLUMNS`. The audit flag is
+  `declinedWithMessage`, because `writeAuditLog()` redacts any key containing "note". A "member"
+  sign-up puts "Match ___ to the roster" on every bishopric member's To Do (`todos.zoom_registration_id`,
+  no checkbox, not deletable while open); the first match closes every copy, and a decline closes them.
   **A question can be a FOLLOW-UP to a yes/no question (migration 097,
   `zoom_registration_questions.shown_when_yes_to`)**, asked only when that question is answered Yes —
   decided walking scenario 097 so that an **address is asked only of somebody who wants the

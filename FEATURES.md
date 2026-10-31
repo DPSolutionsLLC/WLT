@@ -1105,7 +1105,7 @@ swapping the counselors' numbers turns the link off at once; the row then reads 
 until a fresh one is pasted. Nobody is notified — the tab says so. Every set, replace and turn-off
 is in the audit log, without the link.
 
-### Sign-ups — built (ITER-052, first slice)
+### Sign-ups — built (ITER-052, slices 1–2)
 
 A **public page**, reached by a QR code or a shared link, where anyone can ask for a link to watch
 the stream. They give their name, phone, an optional email, say whether they are a member of the
@@ -1126,8 +1126,17 @@ The **Sign-ups** tab on Zoom lists the requests — waiting first, then recent �
 answers, who referred them, and flags such as "Same phone as an earlier request". The bishopric
 opens or closes the page and chooses how sign-ups are approved in **Settings**, where the link and a
 printable QR code live. The bishopric, the ward clerk and the executive secretary edit the
-**Questions** (turned off, never deleted). Approving, "Let's talk first", declining and matching to
-the roster come next, then emails.
+**Questions** (turned off, never deleted).
+
+With **approvals on**, a request waits until **every serving member of the bishopric** approves it.
+Each card says who has approved, who wants to talk first, and who is still waited on; the last
+approval gives the person their link. **Let's talk first** shows only on the card. **Not this time**
+declines on one member's word, with an optional private note only the bishopric can read; the person
+sees the kind sentence and may sign up again. If a member of the bishopric is released while a
+request waits on them, **Finish approval** approves it. A person who says they are a member of the
+ward puts **Match ___ to the roster** on each bishopric member's To Do; matching them on the card
+closes every copy. The clerk and executive secretary see the same cards without the buttons. Emails
+come next.
 
 ---
 

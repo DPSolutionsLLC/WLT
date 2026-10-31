@@ -167,12 +167,26 @@ describe("zoom sign-up tables RLS", () => {
   it("lets the bishop read every other column by name", async () => {
     const { data, error } = await (clients.bishop as Client)
       .from("zoom_registrations")
-      .select("id, display_name, phone, referral_code, answers, decline_note")
+      .select("id, display_name, phone, referral_code, answers")
       .eq("id", registrationId)
       .single();
     expect(error).toBeNull();
     expect(data?.display_name).toBe("Ward A Sign-up");
   });
+
+  // Migration 098: the decline note is the bishopric's alone, and they read it with the service
+  // role after canManageInvitees(). No signed-in client can select it, so the clerk and the
+  // executive secretary, who read the same Sign-ups tab, can never reach it.
+  it.each(["bishop", "wardSecretary", "executiveSecretary"] as const)(
+    "refuses the decline note to the %s even when asked for by name",
+    async (handle) => {
+      const { error } = await (clients[handle] as Client)
+        .from("zoom_registrations")
+        .select("decline_note")
+        .eq("id", registrationId);
+      expect(error?.code).toBe("42501");
+    },
+  );
 
   // The Sign-ups tab's own query, with its embeds (member, referrer, decider, invitee → pool link,
   // responders). Run as the clerk, the narrowest reader, so a column grant or a policy on any

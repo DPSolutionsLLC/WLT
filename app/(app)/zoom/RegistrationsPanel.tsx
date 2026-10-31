@@ -8,9 +8,15 @@ import { RegistrationSettingsModal } from "@/app/(app)/zoom/RegistrationSettings
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/FormError";
 import type { RegistrationQuestion } from "@/lib/zoom/registrationQuestions";
-import { describeRegistrationRow, splitRegistrations, type RegistrationRow } from "@/lib/zoom/registrationRow";
+import {
+  type BishopricPerson,
+  describeRegistrationRow,
+  splitRegistrations,
+  waitingOnNames,
+} from "@/lib/zoom/registrationRow";
 import type { ZoomRegistration } from "@/lib/zoom/registrations";
 import type { RegistrationSettings } from "@/lib/zoom/registrationSettings";
+import type { SessionUser } from "@/types/domain";
 
 // THE SIGN-UPS TAB (ITER-052) — public requests for a stream link. The bishopric, the ward clerk and
 // the executive secretary read it (migration 096). Waiting requests first, oldest first; then the
@@ -29,30 +35,61 @@ export type RegistrationsPanelProps = {
   questions: RegistrationQuestion[];
   canManage: boolean;
   canManageQuestions: boolean;
+  // Who serves in the bishopric now. "Waiting on" is computed against it on read (z3b).
+  bishopric: BishopricPerson[];
+  // Private decline notes, keyed by sign-up id. Empty for anybody but the bishopric (migration 098).
+  declineNotes: Record<string, string>;
+  user: SessionUser;
 };
 
-function groupByDay(rows: RegistrationRow[]): { dayKey: string; rows: RegistrationRow[] }[] {
-  const groups: { dayKey: string; rows: RegistrationRow[] }[] = [];
-  for (const row of rows) {
+type CardContext = {
+  all: ZoomRegistration[];
+  bishopric: BishopricPerson[];
+  declineNotes: Record<string, string>;
+  canManage: boolean;
+  user: SessionUser;
+  onChanged: () => void;
+};
+
+type DayGroup = { dayKey: string; registrations: ZoomRegistration[] };
+
+function groupByDay(registrations: ZoomRegistration[], all: ZoomRegistration[]): DayGroup[] {
+  const groups: DayGroup[] = [];
+  for (const registration of registrations) {
+    const { dayKey } = describeRegistrationRow(registration, all);
     const last = groups[groups.length - 1];
-    if (last && last.dayKey === row.dayKey) last.rows.push(row);
-    else groups.push({ dayKey: row.dayKey, rows: [row] });
+    if (last && last.dayKey === dayKey) last.registrations.push(registration);
+    else groups.push({ dayKey, registrations: [registration] });
   }
   return groups;
 }
 
-function DayGroups({ rows }: { rows: RegistrationRow[] }) {
+function DayGroups({ registrations, context }: { registrations: ZoomRegistration[]; context: CardContext }) {
   return (
     <ul className="flex flex-col gap-2">
-      {groupByDay(rows).map((group, index) => (
+      {groupByDay(registrations, context.all).map((group, index) => (
         <li
           key={group.dayKey}
           className={`flex flex-col gap-2 rounded-lg p-2 ${index % 2 === 1 ? "bg-gold-soft" : ""}`}
         >
           <ul className="flex flex-col gap-1">
-            {group.rows.map((row) => (
-              <li key={row.id}>
-                <RegistrationCard row={row} />
+            {group.registrations.map((registration) => (
+              <li key={registration.id}>
+                <RegistrationCard
+                  row={describeRegistrationRow(registration, context.all)}
+                  approval={
+                    registration.status === "pending"
+                      ? waitingOnNames(registration, context.bishopric, context.user.id)
+                      : null
+                  }
+                  saysMember={registration.saysMember}
+                  memberId={registration.memberId}
+                  isDeclined={registration.status === "declined"}
+                  canManage={context.canManage}
+                  declineNote={context.declineNotes[registration.id] ?? null}
+                  user={context.user}
+                  onChanged={context.onChanged}
+                />
               </li>
             ))}
           </ul>
@@ -77,6 +114,9 @@ export function RegistrationsPanel({
   questions,
   canManage,
   canManageQuestions,
+  bishopric,
+  declineNotes,
+  user,
 }: RegistrationsPanelProps) {
   const router = useRouter();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -86,9 +126,15 @@ export function RegistrationsPanel({
   const [error, setError] = useState<string | undefined>();
 
   const { waiting, recent } = splitRegistrations(registrations);
-  const waitingRows = waiting.map((registration) => describeRegistrationRow(registration, registrations));
-  const recentRows = recent.map((registration) => describeRegistrationRow(registration, registrations));
-  const shownRecent = showAllRecent ? recentRows : recentRows.slice(0, RECENT_SHOWN);
+  const shownRecent = showAllRecent ? recent : recent.slice(0, RECENT_SHOWN);
+  const context: CardContext = {
+    all: registrations,
+    bishopric,
+    declineNotes,
+    canManage,
+    user,
+    onChanged: () => router.refresh(),
+  };
 
   async function setUp() {
     setIsSettingUp(true);
@@ -152,25 +198,25 @@ export function RegistrationsPanel({
 
       {registrations.length === 0 ? <p className="text-sm text-muted">Nobody has signed up yet.</p> : null}
 
-      {waitingRows.length > 0 ? (
+      {waiting.length > 0 ? (
         <section className="flex flex-col gap-2" aria-labelledby="zoom-signups-waiting">
           <h2 id="zoom-signups-waiting" className="text-sm font-semibold text-foreground">
             Waiting
           </h2>
-          <DayGroups rows={waitingRows} />
+          <DayGroups registrations={waiting} context={context} />
         </section>
       ) : null}
 
-      {recentRows.length > 0 ? (
+      {recent.length > 0 ? (
         <section className="flex flex-col gap-2" aria-labelledby="zoom-signups-recent">
           <h2 id="zoom-signups-recent" className="text-sm font-semibold text-foreground">
             Recent
           </h2>
-          <DayGroups rows={shownRecent} />
-          {recentRows.length > RECENT_SHOWN ? (
+          <DayGroups registrations={shownRecent} context={context} />
+          {recent.length > RECENT_SHOWN ? (
             <div>
               <Button variant="secondary" onClick={() => setShowAllRecent(!showAllRecent)}>
-                {showAllRecent ? "Show fewer" : `Show ${recentRows.length - RECENT_SHOWN} more`}
+                {showAllRecent ? "Show fewer" : `Show ${recent.length - RECENT_SHOWN} more`}
               </Button>
             </div>
           ) : null}

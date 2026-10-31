@@ -72,6 +72,7 @@ type TodoRow = {
   music_sunday_id: string | null;
   music_role: string | null;
   zoom_invitee_id: string | null;
+  zoom_registration_id: string | null;
   closed_reason: string | null;
   talk_off_at: string | null;
   created_at: string;
@@ -120,9 +121,9 @@ type LogRow = {
 // `action_items` has TWO foreign keys to `agendas` (the agenda it is on, and the one it was carried
 // from), so the embed names its constraint — without the hint PostgREST refuses the ambiguity.
 const TODO_COLUMNS =
-  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, ask_prayer_id, music_sunday_id, music_role, zoom_invitee_id, closed_reason, talk_off_at, created_at, updated_at";
+  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, ask_prayer_id, music_sunday_id, music_role, zoom_invitee_id, zoom_registration_id, closed_reason, talk_off_at, created_at, updated_at";
 const TODO_WITH_STEPS_COLUMNS =
-  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, ask_prayer_id, music_sunday_id, music_role, zoom_invitee_id, closed_reason, talk_off_at, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date)), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number, cancelled_at, topic_title, sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), talk_references!talk_references_assignment_id_ward_id_fkey (citation, created_at)), prayer:prayer_assignments!todos_ask_prayer_id_fkey (id, member_id, prayer_type, cancelled_at, sundays!prayer_assignments_sunday_id_ward_id_fkey (date), members!prayer_assignments_member_id_ward_id_fkey (first_name, last_name, phone)), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name)";
+  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, ask_prayer_id, music_sunday_id, music_role, zoom_invitee_id, zoom_registration_id, closed_reason, talk_off_at, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date)), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number, cancelled_at, topic_title, sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), talk_references!talk_references_assignment_id_ward_id_fkey (citation, created_at)), prayer:prayer_assignments!todos_ask_prayer_id_fkey (id, member_id, prayer_type, cancelled_at, sundays!prayer_assignments_sunday_id_ward_id_fkey (date), members!prayer_assignments_member_id_ward_id_fkey (first_name, last_name, phone)), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name)";
 const STEP_COLUMNS = "id, todo_id, label, position, done_at";
 const LOG_COLUMNS = "id, todo_id, kind, body, created_at";
 
@@ -208,6 +209,8 @@ function mapTodoRow(row: TodoRow): Todo {
     askPrayerId: row.ask_prayer_id,
     musicLink: toMusicLink(row.music_sunday_id, row.music_role),
     zoomLink: row.zoom_invitee_id === null ? null : { inviteeId: row.zoom_invitee_id },
+    zoomRegistrationLink:
+      row.zoom_registration_id === null ? null : { registrationId: row.zoom_registration_id },
     closedReason: toClosedReason(row.closed_reason),
     talkOffAt: row.talk_off_at,
     createdAt: row.created_at,
@@ -518,6 +521,9 @@ export async function updateTodo(
   if (input.complete !== undefined && current.zoomLink !== null) {
     throw new InvalidInputError(ZOOM_TODO_TICK);
   }
+  if (input.complete !== undefined && current.zoomRegistrationLink !== null) {
+    throw new InvalidInputError(ZOOM_MATCH_TODO_TICK);
+  }
 
   if (input.complete !== undefined && input.complete !== (current.completedAt !== null)) {
     row.completed_at = input.complete ? new Date().toISOString() : null;
@@ -689,13 +695,22 @@ function isOpenZoomTodo(todo: Todo): boolean {
   return todo.zoomLink !== null && todo.completedAt === null;
 }
 
+// "MATCH ___ TO THE ROSTER" CLOSES ITSELF WHEN THEY ARE MATCHED (ITER-052 z3b) — the same rule.
+// Every serving bishopric member holds a copy, and the first match closes them all (plan D3).
+const ZOOM_MATCH_TODO_TICK = "This closes itself once they're matched on Zoom → Sign-ups.";
+
+function isOpenZoomMatchTodo(todo: Todo): boolean {
+  return todo.zoomRegistrationLink !== null && todo.completedAt === null;
+}
+
 export type DeleteTodoResult =
   | "deleted"
   | "not_found"
   | "linked_to_open_item"
   | "open_ask"
   | "open_music"
-  | "open_zoom";
+  | "open_zoom"
+  | "open_zoom_match";
 
 // "not_found" is RLS's zero rows, which the route turns into a 404. Steps and timeline lines go
 // with it by the foreign keys' cascade.
@@ -717,6 +732,7 @@ export async function deleteTodo(
   if (isOpenAsk(current)) return "open_ask";
   if (isOpenMusicTodo(current)) return "open_music";
   if (isOpenZoomTodo(current)) return "open_zoom";
+  if (isOpenZoomMatchTodo(current)) return "open_zoom_match";
 
   if (current.actionItemId !== null && (await isActionItemOpen(supabase, wardId, current.actionItemId))) {
     return "linked_to_open_item";

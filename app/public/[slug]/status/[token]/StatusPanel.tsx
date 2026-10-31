@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
+import { DECLINED_STATUS_SENTENCE } from "@/lib/zoom/registrationRow";
 import type { ZoomRegistrationStatus } from "@/types/domain";
 
 // What a registrant sees on their own status page (ITER-052). The join URL lives only in this
@@ -171,9 +172,7 @@ export function StatusPanel({
     return (
       <main className="flex flex-col gap-4">
         <h1 className="text-xl font-semibold text-foreground">{wardName} stream</h1>
-        <p className="text-sm text-foreground">
-          We weren&apos;t able to give you a stream link right now. Please speak with the bishop.
-        </p>
+        <p className="text-sm text-foreground">{DECLINED_STATUS_SENTENCE}</p>
       </main>
     );
   }

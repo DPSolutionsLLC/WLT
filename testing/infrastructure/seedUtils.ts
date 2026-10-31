@@ -1976,6 +1976,8 @@ export async function createTodo(options: {
   // together or neither.
   musicSundayId?: string;
   musicRole?: "choose" | "review";
+  // A public Zoom sign-up (ITER-052 z3b, migration 096g): "Match ___ to the roster".
+  zoomRegistrationId?: string;
   createdAt?: string;
 }): Promise<string> {
   return insertRow("todos", {
@@ -1996,6 +1998,7 @@ export async function createTodo(options: {
     ask_assignment_id: options.askAssignmentId ?? null,
     music_sunday_id: options.musicSundayId ?? null,
     music_role: options.musicRole ?? null,
+    zoom_registration_id: options.zoomRegistrationId ?? null,
     ...(options.createdAt === undefined ? {} : { created_at: options.createdAt }),
   });
 }
@@ -2665,6 +2668,27 @@ export async function createZoomRegistration(options: {
     },
     "id",
   );
+}
+
+// One bishopric member's answer on a pending sign-up (ITER-052 z3b). A decline is not a response:
+// it decides the sign-up outright, so seed it with createZoomRegistration({ status: "declined" }).
+export async function createZoomRegistrationResponse(options: {
+  registrationId: string;
+  userId: string;
+  response: "approve" | "talk_first";
+}): Promise<void> {
+  // The table is keyed by (registration_id, user_id) and has no `id`, so insertRow() cannot read
+  // one back.
+  const { error } = await getAdminClient().from("zoom_registration_responses").upsert(
+    {
+      registration_id: options.registrationId,
+      ward_id: TEST_WARD_ID,
+      user_id: options.userId,
+      response: options.response,
+    },
+    { onConflict: "registration_id,user_id" },
+  );
+  if (error) throw new Error(`Could not seed zoom_registration_responses: ${error.message}`);
 }
 
 // A person holding a link (pass `joinLinkId`) or waiting for one (omit it).

@@ -118,3 +118,88 @@ export async function closeWaitingLinkTodos(
 
   return closedIds;
 }
+
+// ---------------------------------------------------------------------------
+// "MATCH ___ TO THE ROSTER" — ITER-052 z3b, migration 096g
+// ---------------------------------------------------------------------------
+// A public sign-up that says "I'm a member of the ward" puts this on every serving bishopric
+// member's list (plan D3). Matching them on Zoom → Sign-ups closes every copy; so does declining
+// the sign-up. The same service-role rules as above: every caller has passed canManageInvitees()
+// or is the public submit route, which just wrote the registration itself in this ward.
+// Idempotent through `todos_one_open_zoom_registration_todo_per_owner`.
+
+export function matchTodoTitle(displayName: string): string {
+  return `Match ${displayName} to the roster`;
+}
+
+export const MATCHED_LINE = "They were matched to the roster.";
+export const DECLINED_LINE = "The sign-up was declined.";
+
+export async function createMatchTodo(
+  params: { wardId: string; ownerUserId: string; registrationId: string; displayName: string },
+  service: Client,
+): Promise<string> {
+  const detail = { wardId: params.wardId, registrationId: params.registrationId };
+
+  const { data, error } = await service
+    .from("todos")
+    .insert({
+      ward_id: params.wardId,
+      user_id: params.ownerUserId,
+      assigned_by: null,
+      title: matchTodoTitle(params.displayName),
+      tag: ZOOM_TAG,
+      notes: null,
+      zoom_registration_id: params.registrationId,
+    })
+    .select("id")
+    .single();
+
+  if (!error) return data.id;
+  if (error.code !== "23505") fail("Could not create a roster match to-do", error, detail);
+
+  const { data: existing, error: readError } = await service
+    .from("todos")
+    .select("id")
+    .eq("ward_id", params.wardId)
+    .eq("zoom_registration_id", params.registrationId)
+    .eq("user_id", params.ownerUserId)
+    .is("completed_at", null)
+    .single();
+  if (readError) fail("Could not read an open roster match to-do", readError, detail);
+  return existing.id;
+}
+
+// Closes every OPEN match to-do for this sign-up, whoever holds it, with a `source_completed` line
+// whose body says why (MATCHED_LINE or DECLINED_LINE).
+export async function closeMatchTodos(
+  params: { wardId: string; registrationId: string; line: string },
+  service: Client,
+): Promise<string[]> {
+  const detail = { wardId: params.wardId, registrationId: params.registrationId };
+  const now = new Date().toISOString();
+
+  const { data, error } = await service
+    .from("todos")
+    .update({ completed_at: now, closed_reason: null, updated_at: now })
+    .eq("ward_id", params.wardId)
+    .eq("zoom_registration_id", params.registrationId)
+    .is("completed_at", null)
+    .select("id");
+  if (error) fail("Could not close a roster match to-do", error, detail);
+
+  const closedIds = (data ?? []).map((row) => row.id);
+  if (closedIds.length === 0) return closedIds;
+
+  const { error: lineError } = await service.from("todo_log_entries").insert(
+    closedIds.map((todoId) => ({
+      ward_id: params.wardId,
+      todo_id: todoId,
+      kind: "source_completed",
+      body: params.line,
+    })),
+  );
+  if (lineError) fail("Could not write the closing line on a roster match to-do", lineError, detail);
+
+  return closedIds;
+}

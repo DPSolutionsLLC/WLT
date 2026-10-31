@@ -54,7 +54,7 @@ export type ZoomTabsProps = {
   pool: PoolSummary | null;
   invitees: ZoomInvitee[] | null;
   // Null when the reader cannot see the Sign-ups tab.
-  signUps: Omit<RegistrationsPanelProps, "canManage"> | null;
+  signUps: Omit<RegistrationsPanelProps, "canManage" | "user"> | null;
   canManageInvitees: boolean;
   user: SessionUser;
   wardName: string | null;
@@ -109,7 +109,7 @@ export function ZoomTabs({
       );
     }
     if (tab === "registrations" && signUps) {
-      return <RegistrationsPanel {...signUps} canManage={canManageInvitees} />;
+      return <RegistrationsPanel {...signUps} canManage={canManageInvitees} user={user} />;
     }
     if (tab === "pool" && pool) return <LinkPoolPanel initialPool={pool} />;
     if (tab === "links" && linkRows) return <RemoteLinksPanel initialRows={linkRows} />;

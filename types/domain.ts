@@ -1744,6 +1744,10 @@ export type Todo = {
   // null for every other to-do. It closes itself when they are given a link, so — like a music
   // to-do — it has no checkbox and cannot be removed while open.
   zoomLink: { inviteeId: string } | null;
+  // The Zoom sign-up this "Match ___ to the roster" to-do is about (ITER-052 z3b, migration 096g);
+  // null for every other to-do. Matching them on Zoom → Sign-ups closes it, so it has no checkbox
+  // and cannot be removed while open.
+  zoomRegistrationLink: { registrationId: string } | null;
   // Set only on an ask that left this list unanswered — see TODO_CLOSED_REASONS.
   closedReason: TodoClosedReason | null;
   // When the owner was told this ask's talk is off (Sacrament slice f2b, migration 084).

@@ -28,6 +28,18 @@ files:
   - app/(app)/zoom/RegistrationCard.tsx
   - app/(app)/zoom/RegistrationSettingsModal.tsx
   - app/(app)/zoom/RegistrationQuestionsModal.tsx
+  - supabase/migrations/098_zoom_decline_note_bishopric_only.sql
+  - lib/zoom/registrationApprovals.ts
+  - lib/zoom/registrationMatch.ts
+  - lib/todos/zoomLinks.ts
+  - lib/todos/queries.ts
+  - app/api/zoom/registrations/[id]/route.ts
+  - app/api/zoom/registrations/[id]/match/route.ts
+  - app/api/todos/[id]/route.ts
+  - app/(app)/zoom/DeclineRegistrationModal.tsx
+  - app/(app)/zoom/MatchRegistrationModal.tsx
+  - app/(app)/todos/TodoCard.tsx
+  - types/domain.ts
 related: [zoom-link-pool-and-invitees, zoom-remote-links, program-c-public-pages, released-modules-per-ward]
 ---
 
@@ -74,6 +86,50 @@ secretary see a **Sign-ups** tab with settings, a QR/copy link and the question 
   or withdraw; a bell notification for unseen pending sign-ups.
 - The wrong-token status page's tab title still reads "Your stream link".
 - The Zoom tab row scrolls inside itself at 375px, cutting off "Link pool".
-- `decline_note` is readable by the clerk and executive secretary (by design of the SELECT policy;
-  revisit with z3b's decline flow).
+- ~~`decline_note` is readable by the clerk and executive secretary~~ — closed by z3b (migration 098).
 - SPEC.md and FEATURES.md never documented ITER-053's pool and invitees.
+
+## z3b — bishopric approvals and roster matching (pending commit)
+
+With approvals on, a request waits until **every serving bishopric member** approves; the last
+approval runs `approve_zoom_registration()` and gives the next free link (or waits, with "Give ___ a
+Zoom link" on the bishopric's To Do). **Let's talk first** shows only on the card; **Not this time**
+declines on one member's word with an optional private note; **Finish approval** approves a request
+left waiting on a released calling. A "member" sign-up puts **Match ___ to the roster** on every
+bishopric list; the first match (or a decline) closes every copy.
+
+### Key decisions
+- **Unanimity is decided in SQL** (`respond_to_zoom_registration()`, 096), while "Waiting on" is
+  **computed on read** against `listBishopricUsers()` (`waitingOnNames()`), so a released calling
+  stops blocking with no write. `finish` records nothing and only re-runs the check.
+- **Migration 098 revokes `decline_note` from `authenticated`.** The clerk and executive secretary
+  read the same tab, so the note is read only by `readDeclineNotes()` with the service role after
+  `canManageInvitees()`. The RLS suite asserts the 42501 for all three readers.
+- **A match is allowed after approval** (the to-do outlives it, and the match carries onto the
+  invitee); only a declined sign-up refuses it (409).
+- **The decline sentence is one constant** (`DECLINED_STATUS_SENTENCE`) read by the status page and the
+  decline window, so the window shows exactly what the person will see.
+
+### What broke while building
+- **The plan's audit flag `hasNote` would have been redacted** — `writeAuditLog()` blanks any key
+  containing "note". Renamed `declinedWithMessage`, after music's `returnedWithMessage`.
+- **`insertRow` in the seed helpers selects `id`**, which `zoom_registration_responses` does not have;
+  the seed upserts on `(registration_id, user_id)` instead.
+
+### Found on the walk (scenario 098, 2026-10-31)
+- **Finish approval appeared unexplained** — the card read only "Approved by you, Owen Pryce". The user
+  asked for an explanation: `waitingOnNames()` now returns a `finishReason` naming a released member
+  who wanted to talk first, or saying the bishopric has changed. A button that appears because of
+  something off-screen needs a sentence beside it.
+- Step 7 of the checklist asked to *tick* a to-do that has no checkbox; corrected to remove + a direct
+  route call.
+
+### Follow-ups (not built)
+- z3c: emails (waits on ITER-039's sender address). Music's own emails could delegate to the same
+  sender helper then.
+- Matching a moved-out member was not walked in the browser (route test covers the 400).
+
+### Validation
+Full suite 363 files / 5367 tests passed before the walk fix; `registrationApprovals.test.ts` 10/10
+after it. Lint clean (5 old warnings elsewhere), typecheck and harness typecheck clean, production
+build succeeded, migration 098 applied with `db:push`.

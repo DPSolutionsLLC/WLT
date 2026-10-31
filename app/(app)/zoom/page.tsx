@@ -1,6 +1,7 @@
 import { PoolLowBanner } from "@/app/(app)/zoom/PoolLowBanner";
 import { ZoomTabs } from "@/app/(app)/zoom/ZoomTabs";
 import { ContextualBackLink } from "@/components/layout/ContextualBackLink";
+import { listBishopricUsers } from "@/lib/calendar/queries";
 import { NotPermitted } from "@/components/ui/NotPermitted";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
@@ -16,6 +17,7 @@ import {
 import { listInvitees } from "@/lib/zoom/invitees";
 import { describePoolLevel, listPool } from "@/lib/zoom/joinLinkPool";
 import { resolveSiteUrl } from "@/lib/program/queries";
+import { readDeclineNotes } from "@/lib/zoom/registrationApprovals";
 import { listQuestions } from "@/lib/zoom/registrationQuestions";
 import { listRegistrations } from "@/lib/zoom/registrations";
 import { readRegistrationSettings } from "@/lib/zoom/registrationSettings";
@@ -62,14 +64,28 @@ export default async function ZoomPage({ searchParams }: ZoomPageProps) {
 
   const viewsInvitees = canViewInvitees(user, roleAccess);
 
-  const [pool, invitees, wardName, registrations, registrationSettings, questions] = await Promise.all([
+  const [pool, invitees, wardName, registrations, registrationSettings, questions, bishopric] = await Promise.all([
     managesInvitees ? listPool(supabase) : Promise.resolve(null),
     viewsInvitees ? listInvitees(supabase) : Promise.resolve(null),
     managesInvitees ? readWardName(user.wardId, supabase) : Promise.resolve(null),
     viewsInvitees ? listRegistrations(user.wardId, supabase) : Promise.resolve(null),
     viewsInvitees ? readRegistrationSettings(user.wardId, supabase) : Promise.resolve(null),
     viewsInvitees ? listQuestions(user.wardId, supabase) : Promise.resolve(null),
+    viewsInvitees ? listBishopricUsers(user.wardId, supabase) : Promise.resolve(null),
   ]);
+
+  // The private decline notes (migration 098): no signed-in client can select the column, so the
+  // bishopric's are read with the service role AFTER canManageInvitees(). Never for anybody else.
+  const declineNotes =
+    managesInvitees && registrations
+      ? await readDeclineNotes(
+          user.wardId,
+          registrations
+            .filter((registration) => registration.status === "declined")
+            .map((registration) => registration.id),
+          createServiceSupabaseClient(),
+        )
+      : {};
 
   // The public sign-ups (ITER-052), read through the reader's own client: migration 096's policy
   // admits the same three callings as the Invitees tab, and no status token is ever selected.
@@ -85,6 +101,11 @@ export default async function ZoomPage({ searchParams }: ZoomPageProps) {
           siteIsTemporary: siteUrl !== null && new URL(siteUrl).hostname.endsWith(".vercel.app"),
           questions,
           canManageQuestions: canManageRegistrationQuestions(user, roleAccess),
+          bishopric: (bishopric ?? []).map((member) => ({
+            userId: member.id,
+            name: [member.firstName, member.lastName].filter(Boolean).join(" "),
+          })),
+          declineNotes,
         }
       : null;
 

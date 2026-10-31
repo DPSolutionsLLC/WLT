@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { InvalidInputError } from "@/lib/auth/errors";
 import { listBishopricUsers } from "@/lib/calendar/queries";
-import { createWaitingLinkTodo } from "@/lib/todos/zoomLinks";
+import { createMatchTodo, createWaitingLinkTodo } from "@/lib/todos/zoomLinks";
 import type { PublicRegistrationInput } from "@/lib/validation/zoomRegistration";
 import { type AnswerSnapshot, type AskedQuestion, checkAnswers } from "@/lib/zoom/registrationAnswers";
 import { decideIntake, windowStart } from "@/lib/zoom/registrationLimits";
@@ -320,6 +320,30 @@ export async function createWaitingLinkTodosForBishopric(
   return todoIds;
 }
 
+// "I'm a member of the ward": every serving bishopric member gets "Match ___ to the roster", and
+// the first match on Zoom → Sign-ups closes every copy (plan D3, z3b).
+export async function createMatchTodosForBishopric(
+  params: { wardId: string; registrationId: string; displayName: string },
+  service: Client,
+): Promise<string[]> {
+  const bishopric = await listBishopricUsers(params.wardId, service);
+  const todoIds: string[] = [];
+  for (const member of bishopric) {
+    todoIds.push(
+      await createMatchTodo(
+        {
+          wardId: params.wardId,
+          ownerUserId: member.id,
+          registrationId: params.registrationId,
+          displayName: params.displayName,
+        },
+        service,
+      ),
+    );
+  }
+  return todoIds;
+}
+
 export type SubmitResult =
   | { kind: "ignored" }
   | {
@@ -332,6 +356,7 @@ export type SubmitResult =
       heldReason: ZoomRegistrationHeldReason | null;
       linkGiven: boolean;
       waitingTodoIds: string[];
+      matchTodoIds: string[];
       referred: boolean;
     };
 
@@ -387,8 +412,24 @@ export async function submitRegistration(
     referred: referredBy !== null,
   };
 
+  const createMatchTodos = async (approved: boolean): Promise<string[]> => {
+    if (!input.saysMember) return [];
+    try {
+      return await createMatchTodosForBishopric(
+        { wardId: page.wardId, registrationId, displayName: input.displayName },
+        service,
+      );
+    } catch (error) {
+      throw new RegistrationFollowUpError(
+        { registrationId, wardId: page.wardId, slug: page.slug, token, approved },
+        error,
+      );
+    }
+  };
+
   if (decision.kind === "pending") {
-    return { ...base, status: "pending", heldReason, linkGiven: false, waitingTodoIds: [] };
+    const matchTodoIds = await createMatchTodos(false);
+    return { ...base, status: "pending", heldReason, linkGiven: false, waitingTodoIds: [], matchTodoIds };
   }
 
   let approved: ApproveResult;
@@ -425,12 +466,15 @@ export async function submitRegistration(
     }
   }
 
+  const matchTodoIds = await createMatchTodos(true);
+
   return {
     ...base,
     status: "approved",
     heldReason: null,
     linkGiven: approved.joinLinkId !== null,
     waitingTodoIds,
+    matchTodoIds,
   };
 }
 

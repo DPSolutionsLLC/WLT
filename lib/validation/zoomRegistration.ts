@@ -110,3 +110,34 @@ export const updateQuestionSchema = z
 export type UpdateQuestionInput = z.infer<typeof updateQuestionSchema>;
 
 export const questionIdSchema = z.uuid("That question is not one this page knows about.");
+
+// THE BISHOPRIC'S ANSWERS (ITER-052 z3b). A note belongs to a decline only, and a blank one is
+// stored as null — never "" (CLAUDE.md global rules).
+export const registrationIdSchema = z.uuid("That sign-up is not one this page knows about.");
+
+const declineNote = z.preprocess(
+  (value) => (typeof value === "string" && value.trim().length === 0 ? null : value),
+  z
+    .string({ error: "The note must be text." })
+    .trim()
+    .max(500, "That note is too long. Notes can be at most 500 characters.")
+    .nullable()
+    .optional(),
+);
+
+export const registrationActionSchema = z.discriminatedUnion(
+  "action",
+  [
+    z.object({ action: z.literal("approve") }),
+    z.object({ action: z.literal("talk_first") }),
+    z.object({ action: z.literal("finish") }),
+    z.object({ action: z.literal("decline"), note: declineNote }),
+  ],
+  { error: "Choose approve, talk first, finish or decline." },
+);
+
+export type RegistrationActionInput = z.infer<typeof registrationActionSchema>;
+
+export const matchRegistrationSchema = z.object({
+  memberId: z.uuid("Pick somebody from the roster."),
+});

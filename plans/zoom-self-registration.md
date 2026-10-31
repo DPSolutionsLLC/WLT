@@ -114,6 +114,9 @@ in one session if it goes smoothly. **Commit between slices.**
 - `.env.example` (if present) — no new variable needed
 
 ### Slice z3b
+- `supabase/migrations/098_zoom_decline_note_bishopric_only.sql` — create — hide `decline_note` from `authenticated` (addendum A1)
+- `types/database.ts` — regenerate after 098 (`npm run db:types`)
+- `tests/rls/zoom-registrations.test.ts` — modify — the bishop no longer reads `decline_note` by name; the clerk and executive secretary are refused it (addendum A1)
 - `lib/zoom/registrationApprovals.ts` — create — respond, finish, decline, who-is-still-waiting
 - `lib/zoom/registrationMatch.ts` — create — match to a roster member
 - `lib/todos/zoomLinks.ts` — modify — match to-do create/close; waiting-link to-dos for every bishopric member
@@ -575,6 +578,48 @@ buttons per item opening windows.
 ---
 
 ### SLICE z3b — approvals and matching
+
+#### z3b addendum (2026-10-31, re-checked against what z3a actually built)
+
+Read this before Task 16. It overrides the tasks below where they disagree.
+
+- **A1 — The decline note is the bishopric's alone, enforced by the database (user's decision
+  2026-10-31).** z3a's migration 096 grants `decline_note` to `authenticated` in the column grant,
+  and `zoom_registrations_select` admits the ward clerk and executive secretary, so they could
+  read it. Task 19's "Only the bishopric sees this" would be false. Fix:
+  - **Migration 098** (`098_zoom_decline_note_bishopric_only.sql`): `revoke select on
+    zoom_registrations from authenticated;` then re-grant the **same column list as 096 minus
+    `decline_note`** (still minus `status_token_hash`). Header comment says why. Nothing in the app
+    selects `decline_note` today (`REGISTRATION_COLUMNS` in `lib/zoom/registrations.ts` doesn't
+    name it — **re-confirm before applying**), so this needs no `HELD_BACK_UNTIL_DEPLOYED` entry.
+    `db:push --dry-run` first.
+  - **Reading it:** the card shows the note only to the bishopric. Load it with the **service
+    role, after `canManageInvitees()`**, in a separate small read keyed by the declined ids on the
+    page (`readDeclineNotes(wardId, ids, service)` in `lib/zoom/registrationApprovals.ts`), the
+    same shape as the Remote links tab (service-role read after the permission check). Never add
+    `decline_note` to `REGISTRATION_COLUMNS`, and never return it from a route the clerk can reach.
+  - **Writing it** is already service-role only (no write policy); unchanged.
+  - **Tests:** in `tests/rls/zoom-registrations.test.ts`, change "lets the bishop read every other
+    column by name" to drop `decline_note`, and add: bishop, clerk and executive secretary each get
+    **42501** selecting `decline_note` by name. Fix the 096 migration's header comment only via the
+    098 header (never edit an applied migration).
+- **A2 — Name the tab as built.** z3a named the tab **Sign-ups**, not "Registrations". Use
+  "Sign-ups" in every UI string, to-do body ("…once they're matched on Zoom → Sign-ups.") and email
+  in z3b/z3c.
+- **A3 — `createWaitingLinkTodosForBishopric` already exists** in `lib/zoom/registrations.ts`
+  (z3a built it there for auto-approve with an empty pool). Task 16 reuses it; **do not** move or
+  duplicate it into `lib/todos/zoomLinks.ts`. Task 18's match to-do helpers still go in
+  `lib/todos/zoomLinks.ts`, beside `createWaitingLinkTodo` / `closeWaitingLinkTodos`.
+- **A4 — Pure helpers live in their own files** (z3a's precedent: `registrationRow.ts`,
+  `registrationAnswers.ts`) when a client component needs them. `waitingOnNames()` is rendered by
+  `RegistrationCard.tsx`; if it would pull a server client into the bundle, put it in
+  `lib/zoom/registrationRow.ts` instead.
+- **A5 — Already in place from 096 (no migration needed for these):** `zoom_registration_responses`
+  (SELECT-only), `todos.zoom_registration_id` with its one-open-per-owner partial unique index, and
+  `respond_to_zoom_registration()` (service role only). Read its body before writing Task 16 —
+  return shape `(status, invitee_id, join_link_id, waiting_on uuid[])`.
+- **A6 — z3a follow-ups NOT folded in** (stay out of scope): the wrong-token tab title, the Zoom
+  tab row scrolling at 375px, SPEC/FEATURES for ITER-053.
 
 ### Task 16: Approval logic
 **File:** `lib/zoom/registrationApprovals.ts` (create)

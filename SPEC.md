@@ -556,7 +556,8 @@ status_token_hash  -- SHA-256 hex of the registrant's secret token; HIDDEN from 
 referral_code      -- 10 letters/digits, for "Share with a friend"; never the token
 referred_by_registration_id, member_id (composite to members), matched_by, matched_at,
 decided_by (NULL = approved automatically), decided_at, decline_note (bishopric only, never
-shown to the registrant, never audited), invitee_id UNIQUE (composite to zoom_invitees)
+shown to the registrant, never audited; NOT granted to authenticated since migration 098 — read
+with the service role after canManageInvitees()), invitee_id UNIQUE (composite to zoom_invitees)
 
 -- zoom_registration_responses: each bishopric member's answer (z3b)
 registration_id, ward_id, user_id, response ('approve' | 'talk_first'), responded_at
@@ -575,6 +576,7 @@ Functions (all `security definer`):
   link in one transaction; no row when no longer pending.
 - `respond_to_zoom_registration(ward, registration, user, response)` — **service role** (z3b).
   Approval is unanimous across the active bishopric callings at the moment of each response.
+  `'finish'` records nothing and re-runs the check, for a request left waiting on a released calling.
 
 ### `hymn_selections`
 ```sql
@@ -1752,10 +1754,24 @@ PUT    /api/zoom/registration-settings       { isOpen?, autoApprove?, emailBisho
                                              changedFields only
 POST   /api/zoom/registration-questions      Add (at most 8 active). Audited with the id, never the wording
 PATCH  /api/zoom/registration-questions/[id] { prompt?, audience?, isRequired?, isActive?, move? } — kind is fixed
+PATCH  /api/zoom/registrations/[id]          z3b, the bishopric. { action: "approve" | "talk_first" | "finish" }
+                                             or { action: "decline", note? }. 200 { registration };
+                                             404 unknown; 409 "This sign-up was already decided." Audited
+                                             zoom_registration_responded { registrationId, response },
+                                             zoom_registration_approved { registrationId, inviteeId, linkGiven,
+                                             waitingTodoIds }, zoom_registration_declined { registrationId,
+                                             declinedWithMessage, closedTodoIds } — never the note
+POST   /api/zoom/registrations/[id]/match    z3b, the bishopric. { memberId } — an active member. Sets the
+                                             member on the sign-up and its invitee; closes every "Match ___ to
+                                             the roster" to-do. Audited zoom_registration_matched
+                                             { registrationId, memberId, previousMemberId, closedTodoIds }
 ```
 Intake order (`decideIntake()`): over the ward cap, refused; approvals on, held; a phone seen
 before, held; ten automatic approvals already in 24 hours, held; otherwise approved at once. An
 empty pool on approval puts "Give ___ a Zoom link" on every serving bishopric member's To Do.
+A sign-up that says "I'm a member" puts "Match ___ to the roster" on every serving bishopric member's
+To Do (no checkbox, not removable while open); the first match closes every copy, and so does a
+decline.
 
 The public pages are `/public/[slug]` (the form, a third branch beside the programme) and
 `/public/[slug]/status/[token]` (dynamic, `no-referrer`). Both read only through the two anon

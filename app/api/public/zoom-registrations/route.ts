@@ -87,6 +87,7 @@ export async function POST(request: Request) {
           heldReason: result.heldReason,
           linkGiven: result.linkGiven,
           waitingTodoIds: result.waitingTodoIds,
+          matchTodoIds: result.matchTodoIds,
           referred: result.referred,
         },
       },
