@@ -2,7 +2,7 @@
 id: zoom-self-registration
 type: feature
 iter: ITER-052
-commits: []
+commits: ["6b8006b"]
 date: 2026-10-31
 files:
   - supabase/migrations/096_zoom_self_registration.sql
