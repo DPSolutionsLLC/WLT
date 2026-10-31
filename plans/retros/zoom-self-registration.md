@@ -2,7 +2,7 @@
 id: zoom-self-registration
 type: feature
 iter: ITER-052
-commits: ["6b8006b"]
+commits: ["6b8006b", "b1bcbbf"]
 date: 2026-10-31
 files:
   - supabase/migrations/096_zoom_self_registration.sql
@@ -89,7 +89,7 @@ secretary see a **Sign-ups** tab with settings, a QR/copy link and the question 
 - ~~`decline_note` is readable by the clerk and executive secretary~~ — closed by z3b (migration 098).
 - SPEC.md and FEATURES.md never documented ITER-053's pool and invitees.
 
-## z3b — bishopric approvals and roster matching (pending commit)
+## z3b — bishopric approvals and roster matching (b1bcbbf)
 
 With approvals on, a request waits until **every serving bishopric member** approves; the last
 approval runs `approve_zoom_registration()` and gives the next free link (or waits, with "Give ___ a
