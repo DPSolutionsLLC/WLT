@@ -2,7 +2,7 @@
 id: bishopric-visits
 type: feature
 iter: ITER-055
-commits: []
+commits: ["393a98c"]
 date: 2026-10-31
 files:
   - supabase/migrations/099_visit_org_sharing.sql
