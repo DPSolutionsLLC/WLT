@@ -479,11 +479,34 @@ export const listVisitsQuerySchema = z.object({
 export type ListVisitsQuery = z.infer<typeof listVisitsQuerySchema>;
 
 // ---------------------------------------------------------------------------
-// The ward's cross-org visibility setting
+// Which organization may read which organization's visits (ITER-055, migration 099)
 // ---------------------------------------------------------------------------
-// One boolean, and it belongs with the visit schemas because visit_logs_select is the only policy
-// that reads it (migration 019). It widens READS only — no write policy mentions the function —
-// so there is nothing here about management scope: that never changes.
+// The WHOLE set for the ward, replaced in one call — the Sharing panel shows every pair at once and
+// saves what it shows, so a partial update could not express "turn this one off".
+export const MAX_VISIT_SHARING_GRANTS = 64;
+
+export const visitSharingSchema = z.object({
+  grants: z
+    .array(
+      z
+        .object({
+          ownerOrgId: z.uuid("That organization is not valid."),
+          viewerOrgId: z.uuid("That organization is not valid."),
+        })
+        .refine((grant) => grant.ownerOrgId !== grant.viewerOrgId, {
+          message: "An organization always sees its own visits.",
+        }),
+    )
+    .max(MAX_VISIT_SHARING_GRANTS, "That is more sharing than this ward has organizations for."),
+});
+export type VisitSharingInput = z.infer<typeof visitSharingSchema>;
+
+// ---------------------------------------------------------------------------
+// The ward's cross-org visibility setting — YOUTH FOLLOW-UPS ONLY since migration 099
+// ---------------------------------------------------------------------------
+// One boolean. Visits stopped reading it in ITER-055 (each organization's visits are shared by the
+// bishopric, organization by organization); `activity_logs_select` (057c) is now its only reader.
+// It widens READS only.
 //
 // The name is the name app/(app)/admin/CrossOrgVisibilityToggle.tsx sends, checked against that
 // file rather than assumed (plans/retros/roster-b-picker-and-orgs.md).

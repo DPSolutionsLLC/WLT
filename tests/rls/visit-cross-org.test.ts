@@ -1,44 +1,19 @@
 // @vitest-environment node
 //
-// `cross-org-read` and `cross-org-write` (07-visits.md §Tests).
+// THE WARD SWITCH NO LONGER WIDENS ANY VISIT TABLE — INVERTED BY MIGRATION 099 (ITER-055).
 //
-// The rule: cross-org visibility widens READS ONLY. With the ward setting on, an Elders Quorum
-// leader reads the Relief Society's visit logs and their shared notes; they never gain the right
-// to WRITE one, in either mode.
+// This file used to prove that `cross_org_visibility` ON let an Elders Quorum leader read the
+// Relief Society's visit logs, goals, cadences and stewardship. The user decided on 2026-10-31
+// that each organization's visits are its own, shared ORGANIZATION BY ORGANIZATION by the
+// bishopric (tests/rls/visit-org-sharing.test.ts proves that half). The switch survives for youth
+// follow-ups only.
 //
-// ---------------------------------------------------------------------------
-// WHICH TABLES IT WIDENS — ALL FOUR, AS OF MIGRATION 053
-// ---------------------------------------------------------------------------
-// `ward_allows_cross_org_visibility()` now appears in four SELECT policies, and this file is where
-// every one of them is asserted on both sides of the setting, on one household:
+// So the ON block below now asserts the NARROW shape — the same reads, the same rows, one setting
+// apart, and no difference. Written as an inversion rather than deleted, so the change reads as a
+// decision: if somebody wires the switch back into a visit policy, these are the tests that fail
+// and this is the paragraph telling them what they are undoing (053's reversal, reversed again).
 //
-//   WIDENED    visit_logs_select               (019) — what happened
-//   WIDENED    household_stewardships_select   (052) — whose family it is
-//   WIDENED    visit_goals_select              (053) — what interval they hold it to
-//   WIDENED    household_visit_cadences_select (053) — the override on that interval
-//
-// ---------------------------------------------------------------------------
-// THIS FILE RECORDS A REVERSAL, AND THE OLD SHAPE IS NAMED RATHER THAN DELETED
-// ---------------------------------------------------------------------------
-// Until 2026-08-27 the last two were pointedly NARROW, and the contrast between them and the
-// first two was itself the decision — "facts are shared, judgements are not" (migration 050's
-// header, ITER-019 D6). The assertions below used to prove that goals and cadences did NOT widen.
-//
-// They now prove the opposite, by a product decision taken after walking scenario 048: an org
-// leader saw the other organizations' CHIPS on the all-organizations view but no BANDS, and the
-// page had to explain per chip that the number was being withheld. A ward turning on
-// "cross-organization visibility" is asking for that number.
-//
-// Written as an inversion rather than a rewrite so the change reads as a decision. If somebody
-// later restores the narrow shape, these are the tests that will fail and this is the paragraph
-// telling them what they are undoing.
-//
-// WHAT DID NOT MOVE: every WRITE policy, and visit_private_notes. Wider reads on shared work do
-// not widen a private note by one row (CLAUDE.md rule 5), and the assertions proving both are
-// unchanged below.
-//
-// And in BOTH modes, private notes do not move at all. Cross-org visibility is a setting about
-// an organization's work; a private note was never the organization's (CLAUDE.md rule 5).
+// WHAT DID NOT MOVE: every WRITE policy, and visit_private_notes (CLAUDE.md rule 5).
 //
 // Everything negative is asserted with an AUTHENTICATED client. Asserting with the service-role
 // client would prove nothing — it bypasses RLS entirely. And a refused UPDATE is a ZERO-ROW
@@ -58,7 +33,7 @@ const RS_SHARED = "RS shared: sister is recovering well.";
 const EQ_PRIVATE = "EQ private: a confidence the family asked us to keep.";
 const RS_PRIVATE = "RS private: a confidence the family asked us to keep.";
 
-describe("visit cross-org visibility", () => {
+describe("the ward switch and visits", () => {
   let fixtures: Fixtures;
   let eqPresident: SupabaseClient<Database>;
   let rsPresident: SupabaseClient<Database>;
@@ -368,91 +343,38 @@ describe("visit cross-org visibility", () => {
     });
   });
 
-  describe("with cross-org visibility ON", () => {
+  describe("with the ward switch ON — which no longer reaches visits", () => {
     beforeAll(async () => {
       await setCrossOrgVisibility(true);
     });
 
-    it("shows the EQ president both visit logs", async () => {
-      const ids = await readLogIds(eqPresident);
-
-      expect(ids).toHaveLength(2);
-      expect(ids).toContain(eqLogId);
-      expect(ids).toContain(rsLogId);
+    it("still shows the EQ president exactly one visit log", async () => {
+      expect(await readLogIds(eqPresident)).toEqual([eqLogId]);
     });
 
-    it("shows the EQ president the RS shared notes", async () => {
+    it("still hides the RS shared notes from the EQ president", async () => {
       const { data, error } = await eqPresident
         .from("visit_logs")
         .select("shared_notes")
         .eq("id", rsLogId)
-        .single();
+        .maybeSingle();
 
       expect(error).toBeNull();
-      expect(data?.shared_notes).toBe(RS_SHARED);
+      expect(data).toBeNull();
     });
 
-    // REVERSED BY MIGRATION 053. This read "still shows the EQ president only their own visit
-    // goal", and it was the recorded answer to an open question 07-visits.md §Integration Notes
-    // handed to visits-b: with visibility on, a leader read another organization's logs but not
-    // the goal supplying their denominator.
-    //
-    // The all-organizations view settled it the other way. A band is computed FROM a goal, so
-    // withholding the goal meant showing a chip with no standing on it — which is not what a ward
-    // asks for when it turns this setting on.
-    it("shows the EQ president BOTH visit goals", async () => {
-      const visible = await readGoalIds(eqPresident);
-
-      expect(visible).toHaveLength(2);
-      expect(visible).toContain(eqGoalId);
-      expect(visible).toContain(rsGoalId);
+    it("still shows the EQ president only their own visit goal", async () => {
+      expect(await readGoalIds(eqPresident)).toEqual([eqGoalId]);
     });
 
-    // ALSO REVERSED BY MIGRATION 053, and this is the pair that used to carry migration 050's
-    // reasoning: "the setting widens reads of visit REPORTS so a ward council can read what
-    // happened; a cadence is a CONFIGURATION, not a report."
-    //
-    // THE CADENCE HAD TO FOLLOW THE GOAL, and would have been wrong to leave behind. A band
-    // prefers the per-household override and falls back to the goal, so widening the goal alone
-    // would have rendered a pill computed from the WRONG INTERVAL — the Elders Quorum's 3-month
-    // override on one family reading as their 1-year goal, and the chip saying "on track" about a
-    // family they consider overdue. A number that is visible and wrong is worse than one withheld.
-    it("shows the EQ president BOTH household cadences", async () => {
-      const visible = await readCadenceIds(eqPresident);
-
-      expect(visible).toEqual([eqCadenceId, rsCadenceId].sort());
-      expect(visible).toContain(rsCadenceId);
+    it("still shows the EQ president only their own household cadence", async () => {
+      expect(await readCadenceIds(eqPresident)).toEqual([eqCadenceId]);
     });
 
-    it("shows the RS president both as well", async () => {
-      expect(await readCadenceIds(rsPresident)).toEqual([eqCadenceId, rsCadenceId].sort());
+    it("still shows the RS president only their own stewardship claim", async () => {
+      expect(await readStewardshipIds(rsPresident)).toEqual([rsStewardshipId]);
     });
 
-    // The stewardship table, widened by migration 052 and now sitting alongside the goal and the
-    // cadence rather than in contrast to them. All four say the same thing under this setting,
-    // which is the point of the reversal: an organization's PROGRESS is one object, and handing a
-    // reader three quarters of it was the state scenario 048 found unsatisfying.
-    it("shows the EQ president BOTH organizations' stewardship claims", async () => {
-      const visible = await readStewardshipIds(eqPresident);
-
-      expect(visible).toHaveLength(2);
-      expect(visible).toContain(eqStewardshipId);
-      expect(visible).toContain(rsStewardshipId);
-    });
-
-    it("shows the RS president both as well", async () => {
-      expect(await readStewardshipIds(rsPresident)).toEqual(
-        [eqStewardshipId, rsStewardshipId].sort(),
-      );
-    });
-
-    // THE READ WIDENS AND THE WRITE DOES NOT. Reading who has claimed a family is a fact anybody
-    // on the ward council may need; claiming one on another organization's behalf is not, and no
-    // write policy on this table mentions the setting at all.
-    //
-    // Written against a SPARE household with no existing claim, so the refusal below is the
-    // POLICY refusing and not the unique constraint — a test that passed on the constraint would
-    // keep passing after the policy was removed.
     it("still refuses the EQ president a stewardship claim for the RS", async () => {
       const { error } = await eqPresident.from("household_stewardships").insert({
         ward_id: wardId,
@@ -463,9 +385,6 @@ describe("visit cross-org visibility", () => {
       expect(error).not.toBeNull();
     });
 
-    // The positive control for the test above: the same insert, on the same spare household, for
-    // the caller's OWN organization succeeds. Without it, the refusal would also pass against a
-    // policy that refused everybody everything.
     it("still lets the EQ president claim that household for the EQ", async () => {
       const { data, error } = await eqPresident
         .from("household_stewardships")
@@ -483,8 +402,6 @@ describe("visit cross-org visibility", () => {
       await fixtures.service.from("household_stewardships").delete().eq("id", data!.id);
     });
 
-    // The line this whole slice exists to hold. Wider reads on shared work do not widen private
-    // notes by even one row.
     it("still shows the EQ president no private note but their own", async () => {
       const { data, error } = await eqPresident
         .from("visit_private_notes")

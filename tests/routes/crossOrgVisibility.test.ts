@@ -214,6 +214,22 @@ describe("/api/ward-settings/cross-org-visibility", () => {
     await setCrossOrgVisibility(fixtures, false);
   });
 
+  const setRsSharedWithEq = async (shared: boolean): Promise<void> => {
+    const { error: deleteError } = await fixtures.service
+      .from("visit_org_sharing")
+      .delete()
+      .eq("ward_id", wardId);
+    if (deleteError) throw new Error(deleteError.message);
+    if (!shared) return;
+
+    const { error } = await fixtures.service.from("visit_org_sharing").insert({
+      ward_id: wardId,
+      owner_org_id: fixtures.reliefSocietyId,
+      viewer_org_id: fixtures.eldersQuorumId,
+    });
+    if (error) throw new Error(error.message);
+  };
+
   describe("permissions", () => {
     it("lets the bishop turn it on", async () => {
       await actAs(fixtures, "bishop");
@@ -337,7 +353,7 @@ describe("/api/ward-settings/cross-org-visibility", () => {
       expect(recipients).not.toContain(fixtures.user("bishop").id);
 
       for (const [, row] of created) {
-        expect(row.title).toBe("Visit report visibility changed");
+        expect(row.title).toBe("Youth follow-up visibility changed");
       }
     });
 
@@ -367,17 +383,36 @@ describe("/api/ward-settings/cross-org-visibility", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // What the setting actually does, end to end
+  // What decides the visits feed now — a SHARING GRANT, not this switch (ITER-055, migration 099)
   // ---------------------------------------------------------------------------
   // Through the FEED ROUTE, not through a direct table read: this is what proves the route adds
-  // no org filter of its own and lets the policy decide. And private notes stay absent in BOTH
-  // modes — cross-org visibility is a setting about an organization's shared work, and a private
-  // note was never the organization's (CLAUDE.md rule 5).
-  describe("the feed it governs", () => {
+  // no org filter of its own and lets the policy decide. These used to flip this setting; since
+  // migration 099 visits ignore it and the bishopric shares organization by organization, so the
+  // same assertions now flip a `visit_org_sharing` row (Relief Society → Elders Quorum). One test
+  // proves the switch alone no longer opens anything. Private notes stay absent either way
+  // (CLAUDE.md rule 5).
+  describe("the feed a sharing grant governs", () => {
     const tilesFrom = (body: Record<string, unknown>): FeedTile[] =>
       body.tiles as FeedTile[];
 
-    it("excludes another organization's reports when it is off", async () => {
+    it("no longer includes another organization's reports just because the switch is on", async () => {
+      await setRsSharedWithEq(false);
+      await actAs(fixtures, "bishop");
+      await patchSettings({ crossOrgVisibility: true });
+
+      await actAs(fixtures, "eqPresident");
+      const { body } = await getFeed();
+      const ids = tilesFrom(body).map((tile) => tile.reportId);
+
+      expect(ids).toContain(eqLogId);
+      expect(ids).not.toContain(rsLogId);
+
+      await actAs(fixtures, "bishop");
+      await patchSettings({ crossOrgVisibility: false });
+    });
+
+    it("excludes another organization's reports when nothing is shared", async () => {
+      await setRsSharedWithEq(false);
       await actAs(fixtures, "eqPresident");
 
       const { status, body } = await getFeed();
@@ -388,9 +423,8 @@ describe("/api/ward-settings/cross-org-visibility", () => {
       expect(ids).not.toContain(rsLogId);
     });
 
-    it("includes another organization's reports when it is on", async () => {
-      await actAs(fixtures, "bishop");
-      await patchSettings({ crossOrgVisibility: true });
+    it("includes the Relief Society's reports once the bishopric shares them with the Elders Quorum", async () => {
+      await setRsSharedWithEq(true);
 
       await actAs(fixtures, "eqPresident");
       const { body } = await getFeed();
@@ -401,8 +435,7 @@ describe("/api/ward-settings/cross-org-visibility", () => {
     });
 
     it("names the other organization on the tile rather than leaving it blank", async () => {
-      await actAs(fixtures, "bishop");
-      await patchSettings({ crossOrgVisibility: true });
+      await setRsSharedWithEq(true);
 
       await actAs(fixtures, "eqPresident");
       const { body } = await getFeed();
@@ -417,9 +450,8 @@ describe("/api/ward-settings/cross-org-visibility", () => {
     it.each([
       ["off", false],
       ["on", true],
-    ])("carries no private note text with visibility %s", async (_label, enabled) => {
-      await actAs(fixtures, "bishop");
-      await patchSettings({ crossOrgVisibility: enabled });
+    ])("carries no private note text with sharing %s", async (_label, enabled) => {
+      await setRsSharedWithEq(enabled);
 
       await actAs(fixtures, "eqPresident");
       const { body } = await getFeed();
@@ -434,8 +466,7 @@ describe("/api/ward-settings/cross-org-visibility", () => {
     });
 
     it("counts unread over everything the caller can see", async () => {
-      await actAs(fixtures, "bishop");
-      await patchSettings({ crossOrgVisibility: true });
+      await setRsSharedWithEq(true);
 
       await actAs(fixtures, "eqPresident");
       const { body } = await getFeed();
@@ -457,8 +488,7 @@ describe("/api/ward-settings/cross-org-visibility", () => {
     const tilesFrom = (body: Record<string, unknown>): FeedTile[] => body.tiles as FeedTile[];
 
     beforeEach(async () => {
-      await actAs(fixtures, "bishop");
-      await patchSettings({ crossOrgVisibility: true });
+      await setRsSharedWithEq(true);
       await actAs(fixtures, "eqPresident");
     });
 
@@ -497,12 +527,11 @@ describe("/api/ward-settings/cross-org-visibility", () => {
       expect(filtered).toEqual(all);
     });
 
-    // With visibility off an Elders Quorum leader reads only their own reports, so there is only
+    // With nothing shared an Elders Quorum leader reads only their own reports, so there is only
     // one context and ReportFeed hides the filter entirely — a control with one option cannot do
     // anything.
-    it("offers only the caller's own organization when visibility is off", async () => {
-      await actAs(fixtures, "bishop");
-      await patchSettings({ crossOrgVisibility: false });
+    it("offers only the caller's own organization when nothing is shared with it", async () => {
+      await setRsSharedWithEq(false);
 
       await actAs(fixtures, "eqPresident");
       const contexts = (await getFeed()).body.contexts as FeedContext[];

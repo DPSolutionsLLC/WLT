@@ -141,7 +141,7 @@ Organizations are configurable entities — new orgs can be added without code c
 ### Org President (EQ, RS, YM, YW, Primary, Sunday School)
 - Full access to their organization's visit tracker and goals
 - Access to youth activity support (YM and YW presidents only)
-- View shared visit reports from other orgs (when cross-org visibility is enabled)
+- View shared visit reports from other orgs (when the bishopric has shared them with yours)
 - No access to sacrament planning, tithing calculator, or other orgs' internal data
 
 ### Org Counselor
@@ -566,7 +566,7 @@ Based on the standard bifold format (Buffalo Ward template):
 
 ## Module 9: Visit Tracker
 
-Available to all organizations. Each org manages its own visit goals and logs independently. The bishopric can see all orgs' data; org members see only their own (and shared summaries if cross-org visibility is enabled).
+Available to all organizations. Each org manages its own visit goals and logs independently. The bishopric can see all orgs' data; org members see only their own, plus any organization the bishopric has shared with theirs.
 
 ### Visit Goal Configuration
 - Each org sets its own visit goal: **"visit every household once every X"**, where X is an amount
@@ -589,7 +589,7 @@ Available to all organizations. Each org manages its own visit goals and logs in
 
 ### Household Visit Records
 - Date, visit type (`In-Home Visit`), conducted by, shared notes, private notes
-- **Shared notes** — visible per cross-org visibility settings
+- **Shared notes** — visible to the organization, the bishopric, and organizations the bishopric shares them with
 - **Private notes** — visible only to the individual who wrote them, always
 
 ### Flagging for Ward Council
@@ -621,11 +621,14 @@ Available to all organizations. Each org manages its own visit goals and logs in
 - It is counted in **nothing**: no numerator, no denominator. The dashboard says so out loud rather
   than letting the total quietly shrink
 
-### Cross-Org Visibility
-- Configurable by bishopric admin (on/off)
-- When on: all org participants can view other orgs' visit summaries and shared-note reports
-- When off: each org sees only their own data
-- Management of goals and entries always remains confined to the org's own members
+### Sharing Visits Between Organizations
+- Each organization's visits are its own by default
+- The bishopric decides, organization by organization, who else may see them — e.g. let the Elders
+  Quorum see the Bishopric's visits — on the Visits page
+- Sharing lets other leaders READ visits, goals and progress; never edit them, and never a private note
+- The bishopric always sees every organization's visits
+- The "Every organization at once" view is the bishopric's
+- (The old ward-wide switch now covers youth follow-ups only)
 
 ### Return & Report Feed
 - Tile-based feed of all visit reports

@@ -6,6 +6,11 @@ tags: [visits, full, stewardship, cross-org]
 prerequisites: none
 ---
 
+> **⚠️ PARTLY SUPERSEDED BY ITER-055 (2026-10-31, migration 099).** The all-organizations page is
+> now the **bishopric's alone**, and the ward switch no longer reaches visits — the bishopric
+> shares each organization's visits one organization at a time. The steps that sign in as the RS
+> president on this page no longer apply; the bishop's steps still do. See scenario 099.
+
 ## Purpose
 
 This view has no content of its own. Its entire content is **the relationship between three

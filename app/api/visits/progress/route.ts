@@ -5,6 +5,7 @@ import { respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { readVisitProgress } from "@/lib/visits/progress";
+import { orgIdsSharedWith, readVisitSharing } from "@/lib/visits/sharing";
 import type { Role } from "@/types/domain";
 
 // The progress dashboard's read.
@@ -32,8 +33,9 @@ function isBishopric(role: Role): boolean {
 // ---------------------------------------------------------------------------
 // A CALLER CANNOT NAME ANOTHER ORGANIZATION'S PROGRESS INTO EXISTENCE
 // ---------------------------------------------------------------------------
-// An org leader's `?orgId=` is IGNORED, not honoured and not refused: their own organization is
-// the only one they have progress for. RLS would return no logs for anybody else's anyway, and a
+// An org leader's `?orgId=` is IGNORED, not honoured and not refused, unless it names an
+// organization the bishopric has shared with theirs (ITER-055). RLS would return no logs for any
+// other anyway, and a
 // dashboard reading "0 of 12 visited" for the Relief Society is a confusing way for the Elders
 // Quorum to be told "not yours" — it looks like a Relief Society that has done nothing.
 //
@@ -53,7 +55,17 @@ export async function GET(request: Request) {
     const searchParams = new URL(request.url).searchParams;
     const query = querySchema.parse({ orgId: searchParams.get("orgId") ?? undefined });
 
-    const orgId = isBishopric(user.role) ? query.orgId : user.orgId;
+    // The bishopric may ask for any organization. Anybody else gets their own, or an organization
+    // the bishopric has shared with theirs (ITER-055) — never one it has not, even though RLS would
+    // only return an empty table: an empty table reads as "nobody has been visited", which is false.
+    const orgId = isBishopric(user.role)
+      ? query.orgId
+      : query.orgId !== undefined &&
+          orgIdsSharedWith(await readVisitSharing(user.wardId, supabase), user.orgId).includes(
+            query.orgId,
+          )
+        ? query.orgId
+        : user.orgId;
 
     if (!orgId) {
       return NextResponse.json(

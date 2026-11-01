@@ -5,7 +5,6 @@ import { BISHOPRIC_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions"
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { readAllOrgProgress } from "@/lib/visits/allOrgProgress";
-import { readCrossOrgVisibility } from "@/lib/ward/crossOrgVisibility";
 
 // Every household once, with each organization's standing beside it, at /visits/all-organizations.
 //
@@ -53,11 +52,17 @@ export default async function AllOrganizationsPage() {
   }
 
   const isBishopric = (BISHOPRIC_ROLES as readonly string[]).includes(user.role);
-  const crossOrgVisibility = await readCrossOrgVisibility(user.wardId, supabase);
 
-  if (!isBishopric && !crossOrgVisibility) {
+  // THE BISHOPRIC'S ALONE since ITER-055 (P4). The "unclaimed" count below is only honest while
+  // every organization's goal is readable, and per-organization sharing would give two leaders two
+  // different counts from the same data. A leader the bishopric has shared another organization
+  // with reads it on /visits, one organization at a time.
+  if (!isBishopric) {
     return (
-      <NotPermitted detail="Seeing every organization at once is turned off for this ward. A member of the bishopric can turn on cross-organization visibility." />
+      <NotPermitted
+        detail="Every organization at once is shown to the bishopric only. Organizations the bishopric has shared with yours are on the Visits page."
+        alternativeLink={{ href: "/visits", label: "Your Visits page" }}
+      />
     );
   }
 

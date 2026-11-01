@@ -2,6 +2,9 @@
 //
 // `visit_participants` and `visit_appointments` under RLS, in both cross-org modes.
 //
+// SINCE ITER-055 (migration 099) the ward switch no longer reaches these tables; a sharing grant
+// does (tests/rls/visit-org-sharing.test.ts). The ON block below is kept, inverted, as the proof.
+//
 // The rule these two tables inherit from `visit_logs`: CROSS-ORG VISIBILITY WIDENS READS ONLY.
 // With the ward setting on, an Elders Quorum leader reads who went on a Relief Society visit;
 // they never gain the right to WRITE one, in either mode. Migration 046 puts
@@ -266,20 +269,20 @@ describe("visit participants and appointments under RLS", () => {
       await setCrossOrgVisibility(true);
     });
 
-    it("shows the EQ president both visits' participants", async () => {
+    // INVERTED by ITER-055 (migration 099): the switch governs youth follow-ups only. Another
+    // organization's visits are reached through a sharing grant, asserted in visit-org-sharing.
+    it("still shows the EQ president only their own visit's participants", async () => {
       const ids = await readParticipantIds(eqPresident);
 
-      expect(ids).toHaveLength(2);
-      expect(ids).toContain(eqParticipantId);
-      expect(ids).toContain(rsParticipantId);
+      expect(ids).toEqual([eqParticipantId]);
+      expect(ids).not.toContain(rsParticipantId);
     });
 
-    it("shows the EQ president both appointments", async () => {
+    it("still shows the EQ president only their own appointment", async () => {
       const ids = await readAppointmentIds(eqPresident);
 
-      expect(ids).toHaveLength(2);
-      expect(ids).toContain(eqAppointmentId);
-      expect(ids).toContain(rsAppointmentId);
+      expect(ids).toEqual([eqAppointmentId]);
+      expect(ids).not.toContain(rsAppointmentId);
     });
 
     // The line the whole slice holds. Wider reads on who went do not widen private notes by even

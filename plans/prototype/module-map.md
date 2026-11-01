@@ -305,6 +305,17 @@ label**. ⚠️ **Do not port the prototype's date handling** — [decisions.md]
 3. **`wardVisitSettings` as a JSON blob with a partial-merge setter**, exercised correctly while
    it still holds one key.
 
+> **ITER-055 — Bishopric Visits (2026-10-31, plan [../bishopric-visits.md](../bishopric-visits.md)).**
+> Delivers this row's re-skin and items 1–2, in eight slices, plus behaviours the prototype does not
+> have: **per-organization sharing set by the bishopric** (bv1, migration 099 — **item 3 is
+> SUPERSEDED**: the only key `wardVisitSettings` ever held was the cross-org switch, and visits no
+> longer read it), sweep goals with an end and a Goal history (bv4), "visited, but still needs a
+> visit" as *partly reached* (bv3), assigning households to the bishop or a counselor through To Do
+> (bv5), companions with accept/decline (bv6 — item 1), follow-up to-dos and "discuss in bishopric
+> meeting" (bv7), and grouping by street (bv8). Navigation stays the prototype's **sub-view
+> machine** (§6): Households · My visits · Feed · All organizations (bishopric) · Goal history ·
+> Sharing (bishopric).
+
 ### 2.10 To Do — NEW
 Build this **early** — Sacrament's accept/decline, Agendas' delegation, My Appointments and the
 Zoom referral flow all hang off it. Separate do-date and due-date. Steps with **computed**

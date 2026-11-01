@@ -729,21 +729,43 @@ UNIQUE (household_id, org_id)
 **Three policies, not four. There is no UPDATE policy and its absence is a decision** — membership
 is presence or absence, and the row carries no payload to update.
 
-**The SELECT is widened by cross-org visibility; the writes are not.** Reading who has claimed a
-family is a fact anybody on the ward council may need; claiming one on another organization's
-behalf is not, and no write policy on any of these tables mentions the setting.
+**SINCE MIGRATION 099 (ITER-055) SHARING IS PER ORGANIZATION, SET BY THE BISHOPRIC.** The ward
+switch (`ward_allows_cross_org_visibility()`) no longer appears in any visit policy; it governs
+youth follow-ups only. Six SELECT policies now read
+`ward_id = current_ward_id() and (is_bishopric() or visit_org_visible_to_caller(org_id))`:
 
-`ward_allows_cross_org_visibility()` appears in exactly **four** SELECT policies:
+| Policy | What it shares |
+|---|---|
+| `visit_logs_select` | what happened |
+| `household_stewardships_select` | whose family it is |
+| `visit_goals_select` | what interval they hold it to |
+| `household_visit_cadences_select` | the override on that interval |
+| `visit_appointments_select` | what is booked |
+| `visit_participants_select` | who went |
 
-| Policy | Migration | What it shares |
-|---|---|---|
-| `visit_logs_select` | 019 | what happened |
-| `household_stewardships_select` | 052 | whose family it is |
-| `visit_goals_select` | 053 | what interval they hold it to |
-| `household_visit_cadences_select` | 053 | the override on that interval |
+`visit_org_visible_to_caller(owner)` is true for the reader's own organization, or when a
+`visit_org_sharing` row shares the owner with the reader's organization. **A null owner is the
+Bishopric** (bishopric visits are stored with `org_id = null`) and is reached only through a grant on
+the ward's `bishopric`-typed organization. **No write policy moved**, and `visit_private_notes` is
+untouched and always will be (rule 5).
 
-Together they are one object — an organization's **progress** — and migration 053 stopped handing
-readers three quarters of it. `visit_private_notes` is untouched and always will be (rule 5).
+### `visit_org_sharing` (migration 099)
+
+```sql
+id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
+owner_org_id    uuid NOT NULL  -- whose visits    (owner_org_id, ward_id) → organizations
+viewer_org_id   uuid NOT NULL  -- who may read them (viewer_org_id, ward_id) → organizations
+created_by      uuid REFERENCES users(id) ON DELETE SET NULL
+created_at      timestamptz DEFAULT now()
+UNIQUE (owner_org_id, viewer_org_id), CHECK (owner_org_id <> viewer_org_id)
+```
+
+**A SELECT policy (ward-wide) and no write policy.** The only writer is `PUT /api/visit-sharing`
+(service role, behind `visits.manage_sharing` — non-overridable — AND a bishopric calling), which
+replaces the ward's whole set, audits `visit_sharing_updated` and notifies the other two. The
+Bishopric is refused as a viewer. Day one: a ward whose switch was on got every pair except those
+involving the Bishopric.
 
 ### `visit_logs`
 ```sql
@@ -753,7 +775,7 @@ org_id          uuid REFERENCES organizations(id)
 household_id    uuid REFERENCES households(id)
 visited_by      uuid REFERENCES users(id)
 visit_date      date NOT NULL
-shared_notes    text  -- visible per cross-org visibility settings
+shared_notes    text  -- visible to the organization, the bishopric, and organizations it is shared with (099)
 flagged_for_ward_council    boolean DEFAULT false
 flag_sent_at    timestamptz
 created_at      timestamptz DEFAULT now()
@@ -1419,7 +1441,7 @@ ward-scoped, inheriting their organization through the profile. Every write poli
 explicit `org_id IS NULL` branch: `org_id = current_org_id()` is NULL rather than true when both
 sides are null, so without it a ward-wide row would be invisible to its own author
 
-**Cross-org visibility** — visit_logs shared_notes readable by all org users when `ward.settings->>'cross_org_visibility' = 'true'`
+**Visit sharing** — since migration 099 an organization's visits are readable by its own leaders, the bishopric, and organizations the bishopric has shared them with (`visit_org_sharing`). `ward.settings->>'cross_org_visibility'` now governs youth follow-ups (`activity_logs`) only
 
 **Sacrament assignments** — `sacrament_assignments` and `sacrament_rotation_pools`: bishopric can read/write; active assignment manager user can read and update assignments only; no other roles
 
@@ -1993,8 +2015,8 @@ PATCH  /api/admin/ward-settings  Update ward settings (with bishopric notificati
     /[household_id]/page.tsx   Household visit history
     /feed/page.tsx             Return & report feed
     /all-organizations/page.tsx  One row per household, every org's standing beside it. Gated on
-                               visits.view AND (bishopric OR cross-org visibility) — the link on
-                               /visits is ABSENT rather than present-and-refusing (ITER-007).
+                               visits.view AND bishopric (ITER-055) — the link on /visits is
+                               ABSENT rather than present-and-refusing (ITER-007).
   /youth/
     /page.tsx                  Youth overview — ONE CARD PER YOUNG PERSON, searchable, with one
                                pill per activity carrying that activity's SUPPORT PERCENTAGE:

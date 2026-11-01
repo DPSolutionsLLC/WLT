@@ -3966,6 +3966,62 @@ export type Database = {
           },
         ]
       }
+      visit_org_sharing: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          owner_org_id: string
+          viewer_org_id: string
+          ward_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          owner_org_id: string
+          viewer_org_id: string
+          ward_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          owner_org_id?: string
+          viewer_org_id?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visit_org_sharing_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visit_org_sharing_owner_fkey"
+            columns: ["owner_org_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "visit_org_sharing_viewer_fkey"
+            columns: ["viewer_org_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "visit_org_sharing_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       visit_participants: {
         Row: {
           created_at: string
@@ -4972,6 +5028,10 @@ export type Database = {
       unit_ancestor_ids: { Args: { target_unit: string }; Returns: string[] }
       visit_log_is_writable_by_caller: {
         Args: { target_visit_log_id: string }
+        Returns: boolean
+      }
+      visit_org_visible_to_caller: {
+        Args: { p_owner_org: string }
         Returns: boolean
       }
       ward_allows_cross_org_visibility: { Args: never; Returns: boolean }

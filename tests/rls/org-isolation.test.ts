@@ -129,15 +129,16 @@ describe("organization isolation", () => {
       await setCrossOrgVisibility(fixtures, true);
     });
 
-    it("shows another organization's shared notes", async () => {
+    // INVERTED by ITER-055 (migration 099): the switch governs youth follow-ups only. Another
+    // organization's visits are reached through a sharing grant (tests/rls/visit-org-sharing).
+    it("still hides another organization's shared notes", async () => {
       const { data, error } = await eqPresident
         .from("visit_logs")
         .select("id, shared_notes")
         .eq("id", reliefSocietyLogId);
 
       expect(error).toBeNull();
-      expect(data?.map((row) => row.id)).toEqual([reliefSocietyLogId]);
-      expect(data?.[0]?.shared_notes).toBe(`RS ${fixtures.runId}`);
+      expect(data).toEqual([]);
     });
 
     // The setting widens reads only. This is the assertion that keeps a future "make

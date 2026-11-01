@@ -73,9 +73,8 @@ export default async function YouthFeedPage() {
             narrowing most. "Why can I see the Young Women's games but not their follow-ups?" is a
             question this page answers rather than one a leader takes to a counselor.
 
-            The youth wording rather than CROSS_ORG_VISIBILITY_STATE_LABELS, whose two sentences
-            both say "visit reports" — and whose "off" branch has nothing to say about a calendar
-            that stayed open. */}
+            The youth wording. The visit-report labels it was once contrasted with are gone
+            (ITER-055): visits no longer read this switch. */}
         <p className="mt-2 text-sm text-muted">
           {crossOrgVisibility
             ? YOUTH_CROSS_ORG_VISIBILITY_STATE_LABELS.on

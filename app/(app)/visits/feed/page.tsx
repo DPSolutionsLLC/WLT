@@ -1,13 +1,17 @@
 import Link from "next/link";
 import { VisitReportFeed } from "@/app/(app)/visits/feed/VisitReportFeed";
 import { NotPermitted } from "@/components/ui/NotPermitted";
-import { can, resolveRoleAccess } from "@/lib/auth/permissions";
+import { listWardOrganizations } from "@/lib/auth/adminUsers";
+import { BISHOPRIC_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { readCrossOrgVisibility } from "@/lib/ward/crossOrgVisibility";
 import { readVisitReportFeed } from "@/lib/visits/reportFeed";
 import { DEFAULT_FEED_PAGE_SIZE } from "@/lib/validation/report";
-import { CROSS_ORG_VISIBILITY_STATE_LABELS } from "@/types/domain";
+import {
+  describeVisitSharingForReader,
+  orgIdsSharedWith,
+  readVisitSharing,
+} from "@/lib/visits/sharing";
 
 // The return-and-report feed, at /visits/feed.
 //
@@ -34,10 +38,20 @@ export default async function VisitFeedPage() {
     );
   }
 
-  const [page, crossOrgVisibility] = await Promise.all([
+  const [page, sharingGrants, organizations] = await Promise.all([
     readVisitReportFeed(user.wardId, { limit: DEFAULT_FEED_PAGE_SIZE }, null, supabase),
-    readCrossOrgVisibility(user.wardId, supabase),
+    readVisitSharing(user.wardId, supabase),
+    listWardOrganizations(user.wardId, supabase),
   ]);
+
+  const isBishopric = (BISHOPRIC_ROLES as readonly string[]).includes(user.role);
+  const sharedOrgIds = orgIdsSharedWith(sharingGrants, user.orgId);
+  const sharingSentence = describeVisitSharingForReader(
+    isBishopric,
+    organizations
+      .filter((organization) => sharedOrgIds.includes(organization.id))
+      .map((organization) => organization.name),
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -57,15 +71,10 @@ export default async function VisitFeedPage() {
           marking a report read here does not mark it read for anybody else.
         </p>
 
-        {/* WHICH MODE THIS WARD IS IN, in words. "Why can I see the Relief Society's visits?" is a
-            question the page should answer rather than leave a leader to ask a counselor — which
-            is why GET /api/ward-settings/cross-org-visibility is gated on visits.view and not on
-            admin. */}
-        <p className="mt-2 text-sm text-muted">
-          {crossOrgVisibility
-            ? CROSS_ORG_VISIBILITY_STATE_LABELS.on
-            : CROSS_ORG_VISIBILITY_STATE_LABELS.off}
-        </p>
+        {/* WHAT THIS READER CAN SEE, in words (ITER-055). "Why can I see the Relief Society's
+            visits?" is a question the page should answer rather than leave a leader to ask a
+            counselor. */}
+        <p className="mt-2 text-sm text-muted">{sharingSentence}</p>
       </div>
 
       <VisitReportFeed initialPage={page} ownOrganizationId={user.orgId} />

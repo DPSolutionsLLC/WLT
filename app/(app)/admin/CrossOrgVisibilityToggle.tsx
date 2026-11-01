@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import {
   CROSS_ORG_VISIBILITY_SCOPE_NOTE,
-  CROSS_ORG_VISIBILITY_STATE_LABELS,
+  YOUTH_CROSS_ORG_VISIBILITY_STATE_LABELS,
 } from "@/types/domain";
 
 // The ward's cross-org visit report visibility, as a switch.
@@ -42,11 +42,11 @@ export function CrossOrgVisibilityToggle({
 
     const confirmed = window.confirm(
       next
-        ? `Turn cross-organization visibility ON?\n\n${CROSS_ORG_VISIBILITY_STATE_LABELS.on}\n\n` +
+        ? `Turn cross-organization visibility ON?\n\n${YOUTH_CROSS_ORG_VISIBILITY_STATE_LABELS.on}\n\n` +
             `${CROSS_ORG_VISIBILITY_SCOPE_NOTE}\n\n` +
             "Private notes are never shared, in either mode."
-        : `Turn cross-organization visibility OFF?\n\n${CROSS_ORG_VISIBILITY_STATE_LABELS.off}\n\n` +
-            "Leaders outside an organization will stop seeing its reports.",
+        : `Turn cross-organization visibility OFF?\n\n${YOUTH_CROSS_ORG_VISIBILITY_STATE_LABELS.off}\n\n` +
+            "Leaders outside an organization will stop seeing its youth follow-ups.",
     );
 
     if (!confirmed) return;
@@ -89,7 +89,7 @@ export function CrossOrgVisibilityToggle({
   return (
     <Card>
       <h2 className="text-base font-semibold text-foreground">
-        Cross-organization visit reports
+        Cross-organization youth follow-ups
       </h2>
 
       <p className="mt-2 text-sm text-foreground">
@@ -97,14 +97,19 @@ export function CrossOrgVisibilityToggle({
           Currently {isEnabled ? "on" : "off"}.
         </span>{" "}
         {isEnabled
-          ? CROSS_ORG_VISIBILITY_STATE_LABELS.on
-          : CROSS_ORG_VISIBILITY_STATE_LABELS.off}
+          ? YOUTH_CROSS_ORG_VISIBILITY_STATE_LABELS.on
+          : YOUTH_CROSS_ORG_VISIBILITY_STATE_LABELS.off}
       </p>
 
       <p className="mt-2 text-sm text-muted">{CROSS_ORG_VISIBILITY_SCOPE_NOTE}</p>
 
       <p className="mt-2 text-sm text-muted">
         Private notes are never shared, whichever way this is set.
+      </p>
+
+      <p className="mt-2 text-sm text-muted">
+        This no longer affects visits. Who can see each organization&apos;s visits is set by the
+        bishopric on the Visits page.
       </p>
 
       <FormError message={errorMessage} />

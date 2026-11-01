@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/Card";
 
 export type NotPermittedProps = {
   detail?: string;
+  alternativeLink?: { href: string; label: string };
 };
 
 // A refused page renders this instead of throwing. A ForbiddenError escaping a Server Component
@@ -11,7 +12,7 @@ export type NotPermittedProps = {
 //
 // Lives in components/ui/ rather than under one module because /admin and /roster both use it
 // (conventions.md §Components: a component used by two modules moves, it is not copied).
-export function NotPermitted({ detail }: NotPermittedProps) {
+export function NotPermitted({ detail, alternativeLink }: NotPermittedProps) {
   return (
     <Card>
       {/* Fraunces, per P1's type pairing — the display face carries titles. */}
@@ -20,12 +21,22 @@ export function NotPermitted({ detail }: NotPermittedProps) {
         {detail ?? "Your role does not have access to this page."} If you think that is wrong,
         ask a member of the bishopric.
       </p>
-      <Link
-        href="/dashboard"
-        className="mt-4 inline-block text-sm text-primary underline underline-offset-4"
-      >
-        Back to the dashboard
-      </Link>
+      <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+        {alternativeLink ? (
+          <Link
+            href={alternativeLink.href}
+            className="inline-block text-sm text-primary underline underline-offset-4"
+          >
+            {alternativeLink.label}
+          </Link>
+        ) : null}
+        <Link
+          href="/dashboard"
+          className="inline-block text-sm text-primary underline underline-offset-4"
+        >
+          Back to the dashboard
+        </Link>
+      </div>
     </Card>
   );
 }

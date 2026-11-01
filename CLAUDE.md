@@ -725,7 +725,27 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   is excluded from claiming, so Young Men, Young Women and Sunday School each claim every household
   and make "unclaimed" permanently false. Deciding it by "has a visit goal" does **not** work —
   goals are not readable across organizations, so the answer would differ per reader.
-- **Cross-org visibility widens an organization's whole PROGRESS — DECIDED 2026-08-27, REVERSING
+- **EACH ORGANIZATION'S VISITS ARE ITS OWN; THE BISHOPRIC SHARES THEM ONE ORGANIZATION AT A TIME —
+  DECIDED 2026-10-31 (ITER-055 slice bv1, migration 099, plans/bishopric-visits.md). SUPERSEDES THE
+  TWO ENTRIES BELOW for visits.** `visit_org_sharing (owner_org_id, viewer_org_id)` lets the
+  viewer's leaders READ the owner's visits; nothing else is shared. Six SELECT policies (logs, goals,
+  cadences, stewardships, appointments, participants) ask `visit_org_visible_to_caller(org_id)`
+  beside `is_bishopric()`; **no write policy moved and `visit_private_notes` never does**. The table
+  has **a SELECT policy and no write policy**: `PUT /api/visit-sharing` (service role, behind
+  `visits.manage_sharing` — non-overridable — AND a bishopric calling) is the only writer, and
+  notifies the other two. **A null `org_id` is the Bishopric** — bishopric visits stay stored that
+  way (P1, revised with the user) — and is reached only through a grant on the ward's
+  `bishopric`-typed organization, with no "own organization" arm, so day one moved nobody. Day one:
+  a ward whose switch was on got every pair **except the Bishopric's** (no ward had it on). **The
+  ward switch now governs youth follow-ups only**; the admin toggle says so.
+  **The all-organizations page is the bishopric's alone** (P4): its unclaimed count is only
+  uniformly evaluable while every goal is readable, and per-pair grants would give two readers two
+  answers. A leader with grants reads each shared organization on `/visits` through the selector,
+  read-only. **The Bishopric is never a selector choice, for anybody** (defect 099-D1): its visits
+  are `org_id = null` and the progress table filters on an organization id, so it always read
+  "never visited". Bishopric visits are read in Recent visits and the feed. **Cost, named:** the ward clerk and executive secretary usually have no organization, so
+  a grant reaches them nothing — do not special-case a role (rule 2).
+- **SUPERSEDED for visits by ITER-055 (above).** **Cross-org visibility widens an organization's whole PROGRESS — DECIDED 2026-08-27, REVERSING
   ITER-018.** `ward_allows_cross_org_visibility()` now appears in **four** SELECT policies:
   `visit_logs_select` (019), `household_stewardships_select` (052), and — added by migration 053 —
   `visit_goals_select` and `household_visit_cadences_select`.
@@ -741,7 +761,7 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   four tables on **both** sides of the setting, and the reversal is written there as an inversion
   rather than a rewrite so it reads as a decision. No `if (isBishopric)` decides what is readable
   anywhere (rule 2).
-- **An organization claims households only if it has a visit goal — DECIDED 2026-08-27.** This
+- **An organization claims households only if it has a visit goal — DECIDED 2026-08-27.** _Since ITER-055 the all-organizations page is bishopric-only, which keeps this rule uniformly evaluable._ This
   replaced a hardcoded "not the Bishopric" exclusion in `lib/visits/allOrgProgress.ts`, which was a
   special case standing in for the general rule it could not express: a ward has seven
   organizations, so Young Men, Young Women and Sunday School each claimed **every** household

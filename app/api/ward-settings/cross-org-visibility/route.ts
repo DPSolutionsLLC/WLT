@@ -12,7 +12,7 @@ import {
 import { crossOrgVisibilitySchema } from "@/lib/validation/visit";
 import {
   CROSS_ORG_VISIBILITY_SCOPE_NOTE,
-  CROSS_ORG_VISIBILITY_STATE_LABELS,
+  YOUTH_CROSS_ORG_VISIBILITY_STATE_LABELS,
 } from "@/types/domain";
 
 // Whether one organization's leaders may read another organization's visit reports.
@@ -104,10 +104,10 @@ export async function PATCH(request: Request) {
       await notifyOtherBishopric({
         wardId: user.wardId,
         actingUserId: user.id,
-        title: "Visit report visibility changed",
+        title: "Youth follow-up visibility changed",
         description: crossOrgVisibility
-          ? `${CROSS_ORG_VISIBILITY_STATE_LABELS.on} ${CROSS_ORG_VISIBILITY_SCOPE_NOTE}`
-          : CROSS_ORG_VISIBILITY_STATE_LABELS.off,
+          ? `${YOUTH_CROSS_ORG_VISIBILITY_STATE_LABELS.on} ${CROSS_ORG_VISIBILITY_SCOPE_NOTE}`
+          : YOUTH_CROSS_ORG_VISIBILITY_STATE_LABELS.off,
       });
     }
 

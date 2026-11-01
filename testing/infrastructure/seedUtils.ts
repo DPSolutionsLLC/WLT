@@ -1395,6 +1395,9 @@ export async function createHouseholdStewardship(options: {
 export async function createVisitLog(options: {
   id?: string;
   org: TestOrgKey;
+  // TRUE writes `org_id = null`, which is how POST /api/visits stores a visit the BISHOPRIC
+  // records (ITER-055 P1). `org` still names the id the fallback uses; pass "bishopric".
+  bishopricWithNoOrg?: boolean;
   householdId?: string;
   recordedBy?: string;
   visitDate: string;
@@ -1413,7 +1416,7 @@ export async function createVisitLog(options: {
   return insertRow("visit_logs", {
     id: options.id ?? testUuid(`visit:${options.org}:${options.visitDate}`),
     ward_id: TEST_WARD_ID,
-    org_id: TEST_ORG_IDS[options.org],
+    org_id: options.bishopricWithNoOrg ? null : TEST_ORG_IDS[options.org],
     household_id: options.householdId ?? null,
     recorded_by: options.recordedBy ?? null,
     visit_date: options.visitDate,
@@ -1512,6 +1515,20 @@ export async function createReportReadStatus(options: {
 
 // The author is the only person who will ever be able to read this back through the app
 // (CLAUDE.md rule 5), so userId is required rather than optional.
+// One organization's visits shared with another (ITER-055, migration 099). The viewer's leaders may
+// READ the owner's visits; nothing else. A grant for the Bishopric's visits names `bishopric` as
+// the owner even though those visits are stored with no organization.
+export async function createVisitOrgSharing(options: {
+  owner: TestOrgKey;
+  viewer: TestOrgKey;
+}): Promise<string> {
+  return insertRow("visit_org_sharing", {
+    ward_id: TEST_WARD_ID,
+    owner_org_id: TEST_ORG_IDS[options.owner],
+    viewer_org_id: TEST_ORG_IDS[options.viewer],
+  });
+}
+
 export async function createVisitPrivateNote(options: {
   visitLogId: string;
   userId: string;

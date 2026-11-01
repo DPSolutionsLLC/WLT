@@ -1,7 +1,8 @@
 # ITER-055: Bishopric Visits — the ward-wide visiting effort
 
 **Type:** Modification
-**Status:** Backlogged
+**Status:** In Progress
+**Plan:** plans/bishopric-visits.md
 **Created:** 2026-10-28
 
 ## Summary
@@ -99,3 +100,13 @@ nearby families together. Not a map.
 - Does the bishopric keep separate goals per counselor, or one shared ward goal?
 - Which agenda does "discuss in bishopric meeting" feed — the next bishopric meeting agenda?
 - Should the existing org-level Visits (EQ / RS) stay as is for other organizations?
+
+## Decisions (settled with the user 2026-10-31, during `/planning`)
+- Each organization's visits are private by default; the **bishopric decides, per organization,
+  which other organizations may see them**. This replaces the ward-wide switch for visits; a ward
+  with the switch on gets every pair except from the Bishopric on day one.
+- One shared bishopric goal. "Still needs a visit" is a separate **partly reached** count; its
+  reason is a short fixed list plus the notes.
+- Reassigning closes the old to-do and creates a new one. "Discuss in bishopric meeting" lands on
+  the next bishopric agenda (one line only).
+- Planning decisions P1–P16 and departures P-A / P-B are in the plan.

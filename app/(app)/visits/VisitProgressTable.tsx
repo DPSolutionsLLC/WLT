@@ -23,7 +23,8 @@ import { formatVisitDate } from "@/lib/visits/visitDates";
 // and a sort parameter the handler does not read is silently ignored rather than refused
 // (plans/retros/roster-b-picker-and-orgs.md), which is a bug that looks like a working button.
 //
-// Only the ORGANIZATION is a refetch, and only the bishopric can change it.
+// Only the ORGANIZATION is a refetch. The bishopric can switch to any organization; another leader
+// can switch only to the organizations the bishopric has shared with theirs (ITER-055), read-only.
 
 export const VISIT_PROGRESS_QUERY_KEY = "visit-progress";
 
@@ -35,6 +36,9 @@ export type VisitProgressTableProps = {
   // with the route's would be a UI offering a control the API refuses.
   canSwitchOrganizations: boolean;
   canManageGoals: boolean;
+  // The one organization whose cadences this reader may change, or null for every organization
+  // (the bishopric). A shared organization is READ-ONLY: migration 099 widens reads, never writes.
+  editableOrgId: string | null;
 };
 
 type SortColumn =
@@ -212,6 +216,7 @@ export function VisitProgressTable({
   organizations,
   canSwitchOrganizations,
   canManageGoals,
+  editableOrgId,
 }: VisitProgressTableProps) {
   const [orgId, setOrgId] = useState<string | null>(initialProgress?.orgId ?? null);
   const [sort, setSort] = useState<Sort>({ column: "priority", ascending: true });
@@ -268,7 +273,7 @@ export function VisitProgressTable({
         orgId={orgId!}
         cadence={row.priority.cadence}
         source={row.priority.cadenceSource}
-        canManage={canManageGoals}
+        canManage={canManageGoals && (editableOrgId === null || editableOrgId === orgId)}
       />
     );
   }

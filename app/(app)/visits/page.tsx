@@ -6,6 +6,7 @@ import {
   VisitLogForm,
   type AppointmentPrefill,
 } from "@/app/(app)/visits/VisitLogForm";
+import { SharingPanel } from "@/app/(app)/visits/SharingPanel";
 import { StewardshipPanel } from "@/app/(app)/visits/StewardshipPanel";
 import { VisitGoalPanel } from "@/app/(app)/visits/VisitGoalPanel";
 import { VisitProgressTable } from "@/app/(app)/visits/VisitProgressTable";
@@ -27,8 +28,8 @@ import {
 import { listVisitGoals, listVisitLogs } from "@/lib/visits/queries";
 import { readStewardshipScope } from "@/lib/visits/stewardship";
 import { compareStewardshipDrift, toStewardshipScope } from "@/lib/visits/stewardshipScope";
-import { canManageVisitLog } from "@/lib/visits/visitOwnership";
-import { readCrossOrgVisibility } from "@/lib/ward/crossOrgVisibility";
+import { orgIdsSharedWith, readVisitSharing } from "@/lib/visits/sharing";
+import { canManageVisitLog, canManageVisitSharing } from "@/lib/visits/visitOwnership";
 import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import {
   VISIT_ARRANGEMENT_LABELS,
@@ -86,13 +87,13 @@ export default async function VisitsPage({
   // The ward's zone enters ONCE, beside the clock and for the same reason: an appointment is a
   // timestamptz, and formatting one in "the reader's zone" is impossible on a server, which is
   // where a client component renders first. formatAppointmentInstant's header has the whole story.
-  const [visits, goals, organizations, appointments, crossOrgVisibility, wardTimeZone] =
+  const [visits, goals, organizations, appointments, sharingGrants, wardTimeZone] =
     await Promise.all([
       listVisitLogs(user.wardId, {}, supabase),
       listVisitGoals(user.wardId, supabase),
       listWardOrganizations(user.wardId, supabase),
       listAppointments(user.wardId, {}, asOf, supabase),
-      readCrossOrgVisibility(user.wardId, supabase),
+      readVisitSharing(user.wardId, supabase),
       readWardTimezone(user.wardId, supabase),
     ]);
 
@@ -100,6 +101,25 @@ export default async function VisitsPage({
     id: organization.id,
     label: organization.name,
   }));
+
+  // THE ORGANIZATIONS THIS READER MAY LOOK AT (ITER-055). The bishopric reads every one. Anybody
+  // else reads their own, plus each organization the bishopric has shared with theirs — read-only,
+  // because migration 099 widens reads and never writes. Mirrors visit_org_visible_to_caller(); the
+  // policies are still the boundary and a stale list here would only show an empty table.
+  //
+  // THE BISHOPRIC IS NEVER A CHOICE HERE (decided walking scenario 099, defect 099-D1). Its visits
+  // are stored with org_id = null and the progress table filters on an organization's id, so
+  // choosing it always read "never visited". Bishopric visits are read in Recent visits and the
+  // feed instead.
+  const sharedOrgIds = isBishopric ? [] : orgIdsSharedWith(sharingGrants, user.orgId);
+  const progressOrganizations = organizations
+    .filter((organization) => organization.type !== "bishopric")
+    .filter(
+      (organization) =>
+        isBishopric || organization.id === user.orgId || sharedOrgIds.includes(organization.id),
+    )
+    .map((organization) => ({ id: organization.id, label: organization.name }));
+  const canManageSharing = canManageVisitSharing(user, roleAccess);
 
   // WHICH organization the dashboard opens on. An org leader has exactly one and cannot change
   // it; the bishopric opens on one and switches from the control on the table. There is no
@@ -112,12 +132,12 @@ export default async function VisitsPage({
   // essentially never carry household visit goals — so `[0]` landed every bishop on "No visit
   // goal is set for this organization" and left them to work out that they had to switch. An
   // honest message on a useless default is still a useless default. Found walking scenario 040.
-  const organizationWithGoal = organizationOptions.find((organization) =>
+  const organizationWithGoal = progressOrganizations.find((organization) =>
     goals.some((goal) => goal.orgId === organization.id),
   );
 
   const initialOrgId = isBishopric
-    ? (organizationWithGoal?.id ?? organizationOptions[0]?.id ?? null)
+    ? (organizationWithGoal?.id ?? progressOrganizations[0]?.id ?? null)
     : user.orgId;
 
   const initialProgress: VisitProgress | null =
@@ -190,11 +210,11 @@ export default async function VisitsPage({
           ),
         };
 
-  // The all-organizations view is readable by the bishopric always, and by an org leader only
-  // when the ward has cross-org visibility on — because that is what migration 052's SELECT
-  // policy says. A link nobody may follow is the dead-permission failure ITER-007 records, so it
-  // is not rendered when the page would refuse.
-  const canSeeAllOrganizations = isBishopric || crossOrgVisibility;
+  // THE ALL-ORGANIZATIONS VIEW IS THE BISHOPRIC'S ALONE since ITER-055 (P4). Its "unclaimed" count
+  // rests on every organization's goal being readable, and per-organization sharing would give two
+  // readers two different answers from the same data. A link nobody may follow is the
+  // dead-permission failure ITER-007 records, so it is not rendered for anybody else.
+  const canSeeAllOrganizations = isBishopric;
 
   // A plain id -> name lookup for the chip a MemberPicker selection produces. The picker hands
   // back ids only, and re-deriving its member list inside the field is the documented bug in
@@ -299,10 +319,34 @@ export default async function VisitsPage({
 
       <VisitProgressTable
         initialProgress={initialProgress}
-        organizations={organizationOptions}
-        canSwitchOrganizations={isBishopric}
+        organizations={progressOrganizations}
+        canSwitchOrganizations={progressOrganizations.length > 1}
         canManageGoals={canManageGoals}
+        editableOrgId={isBishopric ? null : user.orgId}
       />
+
+      {canManageSharing ? (
+        <CollapsibleSection
+          id="visits-sharing-section"
+          title="Who can see each organization's visits"
+          summary={
+            sharingGrants.length === 0
+              ? "Each organization sees only its own"
+              : sharingGrants.length === 1
+                ? "1 organization shared"
+                : `${sharingGrants.length} shares`
+          }
+        >
+          <SharingPanel
+            organizations={organizations.map((organization) => ({
+              id: organization.id,
+              name: organization.name,
+              type: organization.type,
+            }))}
+            initialGrants={sharingGrants}
+          />
+        </CollapsibleSection>
+      ) : null}
 
       {/* WHAT YOU ARE MEASURED AGAINST COMES BEFORE HOW OFTEN. The stewardship decides the
           denominator; the goal decides the interval. Reading them the other way round means
@@ -462,8 +506,9 @@ export default async function VisitsPage({
                   ) : null}
 
                   {/* `visits.create` is not enough on its own. It says this leader may LOG
-                      visits; it says nothing about WHICH visits they may edit, and with
-                      cross-org visibility on this list carries other organizations' visits too.
+                      visits; it says nothing about WHICH visits they may edit, and once the
+                      bishopric shares another organization with theirs (ITER-055) this list
+                      carries that organization's visits too.
                       canManageVisitLog() mirrors visit_logs_update, so the button is absent
                       exactly where the policy would refuse the write.
 

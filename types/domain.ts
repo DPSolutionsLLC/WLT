@@ -734,6 +734,13 @@ export const VISIT_OUTCOME_LABELS: Record<VisitOutcome, string> = {
   attempted: "Attempted",
 };
 
+// One row of `visit_org_sharing` (migration 099): the viewer organization's leaders may read the
+// owner organization's visits. Set by the bishopric (ITER-055).
+export type VisitSharingGrant = {
+  ownerOrgId: string;
+  viewerOrgId: string;
+};
+
 // How a visit names the people who went, and it MUST follow the outcome.
 //
 // The first build said "Visited by Miguel Cortez" on a row already labelled "Attempted" —
@@ -1491,10 +1498,10 @@ export const CROSS_ORG_VISIBILITY_SCOPE_NOTE =
   "Management stays inside each organization either way: turning this on lets other leaders READ " +
   "these reports, and never edit, create or delete them.";
 
-export const CROSS_ORG_VISIBILITY_STATE_LABELS: Record<"on" | "off", string> = {
-  on: "Every organization's leaders can read every organization's visit reports.",
-  off: "Visit reports are visible to their own organization's leaders, and to the bishopric.",
-};
+// The visit-report labels that used to sit here were removed in ITER-055: visits no longer read
+// this switch (migration 099 — each organization's visits are shared by the bishopric, one
+// organization at a time, on /visits). The switch now governs youth follow-ups only, so the admin
+// toggle and its route use the youth labels below.
 
 // THE SAME SETTING, SAID ABOUT FOLLOW-UPS. A second Record rather than a reworded first one,
 // because the pair above names VISIT REPORTS in both branches and a sentence about visits on

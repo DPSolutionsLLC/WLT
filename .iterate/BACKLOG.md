@@ -1,6 +1,6 @@
 # Backlog
 
-_Last updated: 2026-10-30_
+_Last updated: 2026-10-31_
 
 ---
 
@@ -10,6 +10,8 @@ Items currently being planned or actively worked.
 - [ ] ITER-039 — Move the app to wardleadershiptools.com and send email from it → [scope](.iterate/scopes/ITER-039.md) | [plan](plans/custom-domain-and-email-sender.md)
 - [ ] ITER-052 — Public Zoom self-registration with bishopric approval → [scope](.iterate/scopes/ITER-052.md) | [plan](plans/zoom-self-registration.md)
   _Three slices, three commits: z3a public form + auto-approve, z3b approvals + matching, z3c emails (send nothing until ITER-039)._
+- [ ] ITER-055 — Bishopric Visits: the ward-wide visiting effort → [scope](.iterate/scopes/ITER-055.md) | [plan](plans/bishopric-visits.md)
+  _Eight slices, eight commits (bv1 sharing … bv8 street grouping)._
 - [ ] ITER-043 — Keep the screen on while the tithing calculator is open → [scope](.iterate/scopes/ITER-043.md) | [plan](plans/tithing-screen-wake-lock.md)
 - [ ] ITER-034 — Youth Support: the module the user actually wants → [scope](.iterate/scopes/ITER-034.md) — **PARKED 2026-08-31**
   _Raised by the user 2026-08-31 after walking 062 and 063, and **this is the destination Phase 8
@@ -108,11 +110,6 @@ Each of these is large or complex enough to tackle on its own.
   _Reason: moves the source of every permission decision (RLS, can(), Planner identity, Zoom) onto
   the LCR roster, with a login↔member link and reviewed calling changes — security-sensitive and
   several slices. Fixes the user showing as 1st Counselor on Zoom Remote links._
-
-- [ ] ITER-055 — Bishopric Visits: the ward-wide visiting effort → [scope](.iterate/scopes/ITER-055.md)
-  _Reason: reworks the existing Visits module (bishopric-only visibility, sweep goals with history,
-  assign → To Do → schedule with companions, "still needs a visit" outcomes, follow-ups and agenda
-  hand-off, street grouping) — several slices, and it touches RLS and the cross-org decision._
 
 - [ ] ITER-046 — Module access by title, set by the super admin → [scope](.iterate/scopes/ITER-046.md)
   _Reason: rebuilds the access model (replaces per-ward release, ward self-service and access

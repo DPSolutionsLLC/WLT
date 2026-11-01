@@ -1,4 +1,4 @@
-import { BISHOPRIC_ROLES } from "@/lib/auth/permissions";
+import { BISHOPRIC_ROLES, can, type RoleAccess } from "@/lib/auth/permissions";
 import type { SessionUser } from "@/types/domain";
 
 // WHO MAY WRITE TO A VISIT LOG, mirroring migration 019's `visit_logs_update` exactly:
@@ -50,4 +50,14 @@ export function canManageVisitLog(
   if (visitOrgId === null) return false;
 
   return user.orgId === visitOrgId;
+}
+
+// WHO MAY SET WHICH ORGANIZATIONS SEE WHICH ORGANIZATION'S VISITS (ITER-055). The permission AND a
+// bishopric calling, in the shape of lib/zoom/access.ts: a super admin holds every permission, and
+// `visit_org_sharing` has no write policy behind the route, so the structural half is the boundary.
+export function canManageVisitSharing(
+  user: SessionUser,
+  roleAccess: RoleAccess,
+): boolean {
+  return can(user, "visits.manage_sharing", roleAccess) && isBishopricRole(user.role);
 }
