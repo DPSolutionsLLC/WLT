@@ -210,6 +210,10 @@ creates a pending invite for a companion — never silently adding anyone), the
 **schedule/log-contact panel** with tap-to-call and attempt outcomes, and `wardVisitSettings`
 as a JSON blob with a **partial-merge setter**.
 
+> **Delivered by ITER-055** ([bishopric-visits.md](bishopric-visits.md)): the re-skin is bv2
+> (2026-11-01), the contact panel bv3, invites bv6; `wardVisitSettings` is superseded by bv1's
+> sharing table. The `goals` retirement below is still this phase's, untouched by ITER-055.
+
 **Retire `goals` here.** It was superseded by `visit_goals` and nobody removed it:
 
 | | `goals` (migration 010) | `visit_goals` (ITER-018) |

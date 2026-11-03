@@ -76,3 +76,47 @@ organization's visits" panel on `/visits` (bishopric only) sets the grants.
 Full suite 366 files / 5420 tests: one failure (`org-isolation`, the stale switch assertion), fixed
 and re-run 12/12. Typecheck, lint (5 old warnings elsewhere), harness typecheck and production build
 clean. Migration 099 applied by the user.
+
+## bv2 — `/visits` as the prototype's sub-view machine
+
+### What was done
+`/visits` is one tabbed screen (`VisitsScreen`): **Households · Feed · All orgs** (bishopric) ·
+**Sharing** (`canManageVisitSharing()`), chosen by `visibleVisitsTabs()` in
+`lib/visits/visitsView.ts`. The tab and the household sort are remembered on the account (page
+`visits` in `lib/validation/pageView.ts`). Each household is a `HouseholdPriorityCard`: name and band
+pill (the pill is the gauge), small **Log visit** / **Cadence** buttons, a due line and a last-visit
+line. The goal, stewardship, appointments, cadence and log forms open in **windows** and **follow the
+selected organization**, read-only when it is a shared one — the bv1 follow-up. `/visits/feed` and
+`/visits/all-organizations` are redirects to `?tab=`.
+
+### Key decisions
+- **Old addresses redirect** rather than refuse (user's choice); a tab the reader cannot see falls
+  back to the remembered tab.
+- **A Sort by was kept** (user's choice) — the prototype has none.
+- **Retired, with no import left:** `VisitProgressTable.tsx` and `CollapsibleSection.tsx`. The query
+  key moved to `progressQueryKey.ts`; the sort lives in `HouseholdsPanel`. Comments in
+  `AllOrganizationsTable`, `bandStyles`, `GaugePill`, `StewardshipPanel`, `VisitProgressBanner` and
+  two youth files still name `VisitProgressTable` as history; left untouched (out of scope).
+- **The "All organizations" tab is labelled "All orgs"** (user's choice, 099-D2): four tabs were
+  383px in a 343px row at 375px.
+
+### Found on the walk (scenario 099 steps 10–13, 2026-11-01, driven by Claude)
+- **099-D2:** the bishopric's four tabs overflowed at 375px with a visible scrollbar — resolved by
+  the label above, not re-walked.
+- The step 3 checklist said "opens on Households"; it opens on the remembered tab. Corrected.
+
+### Follow-ups (not built — for the user to decide)
+- On a shared organization **Log a visit** and each card's **Log visit** / **Cadence** stay; Log
+  visit records for the reader's OWN organization.
+- The read-only goal window says "your role does not set goals" when the reason is that the
+  organization is shared.
+- "1 attempt since" on a never-visited household reads unfinished.
+- Doubled headings inside windows ("Log a visit" / "Log a visit") and a card border inside the sheet.
+- On narrow cards the two buttons wrap under the name for some households and not others.
+- **Older than bv2:** the log form's default date is computed in UTC (`formatDateOnly(new Date())`
+  in `page.tsx`), so in the evening in Mountain time it defaults to tomorrow.
+
+### Validation
+Typecheck, harness typecheck and lint on the changed areas clean. `tests/components` + `tests/lib`
+224 files / 3459 tests green. **Not run:** the full suite (RLS/route suites, ~1 hour) and a
+production build (a dev server was running). No migration in bv2.

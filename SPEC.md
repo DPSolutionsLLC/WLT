@@ -1831,8 +1831,12 @@ The four stewardship and cadence routes assert **`visits.manage_goals`, not `ros
 org president owns these decisions and does not own the roster. `GET /api/visits/stewardship` needs
 only `visits.view`, so an org secretary can read what their organization is measured against.
 
-There is **no** route behind `/visits/all-organizations`: the page reads server-side and passes
-rows to a client component that only sorts, so there is no second read path to keep in step.
+There is **no** route behind the All organizations view: `/visits` reads it server-side (for the
+bishopric only) and passes rows to a client component that only sorts, so there is no second read
+path to keep in step. Since ITER-055 bv2 it and the feed are **tabs of `/visits`**;
+`/visits/all-organizations` and `/visits/feed` redirect to `/visits?tab=all_organizations` and
+`?tab=feed`. The tab and the household sort are saved through `PUT /api/session/page-view` as page
+`visits` (`lib/visits/visitsView.ts`).
 
 ### Youth Activities
 ```

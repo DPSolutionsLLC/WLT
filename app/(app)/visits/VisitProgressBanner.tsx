@@ -101,9 +101,9 @@ export function VisitProgressBanner({
         </p>
         <p className="mt-1 text-sm text-muted">
           {goalHasNoCadence
-            ? "Open the visit goal below and choose how often each household should be visited. " +
+            ? "Press Visit goal above and choose how often each household should be visited. " +
               "Without an interval there is nothing to measure a household against."
-            : "Open the visit goal below to set one. Until then there is no denominator to " +
+            : "Press Visit goal above to set one. Until then there is no denominator to " +
               "count against, and a made-up one would be worse than none."}
         </p>
       </div>
@@ -128,7 +128,7 @@ export function VisitProgressBanner({
       {goal.noticeIgnored ? (
         <p className="mt-1 text-sm text-warning">
           The warning window is not shorter than the cadence, so no household will read
-          &ldquo;Approaching&rdquo;. Edit the goal below to shorten it.
+          &ldquo;Approaching&rdquo;. Shorten it from Visit goal above.
         </p>
       ) : null}
 

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { VISIT_PROGRESS_QUERY_KEY } from "@/app/(app)/visits/VisitProgressTable";
+import { VISIT_PROGRESS_QUERY_KEY } from "@/app/(app)/visits/progressQueryKey";
 import {
   recorderParticipant,
   toParticipantPayload,
@@ -48,6 +48,8 @@ export type VisitLogFormProps = {
   leaders: LeaderOption[];
   memberNames: Record<string, string>;
   appointment?: AppointmentPrefill;
+  // The household a card's "Log visit" button opened the form for (ITER-055 bv2).
+  initialHouseholdId?: string;
 };
 
 const SELECT_CLASSES =
@@ -132,6 +134,7 @@ export function VisitLogForm({
   leaders,
   memberNames,
   appointment,
+  initialHouseholdId,
 }: VisitLogFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -139,7 +142,7 @@ export function VisitLogForm({
   const emptyDraft: Draft = {
     // Prefilled from the appointment when one is being kept, so "log the visit we arranged" does
     // not ask which household twice. `arrangement` follows: it WAS an appointment, by definition.
-    householdId: appointment?.householdId ?? "",
+    householdId: appointment?.householdId ?? initialHouseholdId ?? "",
     visitDate: today,
     visitType: "in_home",
     outcome: "completed",

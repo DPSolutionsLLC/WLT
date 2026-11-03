@@ -1,7 +1,9 @@
 import {
   createHousehold,
+  createHouseholdVisitCadence,
   createMember,
   createTestUser,
+  createVisitGoal,
   createVisitLog,
   createVisitOrgSharing,
   createVisitPrivateNote,
@@ -147,6 +149,38 @@ export async function seed(): Promise<void> {
       notes: "RS PRIVATE — must never appear for anybody else.",
     });
   }
+
+  // bv2 (the re-skin) is walked on this data, so the household cards need bands to show: a goal
+  // for each of the two organizations, one household on its own cadence, and one knock nobody
+  // answered.
+  await createVisitGoal({
+    org: "eldersQuorum",
+    title: "Every household twice a year",
+    cadenceAmount: 6,
+    cadenceUnit: "month",
+    noticeAmount: 1,
+    noticeUnit: "month",
+    createdBy: eqPresident.id,
+  });
+  await createVisitGoal({
+    org: "reliefSociety",
+    title: "Every household once a year",
+    createdBy: rsPresident.id,
+  });
+  await createHouseholdVisitCadence({
+    householdId: HOUSEHOLD_IDS.castillo,
+    org: "eldersQuorum",
+    cadenceAmount: 3,
+    cadenceUnit: "month",
+    createdBy: eqPresident.id,
+  });
+  await createVisitLog({
+    org: "eldersQuorum",
+    householdId: HOUSEHOLD_IDS.ellery,
+    recordedBy: eqPresident.id,
+    visitDate: "2026-10-20",
+    outcome: "attempted",
+  });
 
   // The day-one grants for a ward whose switch was on: every organization with every other,
   // the Bishopric left out on both sides. Only the two that have visits are needed here.

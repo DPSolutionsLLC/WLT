@@ -1,16 +1,7 @@
-import Link from "next/link";
-import { AppointmentPanel, type AppointmentRow } from "@/app/(app)/visits/AppointmentPanel";
-import { CollapsibleSection } from "@/app/(app)/visits/CollapsibleSection";
-import {
-  VisitFlagButton,
-  VisitLogForm,
-  type AppointmentPrefill,
-} from "@/app/(app)/visits/VisitLogForm";
-import { SharingPanel } from "@/app/(app)/visits/SharingPanel";
-import { StewardshipPanel } from "@/app/(app)/visits/StewardshipPanel";
-import { VisitGoalPanel } from "@/app/(app)/visits/VisitGoalPanel";
-import { VisitProgressTable } from "@/app/(app)/visits/VisitProgressTable";
-import { Card } from "@/components/ui/Card";
+import { type AppointmentRow } from "@/app/(app)/visits/AppointmentPanel";
+import { VisitFlagButton, type AppointmentPrefill } from "@/app/(app)/visits/VisitLogForm";
+import { VisitsScreen } from "@/app/(app)/visits/VisitsScreen";
+import { ContextualBackLink } from "@/components/layout/ContextualBackLink";
 import { NotPermitted } from "@/components/ui/NotPermitted";
 import { listWardOrganizations, listWardUsers } from "@/lib/auth/adminUsers";
 import { BISHOPRIC_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions";
@@ -18,6 +9,9 @@ import { requireSessionUser } from "@/lib/auth/session";
 import { formatDateOnly } from "@/lib/calendar/dates";
 import { listHouseholds } from "@/lib/roster/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { readPageView } from "@/lib/users/userSettings";
+import { DEFAULT_FEED_PAGE_SIZE } from "@/lib/validation/report";
+import { readAllOrgProgress } from "@/lib/visits/allOrgProgress";
 import { readAppointmentParam } from "@/lib/visits/appointmentLink";
 import { listAppointments } from "@/lib/visits/appointments";
 import {
@@ -25,11 +19,22 @@ import {
   readVisitProgress,
   type VisitProgress,
 } from "@/lib/visits/progress";
-import { listVisitGoals, listVisitLogs } from "@/lib/visits/queries";
+import { listVisitGoals, listVisitLogs, type VisitLogWithContext } from "@/lib/visits/queries";
+import { readVisitReportFeed } from "@/lib/visits/reportFeed";
 import { readStewardshipScope } from "@/lib/visits/stewardship";
 import { compareStewardshipDrift, toStewardshipScope } from "@/lib/visits/stewardshipScope";
-import { orgIdsSharedWith, readVisitSharing } from "@/lib/visits/sharing";
+import {
+  describeVisitSharingForReader,
+  orgIdsSharedWith,
+  readVisitSharing,
+} from "@/lib/visits/sharing";
 import { canManageVisitLog, canManageVisitSharing } from "@/lib/visits/visitOwnership";
+import {
+  initialVisitsTab,
+  parseVisitsTabParam,
+  parseVisitsView,
+  visibleVisitsTabs,
+} from "@/lib/visits/visitsView";
 import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import {
   VISIT_ARRANGEMENT_LABELS,
@@ -37,13 +42,13 @@ import {
   VISIT_NOBODY_RECORDED,
   VISIT_OUTCOME_LABELS,
   VISIT_TYPE_LABELS,
+  type SessionUser,
 } from "@/types/domain";
 
-// The visit tracker, at /visits — where lib/auth/navigation.ts has linked since auth-a.
-//
-// THE PROGRESS DASHBOARD IS THE PAGE. Everything else collapses beneath it, because a president
-// opens /visits to answer "where are we?" and the four panels this page had accumulated made
-// that answer the fourth thing on a four-screen scroll at 375px.
+// Visits, at /visits — the prototype's sub-view machine since ITER-055 bv2: Households (the
+// progress dashboard, with the goal, stewardship, appointments and logging a visit in windows),
+// Feed, All organizations (bishopric) and Sharing (bishopric). /visits/feed and
+// /visits/all-organizations redirect here with `?tab=`.
 //
 // THIS PAGE DOES NOT IMPORT lib/visits/privateNotes.ts, AND MUST NOT. A private note belongs to
 // its author and appears in no list, ever (CLAUDE.md rule 5) — the import list above is where a
@@ -52,14 +57,9 @@ import {
 // can() rather than assertCan(): a ForbiddenError escaping a Server Component becomes a 500
 // whose message Next.js strips in production (plans/retros/auth-b-invites-admin.md).
 //
-// ---------------------------------------------------------------------------
-// EVERY VISIT NAMES BOTH ROLES
-// ---------------------------------------------------------------------------
-// CONDUCTED BY is who went, built from visit_participants. RECORDED BY is who typed it in. They
-// are frequently different people and visits-a had one column for both, which is what visits-d
-// split. A visit with no participants reads "Nobody recorded as visiting" rather than falling
-// back to the recorder — falling back would re-create the exact ambiguity being removed. The
-// dashboard's "Conducted by" column follows the same rule.
+// EVERY VISIT NAMES BOTH ROLES. Conducted by is who went (visit_participants); recorded by is who
+// typed it in. A visit with no participants reads "Nobody recorded as visiting" rather than
+// falling back to the recorder, which would re-create the ambiguity visits-d removed.
 
 export default async function VisitsPage({
   searchParams,
@@ -76,6 +76,7 @@ export default async function VisitsPage({
     );
   }
 
+  const params = await searchParams;
   const canLog = can(user, "visits.create", roleAccess);
   const canManageGoals = can(user, "visits.manage_goals", roleAccess);
   const isBishopric = (BISHOPRIC_ROLES as readonly string[]).includes(user.role);
@@ -121,17 +122,10 @@ export default async function VisitsPage({
     .map((organization) => ({ id: organization.id, label: organization.name }));
   const canManageSharing = canManageVisitSharing(user, roleAccess);
 
-  // WHICH organization the dashboard opens on. An org leader has exactly one and cannot change
-  // it; the bishopric opens on one and switches from the control on the table. There is no
-  // ward-wide option, because there is no ward-wide visit goal to supply a denominator —
-  // migration 019 makes an `org_id = null` goal bishopric-only and FEATURES.md §Module 9
-  // describes progress per organization.
-  //
-  // THE FIRST ORGANIZATION THAT HAS A GOAL, not simply the first organization. The org list is
-  // ordered with the Bishopric at the front, and the bishopric is the one organization that will
-  // essentially never carry household visit goals — so `[0]` landed every bishop on "No visit
-  // goal is set for this organization" and left them to work out that they had to switch. An
-  // honest message on a useless default is still a useless default. Found walking scenario 040.
+  // THE FIRST ORGANIZATION THAT HAS A GOAL, not simply the first organization: the bishopric
+  // essentially never carries household visit goals, so `[0]` landed every bishop on "No visit
+  // goal is set". Found walking scenario 040. There is no ward-wide option, because there is no
+  // ward-wide visit goal to supply a denominator.
   const organizationWithGoal = progressOrganizations.find((organization) =>
     goals.some((goal) => goal.orgId === organization.id),
   );
@@ -154,28 +148,21 @@ export default async function VisitsPage({
       : await readStewardshipScope(user.wardId, initialOrgId, supabase);
 
   // The whole ward's households, for both the picker and the stewardship panel's list. Not
-  // narrowed by an `organizationId` filter — the derivation is the ROUTE's job, and adding a
-  // fourth axis to listHouseholds() would move the household count underneath somebody applying
-  // a category filter (plans/retros/roster-b-picker-and-orgs.md, Decision 4).
+  // narrowed by an `organizationId` filter — the derivation is the ROUTE's job (roster-b,
+  // Decision 4).
   const households = await listHouseholds(user.wardId, undefined, supabase);
 
-  // ONE FUNCTION DECIDES BOTH what this picker offers and what the dashboard counts, so the two
-  // can no longer drift — the pair of long "these must not drift" comments that used to sit here
-  // and in lib/visits/progress.ts is replaced by describeHouseholdForVisits() being the only
-  // place the rule exists.
-  //
-  // The picker is a SUPERSET of the denominator and marks the difference: a do-not-contact
-  // household and a household outside this organization's stewardship are both offered, labelled,
-  // and counted in nothing. A leader who visited such a family anyway must be able to record it.
+  // ONE FUNCTION DECIDES BOTH what the picker offers and what the dashboard counts. The picker is
+  // a SUPERSET of the denominator and marks the difference: a leader who visited a do-not-contact
+  // or out-of-stewardship household anyway must be able to record it.
   const householdOptions = households.flatMap((household) => {
     const disposition = describeHouseholdForVisits(household, stewardshipScope);
     if (disposition === null) return [];
     return [{ id: household.id, label: disposition.pickerLabel }];
   });
 
-  // The stewardship panel lists every VISITABLE household with its plain name — the marks above
-  // are the picker's business, and a checkbox row reading "Okonkwo (not in your stewardship)" in
-  // the very control that decides that would be circular.
+  // The stewardship panel lists every VISITABLE household with its plain name — a checkbox row
+  // reading "Okonkwo (not in your stewardship)" in the control that decides that would be circular.
   const stewardshipHouseholds = households
     .filter((household) => household.members.length > 0)
     .map((household) => ({ id: household.id, label: household.familyName }));
@@ -188,9 +175,7 @@ export default async function VisitsPage({
           narrowed: stewardshipScope.hasNarrowed,
           householdIds: [...stewardshipScope.subjectIds].sort(),
           // The live derivation, matching GET /api/visits/stewardship exactly: listHouseholds()
-          // narrows the members it ATTACHES, not the households it RETURNS, so a non-empty
-          // `members` array under an organization filter means an active member of that
-          // organization lives here.
+          // narrows the members it ATTACHES, not the households it RETURNS.
           matchingHouseholdIds: (
             await listHouseholds(user.wardId, { organizationId: initialOrgId }, supabase)
           )
@@ -212,13 +197,10 @@ export default async function VisitsPage({
 
   // THE ALL-ORGANIZATIONS VIEW IS THE BISHOPRIC'S ALONE since ITER-055 (P4). Its "unclaimed" count
   // rests on every organization's goal being readable, and per-organization sharing would give two
-  // readers two different answers from the same data. A link nobody may follow is the
-  // dead-permission failure ITER-007 records, so it is not rendered for anybody else.
+  // readers two different answers from the same data.
   const canSeeAllOrganizations = isBishopric;
 
-  // A plain id -> name lookup for the chip a MemberPicker selection produces. The picker hands
-  // back ids only, and re-deriving its member list inside the field is the documented bug in
-  // roster-b's retro — so the households already fetched above supply the names instead.
+  // A plain id -> name lookup for the chip a MemberPicker selection produces (roster-b).
   const memberNames = Object.fromEntries(
     households.flatMap((household) =>
       household.members.map((member) => [
@@ -250,18 +232,10 @@ export default async function VisitsPage({
     notes: appointment.notes,
   }));
 
-  // `?appointment=` is the whole protocol between the panel and the form — see the header of
-  // lib/visits/appointmentLink.ts, which owns BOTH halves so they cannot drift. An id for an
-  // appointment this caller cannot see simply resolves to nothing and the form opens empty,
-  // which is the same answer a stale link gets.
-  //
-  // The parameter NAME comes from that module rather than from AppointmentPanel: imported from a
-  // `"use client"` module it arrived here as a function instead of a string, and the prefill
-  // silently never ran.
-  const requestedAppointmentId = readAppointmentParam(await searchParams);
-
-  // An appointment whose household was deleted since it was booked cannot prefill anything, so
-  // it resolves to undefined and the form opens empty — the same answer a stale link gets.
+  // `?appointment=` is the whole protocol between the appointments window and the log form — see
+  // lib/visits/appointmentLink.ts, which owns BOTH halves so they cannot drift. An id this caller
+  // cannot see resolves to nothing and the form opens empty, the same answer a stale link gets.
+  const requestedAppointmentId = readAppointmentParam(params);
   const prefilled = appointments.find(
     (appointment) => appointment.id === requestedAppointmentId,
   );
@@ -279,258 +253,161 @@ export default async function VisitsPage({
 
   const today = formatDateOnly(new Date());
 
-  const scheduledCount = appointmentRows.filter(
-    (appointment) => appointment.status === "scheduled",
-  ).length;
+  // THE FEED AND THE ALL-ORGANIZATIONS VIEW ARE TABS NOW, and their first page is still read here,
+  // on the server, for the reason /visits/feed always gave: read state is correct on first paint
+  // instead of every tile flashing unread (talks-d measured 268 ms).
+  const [feedPage, allOrganizations, storedView] = await Promise.all([
+    readVisitReportFeed(user.wardId, { limit: DEFAULT_FEED_PAGE_SIZE }, null, supabase),
+    canSeeAllOrganizations
+      ? readAllOrgProgress(user.wardId, asOf, supabase)
+      : Promise.resolve(null),
+    readPageView(user.id, "visits", supabase),
+  ]);
+
+  const sharingSentence = describeVisitSharingForReader(
+    isBishopric,
+    organizations
+      .filter((organization) => sharedOrgIds.includes(organization.id))
+      .map((organization) => organization.name),
+  );
+
+  const visibleTabs = visibleVisitsTabs({ isBishopric, canManageSharing });
+  const storedVisitsView = parseVisitsView(storedView);
+  // "Log this visit" lands on the Households tab whatever was left open, because that is where
+  // the form opens.
+  const requestedTab =
+    appointmentPrefill === undefined ? parseVisitsTabParam(params.tab) : "households";
+  const initialView = {
+    ...storedVisitsView,
+    tab: initialVisitsTab(storedVisitsView.tab, visibleTabs, requestedTab),
+  };
+  const from = Array.isArray(params.from) ? params.from[0] : params.from;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
+      <ContextualBackLink from={from} />
+
       <div>
-        {/* A LINK, not a tab. This page is a dashboard with four collapsible panels stacked under
-            it; a tab bar would fight them for the same space at 375px, and the feed is a place
-            you go rather than a second view of what is already here. */}
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h1 className="text-xl font-semibold text-foreground">Visits</h1>
-          <div className="flex flex-wrap items-baseline gap-4">
-            {/* ABSENT rather than present-and-refusing. A permission whose only UI sits behind a
-                link the holder cannot follow is a dead permission (ITER-007); a link that leads
-                to "Not permitted" is the same failure with an extra click. */}
-            {canSeeAllOrganizations ? (
-              <Link
-                href="/visits/all-organizations"
-                className="text-sm font-medium text-primary underline underline-offset-4"
-              >
-                All organizations
-              </Link>
-            ) : null}
-            <Link
-              href="/visits/feed"
-              className="text-sm font-medium text-primary underline underline-offset-4"
-            >
-              Return and report
-            </Link>
-          </div>
-        </div>
+        <p className="text-sm text-muted">People &amp; Care</p>
+        <h1 className="font-display text-xl font-semibold text-foreground">Visits</h1>
         <p className="mt-1 text-sm text-muted">
           Every visit carries shared notes the other leaders read, and private notes only you can
           ever see.
         </p>
       </div>
 
-      <VisitProgressTable
-        initialProgress={initialProgress}
-        organizations={progressOrganizations}
-        canSwitchOrganizations={progressOrganizations.length > 1}
-        canManageGoals={canManageGoals}
-        editableOrgId={isBishopric ? null : user.orgId}
+      {/* bv6 puts pending visit invites here, above the tabs whatever tab is open (prototype). */}
+
+      <VisitsScreen
+        visibleTabs={visibleTabs}
+        initialView={initialView}
+        households={{
+          initialProgress,
+          organizations: progressOrganizations,
+          editableOrgId: isBishopric ? null : user.orgId,
+          canManageGoals,
+          canLog,
+          user,
+          goals,
+          goalOrganizations: organizationOptions,
+          householdOptions,
+          stewardshipHouseholds,
+          initialStewardship: initialStewardshipPayload,
+          appointments: appointmentRows,
+          wardTimeZone,
+          today,
+          leaders,
+          memberNames,
+          appointmentPrefill,
+          recentVisits: <RecentVisits visits={visits} canLog={canLog} user={user} />,
+        }}
+        feed={{ initialPage: feedPage, ownOrganizationId: user.orgId, sharingSentence }}
+        allOrganizations={allOrganizations}
+        sharing={
+          canManageSharing
+            ? {
+                organizations: organizations.map((organization) => ({
+                  id: organization.id,
+                  name: organization.name,
+                  type: organization.type,
+                })),
+                initialGrants: sharingGrants,
+              }
+            : null
+        }
       />
-
-      {canManageSharing ? (
-        <CollapsibleSection
-          id="visits-sharing-section"
-          title="Who can see each organization's visits"
-          summary={
-            sharingGrants.length === 0
-              ? "Each organization sees only its own"
-              : sharingGrants.length === 1
-                ? "1 organization shared"
-                : `${sharingGrants.length} shares`
-          }
-        >
-          <SharingPanel
-            organizations={organizations.map((organization) => ({
-              id: organization.id,
-              name: organization.name,
-              type: organization.type,
-            }))}
-            initialGrants={sharingGrants}
-          />
-        </CollapsibleSection>
-      ) : null}
-
-      {/* WHAT YOU ARE MEASURED AGAINST COMES BEFORE HOW OFTEN. The stewardship decides the
-          denominator; the goal decides the interval. Reading them the other way round means
-          reading a cadence for a population you have not been told about yet. */}
-      <CollapsibleSection
-        id="visits-stewardship-section"
-        title="Which households are ours"
-        summary={
-          initialStewardshipPayload === null
-            ? "No organization set"
-            : initialStewardshipPayload.narrowed
-              ? `${initialStewardshipPayload.householdIds.length} chosen`
-              : "The whole ward"
-        }
-      >
-        <StewardshipPanel
-          orgId={initialOrgId}
-          orgName={
-            organizationOptions.find((organization) => organization.id === initialOrgId)?.label ??
-            null
-          }
-          canManageGoals={canManageGoals}
-          households={stewardshipHouseholds}
-          initialStewardship={initialStewardshipPayload}
-        />
-      </CollapsibleSection>
-
-      {/* The cadence driving the numbers sits directly under them, so changing it and seeing the
-          statuses move is one scroll rather than two pages. */}
-      <CollapsibleSection
-        id="visits-goal-section"
-        title="Visit goal"
-        summary="How often each household should be visited"
-      >
-        <VisitGoalPanel
-          goals={goals}
-          organizations={organizationOptions}
-          canManage={canManageGoals}
-          ownOrgId={user.orgId}
-        />
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        id="visits-appointments-section"
-        title="Appointments"
-        summary={
-          scheduledCount === 1 ? "1 still scheduled" : `${scheduledCount} still scheduled`
-        }
-      >
-        <AppointmentPanel
-          appointments={appointmentRows}
-          households={householdOptions}
-          canBook={canLog}
-          wardTimeZone={wardTimeZone}
-        />
-      </CollapsibleSection>
-
-      {canLog ? (
-        // OPEN when an appointment is being logged. "Log this visit" navigates here with
-        // `?appointment=`, and landing on a collapsed panel would be the same silent dead flow
-        // the prefill has already had once.
-        <CollapsibleSection
-          id="visits-log-section"
-          title="Log a visit"
-          summary="Record a visit, or an attempt nobody answered"
-          defaultOpen={appointmentPrefill !== undefined}
-        >
-          {/* `key` IS THE FIX, not decoration. VisitLogForm seeds its draft in a useState
-              initializer, which React runs ONCE per mount — and "Log this visit" is a client-side
-              navigation, so the component stays mounted and a new `appointment` prop would be
-              ignored. The server rendered the right prefill and the form quietly showed the old
-              empty draft, which is exactly the stale-form trap plans/retros/ai-a-client-and-settings
-              records for router.refresh().
-
-              Changing the key remounts the form, so the initializer re-runs against the new
-              appointment. It also discards anything half-typed — correct here, because pressing
-              "Log this visit" on a specific appointment is an explicit request for a different
-              form. Collapsing the section does NOT remount it: CollapsibleSection hides its
-              children with `hidden` rather than unmounting them, so a half-typed note survives
-              being folded away. */}
-          <VisitLogForm
-            key={appointmentPrefill?.id ?? "no-appointment"}
-            households={householdOptions}
-            today={today}
-            user={user}
-            leaders={leaders}
-            memberNames={memberNames}
-            appointment={appointmentPrefill}
-          />
-        </CollapsibleSection>
-      ) : null}
-
-      {/* KEPT, collapsed, rather than replaced by the dashboard.
-
-          This list is the ONLY place VisitFlagButton renders and the only place a shared note is
-          readable, so deleting it would have taken visits-a's ward-council flagging off the app
-          with it. visits-c moves this to /visits/feed; until then it stays here, one click away,
-          for the same reason VisitLogForm does. */}
-      <CollapsibleSection
-        id="visits-recent-section"
-        title="Recent visits"
-        summary={visits.length === 1 ? "1 logged" : `${visits.length} logged`}
-      >
-        <Card>
-          {visits.length === 0 ? (
-            <p className="text-sm text-muted">No visits logged yet.</p>
-          ) : (
-            <ul className="flex flex-col gap-3">
-              {visits.map((visit) => (
-                <li key={visit.id} className="rounded-md border border-border bg-surface p-3">
-                  <p className="text-sm font-medium text-foreground">
-                    {visit.householdName ?? "Unknown household"}
-                  </p>
-                  <p className="mt-1 text-sm text-muted">
-                    {visit.visitDate} · {VISIT_TYPE_LABELS[visit.visitType]} ·{" "}
-                    {VISIT_ARRANGEMENT_LABELS[visit.arrangement]}
-                  </p>
-
-                  {/* The outcome carries the attention colour when it is an attempt, because an
-                      attempt that reads like a visit is worse than no record at all — it counts
-                      towards no goal and the household still needs reaching. */}
-                  <p
-                    className={`mt-1 text-sm font-medium ${
-                      visit.outcome === "attempted" ? "text-warning" : "text-success"
-                    }`}
-                  >
-                    {VISIT_OUTCOME_LABELS[visit.outcome]}
-                  </p>
-
-                  {/* Both roles, and the recorder is quieter. Never a fallback from one to the
-                      other: "Nobody recorded as visiting" is a fact about the visit, and crediting
-                      the person who typed it in would be an invention.
-
-                      The verb FOLLOWS THE OUTCOME. An attempt that says "Visited by" is a row
-                      contradicting its own label one line above it. */}
-                  <p className="mt-1 text-sm text-foreground">
-                    {visit.conductedByLabel === null
-                      ? VISIT_NOBODY_RECORDED[visit.outcome]
-                      : `${VISIT_CONDUCTED_PREFIX[visit.outcome]} ${visit.conductedByLabel}`}
-                  </p>
-                  {visit.recordedByName === null ? null : (
-                    <p className="text-xs text-muted">Recorded by {visit.recordedByName}</p>
-                  )}
-
-                  {/* Shared notes, and only ever shared notes. There is no private-note field on
-                      this row to render — VisitLogWithContext has none. */}
-                  {visit.sharedNotes === null ? null : (
-                    <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">
-                      {visit.sharedNotes}
-                    </p>
-                  )}
-
-                  {visit.flaggedForWardCouncil ? (
-                    <p className="mt-2 text-sm font-medium text-warning">
-                      Flagged for ward council
-                    </p>
-                  ) : null}
-
-                  {/* `visits.create` is not enough on its own. It says this leader may LOG
-                      visits; it says nothing about WHICH visits they may edit, and once the
-                      bishopric shares another organization with theirs (ITER-055) this list
-                      carries that organization's visits too.
-                      canManageVisitLog() mirrors visit_logs_update, so the button is absent
-                      exactly where the policy would refuse the write.
-
-                      Gating on canLog alone put a "Flag for ward council" button on every
-                      organization's visits the moment the ward turned visibility on. RLS refused
-                      them and nothing leaked — but the leader was offered a consequential action,
-                      confirmed it, and got a generic failure. Found walking scenario 042. */}
-                  {canLog && canManageVisitLog(user, visit.orgId) ? (
-                    <div className="mt-3">
-                      <VisitFlagButton
-                        visitId={visit.id}
-                        familyName={visit.householdName ?? "this household"}
-                        flagged={visit.flaggedForWardCouncil}
-                      />
-                    </div>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </CollapsibleSection>
     </div>
+  );
+}
+
+// THE ONLY PLACE A WHOLE SHARED NOTE IS READABLE, and the only place VisitFlagButton renders.
+// Every visit this reader may see, Bishopric visits included — they are never a selector choice
+// (defect 099-D1), so filtering this by the selected organization would hide them entirely.
+function RecentVisits({
+  visits,
+  canLog,
+  user,
+}: {
+  visits: VisitLogWithContext[];
+  canLog: boolean;
+  user: SessionUser;
+}) {
+  if (visits.length === 0) return <p className="text-sm text-muted">No visits logged yet.</p>;
+
+  return (
+    <ul className="flex flex-col gap-2">
+      {visits.map((visit) => (
+        <li key={visit.id} className="rounded-lg border border-border bg-surface-raised px-3 py-2">
+          <p className="py-1 text-sm font-medium text-foreground">
+            {visit.householdName ?? "Unknown household"}
+          </p>
+
+          {/* An attempt carries the attention colour: an attempt that reads like a visit is worse
+              than no record at all. */}
+          <p className="text-xs text-muted">
+            {visit.visitDate} · {VISIT_TYPE_LABELS[visit.visitType]} ·{" "}
+            {VISIT_ARRANGEMENT_LABELS[visit.arrangement]} ·{" "}
+            <span
+              className={`font-medium ${
+                visit.outcome === "attempted" ? "text-warning" : "text-success"
+              }`}
+            >
+              {VISIT_OUTCOME_LABELS[visit.outcome]}
+            </span>
+          </p>
+
+          {/* Both roles, never a fallback from one to the other; the verb follows the outcome. */}
+          <p className="text-xs text-foreground">
+            {visit.conductedByLabel === null
+              ? VISIT_NOBODY_RECORDED[visit.outcome]
+              : `${VISIT_CONDUCTED_PREFIX[visit.outcome]} ${visit.conductedByLabel}`}
+            {visit.recordedByName === null ? null : (
+              <span className="text-muted"> · Recorded by {visit.recordedByName}</span>
+            )}
+          </p>
+
+          {/* Shared notes, and only ever shared notes: VisitLogWithContext has no private field. */}
+          {visit.sharedNotes === null ? null : (
+            <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{visit.sharedNotes}</p>
+          )}
+
+          {visit.flaggedForWardCouncil ? (
+            <p className="mt-1 text-xs font-medium text-warning">Flagged for ward council</p>
+          ) : null}
+
+          {/* canManageVisitLog() mirrors visit_logs_update, so the button is absent exactly where
+              the policy would refuse the write (found walking scenario 042). */}
+          {canLog && canManageVisitLog(user, visit.orgId) ? (
+            <div className="mt-1">
+              <VisitFlagButton
+                visitId={visit.id}
+                familyName={visit.householdName ?? "this household"}
+                flagged={visit.flaggedForWardCouncil}
+              />
+            </div>
+          ) : null}
+        </li>
+      ))}
+    </ul>
   );
 }

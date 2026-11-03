@@ -598,8 +598,12 @@ Available to all organizations. Each org manages its own visit goals and logs in
 - Executive secretary adds it to the next ward council agenda
 
 ### Progress Dashboard
-- Sortable list: household name, last visited, last attempted, **due date**, **priority**,
-  conducted by
+- The Visits page has tabs — **Households**, **Feed**, and for the bishopric **All orgs**
+  and **Sharing** — and reopens on the tab and sort you left it on
+- Households is one card per household, in priority order (or sorted by name, last visited, last
+  attempted, due date or conducted by), with small **Log visit** and **Cadence** buttons; the
+  visit goal, which households are ours, and appointments each open in their own window and
+  follow the organization selected
 - **A priority scale, not a set of buckets.** Every household reads one of four bands — `Never
   visited`, `Overdue`, `Approaching`, `On track` — together with how far through its own interval
   it is, so a family at 95% and one at 10% no longer look the same. No cell reads "Visited"

@@ -745,6 +745,13 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   are `org_id = null` and the progress table filters on an organization id, so it always read
   "never visited". Bishopric visits are read in Recent visits and the feed. **Cost, named:** the ward clerk and executive secretary usually have no organization, so
   a grant reaches them nothing — do not special-case a role (rule 2).
+  **bv2 (2026-11-01): `/visits` is the prototype's sub-view machine** — `VisitsScreen` tabs
+  Households · Feed · All orgs (bishopric) · Sharing (`canManageVisitSharing()`), chosen by
+  `visibleVisitsTabs()` and remembered with the household sort on the account (page `visits`).
+  `/visits/feed` and `/visits/all-organizations` are **redirects** to `?tab=` (the user's choice).
+  The goal, stewardship, appointments, cadence and log forms open in **windows** from buttons, and
+  **follow the selected organization**, read-only when it is a shared one. `VisitProgressTable` and
+  `CollapsibleSection` are retired; the query key lives in `progressQueryKey.ts`.
 - **SUPERSEDED for visits by ITER-055 (above).** **Cross-org visibility widens an organization's whole PROGRESS — DECIDED 2026-08-27, REVERSING
   ITER-018.** `ward_allows_cross_org_visibility()` now appears in **four** SELECT policies:
   `visit_logs_select` (019), `household_stewardships_select` (052), and — added by migration 053 —
@@ -926,7 +933,7 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   **A NULL PERCENTAGE SORTS LAST IN BOTH DIRECTIONS**, and that is the deliberate OPPOSITE of the
   sort it replaced: `nobody_all_season` sorted `lastAttendedOn: null` FIRST, because there null
   meant "nobody has ever been" — a real signal. Here it means no home game has been played, which
-  is no data at all, and `VisitProgressTable.compareNullable()`'s rule applies instead. The two
+  is no data at all, and the visit progress sort's rule (`HouseholdsPanel.compareNullable()`, once `VisitProgressTable`'s) applies instead. The two
   rules look identical and are opposite; `tests/lib/youthProfileNeed.test.ts` asserts both
   directions explicitly. It renders as an em dash, **never `0%`** — 0% would put the one person
   nobody could possibly have supported at the top of "least supported", which is `visits-f` exactly.

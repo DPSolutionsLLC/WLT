@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { VISIT_PROGRESS_QUERY_KEY } from "@/app/(app)/visits/VisitProgressTable";
+import { VISIT_PROGRESS_QUERY_KEY } from "@/app/(app)/visits/progressQueryKey";
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/FormError";
 import { describeCadence, type Cadence } from "@/lib/visits/cadence";
@@ -32,6 +32,10 @@ export type HouseholdCadenceControlProps = {
   // against, and a second answer that disagreed with the route's would offer a control the API
   // refuses.
   canManage: boolean;
+  // Opened from a card's Cadence window (ITER-055 bv2): start with the controls showing, and let
+  // the window close itself once a change is saved or cleared.
+  startOpen?: boolean;
+  onSaved?: () => void;
 };
 
 const SELECT_CLASSES =
@@ -54,10 +58,12 @@ export function HouseholdCadenceControl({
   cadence,
   source,
   canManage,
+  startOpen = false,
+  onSaved,
 }: HouseholdCadenceControlProps) {
   const queryClient = useQueryClient();
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [amount, setAmount] = useState(String(cadence.amount));
   const [unit, setUnit] = useState<CadenceUnit>(cadence.unit);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -120,6 +126,7 @@ export function HouseholdCadenceControl({
 
       setOpen(false);
       await refresh();
+      onSaved?.();
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
     } finally {
@@ -153,6 +160,7 @@ export function HouseholdCadenceControl({
 
       setOpen(false);
       await refresh();
+      onSaved?.();
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
     } finally {

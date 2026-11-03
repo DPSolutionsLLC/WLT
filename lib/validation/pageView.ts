@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { appointmentsViewSchema } from "@/lib/appointments/appointmentsView";
 import { topicHistoryViewSchema } from "@/lib/topics/topicHistory";
+import { visitsViewSchema } from "@/lib/visits/visitsView";
 import { zoomViewSchema } from "@/lib/zoom/zoomView";
 
 // Which pages remember how they were left, and the shape each one stores. A page joins by adding
@@ -13,6 +14,7 @@ import { zoomViewSchema } from "@/lib/zoom/zoomView";
 export const pageViewSchema = z.discriminatedUnion("page", [
   z.object({ page: z.literal("appointments"), view: appointmentsViewSchema }),
   z.object({ page: z.literal("topic_history"), view: topicHistoryViewSchema }),
+  z.object({ page: z.literal("visits"), view: visitsViewSchema }),
   z.object({ page: z.literal("zoom"), view: zoomViewSchema }),
 ]);
 

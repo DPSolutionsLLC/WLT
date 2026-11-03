@@ -3,7 +3,7 @@ name: Sharing the Bishopric's visits
 scope: visits
 part: 1
 tags: [visits, full, rls, sharing, ITER-055]
-prerequisites: Migration 099 applied; Visits released for the Harness Test Ward
+prerequisites: Migration 099 applied; Visits released for the Harness Test Ward. Since bv2 the seed also sets a visit goal for the Elders Quorum and the Relief Society.
 ---
 
 ## Purpose
@@ -36,16 +36,21 @@ Three things are only real with seeded data and two sign-ins:
 ## Steps
 
 1. Sign in as the **EQ president** and open **Visits**.
-2. Open **Return and report**.
-3. Try `/visits/all-organizations` by typing it in the address bar.
-4. Sign in as the **1st counselor**, open **Visits**, expand **Who can see each organization's
-   visits**.
+2. Open the **Feed** tab.
+3. Type `/visits/all-organizations` in the address bar.
+4. Sign in as the **1st counselor**, open **Visits**, open the **Sharing** tab.
 5. Under **Who can see the Bishopric's visits?**, turn on **Elders Quorum**, and press **Save
    sharing**.
 6. Sign in as the **bishop** and open the notification bell.
-7. Sign back in as the **EQ president** and open **Visits** and **Return and report** again.
-8. Sign in as the **RS president** and open **Return and report**.
+7. Sign back in as the **EQ president** and open **Visits**, then the **Feed** tab.
+8. Sign in as the **RS president**, open **Visits**, then the **Feed** tab.
 9. Sign in as the bishop, open **Admin**.
+10. **(bv2)** Sign in as the **EQ president**, open **Visits**, and on the **Households** tab
+    press **Cadence** on Castillo, then **Log visit** on Brennan, then **Visit goal**, **Which
+    households** and **Appointments** in turn. Change **Sort by** to **Household**.
+11. **(bv2)** Choose **Relief Society** in the Organization selector and press **Visit goal**.
+12. **(bv2)** Open the **Feed** tab, then reload the page.
+13. **(bv2)** Type `/visits/feed` in the address bar.
 
 ## Verification Checklist
 
@@ -56,12 +61,18 @@ Three things are only real with seeded data and two sign-ins:
       changed". The seed sets no visit goal, and the cadence control only appears once a goal
       exists, so no organization showed one and the check could not fail. Seed a goal for both
       organizations before reinstating it.)_
-- [ ] Step 1: there is no **All organizations** link, and no **Who can see…** section
+- [ ] Step 1: the tabs read **Households · Feed** only — no **All orgs** and no
+      **Sharing** _(bv2: these were a link and a section until the re-skin)_
 - [ ] Step 2: the feed's sentence names the Relief Society as shared with the Elders Quorum
 - [ ] Step 2: no tile carries any text containing "PRIVATE"
-- [ ] Step 3: the page refuses with a sentence pointing back to the Visits page, and links to both
-      **Your Visits page** (`/visits`) and **Back to the dashboard**
-- [ ] Step 4: the section lists one row per organization, the **Bishopric first**, and no row
+- [ ] Step 3: the address redirects to `/visits`, there is no All orgs tab, and the page
+      opens on the tab the EQ president last used — **Feed**, from step 2 _(bv2: this was a refusal
+      page until the old address became a redirect, the user's choice. Corrected 2026-11-01: this
+      said "opens on Households", but a tab the reader cannot see falls back to the remembered tab,
+      and step 2 had just remembered Feed)_
+- [ ] Step 4: the counselor's tabs read **Households · Feed · All orgs · Sharing**
+- [ ] Step 4 (375px): all four tabs fit on one line, with no scrollbar under them _(099-D2)_
+- [ ] Step 4: the Sharing tab lists one row per organization, the **Bishopric first**, and no row
       offers the Bishopric as a choice
 - [ ] Step 4: Elders Quorum ⇄ Relief Society are already on; nothing is on in the Bishopric row
 - [ ] Step 5: "Saved." appears
@@ -80,6 +91,22 @@ Three things are only real with seeded data and two sign-ins:
 - [ ] Step 8: the RS president still does **not** see Ashby or Brennan
 - [ ] Step 9: the admin toggle now reads **Cross-organization youth follow-ups** and says it no
       longer affects visits
+- [ ] Step 10: the page reads **People & Care** above the title **Visits**
+- [ ] Step 10: each household is one card: name and band pill on the first line with small
+      **Log visit** and **Cadence** buttons, then a line saying when it is due (or "Never
+      visited."), and who last went
+- [ ] Step 10: Castillo's card says **this household's own cadence**; Ellery's says **1 attempt
+      since**
+- [ ] Step 10: **Cadence** opens a window with the "Visit this household once every" controls
+      already showing; **Log visit** opens a window with Brennan already chosen
+- [ ] Step 10: Visit goal, Which households and Appointments each open their own window, sized
+      to their content (a bottom sheet at 375px), and the heading changes to "Households, by
+      household" after the sort change
+- [ ] Step 11: the window title names the **Relief Society**, lists the Relief Society's goal
+      only, and offers no **Set a goal** or **Edit** — a shared organization is read-only
+      _(the bv1 follow-up: the panels used to stay the reader's own organization)_
+- [ ] Step 12: after the reload the page reopens on the **Feed** tab, still sorted by Household
+- [ ] Step 13: `/visits/feed` lands on `/visits` with the Feed tab open
 - [ ] Every screen above works at 375px wide in light and dark
 
 ## Failure Behavior
@@ -89,6 +116,69 @@ Three things are only real with seeded data and two sign-ins:
 - If the Bishopric row is missing at step 4, the ward has no Bishopric organization.
 
 ## Walkthrough record
+
+**2026-11-01 — bv2, driven by Claude (Playwright against `npm run dev` at 375px, writes read back
+with the service role through `.walk099/readback099.mjs`).** Not yet reviewed by the user.
+Screenshots `bv2-*.png` in `.walk099/` (git-excluded). The password was read inside the browser
+script from `.env.local` and never entered the transcript. Every step 1–13 was completed as written.
+
+Observed:
+
+- Step 1: tabs `Households · Feed`; selector Elders Quorum, Relief Society; Recent visits Ellery
+  (Oct 20, attempted), Fontaine, Dawson, Ellery, Castillo — no Ashby or Brennan; Flag only on the
+  three EQ visits. No console warnings or errors.
+- Step 2: "…and the visits of the Relief Society, which the bishopric has shared with yours." 5
+  tiles; "PRIVATE" nowhere; no horizontal overflow.
+- Step 3: landed on `/visits?tab=all_organizations`, tabs `Households, Feed`, Feed selected
+  (checklist corrected — see the step 3 item).
+- Step 4: counselor tabs `Households, Feed, All organizations, Sharing`; Bishopric row first;
+  exactly two chips pressed (EQ ⇄ RS); every chip 44px.
+- Step 5–6: "Saved." Read back: grants EQ→RS, RS→EQ, Bishopric→EQ (`created_by` set on the new
+  one); audit `visit_sharing_updated {added: [Bishopric→EQ], removed: [], grantCount: 3}`; one
+  notification, to Mark: "Visit sharing changed — Peter Nakamura changed which organizations can see
+  each organization's visits." None to Peter.
+- Step 7: Recent visits now 7, with Brennan (Oct 11) and Ashby (Oct 4) "Recorded by Mark
+  Andersen", no Flag, no private text; selector still EQ, RS; feed tiles for both labelled
+  Bishopric; sentence "…the visits of the Bishopric and Relief Society…".
+- Step 8: RS feed names the Elders Quorum only; no Ashby or Brennan.
+- Step 9: "Cross-organization youth follow-ups" … "This no longer affects visits. Who can see each
+  organization's visits is set by the bishopric on the Visits page."
+- Step 10: eyebrow "People & Care", h1 "Visits"; card buttons 44px. Castillo: "Due Jan 5, 2027 ·
+  this household's own cadence" / "Last visited Oct 5, 2026" (no "by" — the seed records no
+  participants). Ellery: "Never visited." / "1 attempt since". Cadence opened as a bottom sheet
+  (y 534, h 278) showing **3 months**; Log visit opened with Household = **Brennan**. Visit goal
+  (h 333), Which households (h 335), Appointments (h 736) each opened their own sheet. Sort by
+  Household → "Households, by household", cards Ashby…Fontaine.
+- Step 11: "Visit goal — Relief Society", one goal ("Every household once a year"), no buttons but
+  Close; the page read "The bishopric has shared the Relief Society's visits with yours…". Cadence
+  on Castillo opened read-only ("Every year", Close only).
+- Step 12: after reload, Feed selected; Households heading "Households, by household". Stored
+  view read back: Miguel `{tab: feed, sort: familyName}`.
+- Step 13: `/visits/feed` → `/visits?tab=feed`, Feed selected — with **Households** remembered at
+  that moment, so the address decided it.
+- 375px: no page-level horizontal overflow on any tab, light or dark.
+
+**DEFECT 099-D2 (bv2):** for the bishopric at 375px the four tabs do not fit — the tab row is 383px
+in a 343px box, "Sharing" ends at x=399, and a grey browser scrollbar shows under the tabs.
+**Resolved 2026-11-03 (user's choice):** the tab is labelled **All orgs**; step 4 gained a 375px
+check. Not re-walked.
+
+Found beside the checklist (for the user to decide):
+
+- On a shared organization, **Log a visit** and each card's **Log visit** and **Cadence** stay.
+  Cadence opens read-only; Log visit records a visit for the reader's OWN organization. Both sit
+  under the sentence "only its own leaders change them".
+- The read-only goal window says "View only — your role does not set goals." The EQ president can
+  set goals; it is read-only because the organization is shared.
+- "1 attempt since" on a never-visited household reads unfinished.
+- The doubled heading inside windows ("Log a visit" / "Log a visit", "Visit goal — …" / "Visit
+  goals") and a card border inside the sheet.
+- On narrow cards the two buttons wrap under the name (Brennan, Fontaine) while others fit
+  (Ellery).
+- **Older than bv2:** the log form's default date is computed in UTC (`formatDateOnly(new Date())`
+  in `page.tsx`, unchanged by bv2). Walked at about 8pm Mountain on Nov 1, it defaulted to
+  **11/02/2026**, and `max` allows that date.
+
 
 **2026-10-31 — driven by Claude (Playwright against `npm run dev` at 375px, every write read back
 with the service role).** Not yet reviewed by the user. Screenshots in `.walk099/` (git-excluded).

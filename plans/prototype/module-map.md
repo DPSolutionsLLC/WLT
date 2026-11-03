@@ -315,6 +315,10 @@ label**. ⚠️ **Do not port the prototype's date handling** — [decisions.md]
 > meeting" (bv7), and grouping by street (bv8). Navigation stays the prototype's **sub-view
 > machine** (§6): Households · My visits · Feed · All organizations (bishopric) · Goal history ·
 > Sharing (bishopric).
+> **bv2 BUILT 2026-11-01:** the sub-view machine and `HouseholdPriorityCard` (pill as the gauge,
+> small Log visit / Cadence buttons on the title line); the old panels open as windows. My visits
+> joins in bv5 and Goal history in bv4. A **Sort by** was kept on the user's choice — the prototype
+> has none.
 
 ### 2.10 To Do — NEW
 Build this **early** — Sacrament's accept/decline, Agendas' delegation, My Appointments and the
