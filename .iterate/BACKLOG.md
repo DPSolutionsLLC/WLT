@@ -1,6 +1,6 @@
 # Backlog
 
-_Last updated: 2026-10-31_
+_Last updated: 2026-11-01_
 
 ---
 
@@ -106,6 +106,10 @@ Suggested order: 051 → 053 → 052 → 054. Future (design for, don't build): 
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
 
+- [ ] ITER-059 — Organization event history (fundraisers, joint org access) → [scope](.iterate/scopes/ITER-059.md)
+  _Reason: a new module with its own tables and a new sharing boundary (presidency-only, per-org
+  read/write, creator handover with acceptance) enforced by RLS. Depends on knowing current
+  presidencies, so it should follow ITER-058._
 - [ ] ITER-058 — The ward roster decides who holds which calling → [scope](.iterate/scopes/ITER-058.md)
   _Reason: moves the source of every permission decision (RLS, can(), Planner identity, Zoom) onto
   the LCR roster, with a login↔member link and reviewed calling changes — security-sensitive and
