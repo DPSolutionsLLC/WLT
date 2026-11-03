@@ -2,7 +2,7 @@
 id: bishopric-visits
 type: feature
 iter: ITER-055
-commits: ["393a98c"]
+commits: ["393a98c", "280b9aa"]
 date: 2026-10-31
 files:
   - supabase/migrations/099_visit_org_sharing.sql
@@ -77,7 +77,7 @@ Full suite 366 files / 5420 tests: one failure (`org-isolation`, the stale switc
 and re-run 12/12. Typecheck, lint (5 old warnings elsewhere), harness typecheck and production build
 clean. Migration 099 applied by the user.
 
-## bv2 — `/visits` as the prototype's sub-view machine
+## bv2 — `/visits` as the prototype's sub-view machine (280b9aa)
 
 ### What was done
 `/visits` is one tabbed screen (`VisitsScreen`): **Households · Feed · All orgs** (bishopric) ·
