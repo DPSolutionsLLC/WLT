@@ -18,6 +18,15 @@ const MAX_URL_LENGTH = 2000;
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const URL_PATTERN = /^https:\/\/[^\s/?#]+\S*$/;
 
+// Zoom's registration emails hand out /w/ links; the pool stores the /j/ form of the same link.
+// Anchored to a zoom.us host so a /w/ anywhere else in a URL is left alone. Migration 100 uses the
+// same pattern on the links already stored.
+const ZOOM_WEBINAR_PATH_PATTERN = /^(https:\/\/(?:[^\s/?#]+\.)?zoom\.us)\/w\//i;
+
+export function normalizeZoomJoinUrl(url: string): string {
+  return url.replace(ZOOM_WEBINAR_PATH_PATTERN, "$1/j/");
+}
+
 export type ParsedJoinLink = {
   lineNumber: number;
   placeholderName: string;
@@ -46,7 +55,7 @@ function readLine(text: string, lineNumber: number): LineReading {
 
   if (urlCells.length === 0) return { problem: "There is no link starting with https:// on this line." };
   if (urlCells.length > 1) return { problem: "There is more than one link on this line." };
-  const [joinUrl] = urlCells;
+  const joinUrl = normalizeZoomJoinUrl(urlCells[0]);
   if (!joinUrl.toLowerCase().startsWith("https://") || !URL_PATTERN.test(joinUrl)) {
     return { problem: "The link must start with https://." };
   }

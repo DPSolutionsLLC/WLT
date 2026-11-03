@@ -1,8 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { parseJoinLinkPaste } from "@/lib/zoom/joinLinkPaste";
+import { normalizeZoomJoinUrl, parseJoinLinkPaste } from "@/lib/zoom/joinLinkPaste";
 
-const URL_ONE = "https://us02web.zoom.us/w/111?tk=abc";
-const URL_TWO = "https://us02web.zoom.us/w/222?tk=def";
+const URL_ONE = "https://us02web.zoom.us/j/111?tk=abc";
+const URL_TWO = "https://us02web.zoom.us/j/222?tk=def";
+
+describe("normalizeZoomJoinUrl", () => {
+  it("turns a /w/ link into a /j/ link, keeping tk and uuid exactly", () => {
+    expect(
+      normalizeZoomJoinUrl("https://us02web.zoom.us/w/81234567890?tk=Ab-c_D.e&uuid=WN_xYz-123"),
+    ).toBe("https://us02web.zoom.us/j/81234567890?tk=Ab-c_D.e&uuid=WN_xYz-123");
+  });
+
+  it("handles the bare zoom.us host", () => {
+    expect(normalizeZoomJoinUrl("https://zoom.us/w/1?tk=a")).toBe("https://zoom.us/j/1?tk=a");
+  });
+
+  it.each([
+    ["a /j/ link", "https://us02web.zoom.us/j/1?tk=a"],
+    ["a /w/ further down the path", "https://us02web.zoom.us/j/1/w/2?tk=a"],
+    ["another host", "https://example.org/w/1?tk=a"],
+    ["a look-alike host", "https://notzoom.us.example.org/w/1"],
+  ])("leaves %s unchanged", (_label, url) => {
+    expect(normalizeZoomJoinUrl(url)).toBe(url);
+  });
+});
 
 describe("parseJoinLinkPaste", () => {
   it("reads a comma-separated line in name, email, link order", () => {
@@ -72,6 +93,19 @@ describe("parseJoinLinkPaste", () => {
     expect(problems).toEqual([
       { lineNumber: 2, message: "This email address is the same as the one on line 1." },
     ]);
+  });
+
+  it("stores a pasted /w/ link as its /j/ form", () => {
+    const { lines } = parseJoinLinkPaste("Guest 01, g1@example.org, https://us02web.zoom.us/w/111?tk=abc");
+    expect(lines[0].joinUrl).toBe(URL_ONE);
+  });
+
+  it("reports a /w/ and a /j/ copy of one link as the same link", () => {
+    const { lines, problems } = parseJoinLinkPaste(
+      `Guest 01, g1@example.org, ${URL_ONE}\nGuest 02, g2@example.org, https://us02web.zoom.us/w/111?tk=abc`,
+    );
+    expect(lines).toHaveLength(1);
+    expect(problems).toEqual([{ lineNumber: 2, message: "This link is the same as the one on line 1." }]);
   });
 
   it("returns nothing for an empty paste", () => {
