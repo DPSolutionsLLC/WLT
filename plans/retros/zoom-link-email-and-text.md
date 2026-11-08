@@ -2,7 +2,7 @@
 id: zoom-link-email-and-text
 type: feature
 iter: ITER-053
-commits: []
+commits: ["9453b63"]
 date: 2026-11-07
 files:
   - lib/zoom/joinLinkMessage.ts
