@@ -1112,6 +1112,15 @@ swapping the counselors' numbers turns the link off at once; the row then reads 
 until a fresh one is pasted. Nobody is notified — the tab says so. Every set, replace and turn-off
 is in the audit log, without the link.
 
+### Handing a person their link — Text it, Share, Email it, QR (ITER-053)
+
+A text cannot hide a link, so **Text it** is two texts: a greeting, then the link **on its own**,
+which most phones show as a tidy preview card. **Share** passes the link separately from the
+greeting for the same reason. **Email it** sends the person an email from the app with a **Watch
+sacrament meeting** button and the link behind it; it is off, with a sentence, when there is no
+email address on file or the app's email is not set up. Every message points straight at Zoom, so
+moving the app to a new domain changes none of them.
+
 ### Sign-ups — built (ITER-052, slices 1–2)
 
 A **public page**, reached by a QR code or a shared link, where anyone can ask for a link to watch

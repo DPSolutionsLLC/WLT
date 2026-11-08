@@ -1763,6 +1763,17 @@ Both write routes answer `{ row }` — the tab's status row, never the link. **T
 in an audit row or a response.** `zoom.view` is held by the bishopric, the ward clerk
 (`ward_secretary`) and the executive secretary.
 
+### Zoom invitee hand-out email  *(ITER-053 follow-up — `zoom.manage_invitees` + a bishopric calling)*
+```
+POST   /api/zoom/invitees/[id]/email        Email the invitee their own join link: HTML with a "Watch
+                                            sacrament meeting" button plus a plain-text copy, via
+                                            Resend. 404 no such invitee / no link yet; 409 no email
+                                            on file, or email not set up; 502 Resend refused.
+                                            Audited zoom_invitee_link_emailed { inviteeId }.
+```
+The browser sends only the id; the link is read with the service role and never appears in the
+response, an audit row or a log line. Pressing again sends again.
+
 ### Zoom sign-ups  *(ITER-052 — settings: `zoom.manage_invitees` + a bishopric calling; questions: `zoom.manage_registration_questions`, non-overridable, held by the bishopric, the clerk and the executive secretary)*
 ```
 POST   /api/public/zoom-registrations        NO SESSION. { slug, displayName, phone, email?, saysMember,

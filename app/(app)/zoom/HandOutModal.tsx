@@ -101,8 +101,10 @@ export function HandOutModal({ isOpen, onClose, onSaved, user, wardName }: HandO
                 {result.invitee.placeholderName ?? "a link"}. Send it to them now:
               </p>
               <LinkHandoff
+                inviteeId={result.invitee.id}
                 displayName={result.invitee.displayName}
                 phone={result.invitee.phone}
+                email={result.invitee.email}
                 wardName={wardName}
                 joinUrl={result.joinUrl}
               />

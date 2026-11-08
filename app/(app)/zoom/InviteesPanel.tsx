@@ -287,8 +287,10 @@ function InviteeWindow({
         {joinUrl ? (
           <>
             <LinkHandoff
+              inviteeId={invitee.id}
               displayName={invitee.displayName}
               phone={invitee.phone}
+              email={invitee.email}
               wardName={wardName}
               joinUrl={joinUrl}
             />

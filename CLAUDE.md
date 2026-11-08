@@ -1641,6 +1641,10 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   `lib/todos/zoomLinks.ts` (service role). Giving them a link closes EVERY open copy, whoever holds
   it, with a `source_completed` line carrying its own sentence. Like a music to-do it has no
   checkbox, and it cannot be deleted while open.
+  **The hand-out never shortens or wraps the link (2026-11-07, plans/zoom-link-email-and-text.md):**
+  Text it is a greeting then the link alone (a link-only text previews as a card), Share passes it
+  as `url`, and **Email it** (`POST /api/zoom/invitees/[id]/email`) hides it behind a button — the
+  browser sends only the id. No app-owned short link, so a domain change touches none of it.
 - **A ZOOM SIGN-UP IS A REQUEST, NOT AN INVITEE — DECIDED 2026-10-30 (ITER-052, migration 096,
   plans/zoom-self-registration.md).** A public page at `/public/[slug]` (a third branch beside the
   programme, `page_type = 'zoom_registration'`) lets anyone ask for a stream link. The request is
