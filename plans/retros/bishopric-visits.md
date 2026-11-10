@@ -2,7 +2,7 @@
 id: bishopric-visits
 type: feature
 iter: ITER-055
-commits: ["393a98c", "280b9aa", "cd8823b"]
+commits: ["393a98c", "280b9aa", "cd8823b", "9b1dcf8"]
 date: 2026-10-31
 files:
   - supabase/migrations/099_visit_org_sharing.sql
@@ -203,7 +203,7 @@ guard, typecheck and harness typecheck are green. Production build clean on the 
 the first failed on a half-written `.next/dev/types/routes.d.ts` (a generated cache left by
 force-stopping the dev server), which was deleted and regenerated.
 
-## bv4 — Sweep goals, ending a goal, and Past goals (pending commit)
+## bv4 — Sweep goals, ending a goal, and Past goals (9b1dcf8)
 
 ### What was done
 A visit goal is now a **sweep** ("Visit every household once", a finish line) or a **cadence**
