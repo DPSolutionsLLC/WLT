@@ -16,8 +16,17 @@ describe("visibleVisitsTabs", () => {
       "households",
       "feed",
       "all_organizations",
+      "goal_history",
       "sharing",
     ]);
+  });
+
+  // Past goals is the bishopric's alone (decided at ITER-055 bv4 start), even for a reader who
+  // could otherwise manage sharing.
+  it("keeps Past goals to the bishopric", () => {
+    expect(visibleVisitsTabs({ isBishopric: false, canManageSharing: true })).not.toContain(
+      "goal_history",
+    );
   });
 
   it("gives an organization leader Households and Feed only", () => {
@@ -79,6 +88,10 @@ describe("the page-view route accepts the visits view", () => {
   it("parses a visits save and refuses an unknown sort", () => {
     expect(
       pageViewSchema.safeParse({ page: "visits", view: { tab: "feed", sort: "priority" } }).success,
+    ).toBe(true);
+    expect(
+      pageViewSchema.safeParse({ page: "visits", view: { tab: "goal_history", sort: "priority" } })
+        .success,
     ).toBe(true);
     expect(
       pageViewSchema.safeParse({ page: "visits", view: { tab: "feed", sort: "loudest" } }).success,

@@ -5,8 +5,14 @@ import { assertCan, BISHOPRIC_ROLES, resolveRoleAccess } from "@/lib/auth/permis
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { createVisitGoal, listVisitGoals } from "@/lib/visits/queries";
+import {
+  ActiveVisitGoalExistsError,
+  createVisitGoal,
+  listVisitGoals,
+} from "@/lib/visits/queries";
 import { createVisitGoalSchema } from "@/lib/validation/visit";
+import { wardDateOnly } from "@/lib/ward/wardDate";
+import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import type { Role } from "@/types/domain";
 
 // Visit goals, per organization. RLS is the boundary and this route agrees with it: migration
@@ -23,6 +29,13 @@ import type { Role } from "@/types/domain";
 //
 // The session is resolved OUTSIDE the try block: requireSessionUser() redirects by throwing an
 // internal Next.js error, and catching that would turn a redirect into a 500.
+
+// ONE ACTIVE GOAL PER ORGANIZATION (ITER-055 bv4, migration 102's index). Checked here first so
+// the person reads a sentence naming what to do; the index is what holds when two people press
+// Save at the same moment, and its refusal is turned into the same sentence.
+const ACTIVE_GOAL_EXISTS =
+  "This organization already has an active visit goal. End it first — it stays in Goal " +
+  "history — then set the new one.";
 
 function isBishopric(role: Role): boolean {
   return (BISHOPRIC_ROLES as readonly string[]).includes(role);
@@ -107,7 +120,24 @@ export async function POST(request: Request) {
 
     const orgId = bishopricAuthor ? (input.orgId ?? null) : user.orgId;
 
-    const goal = await createVisitGoal(user.wardId, orgId, user.id, input, supabase);
+    const existingGoals = await listVisitGoals(user.wardId, supabase);
+
+    if (existingGoals.some((goal) => goal.orgId === orgId && goal.endedAt === null)) {
+      return NextResponse.json({ error: ACTIVE_GOAL_EXISTS }, { status: 409 });
+    }
+
+    // The WARD's today, never the server's: Vercel is UTC, and a goal set at 7pm in Denver began
+    // that day (CLAUDE.md rule 12).
+    const startedOn =
+      input.startedOn ?? wardDateOnly(new Date(), await readWardTimezone(user.wardId, supabase));
+
+    const goal = await createVisitGoal(
+      user.wardId,
+      orgId,
+      user.id,
+      { ...input, startedOn },
+      supabase,
+    );
 
     await writeAuditLog(
       {
@@ -119,6 +149,8 @@ export async function POST(request: Request) {
           visitGoalId: goal.id,
           orgId: goal.orgId,
           targetType: goal.targetType,
+          kind: goal.kind,
+          startedOn: goal.startedOn,
           cadenceAmount: goal.cadence?.amount ?? null,
           cadenceUnit: goal.cadence?.unit ?? null,
           noticeAmount: goal.notice?.amount ?? null,
@@ -131,6 +163,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ goal }, { status: 201 });
   } catch (error) {
+    if (error instanceof ActiveVisitGoalExistsError) {
+      return NextResponse.json({ error: ACTIVE_GOAL_EXISTS }, { status: 409 });
+    }
+
     return respondToRouteError(error, {
       route: "POST /api/visit-goals",
       fallbackMessage: "Could not create that visit goal. Please try again.",

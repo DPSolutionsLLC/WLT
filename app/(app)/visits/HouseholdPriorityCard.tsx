@@ -1,6 +1,8 @@
 import { GaugePill, NeutralPill } from "@/app/(app)/visits/GaugePill";
 import { SmallButton } from "@/app/(app)/todos/SmallButton";
+import { Pill, type PillTone } from "@/components/ui/Pill";
 import type { VisitProgressRow } from "@/lib/visits/progress";
+import type { SweepStatus } from "@/lib/visits/sweep";
 import { formatVisitDate } from "@/lib/visits/visitDates";
 import { VISIT_NEEDS_ANOTHER_REASON_LABELS } from "@/types/domain";
 
@@ -24,8 +26,23 @@ function plural(count: number, word: string): string {
   return count === 1 ? word : `${word}s`;
 }
 
+// A sweep has no band, so its card carries the sweep's own three words (ITER-055 bv4), in the
+// shared P1 tones: missing for what is left, pending for partly, ok for done.
+const SWEEP_PILL: Record<SweepStatus, { label: string; tone: PillTone }> = {
+  not_yet: { label: "Not yet", tone: "missing" },
+  partly_reached: { label: "Partly reached", tone: "pending" },
+  done: { label: "Done", tone: "ok" },
+};
+
 export function describeHouseholdStanding(row: VisitProgressRow): string {
   if (row.doNotContact) return "Marked do not contact — not counted toward the goal.";
+  if (row.sweep !== null) {
+    if (row.sweep.status === "done") {
+      return `Done in this sweep · ${formatVisitDate(row.sweep.on)}`;
+    }
+    if (row.sweep.status === "partly_reached") return "Still needs a visit in this sweep.";
+    return "Not yet visited in this sweep.";
+  }
   if (row.priority === null) return "No visit goal to measure against yet.";
   if (row.priority.band === "never_visited") return "Never visited.";
 
@@ -86,6 +103,8 @@ export function HouseholdPriorityCard({
           <p className="text-sm font-medium text-foreground">{row.familyName}</p>
           {row.doNotContact ? (
             <NeutralPill>Do not contact</NeutralPill>
+          ) : row.sweep !== null ? (
+            <Pill tone={SWEEP_PILL[row.sweep.status].tone}>{SWEEP_PILL[row.sweep.status].label}</Pill>
           ) : row.priority === null ? null : (
             <GaugePill priority={row.priority} asOf={asOf} />
           )}

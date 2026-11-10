@@ -18,6 +18,8 @@ import {
   CADENCE_UNITS,
   VISIT_ARRANGEMENTS,
   VISIT_ATTEMPT_DETAILS,
+  VISIT_GOAL_END_REASONS,
+  VISIT_GOAL_KINDS,
   VISIT_NEEDS_ANOTHER_REASONS,
   VISIT_OUTCOMES,
   VISIT_TARGET_TYPES,
@@ -25,6 +27,8 @@ import {
   type CadenceUnit,
   type VisitArrangement,
   type VisitAttemptDetail,
+  type VisitGoalEndReason,
+  type VisitGoalKind,
   type VisitNeedsAnotherReason,
   type VisitOutcome,
   type VisitTargetType,
@@ -74,6 +78,15 @@ export type VisitGoal = {
   // Christmas" — it drives no arithmetic, and a deadline in the past is a legitimate record of
   // one that passed rather than an error.
   deadline: string | null;
+  // A sweep (every household once) or a cadence (ITER-055 D5, migration 102). A sweep has no
+  // cadence and no notice — a CHECK holds that.
+  kind: VisitGoalKind;
+  // The ward's date the goal began. A sweep counts only visits on or after it.
+  startedOn: string;
+  // Null while the goal is active. Migration 102 allows one active goal per organization; an ended
+  // goal is never deleted and is what Goal history reads.
+  endedAt: string | null;
+  endReason: VisitGoalEndReason | null;
   createdBy: string | null;
   createdAt: string;
 };
@@ -128,6 +141,10 @@ type VisitGoalRow = {
   notice_amount: number | null;
   notice_unit: string | null;
   deadline: string | null;
+  kind: string;
+  started_on: string;
+  ended_at: string | null;
+  end_reason: string | null;
   created_by: string | null;
   created_at: string;
 };
@@ -160,7 +177,7 @@ type VisitLogJoinedRow = VisitLogRow & {
 // (plans/retros/calendar-a-rules-and-api.md). And never `select("*")`: an explicit list is what
 // stops a column added later riding into a response nobody reviewed.
 const VISIT_GOAL_COLUMNS =
-  "id, org_id, title, target_type, cadence_amount, cadence_unit, notice_amount, notice_unit, deadline, created_by, created_at";
+  "id, org_id, title, target_type, cadence_amount, cadence_unit, notice_amount, notice_unit, deadline, kind, started_on, ended_at, end_reason, created_by, created_at";
 
 const VISIT_LOG_COLUMNS =
   "id, org_id, household_id, recorded_by, visit_date, visit_type, outcome, needs_another_visit, needs_another_reason, attempt_detail, arrangement, shared_notes, flagged_for_ward_council, flag_sent_at, created_at";
@@ -234,6 +251,10 @@ export function mapVisitGoalRow(row: VisitGoalRow): VisitGoal {
     cadence: toCadence(row.cadence_amount, row.cadence_unit, "visit_goals.cadence_unit"),
     notice: toCadence(row.notice_amount, row.notice_unit, "visit_goals.notice_unit"),
     deadline: row.deadline,
+    kind: toEnum(row.kind, VISIT_GOAL_KINDS, "visit_goals.kind"),
+    startedOn: row.started_on,
+    endedAt: row.ended_at,
+    endReason: toOptionalEnum(row.end_reason, VISIT_GOAL_END_REASONS, "visit_goals.end_reason"),
     createdBy: row.created_by,
     createdAt: row.created_at,
   };
@@ -346,14 +367,27 @@ export async function getVisitGoal(
   return data === null ? null : mapVisitGoalRow(data);
 }
 
+// Thrown when migration 102's one-active-goal index refuses the insert — two people creating a
+// goal for one organization at the same moment. The route turns it into the same 409 sentence its
+// own check gives.
+export class ActiveVisitGoalExistsError extends Error {
+  constructor() {
+    super("This organization already has an active visit goal.");
+    this.name = "ActiveVisitGoalExistsError";
+  }
+}
+
+// `startedOn` is the WARD's date, resolved by the route; a sweep carries no cadence, so its four
+// interval columns are written null whatever the input held.
 export async function createVisitGoal(
   wardId: string,
   orgId: string | null,
   userId: string,
-  input: CreateVisitGoalInput,
+  input: CreateVisitGoalInput & { startedOn: string },
   client?: SupabaseClient<Database>,
 ): Promise<VisitGoal> {
   const supabase = await resolveClient(client);
+  const isSweep = input.kind === "sweep";
 
   const { data, error } = await supabase
     .from("visit_goals")
@@ -362,15 +396,19 @@ export async function createVisitGoal(
       org_id: orgId,
       title: input.title,
       target_type: input.targetType,
-      cadence_amount: input.cadenceAmount,
-      cadence_unit: input.cadenceUnit,
-      notice_amount: input.noticeAmount,
-      notice_unit: input.noticeUnit,
+      kind: input.kind,
+      started_on: input.startedOn,
+      cadence_amount: isSweep ? null : (input.cadenceAmount ?? null),
+      cadence_unit: isSweep ? null : (input.cadenceUnit ?? null),
+      notice_amount: isSweep ? null : (input.noticeAmount ?? null),
+      notice_unit: isSweep ? null : (input.noticeUnit ?? null),
       deadline: input.deadline ?? null,
       created_by: userId,
     })
     .select(VISIT_GOAL_COLUMNS)
     .single();
+
+  if (error?.code === "23505") throw new ActiveVisitGoalExistsError();
 
   if (error) {
     console.error(`Could not create a visit goal — ${error.message}`, { wardId, orgId });
@@ -398,6 +436,7 @@ export async function updateVisitGoal(
   if (input.noticeAmount !== undefined) patch.notice_amount = input.noticeAmount;
   if (input.noticeUnit !== undefined) patch.notice_unit = input.noticeUnit;
   if (input.deadline !== undefined) patch.deadline = input.deadline;
+  if (input.startedOn !== undefined) patch.started_on = input.startedOn;
 
   const { data, error } = await supabase
     .from("visit_goals")
@@ -415,6 +454,35 @@ export async function updateVisitGoal(
   return data === null ? null : mapVisitGoalRow(data);
 }
 
+// Ends an active goal. It is never deleted: Goal history reads ended rows and recomputes their
+// numbers against `ended_at`. The `ended_at is null` filter makes a second end a zero-row no-op
+// rather than a moved date, and null comes back for that and for a row RLS refused alike.
+export async function endVisitGoal(
+  wardId: string,
+  goalId: string,
+  reason: VisitGoalEndReason,
+  endedAt: Date,
+  client?: SupabaseClient<Database>,
+): Promise<VisitGoal | null> {
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("visit_goals")
+    .update({ ended_at: endedAt.toISOString(), end_reason: reason })
+    .eq("ward_id", wardId)
+    .eq("id", goalId)
+    .is("ended_at", null)
+    .select(VISIT_GOAL_COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`Could not end a visit goal — ${error.message}`, { wardId, goalId });
+    throw new Error(`Could not end that visit goal: ${error.message}`);
+  }
+
+  return data === null ? null : mapVisitGoalRow(data);
+}
+
 // WHERE THE LAST PAGE STOPPED. Both halves are needed because the order is on two columns:
 // several visits share a `visit_date`, so a cursor holding the date alone would either repeat
 // them on the next page or skip them.
@@ -424,6 +492,7 @@ export type VisitLogCursor = {
 };
 
 export type ListVisitLogsOptions = ListVisitsQuery & {
+  bishopricVisits?: boolean;
   limit?: number;
   before?: VisitLogCursor | null;
 };
@@ -440,7 +509,10 @@ export async function listVisitLogs(
     .select(VISIT_LOG_JOINED_COLUMNS)
     .eq("ward_id", wardId);
 
-  if (filter.orgId !== undefined) query = query.eq("org_id", filter.orgId);
+  // `bishopricVisits` asks for the visits stored with no organization — the bishopric's own
+  // (ITER-055 P1). `.eq("org_id", null)` would match nothing, so it is its own filter.
+  if (filter.bishopricVisits === true) query = query.is("org_id", null);
+  else if (filter.orgId !== undefined) query = query.eq("org_id", filter.orgId);
   if (filter.householdId !== undefined) query = query.eq("household_id", filter.householdId);
   if (filter.from !== undefined) query = query.gte("visit_date", filter.from);
   if (filter.to !== undefined) query = query.lte("visit_date", filter.to);

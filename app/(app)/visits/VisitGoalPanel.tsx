@@ -13,7 +13,18 @@ import { compareCadences, describeCadence, type Cadence } from "@/lib/visits/cad
 // (plans/retros/roster-b-picker-and-orgs.md).
 import type { VisitGoal } from "@/lib/visits/queries";
 import { MAX_CADENCE_BY_UNIT } from "@/lib/validation/visit";
-import { CADENCE_UNITS, CADENCE_UNIT_LABELS, type CadenceUnit } from "@/types/domain";
+import { formatVisitDate } from "@/lib/visits/visitDates";
+import {
+  CADENCE_UNITS,
+  CADENCE_UNIT_LABELS,
+  VISIT_GOAL_END_REASON_LABELS,
+  VISIT_GOAL_END_REASONS,
+  VISIT_GOAL_KINDS,
+  VISIT_GOAL_KIND_LABELS,
+  type CadenceUnit,
+  type VisitGoalEndReason,
+  type VisitGoalKind,
+} from "@/types/domain";
 
 export type OrganizationOption = { id: string; label: string };
 
@@ -26,6 +37,11 @@ export type VisitGoalPanelProps = {
   canManage: boolean;
   // Null for a bishopric member, who has to choose which organization the goal is for.
   ownOrgId: string | null;
+  // The ward's date — a new goal's default start (rule 12).
+  today: string;
+  // Whether this reader has the Past goals tab (bishopric only), so the empty state only points
+  // there when it exists.
+  showsPastGoals: boolean;
 };
 
 const SELECT_CLASSES =
@@ -34,6 +50,8 @@ const SELECT_CLASSES =
 type Draft = {
   title: string;
   orgId: string;
+  kind: VisitGoalKind;
+  startedOn: string;
   cadenceAmount: string;
   cadenceUnit: CadenceUnit;
   noticeAmount: string;
@@ -45,8 +63,9 @@ type Draft = {
 // Every year, warning two months ahead — which is what the outgoing `annual` cadence plus
 // DUE_SOON_FRACTION = 0.8 produced, so a ward creating its first goal after this change gets the
 // behaviour it would have got before it.
-const EMPTY_DRAFT: Omit<Draft, "orgId"> = {
+const EMPTY_DRAFT: Omit<Draft, "orgId" | "startedOn"> = {
   title: "",
+  kind: "cadence",
   cadenceAmount: "1",
   cadenceUnit: "year",
   noticeAmount: "2",
@@ -70,6 +89,12 @@ function organizationName(
 function goalSummaryLine(goal: VisitGoal, organizations: OrganizationOption[]): string {
   const parts = [organizationName(organizations, goal.orgId)];
 
+  if (goal.kind === "sweep") {
+    parts.push(`Every household once, from ${formatVisitDate(goal.startedOn)}`);
+    if (goal.deadline !== null) parts.push(`by ${goal.deadline}`);
+    return parts.join(" · ");
+  }
+
   parts.push(goal.cadence === null ? "No cadence set" : describeCadence(goal.cadence));
 
   if (goal.notice !== null) {
@@ -87,6 +112,8 @@ function draftFromGoal(goal: VisitGoal): Draft {
   return {
     title: goal.title ?? "",
     orgId: goal.orgId ?? "",
+    kind: goal.kind,
+    startedOn: goal.startedOn,
     cadenceAmount: String(goal.cadence?.amount ?? 1),
     cadenceUnit: goal.cadence?.unit ?? "year",
     noticeAmount: String(goal.notice?.amount ?? 2),
@@ -105,6 +132,10 @@ function readCadence(amount: string, unit: CadenceUnit): Cadence | null {
   }
 
   return { amount: value, unit };
+}
+
+function deadlineOf(draft: Draft): string | null {
+  return draft.deadline === "" ? null : draft.deadline;
 }
 
 async function readJson(response: Response): Promise<Record<string, unknown>> {
@@ -133,11 +164,17 @@ export function VisitGoalPanel({
   organizations,
   canManage,
   ownOrgId,
+  today,
+  showsPastGoals,
 }: VisitGoalPanelProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const emptyDraft: Draft = { ...EMPTY_DRAFT, orgId: ownOrgId ?? "" };
+  const emptyDraft: Draft = { ...EMPTY_DRAFT, orgId: ownOrgId ?? "", startedOn: today };
+  // ONE ACTIVE GOAL PER ORGANIZATION (migration 102). `goals` holds the selected organization's
+  // active goals, so a second is not offered; the route refuses it anyway with the same sentence.
+  const hasActiveGoal = ownOrgId !== null && goals.length > 0;
+  const [endingGoalId, setEndingGoalId] = useState<string | null>(null);
 
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [open, setOpen] = useState(false);
@@ -160,6 +197,7 @@ export function VisitGoalPanel({
 
   function startEditing(goal: VisitGoal): void {
     setError(undefined);
+    setEndingGoalId(null);
     setEditingGoalId(goal.id);
     setDraft(draftFromGoal(goal));
     setOpen(true);
@@ -179,6 +217,27 @@ export function VisitGoalPanel({
     // select below is disabled while editing for exactly that reason.
     if (!isEditing && draft.orgId === "") {
       setError("Choose which organization this goal belongs to.");
+      return;
+    }
+
+    if (draft.startedOn === "") {
+      setError("Say when this goal starts.");
+      return;
+    }
+
+    if (draft.kind === "sweep") {
+      await save(
+        isEditing
+          ? { title: draft.title, startedOn: draft.startedOn, deadline: deadlineOf(draft) }
+          : {
+              title: draft.title,
+              orgId: draft.orgId,
+              targetType: "all_households",
+              kind: "sweep",
+              startedOn: draft.startedOn,
+              deadline: deadlineOf(draft),
+            },
+      );
       return;
     }
 
@@ -213,39 +272,57 @@ export function VisitGoalPanel({
       return;
     }
 
-    setSaving(true);
+    const interval = {
+      cadenceAmount: cadence.amount,
+      cadenceUnit: cadence.unit,
+      noticeAmount: notice.amount,
+      noticeUnit: notice.unit,
+    };
 
-    try {
-      const deadline = draft.deadline === "" ? null : draft.deadline;
-
-      const body = isEditing
-        ? {
-            title: draft.title,
-            cadenceAmount: cadence.amount,
-            cadenceUnit: cadence.unit,
-            noticeAmount: notice.amount,
-            noticeUnit: notice.unit,
-            deadline,
-          }
+    await save(
+      isEditing
+        ? { title: draft.title, startedOn: draft.startedOn, ...interval, deadline: deadlineOf(draft) }
         : {
             title: draft.title,
             orgId: draft.orgId,
             targetType: "all_households",
-            cadenceAmount: cadence.amount,
-            cadenceUnit: cadence.unit,
-            noticeAmount: notice.amount,
-            noticeUnit: notice.unit,
-            deadline,
-          };
+            kind: "cadence",
+            startedOn: draft.startedOn,
+            ...interval,
+            deadline: deadlineOf(draft),
+          },
+    );
+  }
 
-      const response = await fetch(
-        isEditing ? `/api/visit-goals/${editingGoalId}` : "/api/visit-goals",
-        {
-          method: isEditing ? "PATCH" : "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body),
-        },
-      );
+  async function save(body: Record<string, unknown>): Promise<void> {
+    const saved = await send(
+      isEditing ? `/api/visit-goals/${editingGoalId}` : "/api/visit-goals",
+      isEditing ? "PATCH" : "POST",
+      body,
+    );
+    if (saved) close();
+  }
+
+  // Ends the goal. It is never deleted: it moves to the Past goals tab with its numbers.
+  async function endGoal(goalId: string, reason: VisitGoalEndReason): Promise<void> {
+    const ended = await send(`/api/visit-goals/${goalId}`, "PATCH", { end: reason });
+    if (ended) setEndingGoalId(null);
+  }
+
+  async function send(
+    url: string,
+    method: "POST" | "PATCH",
+    body: Record<string, unknown>,
+  ): Promise<boolean> {
+    setError(undefined);
+    setSaving(true);
+
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
 
       const payload = await readJson(response);
 
@@ -253,10 +330,8 @@ export function VisitGoalPanel({
         setError(
           typeof payload.error === "string" ? payload.error : "Could not save that goal.",
         );
-        return;
+        return false;
       }
-
-      close();
 
       // BOTH, because they refresh different things. router.refresh() re-renders the Server
       // Component so this panel lists the saved goal; the invalidation is what makes the progress
@@ -268,8 +343,10 @@ export function VisitGoalPanel({
       // bug visits-b shipped twice, and the edit path is a third way to reach it.
       router.refresh();
       await queryClient.invalidateQueries({ queryKey: [VISIT_PROGRESS_QUERY_KEY] });
+      return true;
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -279,7 +356,9 @@ export function VisitGoalPanel({
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-foreground">Visit goals</h2>
-        {canManage ? (
+        {canManage && hasActiveGoal && !isEditing ? (
+          <p className="text-sm text-muted">End the current goal to set a new one.</p>
+        ) : canManage ? (
           <Button variant="secondary" onClick={() => (open ? close() : startCreating())}>
             {open ? "Cancel" : "Set a goal"}
           </Button>
@@ -291,7 +370,11 @@ export function VisitGoalPanel({
       </div>
 
       {goals.length === 0 ? (
-        <p className="mt-3 text-sm text-muted">No visit goals yet.</p>
+        <p className="mt-3 text-sm text-muted">
+          {showsPastGoals
+            ? "No active goal. Ended goals are on the Past goals tab."
+            : "No active goal."}
+        </p>
       ) : (
         <ul className="mt-3 flex flex-col gap-2">
           {goals.map((goal) => (
@@ -307,11 +390,50 @@ export function VisitGoalPanel({
                 </div>
 
                 {canManage ? (
-                  <Button variant="secondary" onClick={() => startEditing(goal)}>
-                    {editingGoalId === goal.id ? "Editing" : "Edit"}
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="secondary" onClick={() => startEditing(goal)}>
+                      {editingGoalId === goal.id ? "Editing" : "Edit"}
+                    </Button>
+                    {isEditing ? null : (
+                      <Button
+                        variant="secondary"
+                        onClick={() => setEndingGoalId(endingGoalId === goal.id ? null : goal.id)}
+                      >
+                        End goal
+                      </Button>
+                    )}
+                  </div>
                 ) : null}
               </div>
+
+              {/* ENDING NEVER DELETES (ITER-055 D5). The two ways it ends are the two buttons; the
+                  sentence says where it goes, so nobody ends a goal believing it is gone. */}
+              {canManage && endingGoalId === goal.id ? (
+                <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
+                  <p className="text-sm text-foreground">
+                    How did this goal end? It stays on the Past goals tab with its numbers.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {VISIT_GOAL_END_REASONS.map((reason) => (
+                      <Button
+                        key={reason}
+                        variant="secondary"
+                        disabled={saving}
+                        onClick={() => void endGoal(goal.id, reason)}
+                      >
+                        {VISIT_GOAL_END_REASON_LABELS[reason]}
+                      </Button>
+                    ))}
+                    <Button
+                      variant="secondary"
+                      disabled={saving}
+                      onClick={() => setEndingGoalId(null)}
+                    >
+                      Keep it
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -358,6 +480,41 @@ export function VisitGoalPanel({
             ) : null}
           </div>
 
+          {/* THE KIND IS CHOSEN ONCE. A sweep and a cadence measure different things, so changing
+              it would rewrite what the goal's past numbers meant; end it and set another. */}
+          <fieldset className="flex flex-col gap-1.5">
+            <legend className="text-sm font-medium text-foreground">What kind of goal</legend>
+            {VISIT_GOAL_KINDS.map((kind) => (
+              <label key={kind} className="flex min-h-11 items-center gap-2 text-base text-foreground">
+                <input
+                  type="radio"
+                  name="goal-kind"
+                  value={kind}
+                  checked={draft.kind === kind}
+                  disabled={isEditing}
+                  onChange={() => update("kind", kind)}
+                  className="h-5 w-5"
+                />
+                {VISIT_GOAL_KIND_LABELS[kind]}
+              </label>
+            ))}
+          </fieldset>
+
+          <Input
+            id="goal-started-on"
+            label="Starts"
+            type="date"
+            value={draft.startedOn}
+            onChange={(event) => update("startedOn", event.target.value)}
+          />
+          {draft.kind === "sweep" ? (
+            <p className="-mt-2 text-sm text-muted">
+              Only visits on or after this day count toward this goal.
+            </p>
+          ) : null}
+
+          {draft.kind === "sweep" ? null : (
+          <>
           <div className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-foreground">Visit every</span>
             <div className="flex gap-2">
@@ -435,6 +592,9 @@ export function VisitGoalPanel({
               long as the cadence would mark every household as approaching.
             </p>
           </div>
+
+          </>
+          )}
 
           <Input
             id="goal-deadline"

@@ -144,6 +144,10 @@ function goal(orgId: string, cadence: Cadence = YEAR): VisitGoal {
     cadence,
     notice: TWO_MONTHS,
     deadline: null,
+    kind: "cadence",
+    startedOn: "2026-01-01",
+    endedAt: null,
+    endReason: null,
     createdBy: "user-1",
     createdAt: "2026-01-01T00:00:00.000Z",
   };
@@ -682,5 +686,37 @@ describe("last attempted", () => {
     const progress = build({ households: [household("h-1", "Eastwood")], logs: [] });
 
     expect(rowFor(progress, "h-1").lastAttemptedOn).toBeNull();
+  });
+});
+
+// ITER-055 bv4: an ended goal is history and claims nothing; a visit with no organization is the
+// bishopric's, so a Bishopric cadence goal is measured from it.
+describe("goal kinds and the Bishopric", () => {
+  it("never counts an organization whose only goal has ended", () => {
+    const ended: VisitGoal = {
+      ...goal(EQ),
+      endedAt: "2026-05-01T00:00:00.000Z",
+      endReason: "completed",
+    };
+    const progress = build({ goals: [ended, goal(RS)] });
+
+    expect(rowFor(progress, "h-1").stewards.map((steward) => steward.orgId)).toEqual([RS]);
+  });
+
+  it("never counts a sweep as a steward, since it has no band to show", () => {
+    const sweep: VisitGoal = { ...goal(EQ), kind: "sweep", cadence: null, notice: null };
+    const progress = build({ goals: [sweep] });
+
+    expect(rowFor(progress, "h-1").stewards).toEqual([]);
+  });
+
+  it("measures a Bishopric goal from the visits with no organization", () => {
+    const progress = build({
+      goals: [goal(BISHOPRIC)],
+      logs: [log("h-1", null, "2026-05-01")],
+    });
+
+    const steward = rowFor(progress, "h-1").stewards.find((candidate) => candidate.orgId === BISHOPRIC);
+    expect(steward?.priority?.band).toBe("on_track");
   });
 });

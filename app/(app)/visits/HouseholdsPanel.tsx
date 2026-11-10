@@ -21,6 +21,7 @@ import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import { Modal } from "@/components/ui/Modal";
 import { compareByPriority } from "@/lib/visits/householdStatus";
+import { compareSweepStatus } from "@/lib/visits/sweep";
 // Type-only, so nothing from the server-only module survives the build (roster-b).
 import type { VisitProgress, VisitProgressRow } from "@/lib/visits/progress";
 import {
@@ -71,6 +72,10 @@ export type HouseholdsPanelProps = {
   householdContacts: Record<string, HouseholdContact[]>;
   wardTimeZone: string;
   today: string;
+  // The ward's date, for a new goal's default start (rule 12).
+  wardToday: string;
+  // The reader has the Past goals tab (bishopric only).
+  showsPastGoals: boolean;
   leaders: LeaderOption[];
   memberNames: Record<string, string>;
   appointmentPrefill?: AppointmentPrefill;
@@ -119,7 +124,13 @@ export function sortHouseholdRows(
   sorted.sort((left, right) => {
     let order: number;
 
-    if (sort === "priority") order = compareByPriority(left, right);
+    // A sweep has no band (ITER-055 bv4): what is left to do comes first.
+    if (sort === "priority") {
+      order =
+        left.sweep !== null || right.sweep !== null
+          ? compareSweepStatus(left.sweep, right.sweep)
+          : compareByPriority(left, right);
+    }
     else if (sort === "familyName") order = left.familyName.localeCompare(right.familyName);
     else if (sort === "dueOn") {
       order = compareNullable(left.priority?.dueOn ?? null, right.priority?.dueOn ?? null);
@@ -149,6 +160,8 @@ export function HouseholdsPanel({
   householdContacts,
   wardTimeZone,
   today,
+  wardToday,
+  showsPastGoals,
   leaders,
   memberNames,
   appointmentPrefill,
@@ -189,7 +202,10 @@ export function HouseholdsPanel({
   // bands were computed.
   const asOf = progress === undefined ? new Date(0) : new Date(progress.asOf);
 
-  const goalsShown = orgId === null ? goals : goals.filter((goal) => goal.orgId === orgId);
+  // Active goals only: an ended goal is on the Past goals tab (ITER-055 bv4).
+  const activeGoals = goals.filter((goal) => goal.endedAt === null);
+  const goalsShown =
+    orgId === null ? activeGoals : activeGoals.filter((goal) => goal.orgId === orgId);
   const scheduledCount = appointments.filter((row) => row.status === "scheduled").length;
   // EACH WINDOW CLOSES ONLY ITSELF (defect 100-D1). Contact's "Schedule an appointment" swaps one
   // window for another; the browser then fires the Contact dialog's own `close` event, and a
@@ -266,6 +282,9 @@ export function HouseholdsPanel({
             goal={progress.goal}
             goalHasNoCadence={progress.goalHasNoCadence}
             stewardship={progress.stewardship}
+            sweep={progress.sweep}
+            activeGoal={progress.activeGoal}
+            excludedCount={progress.rows.filter((row) => row.doNotContact).length}
           />
 
           <div className="flex flex-wrap items-end justify-between gap-2">
@@ -352,6 +371,8 @@ export function HouseholdsPanel({
             organizations={orgId === null ? goalOrganizations : organizations}
             canManage={canManageGoals && canEditSelected}
             ownOrgId={orgId ?? user.orgId}
+            today={wardToday}
+            showsPastGoals={showsPastGoals}
           />
         ) : null}
       </Modal>

@@ -35,6 +35,17 @@ files:
   - app/(app)/visits/HouseholdPriorityCard.tsx
   - app/api/visits/route.ts
   - app/api/visits/[id]/route.ts
+  - supabase/migrations/102_visit_goal_kinds.sql
+  - lib/visits/sweep.ts
+  - lib/visits/goalHistory.ts
+  - lib/visits/queries.ts
+  - lib/visits/visitsView.ts
+  - app/api/visit-goals/route.ts
+  - app/api/visit-goals/[id]/route.ts
+  - app/(app)/visits/VisitGoalPanel.tsx
+  - app/(app)/visits/VisitProgressBanner.tsx
+  - app/(app)/visits/GoalHistory.tsx
+  - app/(app)/visits/VisitsScreen.tsx
 related: [visits-c-report-feed-and-cross-org, visits-f-stewardship-and-all-orgs, zoom-remote-links, notification-trigger-drift, role-access-overrides]
 ---
 
@@ -191,3 +202,49 @@ The All orgs change came after that run: its own tests, the visits component tes
 guard, typecheck and harness typecheck are green. Production build clean on the second try:
 the first failed on a half-written `.next/dev/types/routes.d.ts` (a generated cache left by
 force-stopping the dev server), which was deleted and regenerated.
+
+## bv4 — Sweep goals, ending a goal, and Past goals (pending commit)
+
+### What was done
+A visit goal is now a **sweep** ("Visit every household once", a finish line) or a **cadence**
+("Keep visiting on a schedule", what every goal was before). Migration 102 adds `kind`,
+`started_on`, `ended_at` and `end_reason`. Only one goal per organization can be active, and an
+ended goal is never deleted: it moves to a bishopric-only **Past goals** tab, whose numbers are
+worked out again as of the day it ended. The **Bishopric is a picker choice again**, measured from
+its own `org_id = null` visits, with its goal stored on the bishopric-typed organization.
+
+### Key decisions
+- **One active goal is a database fact**: a partial unique index on `(ward_id, org_id) nulls not
+  distinct where ended_at is null`. The route checks first for a 409 with a sentence, and maps the
+  index's 23505 to the same answer.
+- **Done stays done for the sweep** (the user's decision): a later "still needs a visit" shows on
+  the card but does not undo it. Only visits on or after `started_on` count. `lib/visits/sweep.ts`
+  is pure and asks `isDoneVisit()`.
+- **History is recomputed, never stored**: `buildGoalHistory()` runs `buildVisitProgress` on the logs
+  up to the end date (ward zone) with `asOf = endedAt`. An ended goal refuses every change (409).
+  Ending is `{ end }` alone, with a `visit_goal_ended` audit row.
+- **Departures from the plan:** `VisitGoalPanel` was extended instead of creating `GoalWindow`. The
+  Bishopric is back in the picker, reversing 099-D1's removal. **All orgs ignores sweeps**: an
+  organization running a sweep shows no steward chip there, because a sweep has no band. I said
+  early in the build that sweeps would count there too; they do not, and this is a known limit.
+
+### Found on the walk (scenario 101, 2026-11-10, driven by Claude)
+- **101-D1: End goal stayed live while the edit form was open**, so the end question and the form
+  showed together. Fixed: End goal is hidden while editing, and Edit closes an open end question.
+- **The empty state said "No visit goals yet."** after goals had ended. It now reads "No active
+  goal. Ended goals are on the Past goals tab." for a reader with that tab (passed down as
+  `showsPastGoals` from `visibleVisitsTabs`), and "No active goal." for anyone else.
+- Both are covered in `tests/components/visits/VisitGoalPanel.test.tsx`, not re-walked in the
+  browser. The user kept the repeated date on Done cards and approved the 375px layout and the
+  Past goals line.
+
+### Follow-ups (not built)
+- A sweep organization has no chip on All orgs.
+- The Visits tab row's scroll bar is bright in dark mode (from bv2; the user is fine with it).
+- On Windows, opening the project as `c:\` instead of `C:\` makes Vitest load twice and fail every
+  file with "failed to find the current suite". Run tests from `C:\`.
+
+### Validation
+Lint (5 old warnings elsewhere), typecheck and harness typecheck clean. Full suite 380 files /
+5565 tests green before the walk fixes; after them, the visits component tests (6 files, 31 tests),
+typecheck and lint are green. Production build clean both times. Migration 102 applied.

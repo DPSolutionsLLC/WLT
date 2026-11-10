@@ -114,6 +114,11 @@ export type BuildAllOrgProgressInput = {
 // does not, because this page is reachable only by the bishopric or with cross-org visibility on,
 // and migration 053 makes every goal readable in both of those cases. If that widening is ever
 // reversed, this rule becomes reader-dependent and must be reconsidered with it.
+//
+// A SWEEP GOAL DOES NOT CLAIM HERE (ITER-055 bv4). It has no cadence, so there is no band to put
+// on a chip, and a chip with no band reads as do-not-contact on this page. Showing a sweep's
+// done / partly reached / not yet on this page is a later change; until then a sweep organization
+// is absent from it, as an organization with no goal always has been.
 function isClaimingOrganization(
   organization: AllOrgOrganization,
   goalByOrg: ReadonlyMap<string, VisitGoal>,
@@ -191,17 +196,22 @@ function attemptSinceLastVisit(
 // COMPUTED PER ORGANIZATION rather than taken from the ward-wide tally, because a band is a
 // statement about what THAT organization has done — attributing the Relief Society's visit to the
 // Elders Quorum's band would tell a quorum it had reached a family it had not.
+//
+// A visit with no organization is the bishopric's (ITER-055 P1), so it is counted for the ward's
+// bishopric-typed organization; a ward with none simply has nowhere to count it.
 function tallyLastVisitPerOrganization(
   logs: readonly VisitLogWithContext[],
+  bishopricOrgId: string | null,
 ): Map<string, DateOnly> {
   const byPair = new Map<string, DateOnly>();
 
   for (const log of logs) {
     if (log.householdId === null) continue;
-    if (log.orgId === null) continue;
+    const orgId = log.orgId ?? bishopricOrgId;
+    if (orgId === null) continue;
     if (!isDoneVisit(log)) continue;
 
-    const key = `${log.orgId}:${log.householdId}`;
+    const key = `${orgId}:${log.householdId}`;
     const current = byPair.get(key);
 
     if (current === undefined || log.visitDate > current) byPair.set(key, log.visitDate);
@@ -238,19 +248,22 @@ export function buildAllOrgProgress({
   const visitable = households.filter(isVisitableHousehold);
   const lastVisits = tallyLastVisits(logs);
   const lastAttempts = tallyLastAttempts(logs);
-  const lastVisitPerOrg = tallyLastVisitPerOrganization(logs);
+  const bishopricOrgId =
+    organizations.find((organization) => organization.type === "bishopric")?.id ?? null;
+  const lastVisitPerOrg = tallyLastVisitPerOrganization(logs, bishopricOrgId);
   const scopeByOrg = scopesByOrganization(stewardships);
 
   const organizationNames = new Map(
     organizations.map((organization) => [organization.id, organization.name]),
   );
 
-  // The most recently created goal per organization, matching selectActiveGoal's rule.
+  // The ACTIVE goal per organization, matching selectActiveGoal's rule (ITER-055 bv4: an ended goal
+  // is history and measures nothing).
   // listVisitGoals returns `created_at desc` and this does not re-sort it — an order asserted in
   // one place and assumed in another is the bug route-tests-and-realtime.md records.
   const goalByOrg = new Map<string, VisitGoal>();
   for (const goal of goals) {
-    if (goal.orgId === null) continue;
+    if (goal.orgId === null || goal.endedAt !== null) continue;
     if (!goalByOrg.has(goal.orgId)) goalByOrg.set(goal.orgId, goal);
   }
 

@@ -16,6 +16,7 @@ function row(overrides: Partial<VisitProgressRow> = {}): VisitProgressRow {
     attemptsSinceLastVisit: 0,
     partlyReached: null,
     doNotContact: false,
+    sweep: null,
     priority: {
       band: "on_track",
       elapsedFraction: 0.4,
@@ -132,5 +133,33 @@ describe("HouseholdPriorityCard", () => {
     render(<HouseholdPriorityCard row={row()} asOf={asOf} />);
 
     expect(screen.queryByText(/Partly reached/)).toBeNull();
+  });
+
+  // ITER-055 bv4: a sweep has no band, so the card carries the sweep's own words.
+  it("shows where a household stands in a sweep, and offers no cadence", () => {
+    render(
+      <HouseholdPriorityCard
+        row={row({
+          priority: null,
+          sweep: { status: "done", on: "2027-02-10", reason: null },
+        })}
+        asOf={asOf}
+        onOpenCadence={undefined}
+      />,
+    );
+    expect(screen.getByText("Done")).toBeTruthy();
+    expect(screen.getByText(/^Done in this sweep · /)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /How often/ })).toBeNull();
+  });
+
+  it("says a household is not yet visited in this sweep", () => {
+    render(
+      <HouseholdPriorityCard
+        row={row({ priority: null, sweep: { status: "not_yet", on: null, reason: null } })}
+        asOf={asOf}
+      />,
+    );
+    expect(screen.getByText("Not yet")).toBeTruthy();
+    expect(screen.getByText("Not yet visited in this sweep.")).toBeTruthy();
   });
 });

@@ -1328,16 +1328,28 @@ export async function createVisitGoal(options: {
   // deadline that passed.
   deadline?: string;
   createdBy?: string;
+  // ITER-055 bv4 (migration 102). A sweep carries no schedule, so the four interval columns are
+  // written null for one whatever else is passed. An ended goal needs both `endedAt` and
+  // `endReason` (a CHECK), and only one goal per organization may be active.
+  kind?: "cadence" | "sweep";
+  startedOn?: string;
+  endedAt?: string;
+  endReason?: "completed" | "set_aside";
 }): Promise<string> {
+  const isSweep = options.kind === "sweep";
   return insertRow("visit_goals", {
     ward_id: TEST_WARD_ID,
     org_id: TEST_ORG_IDS[options.org],
     title: options.title,
     target_type: options.targetType ?? "all_households",
-    cadence_amount: options.cadenceAmount ?? 1,
-    cadence_unit: options.cadenceUnit ?? "year",
-    notice_amount: options.noticeAmount ?? 2,
-    notice_unit: options.noticeUnit ?? "month",
+    kind: options.kind ?? "cadence",
+    ...(options.startedOn === undefined ? {} : { started_on: options.startedOn }),
+    ended_at: options.endedAt ?? null,
+    end_reason: options.endReason ?? null,
+    cadence_amount: isSweep ? null : (options.cadenceAmount ?? 1),
+    cadence_unit: isSweep ? null : (options.cadenceUnit ?? "year"),
+    notice_amount: isSweep ? null : (options.noticeAmount ?? 2),
+    notice_unit: isSweep ? null : (options.noticeUnit ?? "month"),
     deadline: options.deadline ?? null,
     created_by: options.createdBy ?? null,
   });

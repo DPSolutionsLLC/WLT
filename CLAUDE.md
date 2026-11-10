@@ -741,9 +741,9 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   **The all-organizations page is the bishopric's alone** (P4): its unclaimed count is only
   uniformly evaluable while every goal is readable, and per-pair grants would give two readers two
   answers. A leader with grants reads each shared organization on `/visits` through the selector,
-  read-only. **The Bishopric is never a selector choice, for anybody** (defect 099-D1): its visits
-  are `org_id = null` and the progress table filters on an organization id, so it always read
-  "never visited". Bishopric visits are read in Recent visits and the feed. **Cost, named:** the ward clerk and executive secretary usually have no organization, so
+  read-only. **The Bishopric IS a selector choice again since bv4** (reversing defect 099-D1's
+  removal): `readVisitProgress()` reads the `org_id = null` visits for the ward's bishopric-typed
+  organization, and All orgs counts them for it too. **Cost, named:** the ward clerk and executive secretary usually have no organization, so
   a grant reaches them nothing — do not special-case a role (rule 2).
   **bv2 (2026-11-01): `/visits` is the prototype's sub-view machine** — `VisitsScreen` tabs
   Households · Feed · All orgs (bishopric) · Sharing (`canManageVisitSharing()`), chosen by
@@ -765,6 +765,17 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   scenario 100). **A button that swaps one Modal for another must not let the first window's late
   native `close` event shut the second** — `HouseholdsPanel`'s windows each close only themselves
   (defect 100-D1).
+  **bv4 (2026-11-09, migration 102): a goal is a SWEEP or a CADENCE, ONE is active per
+  organization, and an ended goal is never deleted.** `visit_goals_one_active_per_org` is unique on
+  `(ward_id, org_id) nulls not distinct where ended_at is null` — without `nulls not distinct` two
+  no-organization goals never conflict. **Both copies of the active-goal rule ask `endedAt === null`**
+  (`selectActiveGoal()` and `allOrgProgress.ts`); a third reader must too. A sweep counts visits on
+  or after `started_on` through `lib/visits/sweep.ts`, done is `isDoneVisit()`, and **once done stays
+  done for that sweep** (the user's decision). Ending is `{ end }` alone, and **an ended goal refuses
+  every change** (409) because Past goals recomputes its numbers against `ended_at`
+  (`lib/visits/goalHistory.ts`, the `closed_at` precedent). **Past goals is the bishopric's alone.**
+  The Bishopric's goal is stored on its organization's id. **Known limit:** All orgs claims only
+  through a cadence goal, so a sweep organization has no chip there yet.
 - **SUPERSEDED for visits by ITER-055 (above).** **Cross-org visibility widens an organization's whole PROGRESS — DECIDED 2026-08-27, REVERSING
   ITER-018.** `ward_allows_cross_org_visibility()` now appears in **four** SELECT policies:
   `visit_logs_select` (019), `household_stewardships_select` (052), and — added by migration 053 —

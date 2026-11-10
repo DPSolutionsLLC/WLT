@@ -43,6 +43,10 @@ const GOAL: VisitGoal = {
   cadence: YEAR,
   notice: TWO_MONTHS,
   deadline: null,
+  kind: "cadence",
+  startedOn: "2026-01-01",
+  endedAt: null,
+  endReason: null,
   createdBy: "user-1",
   createdAt: "2026-01-01T00:00:00.000Z",
 };
@@ -662,6 +666,18 @@ describe("selectActiveGoal", () => {
   it("returns null when the organization has no goal", () => {
     expect(selectActiveGoal([], "org-eq")).toBeNull();
   });
+
+  // ITER-055 bv4: an ended goal is Goal history, and measures nothing.
+  it("skips an ended goal", () => {
+    const ended: VisitGoal = {
+      ...GOAL,
+      id: "goal-ended",
+      endedAt: "2026-05-01T00:00:00.000Z",
+      endReason: "set_aside",
+    };
+    expect(selectActiveGoal([ended], "org-eq")).toBeNull();
+    expect(selectActiveGoal([ended, older], "org-eq")?.id).toBe("goal-old");
+  });
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -951,5 +967,89 @@ describe("a visit that still needs another visit", () => {
 
     expect(rowFor(progress, "h-1").attemptsSinceLastVisit).toBe(0);
     expect(rowFor(progress, "h-1").lastAttemptedOn).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// A SWEEP GOAL (ITER-055 bv4): every household once, from the start date
+// ---------------------------------------------------------------------------------------------
+describe("a sweep goal", () => {
+  const SWEEP: VisitGoal = {
+    ...GOAL,
+    id: "goal-sweep",
+    kind: "sweep",
+    cadence: null,
+    notice: null,
+    startedOn: "2026-03-01",
+  };
+
+  function buildSweep(households: HouseholdWithMembers[], logs: VisitLogWithContext[]) {
+    return build(households, logs, "2026-06-01", SWEEP);
+  }
+
+  it("counts done, partly reached and not yet over the denominator", () => {
+    const progress = buildSweep(
+      [
+        household("h-1", "Abbott", ["active"]),
+        household("h-2", "Brooks", ["active"]),
+        household("h-3", "Carver", ["active"]),
+        household("h-4", "Dalton", ["active"], true),
+        household("h-5", "Empty", []),
+      ],
+      [
+        log("h-1", "2026-03-10", "completed"),
+        partly("h-2", "2026-04-02", "not_home"),
+        log("h-3", "2026-02-01", "completed"),
+        log("h-4", "2026-03-10", "completed"),
+      ],
+    );
+
+    expect(progress.sweep).toEqual({ total: 3, done: 1, partlyReached: 1, notYet: 1 });
+    expect(progress.statistics).toBeNull();
+    expect(progress.goal).toBeNull();
+    expect(progress.goalHasNoCadence).toBe(false);
+    expect(progress.activeGoal).toEqual({
+      id: "goal-sweep",
+      kind: "sweep",
+      title: SWEEP.title,
+      startedOn: "2026-03-01",
+      deadline: null,
+    });
+  });
+
+  it("gives each row its sweep status and no band", () => {
+    const progress = buildSweep(
+      [household("h-1", "Abbott", ["active"]), household("h-2", "Brooks", ["active"])],
+      [log("h-1", "2026-03-10", "completed")],
+    );
+
+    expect(rowFor(progress, "h-1").sweep?.status).toBe("done");
+    expect(rowFor(progress, "h-1").priority).toBeNull();
+    expect(rowFor(progress, "h-2").sweep?.status).toBe("not_yet");
+  });
+
+  it("gives a do-not-contact household no sweep status", () => {
+    const progress = buildSweep([household("h-1", "Abbott", ["active"], true)], []);
+    expect(rowFor(progress, "h-1").sweep).toBeNull();
+  });
+
+  it("sorts what is left to do first", () => {
+    const progress = buildSweep(
+      [
+        household("h-1", "Abbott", ["active"]),
+        household("h-2", "Brooks", ["active"]),
+        household("h-3", "Carver", ["active"]),
+      ],
+      [log("h-1", "2026-03-10", "completed"), partly("h-2", "2026-03-11")],
+    );
+
+    expect(progress.rows.map((row) => row.familyName)).toEqual(["Carver", "Brooks", "Abbott"]);
+  });
+
+  it("leaves a cadence goal's rows without a sweep status", () => {
+    const progress = build([household("h-1", "Abbott", ["active"])], []);
+    expect(rowFor(progress, "h-1").sweep).toBeNull();
+    expect(progress.sweep).toBeNull();
+    expect(progress.activeGoal?.kind).toBe("cadence");
   });
 });

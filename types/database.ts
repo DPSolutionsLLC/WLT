@@ -3829,10 +3829,14 @@ export type Database = {
           created_at: string
           created_by: string | null
           deadline: string | null
+          end_reason: string | null
+          ended_at: string | null
           id: string
+          kind: string
           notice_amount: number | null
           notice_unit: string | null
           org_id: string | null
+          started_on: string
           target_type: string | null
           title: string | null
           ward_id: string
@@ -3843,10 +3847,14 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           deadline?: string | null
+          end_reason?: string | null
+          ended_at?: string | null
           id?: string
+          kind?: string
           notice_amount?: number | null
           notice_unit?: string | null
           org_id?: string | null
+          started_on?: string
           target_type?: string | null
           title?: string | null
           ward_id: string
@@ -3857,10 +3865,14 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           deadline?: string | null
+          end_reason?: string | null
+          ended_at?: string | null
           id?: string
+          kind?: string
           notice_amount?: number | null
           notice_unit?: string | null
           org_id?: string | null
+          started_on?: string
           target_type?: string | null
           title?: string | null
           ward_id?: string

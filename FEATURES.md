@@ -624,6 +624,15 @@ Available to all organizations. Each org manages its own visit goals and logs in
   call that did not connect (no answer, left a message, couldn't leave a message) and a way on to
   scheduling an appointment. A phone call is only ever an attempt — a done visit is in person
 - Map view (optional toggle): households plotted with color-coded pins by band
+- **A goal is one of two kinds.** *Visit every household once* (a sweep) has a start date and a
+  finish line: the banner reads "4 of 10 done · 2 partly reached · 4 not yet", and each card says
+  *Done*, *Partly reached* or *Not yet*. Only visits on or after the start count, and a household
+  once done stays done for that sweep. *Keep visiting on a schedule* is the cadence goal below
+- **One active goal per organization.** A goal is ended as *Completed* or *Set aside* and is never
+  deleted: the bishopric's **Past goals** tab lists every ended goal with its dates and its numbers
+  as of the day it ended
+- The **Bishopric** is one of the organizations on the Households tab, measured from the
+  bishopric's own visits
 - The banner states the goal **in words** first — "Every household, every year. Warning 2 months
   ahead." — then the four counts, then the percentage on track. The numbers are read against their
   own definition rather than against an assumption

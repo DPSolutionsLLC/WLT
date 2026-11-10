@@ -326,6 +326,12 @@ label**. ⚠️ **Do not port the prototype's date handling** — [decisions.md]
 > on the card as *Partly reached*; it does not reset the clock. **A phone call is only ever an
 > attempt** (user's decision), held by a CHECK. The record form is the existing log form extended,
 > not a second window.
+> **bv4 BUILT 2026-11-09 (migration 102):** a goal is a **sweep** (every household once, from a start
+> date) or a **cadence**; one active goal per organization; ending is *Completed* or *Set aside* and
+> keeps the row, which the **Past goals** tab (bishopric only) lists with numbers recomputed as of the
+> end. The **Bishopric returns to the Organization picker**, its progress read from its no-organization
+> visits (undoing 099-D1's removal). The goal window is the existing `VisitGoalPanel` extended, not a
+> new `GoalWindow`. **All orgs does not show sweep organizations yet** — a sweep has no band for a chip.
 
 ### 2.10 To Do — NEW
 Build this **early** — Sacrament's accept/decline, Agendas' delegation, My Appointments and the

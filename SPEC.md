@@ -671,9 +671,23 @@ cadence_unit    text     -- 'day' | 'week' | 'month' | 'year'
 notice_amount   integer  -- how far ahead of due a household reads "Approaching"
 notice_unit     text     -- 'day' | 'week' | 'month' | 'year'
 deadline        date     -- optional, presentation only
+kind            text NOT NULL DEFAULT 'cadence'  -- 'cadence' | 'sweep' (migration 102)
+started_on      date NOT NULL  -- the ward's date the goal began; a sweep counts visits from it
+ended_at        timestamptz    -- null while active; never deleted once set
+end_reason      text           -- 'completed' | 'set_aside'; set exactly when ended_at is
 created_by      uuid REFERENCES users(id)
 created_at      timestamptz DEFAULT now()
 ```
+
+**Migration 102 (ITER-055 bv4): a goal is a SWEEP or a CADENCE, and an ended goal is history.** A
+sweep is "visit every household once" from `started_on` and carries no cadence or notice (a CHECK);
+progress is `done / partly reached / not yet` from `lib/visits/sweep.ts`, where done is
+`isDoneVisit()` and **once done stays done for that sweep**. `visit_goals_one_active_per_org` is a
+partial unique index on `(ward_id, org_id) nulls not distinct where ended_at is null` — one active
+goal per organization. Ending is `PATCH /api/visit-goals/[id]` with `{ end }` alone; an ended goal
+refuses every further change (409), and the Past goals tab recomputes its final numbers against
+`ended_at` (`lib/visits/goalHistory.ts`), never storing them. The Bishopric's goal is stored on the
+ward's bishopric-typed organization, and its progress reads the visits with `org_id = null`.
 
 CHECK constraints make amount and unit **inseparable** (`(amount is null) = (unit is null)`), so
 half a cadence is unrepresentable. Migration 051 drops the outgoing `cadence`, `cadence_months`,

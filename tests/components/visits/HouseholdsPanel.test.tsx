@@ -41,6 +41,7 @@ const carver: VisitProgressRow = {
   partlyReached: null,
   doNotContact: false,
   priority: null,
+  sweep: null,
   conductedBy: null,
 };
 
@@ -74,6 +75,8 @@ function renderPanel() {
     householdContacts: {},
     wardTimeZone: "America/Denver",
     today: "2026-11-09",
+    wardToday: "2026-11-09",
+    showsPastGoals: true,
     leaders: [],
     memberNames: {},
     recentVisits: null,

@@ -14,6 +14,7 @@ function row(familyName: string, overrides: Partial<VisitProgressRow> = {}): Vis
     partlyReached: null,
     doNotContact: false,
     priority: null,
+    sweep: null,
     conductedBy: null,
     ...overrides,
   };

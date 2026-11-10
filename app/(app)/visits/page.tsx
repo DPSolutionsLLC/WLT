@@ -14,6 +14,8 @@ import { readPageView } from "@/lib/users/userSettings";
 import { DEFAULT_FEED_PAGE_SIZE } from "@/lib/validation/report";
 import { readAllOrgProgress } from "@/lib/visits/allOrgProgress";
 import { readAppointmentParam } from "@/lib/visits/appointmentLink";
+import { buildGoalHistory } from "@/lib/visits/goalHistory";
+import { listWardVisitCadences } from "@/lib/visits/householdCadences";
 import { listAppointments } from "@/lib/visits/appointments";
 import {
   describeHouseholdForVisits,
@@ -22,7 +24,7 @@ import {
 } from "@/lib/visits/progress";
 import { listVisitGoals, listVisitLogs, type VisitLogWithContext } from "@/lib/visits/queries";
 import { readVisitReportFeed } from "@/lib/visits/reportFeed";
-import { readStewardshipScope } from "@/lib/visits/stewardship";
+import { listWardStewardships, readStewardshipScope } from "@/lib/visits/stewardship";
 import { compareStewardshipDrift, toStewardshipScope } from "@/lib/visits/stewardshipScope";
 import {
   describeVisitSharingForReader,
@@ -38,6 +40,7 @@ import {
   parseVisitsView,
   visibleVisitsTabs,
 } from "@/lib/visits/visitsView";
+import { wardDateOnly } from "@/lib/ward/wardDate";
 import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import {
   VISIT_ARRANGEMENT_LABELS,
@@ -110,16 +113,20 @@ export default async function VisitsPage({
   // because migration 099 widens reads and never writes. Mirrors visit_org_visible_to_caller(); the
   // policies are still the boundary and a stale list here would only show an empty table.
   //
-  // THE BISHOPRIC IS NEVER A CHOICE HERE (decided walking scenario 099, defect 099-D1). Its visits
-  // are stored with org_id = null and the progress table filters on an organization's id, so
-  // choosing it always read "never visited". Bishopric visits are read in Recent visits and the
-  // feed instead.
+  // THE BISHOPRIC IS A CHOICE AGAIN (ITER-055 bv4). Defect 099-D1 removed it because its visits
+  // are stored with org_id = null and progress filtered on an organization's id, so it always read
+  // "never visited". readVisitProgress() now reads the no-organization visits for the ward's
+  // bishopric-typed organization, which is where the bishopric's own goal lives. It is listed
+  // first, because for the bishopric it is their own.
   const sharedOrgIds = isBishopric ? [] : orgIdsSharedWith(sharingGrants, user.orgId);
   const progressOrganizations = organizations
-    .filter((organization) => organization.type !== "bishopric")
     .filter(
       (organization) =>
         isBishopric || organization.id === user.orgId || sharedOrgIds.includes(organization.id),
+    )
+    .sort(
+      (left, right) =>
+        Number(right.type === "bishopric") - Number(left.type === "bishopric"),
     )
     .map((organization) => ({ id: organization.id, label: organization.name }));
   const canManageSharing = canManageVisitSharing(user, roleAccess);
@@ -129,7 +136,7 @@ export default async function VisitsPage({
   // goal is set". Found walking scenario 040. There is no ward-wide option, because there is no
   // ward-wide visit goal to supply a denominator.
   const organizationWithGoal = progressOrganizations.find((organization) =>
-    goals.some((goal) => goal.orgId === organization.id),
+    goals.some((goal) => goal.orgId === organization.id && goal.endedAt === null),
   );
 
   const initialOrgId = isBishopric
@@ -267,6 +274,29 @@ export default async function VisitsPage({
         };
 
   const today = formatDateOnly(new Date());
+  // A new goal's default start: the WARD's date, not the server's UTC one (rule 12).
+  const wardToday = wardDateOnly(asOf, wardTimeZone);
+
+  // GOAL HISTORY IS THE BISHOPRIC'S ALONE (decided at bv4 start). Every ended goal, its final
+  // numbers recomputed from the same reads this page already made plus every organization's
+  // cadences and stewardship.
+  const goalHistory = isBishopric
+    ? await (async () => {
+        const [wardCadences, wardStewardships] = await Promise.all([
+          listWardVisitCadences(user.wardId, supabase),
+          listWardStewardships(user.wardId, supabase),
+        ]);
+        return buildGoalHistory({
+          goals,
+          organizations,
+          households,
+          logs: visits,
+          householdCadences: wardCadences,
+          stewardships: wardStewardships,
+          wardTimeZone,
+        });
+      })()
+    : null;
 
   // THE FEED AND THE ALL-ORGANIZATIONS VIEW ARE TABS NOW, and their first page is still read here,
   // on the server, for the reason /visits/feed always gave: read state is correct on first paint
@@ -332,6 +362,8 @@ export default async function VisitsPage({
           householdContacts,
           wardTimeZone,
           today,
+          wardToday,
+          showsPastGoals: visibleTabs.includes("goal_history"),
           leaders,
           memberNames,
           appointmentPrefill,
@@ -339,6 +371,7 @@ export default async function VisitsPage({
         }}
         feed={{ initialPage: feedPage, ownOrganizationId: user.orgId, sharingSentence }}
         allOrganizations={allOrganizations}
+        goalHistory={goalHistory}
         sharing={
           canManageSharing
             ? {
@@ -357,8 +390,7 @@ export default async function VisitsPage({
 }
 
 // THE ONLY PLACE A WHOLE SHARED NOTE IS READABLE, and the only place VisitFlagButton renders.
-// Every visit this reader may see, Bishopric visits included — they are never a selector choice
-// (defect 099-D1), so filtering this by the selected organization would hide them entirely.
+// Every visit this reader may see, Bishopric visits included, whichever organization is selected.
 function RecentVisits({
   visits,
   canLog,

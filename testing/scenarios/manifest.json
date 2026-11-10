@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 98,
+  "scenarioCount": 99,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -3117,10 +3117,43 @@
         "Step 6: \"Choose why the household still needs a visit.\" and nothing is saved",
         "Step 7: \"Visit logged. The household stays on the list as partly reached.\"; Abernathy still",
         "Step 8: the feed tiles read **Visited — still needs a visit · Asked us to come back** for",
-        "Step 9: on **All orgs**, Bellamy's last visit is **May 15, 2026**, not October 25",
+        "Step 9: on **All orgs**, Bellamy's last visit is **May 15, 2026**, not October 25, followed by",
         "Step 10 (375px): the three buttons fit on each card's title line or wrap cleanly under the"
       ],
       "seedCommand": "npm run seed -- visits/scenario-100-partly-reached-and-a-call"
+    },
+    {
+      "id": "visits:scenario-101-a-sweep-and-goal-history",
+      "path": "visits/scenario-101-a-sweep-and-goal-history",
+      "name": "A sweep, partly reached, and goal history",
+      "scope": "visits",
+      "part": 1,
+      "tags": [
+        "visits",
+        "full",
+        "ITER-055"
+      ],
+      "prerequisites": "Migration 102 applied; Visits released for the Harness Test Ward.",
+      "purpose": "ITER-055 slice **bv4**. A visit goal is now one of two kinds: **Visit every household once** (a\n*sweep*, with a finish line) or **Keep visiting on a schedule** (the cadence every goal was\nbefore). A goal can be **ended** as *Completed* or *Set aside*. It is never deleted: it moves to\nthe **Past goals** tab, with its numbers worked out again as of the day it ended. Only one goal per\norganization can be active.\n\nThe **Bishopric** is back in the Organization picker. Its progress now counts the bishopric's own\nvisits (stored with no organization), so it no longer reads \"never visited\" for everyone.\n\nTwo rules worth seeing:\n- Only visits **on or after the sweep's start** count.\n- **Once done, done for this sweep.** A later \"still needs a visit\" shows on the card but does not\n  undo it (decided with the user at bv4 start).",
+      "checklist": [
+        "Step 1: the **Organization** picker lists **Bishopric first** and opens on it",
+        "Step 2: the banner reads **Every household once, from {30 days ago}.** and",
+        "Step 2: cards are ordered **Not yet** (Garcia, Hughes, Ivers, Jensen), then **Partly reached**",
+        "Step 2: **Ivers** reads *Not yet* and *Not yet visited in this sweep.* even though it shows a",
+        "Step 2: **Garcia** reads *Not yet* with *1 attempt since*",
+        "Step 2: **Ellis** reads *Partly reached* and **Partly reached {date} — spouse absent**;",
+        "Step 2: **Abbott** reads **Done**, *Done in this sweep · {25 days ago}*, and still shows",
+        "Step 2: no card has a **Cadence** button",
+        "Step 3: the window lists only the active sweep, *Bishopric · Every household once, from",
+        "Step 4: the edit form shows the kind chosen and greyed out, a **Starts** date, and no",
+        "Step 5: **Past goals** lists **Bishopric · Every household every year**, *Every year ·",
+        "Step 6: the banner changes to *No visit goal is set for this organization.* and the",
+        "Step 7: the sweep is listed first, *Every household once · … · Completed*, with",
+        "Step 8: the new goal saves, starts **today** (the ward's date) and the banner reads",
+        "Step 9: the counselor sees the same active goal and the same *End the current goal…*",
+        "Step 10 (375px): the five tabs scroll sideways rather than wrapping; the three banner tiles"
+      ],
+      "seedCommand": "npm run seed -- visits/scenario-101-a-sweep-and-goal-history"
     },
     {
       "id": "youth:scenario-049-entering-an-activity-that-is-not-yours",

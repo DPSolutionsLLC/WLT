@@ -3,12 +3,14 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { AllOrganizationsTable } from "@/app/(app)/visits/AllOrganizationsTable";
 import { VisitReportFeed } from "@/app/(app)/visits/feed/VisitReportFeed";
+import { GoalHistory } from "@/app/(app)/visits/GoalHistory";
 import { HouseholdsPanel, type HouseholdsPanelProps } from "@/app/(app)/visits/HouseholdsPanel";
 import { SharingPanel, type SharingPanelProps } from "@/app/(app)/visits/SharingPanel";
 import { FormError } from "@/components/ui/FormError";
 import type { ReportFeedPage } from "@/lib/reports/types";
 // Type-only: the server-only module stays out of the client bundle.
 import type { AllOrgProgress } from "@/lib/visits/allOrgProgress";
+import type { GoalHistoryEntry } from "@/lib/visits/goalHistory";
 import {
   VISITS_TAB_LABELS,
   type VisitHouseholdSort,
@@ -46,6 +48,7 @@ export type VisitsScreenProps = {
   feed: { initialPage: ReportFeedPage; ownOrganizationId: string | null; sharingSentence: string };
   // Null when the reader cannot see that tab.
   allOrganizations: AllOrgProgress | null;
+  goalHistory: GoalHistoryEntry[] | null;
   sharing: SharingPanelProps | null;
 };
 
@@ -55,6 +58,7 @@ export function VisitsScreen({
   households,
   feed,
   allOrganizations,
+  goalHistory,
   sharing,
 }: VisitsScreenProps) {
   const [view, setView] = useState<VisitsView>(initialView);
@@ -118,6 +122,8 @@ export function VisitsScreen({
         </div>
       );
     }
+
+    if (tab === "goal_history" && goalHistory !== null) return <GoalHistory entries={goalHistory} />;
 
     if (tab === "sharing" && sharing !== null) return <SharingPanel {...sharing} />;
 

@@ -168,6 +168,63 @@ describe("createVisitGoalSchema", () => {
   });
 });
 
+// ITER-055 bv4: a goal is a sweep (every household once) or a cadence.
+describe("createVisitGoalSchema — the kind of goal", () => {
+  const sweep = {
+    title: "Every household once",
+    orgId: ORG_ID,
+    targetType: "all_households",
+    kind: "sweep",
+    startedOn: "2027-03-01",
+  };
+
+  it("defaults to a cadence goal, so a request from before bv4 is unchanged", () => {
+    const result = createVisitGoalSchema.safeParse(goal());
+    expect(result.success).toBe(true);
+    expect(result.data?.kind).toBe("cadence");
+  });
+
+  it("accepts a sweep with no schedule", () => {
+    expect(createVisitGoalSchema.safeParse(sweep).success).toBe(true);
+  });
+
+  it("refuses a sweep that sends a schedule", () => {
+    const result = createVisitGoalSchema.safeParse({ ...sweep, cadenceAmount: 1, cadenceUnit: "year" });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toContain("no schedule");
+  });
+
+  it("refuses a cadence goal with no schedule", () => {
+    const result = createVisitGoalSchema.safeParse({ ...sweep, kind: "cadence" });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toContain("how often");
+  });
+
+  it("refuses an unknown kind and a start that is not a date", () => {
+    expect(createVisitGoalSchema.safeParse({ ...sweep, kind: "forever" }).success).toBe(false);
+    expect(createVisitGoalSchema.safeParse({ ...sweep, startedOn: "03/01/2027" }).success).toBe(
+      false,
+    );
+  });
+});
+
+describe("updateVisitGoalSchema — ending a goal", () => {
+  it("accepts an end on its own", () => {
+    expect(updateVisitGoalSchema.safeParse({ end: "completed" }).success).toBe(true);
+    expect(updateVisitGoalSchema.safeParse({ end: "set_aside" }).success).toBe(true);
+  });
+
+  it("refuses an end that changes something else at the same time", () => {
+    const result = updateVisitGoalSchema.safeParse({ end: "completed", title: "Renamed" });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toContain("on its own");
+  });
+
+  it("refuses an unknown end", () => {
+    expect(updateVisitGoalSchema.safeParse({ end: "deleted" }).success).toBe(false);
+  });
+});
+
 describe("updateVisitGoalSchema", () => {
   it("refuses an empty patch", () => {
     const result = updateVisitGoalSchema.safeParse({});

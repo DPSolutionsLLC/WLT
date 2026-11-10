@@ -745,6 +745,25 @@ export const VISIT_NEEDS_ANOTHER_REASON_LABELS: Record<VisitNeedsAnotherReason, 
 
 export const VISIT_PARTLY_REACHED_LABEL = "Visited — still needs a visit";
 
+// What a visit goal measures (ITER-055 D5, migration 102). A sweep is every household once — a
+// finish line. A cadence is the rolling interval every goal was before.
+export const VISIT_GOAL_KINDS = ["cadence", "sweep"] as const;
+export type VisitGoalKind = (typeof VISIT_GOAL_KINDS)[number];
+
+export const VISIT_GOAL_KIND_LABELS: Record<VisitGoalKind, string> = {
+  sweep: "Visit every household once",
+  cadence: "Keep visiting on a schedule",
+};
+
+// How a goal ended. An ended goal is never deleted; it stays in Goal history.
+export const VISIT_GOAL_END_REASONS = ["completed", "set_aside"] as const;
+export type VisitGoalEndReason = (typeof VISIT_GOAL_END_REASONS)[number];
+
+export const VISIT_GOAL_END_REASON_LABELS: Record<VisitGoalEndReason, string> = {
+  completed: "Completed",
+  set_aside: "Set aside",
+};
+
 // How a contact attempt went (prototype contact panel). Optional on an attempt.
 export const VISIT_ATTEMPT_DETAILS = ["no_answer", "left_message", "no_message_left"] as const;
 export type VisitAttemptDetail = (typeof VISIT_ATTEMPT_DETAILS)[number];

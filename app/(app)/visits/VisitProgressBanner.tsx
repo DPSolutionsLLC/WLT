@@ -2,9 +2,12 @@ import { describeCadence, describeDuration } from "@/lib/visits/cadence";
 // Type-only, so nothing from the server-only module survives the build (roster-b).
 import type {
   VisitProgress,
+  VisitProgressActiveGoal,
   VisitProgressGoalSummary,
   VisitProgressStatistics,
 } from "@/lib/visits/progress";
+import type { SweepCounts } from "@/lib/visits/sweep";
+import { formatVisitDate } from "@/lib/visits/visitDates";
 
 // The statistics, and the goal they are statistics OF.
 //
@@ -32,6 +35,13 @@ export type VisitProgressBannerProps = {
   // talks-c set. "Measured against every household" is what an un-narrowed organization has
   // always meant, and saying it every time would be noise on every board but one.
   stewardship: VisitProgress["stewardship"];
+  // A sweep's counts and the goal they belong to (ITER-055 bv4). When `sweep` is set the banner
+  // shows the finish line instead of the cadence bands.
+  sweep?: SweepCounts | null;
+  activeGoal?: VisitProgressActiveGoal | null;
+  // Do-not-contact households, for the sweep banner's sentence (the cadence banner reads it from
+  // `statistics.excluded`).
+  excludedCount?: number;
 };
 
 function plural(count: number, word: string): string {
@@ -81,12 +91,104 @@ function Statistic({
   );
 }
 
+// "4 of 10 done · 2 partly reached · 4 not yet" — the sweep's whole summary in one line.
+export function sweepSummary(sweep: SweepCounts): string {
+  return (
+    `${sweep.done} of ${sweep.total} done · ${sweep.partlyReached} partly reached · ` +
+    `${sweep.notYet} not yet`
+  );
+}
+
+function SweepBanner({
+  sweep,
+  activeGoal,
+  excludedCount,
+  stewardship,
+}: {
+  sweep: SweepCounts;
+  activeGoal: VisitProgressActiveGoal | null;
+  excludedCount: number;
+  stewardship: VisitProgress["stewardship"];
+}) {
+  const donePercent = sweep.total === 0 ? 0 : Math.round((sweep.done / sweep.total) * 100);
+
+  return (
+    <div className="rounded-lg border border-border bg-surface-raised p-4">
+      <p className="text-base font-semibold text-foreground">
+        Every household once
+        {activeGoal === null ? "" : `, from ${formatVisitDate(activeGoal.startedOn)}`}.
+      </p>
+
+      {activeGoal?.deadline == null ? null : (
+        <p className="mt-1 text-sm text-muted">
+          Aiming to finish by {formatVisitDate(activeGoal.deadline)}.
+        </p>
+      )}
+
+      {sweep.total === 0 ? (
+        <p className="mt-3 text-sm text-muted">
+          There are no households to count for this organization yet.
+        </p>
+      ) : (
+        <>
+          <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3">
+            <Statistic value={sweep.notYet} label="Not yet" tone="text-danger" />
+            <Statistic value={sweep.partlyReached} label="Partly reached" tone="text-warning" />
+            <Statistic value={sweep.done} label="Done" tone="text-success" />
+          </div>
+
+          <p className="mt-3 text-sm text-muted">{sweepSummary(sweep)}.</p>
+
+          {/* Decoration on top of the sentence above, so a screen reader hears it once. */}
+          <div aria-hidden="true" className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface">
+            <div className="h-full rounded-full bg-success" style={{ width: `${donePercent}%` }} />
+          </div>
+        </>
+      )}
+
+      {excludedCount > 0 ? (
+        <p className="mt-3 text-sm text-muted">
+          {excludedCount} {plural(excludedCount, "household")} marked do not contact{" "}
+          {excludedCount === 1 ? "is" : "are"} not counted.
+        </p>
+      ) : null}
+
+      {stewardship.narrowed ? (
+        <p className="mt-1 text-sm text-muted">
+          Measured against {stewardship.inScope} {plural(stewardship.inScope, "household")} in
+          this stewardship
+          {stewardship.outOfScope > 0
+            ? ` · ${stewardship.outOfScope} in the ward ${
+                stewardship.outOfScope === 1 ? "is" : "are"
+              } not`
+            : ""}
+          .
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function VisitProgressBanner({
   statistics,
   goal,
   goalHasNoCadence,
   stewardship,
+  sweep = null,
+  activeGoal = null,
+  excludedCount = 0,
 }: VisitProgressBannerProps) {
+  if (sweep !== null) {
+    return (
+      <SweepBanner
+        sweep={sweep}
+        activeGoal={activeGoal}
+        excludedCount={excludedCount}
+        stewardship={stewardship}
+      />
+    );
+  }
+
   // BOTH NULL-STATE MESSAGES SURVIVE, and so does the distinction between them. "No goal has
   // been set" and "the goal that is set cannot be counted" need different actions from the
   // person reading, and collapsing them into one sentence would send half of those readers to

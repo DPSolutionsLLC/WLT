@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { listWardOrganizations } from "@/lib/auth/adminUsers";
 import type { DateOnly } from "@/lib/calendar/dates";
 import { listHouseholds, type HouseholdWithMembers } from "@/lib/roster/queries";
 import type { Cadence } from "@/lib/visits/cadence";
@@ -20,9 +21,15 @@ import {
   type VisitLogWithContext,
 } from "@/lib/visits/queries";
 import { readStewardshipScope } from "@/lib/visits/stewardship";
+import {
+  compareSweepStatus,
+  sweepProgress,
+  type SweepCounts,
+  type SweepHouseholdStatus,
+} from "@/lib/visits/sweep";
 import { isInScope, type StewardshipScope } from "@/lib/visits/stewardshipScope";
 import type { Database } from "@/types/database";
-import type { VisitNeedsAnotherReason } from "@/types/domain";
+import type { VisitGoalKind, VisitNeedsAnotherReason } from "@/types/domain";
 
 // The progress dashboard's numbers.
 //
@@ -163,6 +170,9 @@ export type VisitProgressRow = {
   // the household is do-not-contact. The table tells them apart from `doNotContact` and the
   // progress-level `goal`/`goalHasNoCadence`, never by guessing which one it was.
   priority: VisitPriority | null;
+  // Where the household stands in a SWEEP goal (ITER-055 bv4), or null when the active goal is not
+  // a sweep, and for a do-not-contact household. A sweep has no band, so `priority` is null then.
+  sweep: SweepHouseholdStatus | null;
   // Who WENT on the visit named by `lastVisitedOn`, never who typed it in. Null reads as
   // "Nobody recorded" rather than falling back to the recorder.
   conductedBy: string | null;
@@ -199,6 +209,16 @@ export type VisitProgressGoalSummary = {
   deadline: DateOnly | null;
 };
 
+// The goal being measured, whatever its kind — what the goal window's End button and the sweep
+// banner need. `goal` below stays the cadence goal's own summary.
+export type VisitProgressActiveGoal = {
+  id: string;
+  kind: VisitGoalKind;
+  title: string | null;
+  startedOn: DateOnly;
+  deadline: DateOnly | null;
+};
+
 export type VisitProgress = {
   orgId: string;
   // THE INSTANT EVERY ROW WAS JUDGED AGAINST, as an ISO string so it survives the JSON boundary.
@@ -218,6 +238,11 @@ export type VisitProgress = {
   // has been set" and "the goal that is set cannot be counted", because they need different
   // actions from the person reading.
   goalHasNoCadence: boolean;
+  // The active goal of either kind, or null when there is none.
+  activeGoal: VisitProgressActiveGoal | null;
+  // A sweep's counts: done + partlyReached + notYet === total, over the same denominator as
+  // `statistics.counted`. Null unless the active goal is a sweep.
+  sweep: SweepCounts | null;
   // WHAT THIS ORGANIZATION IS MEASURED AGAINST. Reported rather than left implicit, because a
   // denominator that silently SHRANK is the same erosion of trust visits-b recorded in the other
   // direction — there, counting households an organization could not visit made every org look
@@ -248,11 +273,15 @@ export type VisitProgress = {
 // `goals` arrives ordered `created_at desc` from listVisitGoals(), and this function does not
 // re-sort it: an order asserted in one place and assumed in another is the bug
 // plans/retros/route-tests-and-realtime.md records.
+//
+// ITER-055 bv4: only an ACTIVE goal is measured. Migration 102 allows one per organization, so the
+// `find` now has at most one answer; an ended goal belongs to Goal history. allOrgProgress.ts has
+// its own copy of this rule and asks the same `endedAt === null`.
 export function selectActiveGoal(
   goals: readonly VisitGoal[],
   orgId: string,
 ): VisitGoal | null {
-  return goals.find((goal) => goal.orgId === orgId) ?? null;
+  return goals.find((goal) => goal.orgId === orgId && goal.endedAt === null) ?? null;
 }
 
 // Which cadence one household is actually judged against, and where it came from.
@@ -406,7 +435,8 @@ export function buildVisitProgress({
   // household reads "Approaching", and a zero-length one simply means it never does. Defaulted
   // to one day so the comparison below has something to make, which the clamp then ignores only
   // if the cadence is itself a day.
-  const countable = goal !== null && goalCadence !== null;
+  const isSweep = goal !== null && goal.kind === "sweep";
+  const countable = goal !== null && !isSweep && goalCadence !== null;
   const notice: Cadence = goalNotice ?? { amount: 1, unit: "day" };
 
   const overridesByHousehold = new Map(
@@ -446,11 +476,31 @@ export function buildVisitProgress({
       partlyReached: latestPartlyReachedSince(tally),
       doNotContact: household.doNotContact,
       priority,
+      sweep: null,
       conductedBy: tally.conductedBy,
     };
   });
 
-  rows.sort(compareByPriority);
+  // THE SWEEP, over the same denominator the bands use: every row that is not do-not-contact.
+  const sweep =
+    isSweep && goal !== null
+      ? sweepProgress(
+          rows.filter((row) => !row.doNotContact).map((row) => row.householdId),
+          logs,
+          goal.startedOn,
+        )
+      : null;
+
+  if (sweep !== null) {
+    for (const row of rows) row.sweep = sweep.byHousehold.get(row.householdId) ?? null;
+    rows.sort(
+      (left, right) =>
+        compareSweepStatus(left.sweep, right.sweep) ||
+        left.familyName.localeCompare(right.familyName),
+    );
+  } else {
+    rows.sort(compareByPriority);
+  }
 
   // ---------------------------------------------------------------------------
   // THE STATISTICS
@@ -497,7 +547,18 @@ export function buildVisitProgress({
             deadline: goal.deadline,
           }
         : null,
-    goalHasNoCadence: goal !== null && !countable,
+    goalHasNoCadence: goal !== null && !isSweep && !countable,
+    activeGoal:
+      goal === null
+        ? null
+        : {
+            id: goal.id,
+            kind: goal.kind,
+            title: goal.title,
+            startedOn: goal.startedOn,
+            deadline: goal.deadline,
+          },
+    sweep: sweep?.counts ?? null,
     stewardship: {
       narrowed: stewardship.hasNarrowed,
       inScope: visitable.length,
@@ -518,17 +579,31 @@ export function buildVisitProgress({
 // written with `org_id = null` (app/api/visits/route.ts), because it was not made on behalf of
 // an organization. It is absent from every organization's progress on purpose — attributing it
 // to one would inflate that organization's numbers.
+//
+// THE BISHOPRIC (ITER-055 bv4, reversing defect 099-D1's removal). Its visits are stored with
+// org_id = null (P1), so for the ward's bishopric-typed organization the logs read are the ones
+// with no organization. Its goal, cadences and stewardship are stored against the Bishopric
+// organization's id like any other organization's.
 export async function readVisitProgress(
   wardId: string,
   orgId: string,
   asOf: Date,
   client?: SupabaseClient<Database>,
 ): Promise<VisitProgress> {
+  const organizations = await listWardOrganizations(wardId, client);
+  const isBishopricOrganization = organizations.some(
+    (organization) => organization.id === orgId && organization.type === "bishopric",
+  );
+
   const [households, logs, goals, householdCadences, stewardship] = await Promise.all([
     // NO `statuses` option, on purpose. The ["active"] default is what excludes moved_out and
     // do_not_contact members — see §THE DENOMINATOR above.
     listHouseholds(wardId, undefined, client),
-    listVisitLogs(wardId, { orgId }, client),
+    listVisitLogs(
+      wardId,
+      isBishopricOrganization ? { bishopricVisits: true } : { orgId },
+      client,
+    ),
     listVisitGoals(wardId, client),
     listHouseholdVisitCadences(wardId, orgId, client),
     // Zero rows resolves to "the whole ward", so an organization that has narrowed nothing gets

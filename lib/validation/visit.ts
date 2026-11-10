@@ -6,6 +6,8 @@ import {
   CADENCE_UNITS,
   VISIT_ARRANGEMENTS,
   VISIT_ATTEMPT_DETAILS,
+  VISIT_GOAL_END_REASONS,
+  VISIT_GOAL_KINDS,
   VISIT_NEEDS_ANOTHER_REASONS,
   VISIT_OUTCOMES,
   VISIT_TYPES,
@@ -155,23 +157,19 @@ function refineGoalIntervals(
 // from each household's own last visit, and `deadline` is a nullable, presentation-only
 // attribute that drives no arithmetic (ITER-018 Decision 1). A deadline in the PAST parses on
 // purpose: it is a record of one that passed, not a bound on anything.
+// A SWEEP OR A CADENCE (ITER-055 D5). `kind` defaults to cadence, so every caller written before
+// bv4 still sends a valid cadence goal. A cadence goal needs its interval and its warning; a sweep
+// takes neither, and is refused if it sends one — a sweep row carrying an interval nothing reads
+// is a second meaning waiting to be found (migration 102's `visit_goals_sweep_has_no_cadence`).
+//
+// `startedOn` is optional: the route fills in the WARD's today when it is absent.
 export const createVisitGoalSchema = z
   .object({
     title: titleSchema,
     orgId: z.uuid("That organization is not valid.").optional(),
     targetType: z.literal("all_households"),
-    cadenceAmount: cadenceAmountSchema,
-    cadenceUnit: cadenceUnitSchema,
-    noticeAmount: cadenceAmountSchema,
-    noticeUnit: cadenceUnitSchema,
-    deadline: dateOnlySchema.nullable().optional(),
-  })
-  .superRefine(refineGoalIntervals);
-export type CreateVisitGoalInput = z.infer<typeof createVisitGoalSchema>;
-
-export const updateVisitGoalSchema = z
-  .object({
-    title: titleSchema.optional(),
+    kind: z.enum(VISIT_GOAL_KINDS).default("cadence"),
+    startedOn: dateOnlySchema.optional(),
     cadenceAmount: cadenceAmountSchema.optional(),
     cadenceUnit: cadenceUnitSchema.optional(),
     noticeAmount: cadenceAmountSchema.optional(),
@@ -179,9 +177,63 @@ export const updateVisitGoalSchema = z
     deadline: dateOnlySchema.nullable().optional(),
   })
   .superRefine((value, context) => {
-    if (Object.keys(value).length === 0) {
+    const intervalFields = ["cadenceAmount", "cadenceUnit", "noticeAmount", "noticeUnit"] as const;
+
+    if (value.kind === "sweep") {
+      for (const field of intervalFields) {
+        if (value[field] !== undefined) {
+          context.addIssue({
+            code: "custom",
+            message: "A goal to visit every household once has no schedule to set.",
+            path: [field],
+          });
+        }
+      }
+      return;
+    }
+
+    for (const field of intervalFields) {
+      if (value[field] === undefined) {
+        context.addIssue({
+          code: "custom",
+          message: "Say how often each household should be visited, and how far ahead to warn.",
+          path: [field],
+        });
+      }
+    }
+
+    refineGoalIntervals(value, context);
+  });
+export type CreateVisitGoalInput = z.infer<typeof createVisitGoalSchema>;
+
+// ENDING IS ITS OWN REQUEST. `{ end: "completed" | "set_aside" }` and nothing else, so an end can
+// never ride along with an edit and be recorded as one (the audit row names which happened).
+export const updateVisitGoalSchema = z
+  .object({
+    title: titleSchema.optional(),
+    startedOn: dateOnlySchema.optional(),
+    cadenceAmount: cadenceAmountSchema.optional(),
+    cadenceUnit: cadenceUnitSchema.optional(),
+    noticeAmount: cadenceAmountSchema.optional(),
+    noticeUnit: cadenceUnitSchema.optional(),
+    deadline: dateOnlySchema.nullable().optional(),
+    end: z.enum(VISIT_GOAL_END_REASONS).optional(),
+  })
+  .superRefine((value, context) => {
+    const keys = Object.keys(value);
+
+    if (keys.length === 0) {
       context.addIssue({ code: "custom", message: "Nothing was changed." });
     }
+
+    if (value.end !== undefined && keys.length > 1) {
+      context.addIssue({
+        code: "custom",
+        message: "End the goal on its own, without changing anything else at the same time.",
+        path: ["end"],
+      });
+    }
+
     refineGoalIntervals(value, context);
   });
 export type UpdateVisitGoalInput = z.infer<typeof updateVisitGoalSchema>;

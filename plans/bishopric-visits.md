@@ -13,8 +13,9 @@ retro. Build them in order; each depends on the ones before it.
 |---|---|
 | bv1 | ✅ committed `393a98c` (migration 099) |
 | bv2 | ✅ committed `280b9aa` |
-| bv3 | **Built and walked 2026-11-09, NOT committed** — migration **101**, scenario **100** (`visits/scenario-100-partly-reached-and-a-call`, all 14 pass after fixing 100-D1 and 100-D2). Run `/commit`, then start bv4. |
-| bv4–bv8 | Not started |
+| bv3 | ✅ committed `cd8823b` (migration 101, scenario 100) |
+| bv4 | **Built 2026-11-09, NOT committed** — migration **102** (applied), scenario **101** (`visits/scenario-101-a-sweep-and-goal-history`, not yet walked). Decided at start: the Bishopric returns to the Organization picker (progress reads its no-org visits); once done stays done in a sweep; Past goals is bishopric-only. `VisitGoalPanel` was extended rather than a `GoalWindow` created. All orgs shows no sweep organizations yet. |
+| bv5–bv8 | Not started |
 
 **What the 2026-11-09 refresh changed — no decision (D1–D9, P1–P16) moved:**
 - **Migration numbers are one later than first written.** 100 went to `100_zoom_join_links_w_to_j.sql`, so bv3 used 101. From here: **bv4 → 102, bv5 → 103, bv6 → 104, bv7 → 105.** Always re-check `ls supabase/migrations | tail -3` before creating one.
