@@ -2,7 +2,7 @@
 id: bishopric-visits
 type: feature
 iter: ITER-055
-commits: ["393a98c", "280b9aa"]
+commits: ["393a98c", "280b9aa", "cd8823b"]
 date: 2026-10-31
 files:
   - supabase/migrations/099_visit_org_sharing.sql
@@ -133,7 +133,7 @@ Typecheck, harness typecheck and lint on the changed areas clean. `tests/compone
 224 files / 3459 tests green. **Not run:** the full suite (RLS/route suites, ~1 hour) and a
 production build (a dev server was running). No migration in bv2.
 
-## bv3 — "Visited, but still needs a visit", and a Contact window (pending commit)
+## bv3 — "Visited, but still needs a visit", and a Contact window (cd8823b)
 
 ### What was done
 Recording a visit has three answers: **Visited**, **Visited — still needs a visit** (with a
