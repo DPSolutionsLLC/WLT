@@ -1,10 +1,11 @@
 import { toPreviewText } from "@/lib/reports/preview";
 import type { ReportReadState } from "@/lib/reports/readStatus";
 import type { ReportTile } from "@/lib/reports/types";
+import { isDoneVisit } from "@/lib/visits/householdStatus";
 import type { VisitLogWithContext } from "@/lib/visits/queries";
+import { describeVisitOutcome } from "@/lib/visits/visitOutcome";
 import {
   ORGANIZATION_TYPE_TONES,
-  VISIT_OUTCOME_LABELS,
   type ContextTone,
   type OrganizationType,
 } from "@/types/domain";
@@ -84,8 +85,9 @@ export function toReportTile(
 
     // The EXCEPTION ONLY. A label on every tile reading "Visited" is noise; the one reading
     // "Attempted" is the point, because an attempt counts towards no goal (visits-b) and a feed
-    // that rendered it identically to a completed visit would undo that distinction.
-    outcomeLabel: visit.outcome === "completed" ? null : VISIT_OUTCOME_LABELS[visit.outcome],
+    // that rendered it identically to a completed visit would undo that distinction. A visit that
+    // still needs another visit is an exception for the same reason (ITER-055 bv3).
+    outcomeLabel: isDoneVisit(visit) ? null : describeVisitOutcome(visit),
 
     // SHARED notes only. There is no private-note field on VisitLogWithContext to read.
     previewText: toPreviewText(visit.sharedNotes),

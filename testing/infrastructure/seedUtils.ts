@@ -38,6 +38,8 @@ import type {
   CadenceUnit,
   VisitTargetType,
   VisitArrangement,
+  VisitAttemptDetail,
+  VisitNeedsAnotherReason,
   VisitOutcome,
   VisitType,
 } from "./types.ts";
@@ -1405,6 +1407,11 @@ export async function createVisitLog(options: {
   // Defaults to `completed`, matching migration 046. An `attempted` visit is shown on the record
   // and counted towards no goal, so a scenario that needs the distinction must set it.
   outcome?: VisitOutcome;
+  // "Visited, but still needs a visit" (ITER-055 bv3). Only with a completed outcome — migration
+  // 101's CHECKs refuse anything else, so a fixture cannot seed a state the app cannot produce.
+  needsAnotherReason?: VisitNeedsAnotherReason;
+  // How an attempt went. Only with an attempted outcome.
+  attemptDetail?: VisitAttemptDetail;
   arrangement?: VisitArrangement;
   sharedNotes?: string;
   flaggedForWardCouncil?: boolean;
@@ -1422,6 +1429,9 @@ export async function createVisitLog(options: {
     visit_date: options.visitDate,
     visit_type: options.visitType ?? "in_home",
     outcome: options.outcome ?? "completed",
+    needs_another_visit: options.needsAnotherReason !== undefined,
+    needs_another_reason: options.needsAnotherReason ?? null,
+    attempt_detail: options.attemptDetail ?? null,
     arrangement: options.arrangement ?? "drop_in",
     shared_notes: options.sharedNotes ?? null,
     flagged_for_ward_council: options.flaggedForWardCouncil ?? false,

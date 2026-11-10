@@ -13,7 +13,7 @@ import {
   listWardVisitCadences,
   type HouseholdVisitCadence,
 } from "@/lib/visits/householdCadences";
-import { householdVisitPriority } from "@/lib/visits/householdStatus";
+import { householdVisitPriority, isDoneVisit } from "@/lib/visits/householdStatus";
 import { isVisitableHousehold, resolveHouseholdCadence } from "@/lib/visits/progress";
 import {
   listVisitGoals,
@@ -127,8 +127,9 @@ type LastVisit = {
   conductedBy: string | null;
 };
 
-// COMPLETED ONLY. An attempt is not a visit, and the most recent attempt must never displace an
-// older completed one in "last seen".
+// DONE ONLY (isDoneVisit). An attempt is not a visit, and the most recent attempt must never
+// displace an older completed one in "last seen". Nor does a "still needs a visit" visit
+// (ITER-055 P7): this page and each organization's page share one meaning of done.
 //
 // A visit logged by a member of the bishopric carries `org_id = null` (app/api/visits/route.ts),
 // because it was not made on behalf of an organization. It still counts as the household having
@@ -138,7 +139,7 @@ function tallyLastVisits(logs: readonly VisitLogWithContext[]): Map<string, Last
 
   for (const log of logs) {
     if (log.householdId === null) continue;
-    if (log.outcome !== "completed") continue;
+    if (!isDoneVisit(log)) continue;
 
     const current = byHousehold.get(log.householdId);
 
@@ -152,6 +153,33 @@ function tallyLastVisits(logs: readonly VisitLogWithContext[]): Map<string, Last
   }
 
   return byHousehold;
+}
+
+// THE NEWEST CONTACT THAT DID NOT FINISH THE JOB, ward-wide: an attempt, or a visit that still
+// needs another. The row keeps it only when it is newer than the last done visit.
+function tallyLastAttempts(logs: readonly VisitLogWithContext[]): Map<string, DateOnly> {
+  const byHousehold = new Map<string, DateOnly>();
+
+  for (const log of logs) {
+    if (log.householdId === null) continue;
+    if (isDoneVisit(log)) continue;
+
+    const current = byHousehold.get(log.householdId);
+    if (current === undefined || log.visitDate > current) {
+      byHousehold.set(log.householdId, log.visitDate);
+    }
+  }
+
+  return byHousehold;
+}
+
+function attemptSinceLastVisit(
+  lastAttemptedOn: DateOnly | undefined,
+  lastVisitedOn: DateOnly | null,
+): DateOnly | null {
+  if (lastAttemptedOn === undefined) return null;
+  if (lastVisitedOn !== null && lastAttemptedOn <= lastVisitedOn) return null;
+  return lastAttemptedOn;
 }
 
 // ONE organization's last completed visit to one household, keyed `orgId:householdId`.
@@ -171,7 +199,7 @@ function tallyLastVisitPerOrganization(
   for (const log of logs) {
     if (log.householdId === null) continue;
     if (log.orgId === null) continue;
-    if (log.outcome !== "completed") continue;
+    if (!isDoneVisit(log)) continue;
 
     const key = `${log.orgId}:${log.householdId}`;
     const current = byPair.get(key);
@@ -209,6 +237,7 @@ export function buildAllOrgProgress({
 }: BuildAllOrgProgressInput): AllOrgProgress {
   const visitable = households.filter(isVisitableHousehold);
   const lastVisits = tallyLastVisits(logs);
+  const lastAttempts = tallyLastAttempts(logs);
   const lastVisitPerOrg = tallyLastVisitPerOrganization(logs);
   const scopeByOrg = scopesByOrganization(stewardships);
 
@@ -313,6 +342,10 @@ export function buildAllOrgProgress({
       lastVisitedByOrgName:
         lastVisit?.orgId == null ? null : (organizationNames.get(lastVisit.orgId) ?? null),
       conductedBy: lastVisit?.conductedBy ?? null,
+      lastAttemptedOn: attemptSinceLastVisit(
+        lastAttempts.get(household.id),
+        lastVisit?.visitDate ?? null,
+      ),
       stewards,
       unclaimed: claimants.length === 0,
     };

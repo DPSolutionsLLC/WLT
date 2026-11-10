@@ -11,6 +11,7 @@ function row(familyName: string, overrides: Partial<VisitProgressRow> = {}): Vis
     lastVisitedOn: null,
     lastAttemptedOn: null,
     attemptsSinceLastVisit: 0,
+    partlyReached: null,
     doNotContact: false,
     priority: null,
     conductedBy: null,

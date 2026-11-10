@@ -10,6 +10,7 @@ import {
 import {
   compareByPriority,
   householdVisitPriority,
+  isDoneVisit,
   type VisitPriority,
 } from "@/lib/visits/householdStatus";
 import {
@@ -21,6 +22,7 @@ import {
 import { readStewardshipScope } from "@/lib/visits/stewardship";
 import { isInScope, type StewardshipScope } from "@/lib/visits/stewardshipScope";
 import type { Database } from "@/types/database";
+import type { VisitNeedsAnotherReason } from "@/types/domain";
 
 // The progress dashboard's numbers.
 //
@@ -151,6 +153,10 @@ export type VisitProgressRow = {
   // somebody having knocked four times is a different problem from nobody having been, at every
   // level of urgency.
   attemptsSinceLastVisit: number;
+  // The latest "Visited, but still needs a visit" since the last done visit (ITER-055 bv3), or
+  // null. A mark BESIDE the band, like the attempts count: somebody went, and the household is
+  // still not done, so its clock does not reset. A done visit afterwards clears it.
+  partlyReached: { on: DateOnly; reason: VisitNeedsAnotherReason } | null;
   // Shown and marked, counted in nothing (ITER-018 Decision 4).
   doNotContact: boolean;
   // Null for THREE reasons: the organization has no goal, the goal carries no usable cadence, or
@@ -265,6 +271,9 @@ export function resolveHouseholdCadence(
 
 type LogTally = {
   lastCompletedOn: DateOnly | null;
+  // Every "still needs a visit" visit, kept for the same reason as `attemptDates`: the last done
+  // visit is not known until every log has been read.
+  partlyReached: { on: DateOnly; reason: VisitNeedsAnotherReason }[];
   lastAttemptedOn: DateOnly | null;
   // Every attempt date, kept so `attemptsSinceLastVisit` can be counted once the last completed
   // visit is known. Logs arrive in no guaranteed order relative to each other, so this cannot be
@@ -276,6 +285,7 @@ type LogTally = {
 function emptyTally(): LogTally {
   return {
     lastCompletedOn: null,
+    partlyReached: [],
     lastAttemptedOn: null,
     attemptDates: [],
     conductedBy: null,
@@ -283,11 +293,15 @@ function emptyTally(): LogTally {
 }
 
 // ---------------------------------------------------------------------------------------------
-// EVERY VISIT NUMBER FILTERS `outcome = 'completed'`
+// EVERY VISIT NUMBER FILTERS `outcome = 'completed'` AND NOT `needs_another_visit`
 // ---------------------------------------------------------------------------------------------
 // `lastVisitedOn` — and therefore every band, every due date and every count built on it —
 // excludes attempts. `lastAttemptedOn` and `attemptsSinceLastVisit` are the ONLY fields that see
 // them. An attempt folded into a visit count is a ward being told it reached a family it did not.
+//
+// A "Visited, but still needs a visit" log is excluded too (ITER-055 P7): somebody went, but the
+// household is not done, so it does not reset the clock. It surfaces as `partlyReached` instead.
+// lib/visits/allOrgProgress.ts asks the same question through isDoneVisit().
 function tallyLogs(logs: readonly VisitLogWithContext[]): Map<string, LogTally> {
   const byHousehold = new Map<string, LogTally>();
 
@@ -296,7 +310,9 @@ function tallyLogs(logs: readonly VisitLogWithContext[]): Map<string, LogTally> 
 
     const tally = byHousehold.get(log.householdId) ?? emptyTally();
 
-    if (log.outcome === "completed") {
+    if (log.outcome === "completed" && log.needsAnotherReason !== null) {
+      tally.partlyReached.push({ on: log.visitDate, reason: log.needsAnotherReason });
+    } else if (isDoneVisit(log)) {
       // `conductedBy` is taken from the visit `lastVisitedOn` NAMES. A row reading "last visited
       // May 2025 · conducted by nobody" contradicts itself, and a "conducted by" beside a date
       // has to describe THAT visit — the same untruth visits-d removed when "Visited by Miguel
@@ -317,6 +333,22 @@ function tallyLogs(logs: readonly VisitLogWithContext[]): Map<string, LogTally> 
   }
 
   return byHousehold;
+}
+
+// The latest partly-reached visit AFTER the last done visit. One on the same day as the done
+// visit is not counted: the done visit is the later, settled fact.
+function latestPartlyReachedSince(
+  tally: LogTally,
+): { on: DateOnly; reason: VisitNeedsAnotherReason } | null {
+  const lastDone = tally.lastCompletedOn;
+  let latest: { on: DateOnly; reason: VisitNeedsAnotherReason } | null = null;
+
+  for (const entry of tally.partlyReached) {
+    if (lastDone !== null && entry.on <= lastDone) continue;
+    if (latest === null || entry.on > latest.on) latest = entry;
+  }
+
+  return latest;
 }
 
 // Counted from the dates rather than tracked while looping, because the logs arrive in no
@@ -411,6 +443,7 @@ export function buildVisitProgress({
       lastVisitedOn: tally.lastCompletedOn,
       lastAttemptedOn: tally.lastAttemptedOn,
       attemptsSinceLastVisit: countAttemptsSince(tally),
+      partlyReached: latestPartlyReachedSince(tally),
       doNotContact: household.doNotContact,
       priority,
       conductedBy: tally.conductedBy,

@@ -710,13 +710,49 @@ export const MISSING_FIELD_LABELS: Record<MissingFieldKey, string> = {
 // One value in v1. FEATURES.md §Module 9 names exactly one kind of visit, and migration 044's
 // CHECK constraint holds the same single value — so adding a second is a decision taken in two
 // places at once rather than a string that appeared in a form.
-export const VISIT_TYPES = ["in_home"] as const;
+//
+// `phone` joined in ITER-055 bv3 (migration 101) for CONTACT ATTEMPTS ONLY: a call is never a done
+// visit (decided with the user 2026-11-04), so the log form offers VISIT_LOGGABLE_TYPES and the
+// contact panel is the only place a call is recorded.
+export const VISIT_TYPES = ["in_home", "phone"] as const;
 export type VisitType = (typeof VISIT_TYPES)[number];
+
+export const VISIT_LOGGABLE_TYPES = ["in_home"] as const satisfies readonly VisitType[];
 
 // A Record rather than a lookup with a fallback, for the same reason ROLE_LABELS is one: a type
 // added to VISIT_TYPES must not silently render as its own raw column value.
 export const VISIT_TYPE_LABELS: Record<VisitType, string> = {
   in_home: "In-home visit",
+  phone: "Phone call",
+};
+
+// "Visited, but still needs a visit" (ITER-055 D6, D7). A completed visit with a flag and one of
+// these reasons; the notes say more. It does not reset the household's clock.
+export const VISIT_NEEDS_ANOTHER_REASONS = [
+  "not_home",
+  "spouse_absent",
+  "asked_to_return",
+  "other",
+] as const;
+export type VisitNeedsAnotherReason = (typeof VISIT_NEEDS_ANOTHER_REASONS)[number];
+
+export const VISIT_NEEDS_ANOTHER_REASON_LABELS: Record<VisitNeedsAnotherReason, string> = {
+  not_home: "Someone wasn't home",
+  spouse_absent: "Spouse absent",
+  asked_to_return: "Asked us to come back",
+  other: "Other",
+};
+
+export const VISIT_PARTLY_REACHED_LABEL = "Visited — still needs a visit";
+
+// How a contact attempt went (prototype contact panel). Optional on an attempt.
+export const VISIT_ATTEMPT_DETAILS = ["no_answer", "left_message", "no_message_left"] as const;
+export type VisitAttemptDetail = (typeof VISIT_ATTEMPT_DETAILS)[number];
+
+export const VISIT_ATTEMPT_DETAIL_LABELS: Record<VisitAttemptDetail, string> = {
+  no_answer: "No answer",
+  left_message: "Left a message",
+  no_message_left: "Couldn't leave a message",
 };
 
 // What a visit log RECORDS. An attempt is a first-class outcome rather than a note somebody

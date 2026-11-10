@@ -773,8 +773,14 @@ id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
 ward_id         uuid REFERENCES wards(id)
 org_id          uuid REFERENCES organizations(id)
 household_id    uuid REFERENCES households(id)
-visited_by      uuid REFERENCES users(id)
+recorded_by     uuid REFERENCES users(id)  -- who typed it in (046); who WENT is visit_participants. visited_by dropped (049)
 visit_date      date NOT NULL
+visit_type      text NOT NULL DEFAULT 'in_home'  -- in_home | phone (101); a phone call is only ever an attempt
+outcome         text NOT NULL DEFAULT 'completed'  -- completed | attempted (046)
+needs_another_visit   boolean NOT NULL DEFAULT false  -- "Visited, but still needs a visit" (101); completed only
+needs_another_reason  text  -- not_home | spouse_absent | asked_to_return | other; set exactly when the flag is (101)
+attempt_detail  text  -- no_answer | left_message | no_message_left; attempts only (101)
+arrangement     text NOT NULL DEFAULT 'drop_in'  -- appointment | drop_in (046)
 shared_notes    text  -- visible to the organization, the bishopric, and organizations it is shared with (099)
 flagged_for_ward_council    boolean DEFAULT false
 flag_sent_at    timestamptz

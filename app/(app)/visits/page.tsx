@@ -1,4 +1,5 @@
 import { type AppointmentRow } from "@/app/(app)/visits/AppointmentPanel";
+import { type HouseholdContact } from "@/app/(app)/visits/ContactPanel";
 import { VisitFlagButton, type AppointmentPrefill } from "@/app/(app)/visits/VisitLogForm";
 import { VisitsScreen } from "@/app/(app)/visits/VisitsScreen";
 import { ContextualBackLink } from "@/components/layout/ContextualBackLink";
@@ -28,6 +29,8 @@ import {
   orgIdsSharedWith,
   readVisitSharing,
 } from "@/lib/visits/sharing";
+import { isDoneVisit } from "@/lib/visits/householdStatus";
+import { describeVisitOutcome } from "@/lib/visits/visitOutcome";
 import { canManageVisitLog, canManageVisitSharing } from "@/lib/visits/visitOwnership";
 import {
   initialVisitsTab,
@@ -40,7 +43,6 @@ import {
   VISIT_ARRANGEMENT_LABELS,
   VISIT_CONDUCTED_PREFIX,
   VISIT_NOBODY_RECORDED,
-  VISIT_OUTCOME_LABELS,
   VISIT_TYPE_LABELS,
   type SessionUser,
 } from "@/types/domain";
@@ -210,6 +212,19 @@ export default async function VisitsPage({
     ),
   );
 
+  // Each household's members and phones, for the Contact window (ITER-055 bv3). From the same
+  // roster read as everything above, through the caller's client.
+  const householdContacts: Record<string, HouseholdContact[]> = Object.fromEntries(
+    households.map((household) => [
+      household.id,
+      household.members.map((member) => ({
+        memberId: member.id,
+        name: `${member.firstName} ${member.lastName}`.trim(),
+        phone: member.phone,
+      })),
+    ]),
+  );
+
   // Leaders, for the "add a leader" half of the participants field. Read through the caller's
   // client, so migration 020's ward-scoped policy is what decides who is listed.
   const leaders = canLog
@@ -314,6 +329,7 @@ export default async function VisitsPage({
           stewardshipHouseholds,
           initialStewardship: initialStewardshipPayload,
           appointments: appointmentRows,
+          householdContacts,
           wardTimeZone,
           today,
           leaders,
@@ -362,17 +378,17 @@ function RecentVisits({
             {visit.householdName ?? "Unknown household"}
           </p>
 
-          {/* An attempt carries the attention colour: an attempt that reads like a visit is worse
-              than no record at all. */}
+          {/* Anything short of done carries the attention colour: an attempt, or a visit that
+              still needs another, that reads like a finished visit is worse than no record. */}
           <p className="text-xs text-muted">
             {visit.visitDate} · {VISIT_TYPE_LABELS[visit.visitType]} ·{" "}
-            {VISIT_ARRANGEMENT_LABELS[visit.arrangement]} ·{" "}
+            {/* A call is neither booked nor dropped in on, though the column must hold one of the
+                two (defect 100-D2), so a call shows no arrangement. */}
+            {visit.visitType === "phone" ? null : <>{VISIT_ARRANGEMENT_LABELS[visit.arrangement]} · </>}
             <span
-              className={`font-medium ${
-                visit.outcome === "attempted" ? "text-warning" : "text-success"
-              }`}
+              className={`font-medium ${isDoneVisit(visit) ? "text-success" : "text-warning"}`}
             >
-              {VISIT_OUTCOME_LABELS[visit.outcome]}
+              {describeVisitOutcome(visit)}
             </span>
           </p>
 

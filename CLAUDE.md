@@ -752,6 +752,19 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   The goal, stewardship, appointments, cadence and log forms open in **windows** from buttons, and
   **follow the selected organization**, read-only when it is a shared one. `VisitProgressTable` and
   `CollapsibleSection` are retired; the query key lives in `progressQueryKey.ts`.
+  **bv3 (2026-11-04, migration 101): "Visited, but still needs a visit" is a COMPLETED visit with a
+  flag and a fixed reason, never a third outcome**, and it does **not** reset the household's clock
+  — it shows as `partlyReached` beside the band. **`isDoneVisit()`** (`lib/visits/householdStatus.ts`)
+  is the one meaning of done; `progress.ts` and `allOrgProgress.ts` both ask it, so a new reader of
+  "was this household visited" must too. **A phone call is only ever an attempt** (the user's
+  decision), held by a CHECK and by the schema; the Contact window is the only place one is
+  recorded and the log form offers `VISIT_LOGGABLE_TYPES`. An edit that changes the outcome clears
+  the detail belonging to the other one, so it cannot trip a CHECK into a 500.
+  **On All orgs a household names no "partly reached"**; its Last seen adds "Last attempted {date}"
+  for the newest attempt or still-needs visit **newer than the last done visit** (decided walking
+  scenario 100). **A button that swaps one Modal for another must not let the first window's late
+  native `close` event shut the second** — `HouseholdsPanel`'s windows each close only themselves
+  (defect 100-D1).
 - **SUPERSEDED for visits by ITER-055 (above).** **Cross-org visibility widens an organization's whole PROGRESS — DECIDED 2026-08-27, REVERSING
   ITER-018.** `ward_allows_cross_org_visibility()` now appears in **four** SELECT policies:
   `visit_logs_select` (019), `household_stewardships_select` (052), and — added by migration 053 —

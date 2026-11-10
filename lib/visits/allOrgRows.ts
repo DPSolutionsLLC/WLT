@@ -44,6 +44,10 @@ export type AllOrgHouseholdRow = {
   lastVisitedByOrgName: string | null;
   // Who WENT, never who typed it in.
   conductedBy: string | null;
+  // The newest attempt or "still needs a visit" visit by any organization, ONLY when it is newer
+  // than `lastVisitedOn` (ITER-055 bv3, decided walking scenario 100). Null otherwise: an attempt
+  // on or before the last done visit has already been settled by it.
+  lastAttemptedOn: DateOnly | null;
   stewards: AllOrgSteward[];
   // TRUE when NO organization has claimed this household. Not simply `stewards.length === 0` —
   // an organization that has narrowed NOTHING claims EVERY household, so on ship day nothing is

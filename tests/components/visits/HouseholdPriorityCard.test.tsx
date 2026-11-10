@@ -14,6 +14,7 @@ function row(overrides: Partial<VisitProgressRow> = {}): VisitProgressRow {
     lastVisitedOn: "2026-09-10",
     lastAttemptedOn: null,
     attemptsSinceLastVisit: 0,
+    partlyReached: null,
     doNotContact: false,
     priority: {
       band: "on_track",
@@ -104,5 +105,32 @@ describe("HouseholdPriorityCard", () => {
 
     expect(onLogVisit).toHaveBeenCalledTimes(1);
     expect(onOpenCadence).toHaveBeenCalledTimes(1);
+  });
+
+  // ITER-055 bv3.
+  it("opens the contact window from its own button", () => {
+    const onContact = vi.fn();
+    render(<HouseholdPriorityCard row={row()} asOf={asOf} onContact={onContact} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Contact the Rivera household" }));
+
+    expect(onContact).toHaveBeenCalledTimes(1);
+  });
+
+  it("names when and why a household was only partly reached", () => {
+    render(
+      <HouseholdPriorityCard
+        row={row({ partlyReached: { on: "2027-02-14", reason: "spouse_absent" } })}
+        asOf={asOf}
+      />,
+    );
+
+    expect(screen.getByText(/^Partly reached .* — spouse absent$/)).toBeTruthy();
+  });
+
+  it("says nothing about partly reached when it was not", () => {
+    render(<HouseholdPriorityCard row={row()} asOf={asOf} />);
+
+    expect(screen.queryByText(/Partly reached/)).toBeNull();
   });
 });

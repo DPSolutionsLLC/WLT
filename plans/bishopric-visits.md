@@ -7,6 +7,23 @@
 its own, has its own migration (where it needs one), its own tests, its own scenario and its own
 retro. Build them in order; each depends on the ones before it.
 
+### Status (refreshed 2026-11-09)
+
+| Slice | State |
+|---|---|
+| bv1 | ✅ committed `393a98c` (migration 099) |
+| bv2 | ✅ committed `280b9aa` |
+| bv3 | **Built and walked 2026-11-09, NOT committed** — migration **101**, scenario **100** (`visits/scenario-100-partly-reached-and-a-call`, all 14 pass after fixing 100-D1 and 100-D2). Run `/commit`, then start bv4. |
+| bv4–bv8 | Not started |
+
+**What the 2026-11-09 refresh changed — no decision (D1–D9, P1–P16) moved:**
+- **Migration numbers are one later than first written.** 100 went to `100_zoom_join_links_w_to_j.sql`, so bv3 used 101. From here: **bv4 → 102, bv5 → 103, bv6 → 104, bv7 → 105.** Always re-check `ls supabase/migrations | tail -3` before creating one.
+- **Scenario numbers shift by one** for the same reason: bv4 → 101, bv5/bv6 → 102, bv7 → 103.
+- **bv3 did not create `RecordVisitWindow` or `ScheduleVisitWindow`.** It extended `VisitLogForm.tsx` (outcome, reason, attempt detail) and reused `AppointmentPanel.tsx` for scheduling (`ContactPanel`'s `onSchedule`). Later slices extend those components; they do not create the two windows (bv6 creates `ScheduleVisitWindow` — see its section).
+- **"Done" already has one meaning: `isDoneVisit()` in `lib/visits/householdStatus.ts`** (CLAUDE.md §9, bv3). `sweepProgress()` (bv4) and the to-do closing in bv5 must call it, never re-test `outcome`/`needs_another_visit` themselves. A phone call is only ever an attempt.
+- **The tabs live in `lib/visits/visitsView.ts`** (`VISITS_TABS`, `VISITS_TAB_LABELS`, `visibleVisitsTabs()`), not in `VisitsScreen`. bv4 adds `goal_history`, bv5 adds `my_visits`; the stored page view parses through `visitsViewSchema`, so a new tab value must be added there too.
+- **The active goal is chosen in TWO places:** `selectActiveGoal()` in `lib/visits/progress.ts` **and** a copy of its rule in `lib/visits/allOrgProgress.ts` (~line 220). bv4 changes both, or the all-orgs page counts an ended goal.
+
 ---
 
 ## Overview
@@ -119,9 +136,10 @@ Grouped by slice. "create" / "modify". The executor confirms each path exists be
 - Tests: `tests/components/visits/HouseholdPriorityCard.test.tsx` (create), existing visits component tests updated.
 
 ### bv3 — Contact panel and the "still needs a visit" outcome
-- `supabase/migrations/100_visit_outcomes.sql` — create — P8 columns and checks.
+_As built (uncommitted 2026-11-09): migration **101**, `ContactPanel.tsx`, `lib/visits/visitOutcome.ts` (`describeVisitOutcome`; `isDoneVisit` is in `householdStatus.ts`), and the outcome fields added to the existing `VisitLogForm.tsx` instead of a new `RecordVisitWindow`. Scheduling reuses `AppointmentPanel`._
+- `supabase/migrations/101_visit_outcomes.sql` — create — P8 columns and checks.
 - `app/(app)/visits/ContactPanel.tsx` — create — prototype L10490–10553: phones as `tel:` links per member, Log a contact attempt (three outcomes + notes), Schedule an appointment, Close.
-- `app/(app)/visits/RecordVisitWindow.tsx` — create — record a visit: date, outcome (Done / Visited — still needs a visit / Attempted), reason select (D7) when "still needs", shared report, private note, participants (existing `VisitParticipantsField`).
+- ~~`app/(app)/visits/RecordVisitWindow.tsx`~~ — **not created**; `VisitLogForm.tsx` modified instead (date, outcome, reason when "still needs", shared report, private note, participants).
 - `lib/visits/queries.ts`, `lib/validation/visit.ts`, `app/api/visits/route.ts`, `app/api/visits/[id]/route.ts` — modify — new fields; Zod refines mirror the CHECKs.
 - `lib/visits/householdStatus.ts` — modify — P7 partly-reached input and mark.
 - `lib/visits/progress.ts` — modify — "done" means completed and not `needs_another_visit`.
@@ -129,8 +147,10 @@ Grouped by slice. "create" / "modify". The executor confirms each path exists be
 - Tests: `tests/lib/householdStatus.test.ts` (extend), `tests/lib/visitValidation.test.ts` (extend), `tests/routes/visits.test.ts` (extend).
 
 ### bv4 — Sweep goals, ending a goal, goal history
-- `supabase/migrations/101_visit_goal_kinds.sql` — create — P5.
-- `lib/visits/sweep.ts` — create — `sweepProgress(households, logs, goal)` → `{ done, partlyReached, notYet, total, byHousehold }`.
+- `supabase/migrations/102_visit_goal_kinds.sql` — create — P5.
+- `lib/visits/sweep.ts` — create — `sweepProgress(households, logs, goal)` → `{ done, partlyReached, notYet, total, byHousehold }`. "Done" and "partly reached" come from `isDoneVisit()` and the bv3 `needsAnotherVisit` flag — never re-derived.
+- `lib/visits/allOrgProgress.ts` — modify — its own copy of the active-goal rule (~line 220) reads `ended_at is null` too.
+- `lib/visits/visitsView.ts` — modify — `goal_history` in `VISITS_TABS`, its label, `visitsViewSchema`, and `visibleVisitsTabs()` (bishopric + anyone holding `visits.manage_goals` for the selected org — decide at bv4 start; default bishopric only, matching D4).
 - `lib/visits/queries.ts` — modify — goal reads/writes; `endGoal(goalId, reason)`; `listGoalHistory(orgId)`.
 - `app/api/visit-goals/route.ts`, `app/api/visit-goals/[id]/route.ts` — modify — `kind`, start date, end (`{ end: 'completed' | 'set_aside' }`); creating a goal while one is active → **409 with a sentence** ("End the current goal first").
 - `app/(app)/visits/GoalWindow.tsx`, `app/(app)/visits/GoalHistory.tsx` — create.
@@ -138,7 +158,8 @@ Grouped by slice. "create" / "modify". The executor confirms each path exists be
 - Tests: `tests/lib/visitSweep.test.ts` (create), `tests/routes/visitGoals.test.ts` (create or extend), `tests/rls/visit-goals-history.test.ts` (create — unique active goal, ended goals readable).
 
 ### bv5 — Assign → To Do
-- `supabase/migrations/102_visit_assignments.sql` — create — P9 table, `todos.visit_assignment_id` + partial unique index, `todos_closed_reason_check` gains `reassigned`, `unassigned`; `todo_log_entries_kind_check` gains `visit_assigned`, `visit_reassigned`, `visit_partly_reached`; release policy.
+- `supabase/migrations/103_visit_assignments.sql` — create — P9 table, `todos.visit_assignment_id` + partial unique index (copy `todos_one_open_zoom_link_todo_per_owner` in 095), `todos_closed_reason_check` gains `reassigned`, `unassigned`; `todo_log_entries_kind_check` gains `visit_assigned`, `visit_reassigned`, `visit_partly_reached`; release policy. **The latest full lists of both checks are in `095_zoom_link_pool_and_invitees.sql`** — start from those and `TODO_CLOSED_REASONS` / `TODO_LOG_KINDS` in `types/domain.ts`, or a value added since 089 is silently dropped.
+- `lib/visits/visitsView.ts` — modify — `my_visits` tab (bishopric only).
 - `lib/visits/assignments.ts` — create — `assignHouseholds()`, `reassign()`, `unassign()`, `listAssignments()`; ends rows, never deletes.
 - `lib/todos/visitLinks.ts` — create — `createVisitTodo`, `closeVisitTodos(householdId, reason, line)`, `addLineToVisitTodo`.
 - `app/api/visit-assignments/route.ts` (POST bulk assign, GET), `app/api/visit-assignments/[id]/route.ts` (PATCH reassign / unassign) — create — `visits.assign` + bishopric; `findUsersOutsideWard()` + bishopric-calling check; audit with ids only.
@@ -149,18 +170,18 @@ Grouped by slice. "create" / "modify". The executor confirms each path exists be
 - Tests: `tests/rls/visit-assignments.test.ts`, `tests/routes/visitAssignments.test.ts`, `tests/lib/visitTodoSites.test.ts` (source-read: only `lib/todos/visitLinks.ts` writes `visit_assignment_id`; only `lib/visits/assignments.ts` writes `visit_assignments`).
 
 ### bv6 — Schedule with companions; invites
-- `supabase/migrations/103_visit_companion_invites.sql` — create — `visit_appointments.assignment_id`, `visit_appointment_companions`, `is_visit_companion()`, the one SELECT arm, release policy, notification trigger `visit_companion_invited` backfilled for every ward (template: `089_sunday_music_review.sql`'s insert … cross join … on conflict do nothing).
+- `supabase/migrations/104_visit_companion_invites.sql` — create — `visit_appointments.assignment_id`, `visit_appointment_companions`, `is_visit_companion()`, the one SELECT arm, release policy, notification trigger `visit_companion_invited` backfilled for every ward (template: `089_sunday_music_review.sql`'s insert … cross join … on conflict do nothing).
 - `lib/visits/companions.ts` — create — `inviteCompanions()`, `respondToInvite(companionId, accept)`, `listPendingInvitesFor(userId)`.
 - `app/api/visit-appointments/route.ts` — modify — accept `companions` (users / members / labels; max `MAX_VISIT_COMPANIONS`).
 - `app/api/visit-invites/[id]/route.ts` — create — POST accept/decline; only the invited user; service role after the check.
 - `lib/appointments/myAppointments.ts`, `lib/appointments/queries.ts` — modify — accepted companion appointments as part of the existing `visit` kind (with `role: 'companion'`), pending invites as a separate list; **one** `buildMyAppointments()` call.
 - `app/(app)/appointments/page.tsx`, `app/(app)/visits/InvitesPanel.tsx` (create) — pending invites with Accept / Decline.
-- `app/(app)/visits/ScheduleVisitWindow.tsx` — create — date and time on the ward's clock (`wardInputsToInstant`), companion picker (bishopric members first, then roster members, then "use as typed"), notes. Opened from the to-do card (P11) and the contact panel.
+- `app/(app)/visits/ScheduleVisitWindow.tsx` — create — date and time on the ward's clock (`wardInputsToInstant`), companion picker (bishopric members first, then roster members, then "use as typed"), notes. Opened from the to-do card (P11) and the contact panel. **Today (after bv3) scheduling is the existing `AppointmentPanel.tsx` form, opened from `ContactPanel`'s `onSchedule` in `HouseholdsPanel.tsx`.** Extract that form into this window and add the companion field, so there is still ONE scheduling form; `AppointmentPanel` keeps the list of appointments.
 - Notification copies: `supabase/seed/notification_triggers.sql`, `SPEC.md`, `testing/infrastructure/seedUtils.ts`, `lib/notifications/triggerDefaults.ts`.
 - Tests: `tests/rls/visit-companions.test.ts`, `tests/routes/visitInvites.test.ts`, `tests/lib/myAppointments.test.ts` (extend), `tests/db/notification-triggers-seed.test.ts` (must stay green).
 
 ### bv7 — Follow-ups and "discuss in bishopric meeting"
-- `supabase/migrations/104_visit_followups_and_discussion.sql` — create — `todos.visit_log_id` (FK `on delete set null`), P15 columns.
+- `supabase/migrations/105_visit_followups_and_discussion.sql` — create — `todos.visit_log_id` (FK `on delete set null`), P15 columns.
 - `lib/todos/visitLinks.ts` — modify — `createFollowUpTodo`.
 - `app/api/visits/[id]/follow-ups/route.ts` — create — POST `{ ownerUserId, title, dueDate? }`; bishopric; owner must hold a bishopric calling.
 - `app/api/visits/[id]/route.ts` — modify — `discussInBishopric` toggle; append to an upcoming draft bishopric agenda (P-B) through `lib/agendas/flaggedItems.ts`.
@@ -255,20 +276,25 @@ Report the numbers to the user in plain words before writing migration 099.
 
 ### Task 8 (bv3): Outcomes and the contact panel
 **Details:**
-- Migration 100 per P8.
+- Migration 101 per P8 _(built as 101; see Status)_.
 - `ContactPanel`: lists each member of the household with a phone as `<a href="tel:…">` (44px targets); "No phone number on file." otherwise. **Log a contact attempt** → outcome select (No answer / Left a message / Couldn't leave a message) + notes → writes `outcome 'attempted'`, `visit_type 'phone'`, `attempt_detail`. **Schedule an appointment** → `ScheduleVisitWindow` (bv6 adds companions; bv3 ships it without the companion field).
 - `RecordVisitWindow`: Done / Visited — still needs a visit / Attempted; when "still needs" a required reason select (Someone wasn't home · Spouse absent · Asked us to come back · Other) with the notes field labelled "Say more in the report".
 - `householdVisitPriority` gains `partlyReachedSince: string | null`; the card shows "Partly reached {date} — {reason}". → commit `bv3`.
 
 ### Task 9 (bv4): Goal kinds and history
-**Details:** Migration 101 per P5 (the duplicate check is a `do` block that raises with a list of `(ward_id, org_id)` if any exist). `GoalWindow`: kind toggle (Visit every household once · Keep visiting on a schedule), start date (default today, ward zone), cadence fields only for cadence. Progress banner for a sweep: "{done} of {total} done · {partly} partly reached · {notYet} not yet", plus per-member shares once bv5 lands. **End goal** → window: "Completed" or "Set aside", confirm sentence "It stays in Goal history." `GoalHistory` tab: each ended goal with kind, dates, end reason, and its final numbers **recomputed against `ended_at`** (the `closed_at` precedent — computed, never stored). → commit `bv4`.
+**Before writing code (bv4 start):**
+- **Re-run Task 0's duplicate-goal check, read only** — any (ward, org) with more than one `visit_goals` row. Task 0 found none on 2026-10-31, but nothing in the schema prevents duplicates and Visits may since have been released for Buffalo Ward. If any exist, stop and ask the user; never delete.
+- **Ask the user the open question in Testing Strategy:** a household marked done that later gets a "still needs a visit" visit — does it stay done? Default: yes.
+- Ask who sees the Goal history tab (default: the bishopric only).
+
+**Details:** Migration 102 per P5 (the duplicate check is a `do` block that raises with a list of `(ward_id, org_id)` if any exist). `GoalWindow`: kind toggle (Visit every household once · Keep visiting on a schedule), start date (default today, ward zone), cadence fields only for cadence. Progress banner for a sweep: "{done} of {total} done · {partly} partly reached · {notYet} not yet", plus per-member shares once bv5 lands. **End goal** → window: "Completed" or "Set aside", confirm sentence "It stays in Goal history." `GoalHistory` tab: each ended goal with kind, dates, end reason, and its final numbers **recomputed against `ended_at`** (the `closed_at` precedent — computed, never stored). → commit `bv4`.
 
 ### Task 10 (bv5): Assignment and its to-do
 **Details:**
-- Migration 102 per P9/P10. Drop and re-add `todos_closed_reason_check` and `todo_log_entries_kind_check` by name with the full lists from `types/domain.ts` plus the new values.
+- Migration 103 per P9/P10. Drop and re-add `todos_closed_reason_check` and `todo_log_entries_kind_check` by name with the full lists from `types/domain.ts` plus the new values.
 - `AssignWindow`: pick households (checkboxes, with "Select the street" once bv8 exists), pick one of the bishopric (from `listBishopricUsers`), Assign. Already-assigned households show who holds them; choosing them again is a reassign and the window names who loses it and any scheduled visit (D8 warning).
 - Reassign order: end old assignment `reassigned` → close old to-do (`closed_reason 'reassigned'`, line "Reassigned to {name}.") → create new assignment → create new to-do. A scheduled appointment is left alone; the warning names it.
-- Done visit (any author, any route path that records `outcome completed and not needs_another`) → end assignment `visited`, `closeVisitTodos(..., "Visited.")`. Partly reached → `visit_partly_reached` line with the reason label.
+- Done visit (any author, any route path where `isDoneVisit()` is true — `POST /api/visits` and a `PATCH /api/visits/[id]` that changes the outcome to done) → end assignment `visited`, `closeVisitTodos(..., "Visited.")`. Partly reached → `visit_partly_reached` line with the reason label.
 - Ending the goal ends open assignments `goal_ended` and closes their to-dos with a line "The visit goal ended." (decide with the user at bv5 start whether set-aside should keep assignments open; default: close).
 - `MyVisits` tab: my open assignments, each a `HouseholdPriorityCard` with Contact / Schedule / Record buttons.
 - Progress banner adds "Bishop 12 of 60 · 1st Counselor 9 of 60 · 2nd Counselor 15 of 60" (by calling label, the D6 rule from `zoom-remote-links` — never he/she).
@@ -276,7 +302,7 @@ Report the numbers to the user in plain words before writing migration 099.
 
 ### Task 11 (bv6): Companions and invites
 **Details:**
-- Migration 103 per P12/P13. `is_visit_companion(appointment uuid)` — security definer, `exists (… where appointment_id = appointment and user_id = auth.uid() and status in ('pending','accepted'))`. Add `or is_visit_companion(id)` to `visit_appointments_select` only.
+- Migration 104 per P12/P13. `is_visit_companion(appointment uuid)` — security definer, `exists (… where appointment_id = appointment and user_id = auth.uid() and status in ('pending','accepted'))`. Add `or is_visit_companion(id)` to `visit_appointments_select` only.
 - `inviteCompanions` writes rows and emits `visit_companion_invited` to each user companion ("{scheduler} invited you to visit the {family} family on {ward-zone date, time}").
 - Accept → `accepted`; Decline → `declined`, and the scheduler gets a line on their visit to-do ("{name} can't come.") if one exists.
 - `ScheduleVisitWindow` companion picker: bishopric members (invited), "Someone else in the ward" (MemberPicker, recorded), "Use … as typed" (recorded).
@@ -285,7 +311,7 @@ Report the numbers to the user in plain words before writing migration 099.
 
 ### Task 12 (bv7): Follow-ups and discussion
 **Details:**
-- Migration 104 per P14/P15.
+- Migration 105 per P14/P15.
 - Visit card buttons: **Add a follow-up** (window: what, for whom — bishopric members, default me — and an optional due date) and **Discuss in bishopric meeting** (toggle; when on, the card shows "On the next bishopric agenda" or "Waiting for the next bishopric agenda").
 - Agenda line text: `Visit — {family} family — to discuss`. Appended into the agenda's flagged section using `newAgendaItem` with `source: "flag"`, `sourceId: visit_log_id`.
 - Publish stamps `bishopric_discussed_at` for every `sourceId` on the published bishopric agenda that is a visit discussion.
@@ -327,9 +353,9 @@ Report the numbers to the user in plain words before writing migration 099.
 
 ## Test Scenarios (Harness)
 
-Numbers are provisional — use the next free numbers at the time (098 is the latest).
+Numbers are provisional — use the next free numbers at the time. **As of 2026-11-09: 099 = bv1's sharing scenario, 100 = bv3's `scenario-100-partly-reached-and-a-call`, so the next free is 101.** The three below are renumbered accordingly.
 
-### Scenario 099: Sharing the Bishopric's visits
+### Scenario 099: Sharing the Bishopric's visits _(built in bv1)_
 **Tags:** visits, full, rls
 **Purpose:** Proves D1–D3 at the screen. Hard to set up by hand: needs visits from three organizations and a ward that had the switch on.
 **Seed data summary:**
@@ -346,7 +372,7 @@ Numbers are provisional — use the next free numbers at the time (098 is the la
 - [ ] The other two bishopric members have a notification about the change
 - [ ] Admin page's toggle now reads as youth follow-ups only
 
-### Scenario 100: A sweep, partly reached, and goal history
+### Scenario 101: A sweep, partly reached, and goal history (bv4)
 **Tags:** visits, full
 **Purpose:** States the clock and the data decide: a sweep partway through with done, partly reached and not-yet households, plus an ended goal.
 **Seed data summary:**
@@ -360,7 +386,7 @@ Numbers are provisional — use the next free numbers at the time (098 is the la
 - [ ] Goal history lists the set-aside goal with its dates and final numbers
 - [ ] Creating a second goal is refused with a sentence; End goal → Completed moves it to history
 
-### Scenario 101: Assign, schedule with a companion, accept
+### Scenario 102: Assign, schedule with a companion, accept (bv5 + bv6)
 **Tags:** visits, todos, appointments, full
 **Purpose:** The whole flow across three accounts.
 **Seed data summary:** an active sweep; 6 households; none assigned
@@ -372,7 +398,7 @@ Numbers are provisional — use the next free numbers at the time (098 is the la
 - [ ] The done visit closed its to-do; the partly-reached one stayed open with a line
 - [ ] Reassigning a household closes the old to-do with "Reassigned to …" and warns about the scheduled visit
 
-### Scenario 102: Follow-up and bishopric discussion
+### Scenario 103: Follow-up and bishopric discussion (bv7)
 **Tags:** visits, agendas, todos, full
 **Seed data summary:** a recorded bishopric visit; a draft bishopric agenda dated next week; a draft ward council agenda
 **Tester action:** On the visit, add a follow-up for the 1st counselor and turn on Discuss in bishopric meeting.
@@ -382,7 +408,7 @@ Numbers are provisional — use the next free numbers at the time (098 is the la
 - [ ] The line contains none of the report text
 - [ ] Publishing the bishopric agenda, then creating the next one, does not repeat the line
 
-bv2 and bv8 need no seeded scenario of their own; they are walked on scenario 100's data at 375px in light and dark (street grouping needs the seeded addresses: give scenario 100's households addresses on three streets plus one blank).
+bv2 and bv8 need no seeded scenario of their own; they are walked on scenario 101's data at 375px in light and dark (street grouping needs the seeded addresses: give scenario 101's households addresses on three streets plus one blank).
 
 ---
 

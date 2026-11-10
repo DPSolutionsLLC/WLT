@@ -117,6 +117,9 @@ function log(
     visitDate,
     visitType: "in_home",
     outcome,
+    needsAnotherVisit: false,
+    needsAnotherReason: null,
+    attemptDetail: null,
     arrangement: "drop_in",
     sharedNotes: null,
     flaggedForWardCouncil: false,
@@ -871,5 +874,82 @@ describe("describeHouseholdForVisits", () => {
       inDenominator: true,
       pickerLabel: "Brooks",
     });
+  });
+});
+
+// ITER-055 bv3 (P7): "Visited, but still needs a visit" is a completed visit that does NOT reset
+// the household's clock. It is a mark beside the band, and a done visit afterwards clears it.
+function partly(
+  householdId: string,
+  visitDate: DateOnly,
+  reason: "not_home" | "spouse_absent" | "asked_to_return" | "other" = "spouse_absent",
+): VisitLogWithContext {
+  return {
+    ...log(householdId, visitDate, "completed"),
+    needsAnotherVisit: true,
+    needsAnotherReason: reason,
+  };
+}
+
+describe("a visit that still needs another visit", () => {
+  it("leaves a never-visited household never visited, and marks it partly reached", () => {
+    const progress = build([household("h-1", "Brooks", ["active"])], [partly("h-1", "2026-03-05")]);
+
+    const row = rowFor(progress, "h-1");
+
+    expect(row.lastVisitedOn).toBeNull();
+    expect(row.priority?.band).toBe("never_visited");
+    expect(row.partlyReached).toEqual({ on: "2026-03-05", reason: "spouse_absent" });
+    expect(progress.statistics?.neverVisited).toBe(1);
+  });
+
+  it("does not move an earlier done visit's clock", () => {
+    const progress = build(
+      [household("h-1", "Brooks", ["active"])],
+      [log("h-1", "2025-05-01", "completed"), partly("h-1", "2026-05-20", "not_home")],
+    );
+
+    const row = rowFor(progress, "h-1");
+
+    expect(row.lastVisitedOn).toBe("2025-05-01");
+    expect(row.priority?.band).toBe("overdue");
+    expect(row.partlyReached).toEqual({ on: "2026-05-20", reason: "not_home" });
+  });
+
+  it("is cleared by a done visit afterwards", () => {
+    const progress = build(
+      [household("h-1", "Brooks", ["active"])],
+      [partly("h-1", "2026-03-05"), log("h-1", "2026-04-10", "completed")],
+    );
+
+    const row = rowFor(progress, "h-1");
+
+    expect(row.lastVisitedOn).toBe("2026-04-10");
+    expect(row.partlyReached).toBeNull();
+  });
+
+  it("shows the latest one when there are several since the last done visit", () => {
+    const progress = build(
+      [household("h-1", "Brooks", ["active"])],
+      [partly("h-1", "2026-04-01", "not_home"), partly("h-1", "2026-03-01", "other")],
+    );
+
+    expect(rowFor(progress, "h-1").partlyReached).toEqual({ on: "2026-04-01", reason: "not_home" });
+  });
+
+  it("is not shown when it is on the same day as a done visit", () => {
+    const progress = build(
+      [household("h-1", "Brooks", ["active"])],
+      [partly("h-1", "2026-04-10"), log("h-1", "2026-04-10", "completed")],
+    );
+
+    expect(rowFor(progress, "h-1").partlyReached).toBeNull();
+  });
+
+  it("is not an attempt", () => {
+    const progress = build([household("h-1", "Brooks", ["active"])], [partly("h-1", "2026-03-05")]);
+
+    expect(rowFor(progress, "h-1").attemptsSinceLastVisit).toBe(0);
+    expect(rowFor(progress, "h-1").lastAttemptedOn).toBeNull();
   });
 });

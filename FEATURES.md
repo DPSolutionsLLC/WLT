@@ -600,8 +600,11 @@ Available to all organizations. Each org manages its own visit goals and logs in
 ### Progress Dashboard
 - The Visits page has tabs — **Households**, **Feed**, and for the bishopric **All orgs**
   and **Sharing** — and reopens on the tab and sort you left it on
+- All orgs shows each household's last done visit by any organization and, when somebody has
+  tried since, **Last attempted** with the date — an attempt, a call, or a visit that still needs
+  another
 - Households is one card per household, in priority order (or sorted by name, last visited, last
-  attempted, due date or conducted by), with small **Log visit** and **Cadence** buttons; the
+  attempted, due date or conducted by), with small **Contact**, **Log visit** and **Cadence** buttons; the
   visit goal, which households are ours, and appointments each open in their own window and
   follow the organization selected
 - **A priority scale, not a set of buckets.** Every household reads one of four bands — `Never
@@ -612,6 +615,14 @@ Available to all organizations. Each org manages its own visit goals and logs in
 - **Attempts are a mark beside the band, not a band.** A household somebody has knocked on three
   times reads *Attempted ×3* alongside whatever its urgency is — the reason no longer displaces
   the position
+- **Visited, but still needs a visit.** Recording a visit has three answers: *Visited*, *Visited —
+  still needs a visit* (with a reason: someone wasn't home, spouse absent, asked us to come back,
+  other) and *Attempted*. A visit that still needs another does **not** reset the household's
+  clock; the card says "Partly reached Oct 25 — spouse absent" beside the band until a full visit
+  is recorded
+- **Contact** on each card opens the household's phone numbers as links that dial, a way to log a
+  call that did not connect (no answer, left a message, couldn't leave a message) and a way on to
+  scheduling an appointment. A phone call is only ever an attempt — a done visit is in person
 - Map view (optional toggle): households plotted with color-coded pins by band
 - The banner states the goal **in words** first — "Every household, every year. Warning 2 months
   ahead." — then the four counts, then the percentage on track. The numbers are read against their

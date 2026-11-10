@@ -20,12 +20,15 @@ import { MAX_PRIVATE_NOTES, MAX_SHARED_NOTES } from "@/lib/validation/visit";
 import {
   VISIT_ARRANGEMENTS,
   VISIT_ARRANGEMENT_LABELS,
-  VISIT_OUTCOMES,
+  VISIT_LOGGABLE_TYPES,
+  VISIT_NEEDS_ANOTHER_REASONS,
+  VISIT_NEEDS_ANOTHER_REASON_LABELS,
   VISIT_OUTCOME_LABELS,
-  VISIT_TYPES,
+  VISIT_PARTLY_REACHED_LABEL,
   VISIT_TYPE_LABELS,
   type SessionUser,
   type VisitArrangement,
+  type VisitNeedsAnotherReason,
   type VisitOutcome,
   type VisitType,
 } from "@/types/domain";
@@ -64,11 +67,37 @@ const TEXTAREA_CLASSES =
 const SHARED_TEXTAREA_CLASSES =
   "min-h-24 rounded-md border border-warning bg-surface-raised px-3 py-2 text-base text-warning placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
+// WHAT HAPPENED, as the leader answers it (ITER-055 bv3). Three answers stored as two columns:
+// "still needs a visit" is a completed visit with a reason (migration 101), never a third outcome.
+export const VISIT_RECORD_CHOICES = ["done", "partly_reached", "attempted"] as const;
+export type VisitRecordChoice = (typeof VISIT_RECORD_CHOICES)[number];
+
+export const VISIT_RECORD_CHOICE_LABELS: Record<VisitRecordChoice, string> = {
+  done: VISIT_OUTCOME_LABELS.completed,
+  partly_reached: VISIT_PARTLY_REACHED_LABEL,
+  attempted: VISIT_OUTCOME_LABELS.attempted,
+};
+
+const VISIT_RECORD_CHOICE_HELP: Record<VisitRecordChoice, string> = {
+  done: "The visit happened.",
+  partly_reached:
+    "Somebody went, but the household still needs a visit. It stays on the list as partly " +
+    "reached and does not count as done.",
+  attempted:
+    "Nobody was home, or the visit did not happen. It stays on the household's record and " +
+    "counts towards no goal.",
+};
+
+export function outcomeForChoice(choice: VisitRecordChoice): VisitOutcome {
+  return choice === "attempted" ? "attempted" : "completed";
+}
+
 type Draft = {
   householdId: string;
   visitDate: string;
   visitType: VisitType;
-  outcome: VisitOutcome;
+  choice: VisitRecordChoice;
+  needsAnotherReason: VisitNeedsAnotherReason | "";
   arrangement: VisitArrangement;
   sharedNotes: string;
   privateNotes: string;
@@ -145,7 +174,8 @@ export function VisitLogForm({
     householdId: appointment?.householdId ?? initialHouseholdId ?? "",
     visitDate: today,
     visitType: "in_home",
-    outcome: "completed",
+    choice: "done",
+    needsAnotherReason: "",
     arrangement: appointment === undefined ? "drop_in" : "appointment",
     sharedNotes: "",
     privateNotes: "",
@@ -180,6 +210,11 @@ export function VisitLogForm({
       return;
     }
 
+    if (draft.choice === "partly_reached" && draft.needsAnotherReason === "") {
+      setError("Choose why the household still needs a visit.");
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -193,7 +228,10 @@ export function VisitLogForm({
           householdId: draft.householdId,
           visitDate: draft.visitDate,
           visitType: draft.visitType,
-          outcome: draft.outcome,
+          outcome: outcomeForChoice(draft.choice),
+          ...(draft.choice === "partly_reached" && draft.needsAnotherReason !== ""
+            ? { needsAnotherReason: draft.needsAnotherReason }
+            : {}),
           arrangement: draft.arrangement,
           sharedNotes: draft.sharedNotes.trim() === "" ? null : draft.sharedNotes,
           // Always sent, even when empty. An empty list means "nobody is recorded as having
@@ -238,9 +276,11 @@ export function VisitLogForm({
       setDraft(emptyDraft);
       setParticipants([recorderParticipant(user)]);
       setNotice(
-        draft.outcome === "attempted"
+        draft.choice === "attempted"
           ? "Attempt recorded. It stays on the household's record and counts towards no goal."
-          : "Visit logged.",
+          : draft.choice === "partly_reached"
+            ? "Visit logged. The household stays on the list as partly reached."
+            : "Visit logged.",
       );
 
       // Clears `?appointment=` so a second visit logged straight afterwards is not silently
@@ -286,24 +326,46 @@ export function VisitLogForm({
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-foreground">What happened</span>
           <div className="flex flex-wrap gap-2">
-            {VISIT_OUTCOMES.map((outcome) => (
+            {VISIT_RECORD_CHOICES.map((choice) => (
               <Button
-                key={outcome}
-                variant={draft.outcome === outcome ? "primary" : "secondary"}
-                aria-pressed={draft.outcome === outcome}
-                onClick={() => update("outcome", outcome)}
+                key={choice}
+                variant={draft.choice === choice ? "primary" : "secondary"}
+                aria-pressed={draft.choice === choice}
+                onClick={() => update("choice", choice)}
               >
-                {VISIT_OUTCOME_LABELS[outcome]}
+                {VISIT_RECORD_CHOICE_LABELS[choice]}
               </Button>
             ))}
           </div>
-          <p className="text-sm text-muted">
-            {draft.outcome === "attempted"
-              ? "Nobody was home, or the visit did not happen. It stays on the household's " +
-                "record and counts towards no goal."
-              : "The visit happened."}
-          </p>
+          <p className="text-sm text-muted">{VISIT_RECORD_CHOICE_HELP[draft.choice]}</p>
         </div>
+
+        {draft.choice === "partly_reached" ? (
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="visit-needs-another" className="text-sm font-medium text-foreground">
+              Why it still needs a visit
+            </label>
+            <select
+              id="visit-needs-another"
+              aria-describedby="visit-needs-another-help"
+              className={SELECT_CLASSES}
+              value={draft.needsAnotherReason}
+              onChange={(event) =>
+                update("needsAnotherReason", event.target.value as VisitNeedsAnotherReason | "")
+              }
+            >
+              <option value="">Choose a reason…</option>
+              {VISIT_NEEDS_ANOTHER_REASONS.map((reason) => (
+                <option key={reason} value={reason}>
+                  {VISIT_NEEDS_ANOTHER_REASON_LABELS[reason]}
+                </option>
+              ))}
+            </select>
+            <p id="visit-needs-another-help" className="text-sm text-muted">
+              Say more in the shared notes below.
+            </p>
+          </div>
+        ) : null}
 
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-foreground">How it was arranged</span>
@@ -359,7 +421,7 @@ export function VisitLogForm({
             value={draft.visitType}
             onChange={(event) => update("visitType", event.target.value as VisitType)}
           >
-            {VISIT_TYPES.map((visitType) => (
+            {VISIT_LOGGABLE_TYPES.map((visitType) => (
               <option key={visitType} value={visitType}>
                 {VISIT_TYPE_LABELS[visitType]}
               </option>
@@ -373,7 +435,7 @@ export function VisitLogForm({
           user={user}
           leaders={leaders}
           memberNames={memberNames}
-          outcome={draft.outcome}
+          outcome={outcomeForChoice(draft.choice)}
           disabled={saving}
         />
 
@@ -428,7 +490,7 @@ export function VisitLogForm({
           <Button onClick={() => void submit()} disabled={saving}>
             {saving
               ? "Saving…"
-              : draft.outcome === "attempted"
+              : draft.choice === "attempted"
                 ? "Record attempt"
                 : "Log visit"}
           </Button>

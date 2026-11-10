@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 97,
+  "scenarioCount": 98,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -3090,6 +3090,37 @@
         "Every screen above works at 375px wide in light and dark"
       ],
       "seedCommand": "npm run seed -- visits/scenario-099-sharing-the-bishoprics-visits"
+    },
+    {
+      "id": "visits:scenario-100-partly-reached-and-a-call",
+      "path": "visits/scenario-100-partly-reached-and-a-call",
+      "name": "Partly reached, and a call that did not connect",
+      "scope": "visits",
+      "part": 1,
+      "tags": [
+        "visits",
+        "full",
+        "ITER-055"
+      ],
+      "prerequisites": "Migration 101 applied; Visits released for the Harness Test Ward.",
+      "purpose": "ITER-055 slice **bv3**. Recording a visit now has three answers — **Visited**, **Visited — still\nneeds a visit** (with a reason) and **Attempted** — and each household card has a **Contact**\nwindow with tap-to-call phone numbers, a way to log a call that did not connect, and a way on to\nscheduling.\n\nThe rule worth seeing: a visit that **still needs a visit does not reset the household's clock**.\nThe band stays where it was and a \"Partly reached\" line says why. A phone call is only ever an\nattempt.",
+      "checklist": [
+        "Step 1: **Bellamy** reads *Approaching* (*Overdue* after 2026-11-15), *Last visited May 15,",
+        "Step 1: **Carver** reads *Never visited* and **Partly reached Oct 28, 2026 — someone wasn't",
+        "Step 1: **Dunmore** reads *Never visited* and *1 attempt since*; no \"Partly reached\" line",
+        "Step 1: every card has a **Contact** button beside **Log visit** and **Cadence**",
+        "Step 2: the window is titled **Contact — Dunmore** and lists **Paul Dunmore (801) 555-0104**",
+        "Step 3: \"Call recorded as an attempt.\" appears; Dunmore now reads *2 attempts since*",
+        "Step 3: the new row in `visit_logs` has `visit_type = phone`, `outcome = attempted`,",
+        "Step 4: **No phone number on file for the Eastwood household.** — and the call form is",
+        "Step 5: the **Appointments** window opens with **Carver** already chosen",
+        "Step 6: \"Choose why the household still needs a visit.\" and nothing is saved",
+        "Step 7: \"Visit logged. The household stays on the list as partly reached.\"; Abernathy still",
+        "Step 8: the feed tiles read **Visited — still needs a visit · Asked us to come back** for",
+        "Step 9: on **All orgs**, Bellamy's last visit is **May 15, 2026**, not October 25",
+        "Step 10 (375px): the three buttons fit on each card's title line or wrap cleanly under the"
+      ],
+      "seedCommand": "npm run seed -- visits/scenario-100-partly-reached-and-a-call"
     },
     {
       "id": "youth:scenario-049-entering-an-activity-that-is-not-yours",

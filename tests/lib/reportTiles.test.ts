@@ -31,6 +31,9 @@ function visitLog(overrides: Partial<VisitLogWithContext> = {}): VisitLogWithCon
     visitDate: "2026-04-05",
     visitType: "in_home",
     outcome: "completed",
+    needsAnotherVisit: false,
+    needsAnotherReason: null,
+    attemptDetail: null,
     arrangement: "drop_in",
     sharedNotes: "Brought a meal round.",
     flaggedForWardCouncil: false,
@@ -142,6 +145,10 @@ describe("toReportTiles", () => {
   it("labels the outcome only when the visit did not happen", () => {
     expect(tileFor(visitLog({ outcome: "completed" })).outcomeLabel).toBeNull();
     expect(tileFor(visitLog({ outcome: "attempted" })).outcomeLabel).toBe("Attempted");
+    // ITER-055 bv3: a visit that still needs another is an exception too, and says why.
+    expect(
+      tileFor(visitLog({ needsAnotherVisit: true, needsAnotherReason: "not_home" })).outcomeLabel,
+    ).toBe("Visited — still needs a visit · Someone wasn't home");
   });
 
   // A bishopric-authored visit has no organization at all, so it carries no contextId and the

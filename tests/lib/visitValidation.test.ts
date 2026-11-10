@@ -294,7 +294,57 @@ describe("createVisitLogSchema", () => {
   });
 
   it("refuses a visit type outside the CHECK constraint", () => {
-    expect(createVisitLogSchema.safeParse(visit({ visitType: "phone" })).success).toBe(false);
+    expect(createVisitLogSchema.safeParse(visit({ visitType: "video" })).success).toBe(false);
+  });
+
+  // ITER-055 bv3: the refinements mirror migration 101's CHECKs, so a mismatch is a sentence.
+  it("accepts a phone call recorded as an attempt with how it went", () => {
+    const result = createVisitLogSchema.safeParse(
+      visit({ visitType: "phone", outcome: "attempted", attemptDetail: "left_message" }),
+    );
+
+    expect(result.success).toBe(true);
+  });
+
+  it("refuses a phone call recorded as a done visit", () => {
+    const result = createVisitLogSchema.safeParse(visit({ visitType: "phone", outcome: "completed" }));
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toContain("contact attempt");
+  });
+
+  it("accepts a visit that still needs another visit, with its reason", () => {
+    const result = createVisitLogSchema.safeParse(
+      visit({ outcome: "completed", needsAnotherReason: "spouse_absent" }),
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.data?.needsAnotherReason).toBe("spouse_absent");
+  });
+
+  it("refuses a still-needs-a-visit reason on an attempt", () => {
+    const result = createVisitLogSchema.safeParse(
+      visit({ outcome: "attempted", needsAnotherReason: "not_home" }),
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["needsAnotherReason"]);
+  });
+
+  it("refuses a reason outside the fixed list", () => {
+    expect(
+      createVisitLogSchema.safeParse(visit({ outcome: "completed", needsAnotherReason: "busy" }))
+        .success,
+    ).toBe(false);
+  });
+
+  it("refuses how-an-attempt-went on a done visit", () => {
+    const result = createVisitLogSchema.safeParse(
+      visit({ outcome: "completed", attemptDetail: "no_answer" }),
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["attemptDetail"]);
   });
 
   it("refuses a household id that is not a uuid", () => {

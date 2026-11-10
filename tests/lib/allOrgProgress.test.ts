@@ -120,6 +120,9 @@ function log(
     visitDate,
     visitType: "in_home",
     outcome,
+    needsAnotherVisit: false,
+    needsAnotherReason: null,
+    attemptDetail: null,
     arrangement: "drop_in",
     sharedNotes: null,
     flaggedForWardCouncil: false,
@@ -509,6 +512,7 @@ describe("the comparator", () => {
     lastVisitedByOrgId: EQ,
     lastVisitedByOrgName: "Elders Quorum",
     conductedBy: "Miguel Cortez",
+    lastAttemptedOn: null,
     stewards: [],
     unclaimed: false,
     ...over,
@@ -587,5 +591,96 @@ describe("the clock", () => {
     const progress = build({ asOf: "2026-06-01" });
 
     expect(progress.asOf).toBe(parseDateOnly("2026-06-01").toISOString());
+  });
+});
+
+// ITER-055 bv3 (P7): this page and each organization's page share one meaning of done.
+describe("a visit that still needs another visit", () => {
+  it("does not displace an older done visit in the ward-wide last visit", () => {
+    const progress = build({
+      households: [household("h-1", "Brooks")],
+      logs: [
+        log("h-1", RS, "2026-04-20", "completed", "Ruth Delacroix"),
+        {
+          ...log("h-1", EQ, "2026-05-30", "completed", "Miguel Cortez"),
+          needsAnotherVisit: true,
+          needsAnotherReason: "spouse_absent",
+        },
+      ],
+    });
+
+    const row = rowFor(progress, "h-1");
+
+    expect(row.lastVisitedOn).toBe("2026-04-20");
+    expect(row.conductedBy).toBe("Ruth Delacroix");
+  });
+});
+
+// Decided walking scenario 100: this page names the newest attempt rather than "partly reached".
+describe("last attempted", () => {
+  function partlyReached(householdId: string, orgId: string, visitDate: DateOnly) {
+    return {
+      ...log(householdId, orgId, visitDate, "completed"),
+      needsAnotherVisit: true,
+      needsAnotherReason: "not_home" as const,
+    };
+  }
+
+  it("dates a never-visited household's partly-reached visit", () => {
+    const progress = build({
+      households: [household("h-1", "Carver")],
+      logs: [partlyReached("h-1", EQ, "2026-10-28")],
+    });
+
+    const row = rowFor(progress, "h-1");
+
+    expect(row.lastVisitedOn).toBeNull();
+    expect(row.lastAttemptedOn).toBe("2026-10-28");
+  });
+
+  it("counts a phone call, and takes the newest of several attempts from any organization", () => {
+    const progress = build({
+      households: [household("h-1", "Dunmore")],
+      logs: [
+        { ...log("h-1", EQ, "2026-10-30", "attempted"), visitType: "phone" as const },
+        log("h-1", RS, "2026-11-05", "attempted"),
+        partlyReached("h-1", EQ, "2026-11-02"),
+      ],
+    });
+
+    expect(rowFor(progress, "h-1").lastAttemptedOn).toBe("2026-11-05");
+  });
+
+  it("shows an attempt made after the last done visit", () => {
+    const progress = build({
+      households: [household("h-1", "Bellamy")],
+      logs: [log("h-1", EQ, "2026-05-15"), partlyReached("h-1", EQ, "2026-10-25")],
+    });
+
+    const row = rowFor(progress, "h-1");
+
+    expect(row.lastVisitedOn).toBe("2026-05-15");
+    expect(row.lastAttemptedOn).toBe("2026-10-25");
+  });
+
+  it("drops an attempt on or before the last done visit, which settled it", () => {
+    const progress = build({
+      households: [household("h-1", "Abernathy"), household("h-2", "Eastwood")],
+      logs: [
+        log("h-1", EQ, "2026-03-01", "attempted"),
+        log("h-1", RS, "2026-09-01"),
+        log("h-2", EQ, "2026-09-01", "attempted"),
+        log("h-2", EQ, "2026-09-01"),
+      ],
+    });
+
+    expect(rowFor(progress, "h-1").lastAttemptedOn).toBeNull();
+    expect(rowFor(progress, "h-2").lastAttemptedOn).toBeNull();
+  });
+
+  it("is null for a household nobody has tried", () => {
+    const progress = build({ households: [household("h-1", "Eastwood")], logs: [] });
+
+    expect(rowFor(progress, "h-1").lastAttemptedOn).toBeNull();
   });
 });

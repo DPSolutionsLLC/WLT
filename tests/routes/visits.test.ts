@@ -66,6 +66,13 @@ async function callPostPrivateNote(visitId: string, body: unknown) {
   return readResponse(await POST(request, { params: Promise.resolve({ id: visitId }) }));
 }
 
+async function callPostVisit(body: unknown) {
+  const { POST } = await import("@/app/api/visits/route");
+  return readResponse(
+    await POST(jsonRequest("http://localhost/api/visits", { method: "POST", body })),
+  );
+}
+
 async function callPostVisitGoal(body: unknown) {
   const { POST } = await import("@/app/api/visit-goals/route");
   return readResponse(
@@ -490,6 +497,148 @@ describe("visit routes", () => {
       });
 
       expect(status).toBe(404);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // ITER-055 bv3 — what a visit reached, and a call that did not reach anybody
+  // -------------------------------------------------------------------------
+  describe("visit outcomes (migration 101)", () => {
+    const outcomeColumnsOf = async (visitId: string) => {
+      const { data, error } = await fixtures.service
+        .from("visit_logs")
+        .select("outcome, visit_type, needs_another_visit, needs_another_reason, attempt_detail")
+        .eq("id", visitId)
+        .single();
+      if (error) throw new Error(error.message);
+      return data;
+    };
+
+    it("records a visit that still needs another visit, with its reason", async () => {
+      await actAs(fixtures, "eqPresident");
+      const { status, body } = await callPostVisit({
+        householdId,
+        visitDate: "2026-04-06",
+        visitType: "in_home",
+        outcome: "completed",
+        needsAnotherReason: "spouse_absent",
+      });
+
+      expect(status).toBe(201);
+      const visit = body.visit as { id: string; needsAnotherVisit: boolean };
+      expect(visit.needsAnotherVisit).toBe(true);
+      expect(await outcomeColumnsOf(visit.id)).toMatchObject({
+        outcome: "completed",
+        needs_another_visit: true,
+        needs_another_reason: "spouse_absent",
+        attempt_detail: null,
+      });
+    });
+
+    it("records a phone call as an attempt with how it went", async () => {
+      await actAs(fixtures, "eqPresident");
+      const { status, body } = await callPostVisit({
+        householdId,
+        visitDate: "2026-04-07",
+        visitType: "phone",
+        outcome: "attempted",
+        attemptDetail: "no_answer",
+      });
+
+      expect(status).toBe(201);
+      expect(await outcomeColumnsOf((body.visit as { id: string }).id)).toMatchObject({
+        outcome: "attempted",
+        visit_type: "phone",
+        needs_another_visit: false,
+        attempt_detail: "no_answer",
+      });
+    });
+
+    it("refuses a phone call recorded as a done visit, with a sentence, and writes nothing", async () => {
+      await actAs(fixtures, "eqPresident");
+      const { status, body } = await callPostVisit({
+        householdId,
+        visitDate: "2026-04-08",
+        visitType: "phone",
+        outcome: "completed",
+      });
+
+      expect(status).toBe(400);
+      expect(errorMessage(body)).toContain("contact attempt");
+
+      const { data, error } = await fixtures.service
+        .from("visit_logs")
+        .select("id")
+        .eq("household_id", householdId)
+        .eq("visit_date", "2026-04-08");
+      if (error) throw new Error(error.message);
+      expect(data).toEqual([]);
+    });
+
+    it("clears the still-needs-a-visit reason when an edit turns the visit into an attempt", async () => {
+      await actAs(fixtures, "eqPresident");
+      const created = await callPostVisit({
+        householdId,
+        visitDate: "2026-04-09",
+        visitType: "in_home",
+        outcome: "completed",
+        needsAnotherReason: "asked_to_return",
+      });
+      const visitId = (created.body.visit as { id: string }).id;
+
+      const { status } = await callPatchVisit(visitId, { outcome: "attempted" });
+
+      expect(status).toBe(200);
+      expect(await outcomeColumnsOf(visitId)).toMatchObject({
+        outcome: "attempted",
+        needs_another_visit: false,
+        needs_another_reason: null,
+      });
+    });
+
+    it("refuses an edit that would turn a phone call into a done visit", async () => {
+      await actAs(fixtures, "eqPresident");
+      const created = await callPostVisit({
+        householdId,
+        visitDate: "2026-04-10",
+        visitType: "phone",
+        outcome: "attempted",
+        attemptDetail: "left_message",
+      });
+      const visitId = (created.body.visit as { id: string }).id;
+
+      const { status, body } = await callPatchVisit(visitId, { outcome: "completed" });
+
+      expect(status).toBe(400);
+      expect(errorMessage(body)).toContain("contact attempt");
+      expect(await outcomeColumnsOf(visitId)).toMatchObject({
+        outcome: "attempted",
+        attempt_detail: "left_message",
+      });
+    });
+
+    // The CHECKs themselves, written past the route with the service role, so a write from
+    // anywhere is refused for the same reasons the schema gives.
+    it("is held by the database as well", async () => {
+      const base = {
+        ward_id: wardId,
+        org_id: fixtures.eldersQuorumId,
+        household_id: householdId,
+        recorded_by: fixtures.user("eqPresident").id,
+        visit_date: "2026-04-11",
+      };
+
+      const refused = [
+        { ...base, visit_type: "in_home", outcome: "attempted", needs_another_visit: true, needs_another_reason: "other" },
+        { ...base, visit_type: "in_home", outcome: "completed", needs_another_visit: true },
+        { ...base, visit_type: "in_home", outcome: "completed", attempt_detail: "no_answer" },
+        { ...base, visit_type: "phone", outcome: "completed" },
+      ];
+
+      for (const row of refused) {
+        const { error } = await fixtures.service.from("visit_logs").insert(row);
+        expect(error?.code).toBe("23514");
+      }
     });
   });
 });

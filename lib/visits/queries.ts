@@ -17,11 +17,15 @@ import type { Database } from "@/types/database";
 import {
   CADENCE_UNITS,
   VISIT_ARRANGEMENTS,
+  VISIT_ATTEMPT_DETAILS,
+  VISIT_NEEDS_ANOTHER_REASONS,
   VISIT_OUTCOMES,
   VISIT_TARGET_TYPES,
   VISIT_TYPES,
   type CadenceUnit,
   type VisitArrangement,
+  type VisitAttemptDetail,
+  type VisitNeedsAnotherReason,
   type VisitOutcome,
   type VisitTargetType,
   type VisitType,
@@ -87,6 +91,12 @@ export type VisitLog = {
   // `completed` or `attempted`. visits-b counts `completed` only; an attempt is shown on the
   // dashboard as its own state so a household nobody can catch at home stays visible.
   outcome: VisitOutcome;
+  // "Visited, but still needs a visit" (ITER-055 bv3, migration 101). Only on a completed visit;
+  // the reason is set exactly when the flag is. Such a visit does not reset the household's clock.
+  needsAnotherVisit: boolean;
+  needsAnotherReason: VisitNeedsAnotherReason | null;
+  // How a contact attempt went. Only on an attempt, and optional there.
+  attemptDetail: VisitAttemptDetail | null;
   arrangement: VisitArrangement;
   sharedNotes: string | null;
   flaggedForWardCouncil: boolean;
@@ -130,6 +140,9 @@ type VisitLogRow = {
   visit_date: string;
   visit_type: string;
   outcome: string;
+  needs_another_visit: boolean;
+  needs_another_reason: string | null;
+  attempt_detail: string | null;
   arrangement: string;
   shared_notes: string | null;
   flagged_for_ward_council: boolean;
@@ -150,7 +163,7 @@ const VISIT_GOAL_COLUMNS =
   "id, org_id, title, target_type, cadence_amount, cadence_unit, notice_amount, notice_unit, deadline, created_by, created_at";
 
 const VISIT_LOG_COLUMNS =
-  "id, org_id, household_id, recorded_by, visit_date, visit_type, outcome, arrangement, shared_notes, flagged_for_ward_council, flag_sent_at, created_at";
+  "id, org_id, household_id, recorded_by, visit_date, visit_type, outcome, needs_another_visit, needs_another_reason, attempt_detail, arrangement, shared_notes, flagged_for_ward_council, flag_sent_at, created_at";
 
 // Households and users, for the family/who-recorded display. NOT private notes, and there is no
 // arrangement of this string that could reach them — visit_private_notes has no foreign key
@@ -235,6 +248,17 @@ export function mapVisitLogRow(row: VisitLogRow): VisitLog {
     visitDate: row.visit_date,
     visitType: toEnum(row.visit_type, VISIT_TYPES, "visit_logs.visit_type"),
     outcome: toEnum(row.outcome, VISIT_OUTCOMES, "visit_logs.outcome"),
+    needsAnotherVisit: row.needs_another_visit,
+    needsAnotherReason: toOptionalEnum(
+      row.needs_another_reason,
+      VISIT_NEEDS_ANOTHER_REASONS,
+      "visit_logs.needs_another_reason",
+    ),
+    attemptDetail: toOptionalEnum(
+      row.attempt_detail,
+      VISIT_ATTEMPT_DETAILS,
+      "visit_logs.attempt_detail",
+    ),
     arrangement: toEnum(row.arrangement, VISIT_ARRANGEMENTS, "visit_logs.arrangement"),
     sharedNotes: row.shared_notes,
     flaggedForWardCouncil: row.flagged_for_ward_council,
@@ -549,6 +573,9 @@ export async function createVisitLog(
       visit_date: input.visitDate,
       visit_type: input.visitType,
       outcome: input.outcome,
+      needs_another_visit: input.needsAnotherReason !== undefined,
+      needs_another_reason: input.needsAnotherReason ?? null,
+      attempt_detail: input.attemptDetail ?? null,
       arrangement: input.arrangement,
       shared_notes: input.sharedNotes ?? null,
     })
@@ -580,7 +607,17 @@ export async function updateVisitLog(
   // row stamped from the VISIT rather than from a request.
   const patch: Database["public"]["Tables"]["visit_logs"]["Update"] = {};
   if (input.sharedNotes !== undefined) patch.shared_notes = input.sharedNotes;
-  if (input.outcome !== undefined) patch.outcome = input.outcome;
+  if (input.outcome !== undefined) {
+    patch.outcome = input.outcome;
+    // An outcome change clears the detail that belonged to the other outcome, so the edit cannot
+    // break one of migration 101's CHECKs and surface as a 500. Each detail belongs to one outcome.
+    if (input.outcome === "attempted") {
+      patch.needs_another_visit = false;
+      patch.needs_another_reason = null;
+    } else {
+      patch.attempt_detail = null;
+    }
+  }
   if (input.arrangement !== undefined) patch.arrangement = input.arrangement;
   if (input.flaggedForWardCouncil !== undefined) {
     patch.flagged_for_ward_council = input.flaggedForWardCouncil;

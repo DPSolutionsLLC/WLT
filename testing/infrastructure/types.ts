@@ -39,6 +39,8 @@ export type {
   TodoLogKind,
   CadenceUnit,
   VisitArrangement,
+  VisitAttemptDetail,
+  VisitNeedsAnotherReason,
   VisitOutcome,
   VisitTargetType,
   VisitType,

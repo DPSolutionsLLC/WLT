@@ -5,6 +5,8 @@ import {
   APPOINTMENT_STATUSES,
   CADENCE_UNITS,
   VISIT_ARRANGEMENTS,
+  VISIT_ATTEMPT_DETAILS,
+  VISIT_NEEDS_ANOTHER_REASONS,
   VISIT_OUTCOMES,
   VISIT_TYPES,
   type CadenceUnit,
@@ -372,16 +374,51 @@ export const participantsSchema = z
 //
 // There is NO `recordedBy` field, here or anywhere. The route stamps it from the session — a
 // request that could name its own recorder could put a visit in somebody else's name.
-export const createVisitLogSchema = z.object({
-  householdId: z.uuid("That household is not valid."),
-  visitDate: pastOrPresentDateSchema,
-  visitType: z.enum(VISIT_TYPES),
-  outcome: z.enum(VISIT_OUTCOMES).default("completed"),
-  arrangement: z.enum(VISIT_ARRANGEMENTS).default("drop_in"),
-  sharedNotes: sharedNotesSchema,
-  participants: participantsSchema.optional(),
-  appointmentId: z.uuid("That appointment is not valid.").optional(),
-});
+// THE OUTCOME DETAILS MIRROR MIGRATION 101's CHECKS, so a mismatch is a 400 with a sentence rather
+// than a constraint violation surfacing as a 500 (ITER-055 bv3):
+// - `needsAnotherReason` ("Visited, but still needs a visit") only on a completed visit. Its
+//   presence IS the flag — there is no separate boolean to disagree with it.
+// - `attemptDetail` only on an attempt.
+// - a phone call only as an attempt (decided with the user 2026-11-04).
+export const PHONE_ONLY_ATTEMPT_MESSAGE =
+  "A phone call is recorded as a contact attempt. Log a visit for one made in person.";
+
+export const createVisitLogSchema = z
+  .object({
+    householdId: z.uuid("That household is not valid."),
+    visitDate: pastOrPresentDateSchema,
+    visitType: z.enum(VISIT_TYPES),
+    outcome: z.enum(VISIT_OUTCOMES).default("completed"),
+    needsAnotherReason: z
+      .enum(VISIT_NEEDS_ANOTHER_REASONS, "Choose why it still needs a visit.")
+      .optional(),
+    attemptDetail: z.enum(VISIT_ATTEMPT_DETAILS, "Choose how the attempt went.").optional(),
+    arrangement: z.enum(VISIT_ARRANGEMENTS).default("drop_in"),
+    sharedNotes: sharedNotesSchema,
+    participants: participantsSchema.optional(),
+    appointmentId: z.uuid("That appointment is not valid.").optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.needsAnotherReason !== undefined && value.outcome !== "completed") {
+      context.addIssue({
+        code: "custom",
+        message: "Only a visit that happened can still need another visit.",
+        path: ["needsAnotherReason"],
+      });
+    }
+
+    if (value.attemptDetail !== undefined && value.outcome !== "attempted") {
+      context.addIssue({
+        code: "custom",
+        message: "How it went is recorded only on an attempt.",
+        path: ["attemptDetail"],
+      });
+    }
+
+    if (value.visitType === "phone" && value.outcome !== "attempted") {
+      context.addIssue({ code: "custom", message: PHONE_ONLY_ATTEMPT_MESSAGE, path: ["visitType"] });
+    }
+  });
 export type CreateVisitLogInput = z.infer<typeof createVisitLogSchema>;
 
 export const updateVisitLogSchema = z

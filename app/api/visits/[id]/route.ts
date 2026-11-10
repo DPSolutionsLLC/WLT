@@ -10,6 +10,7 @@ import { replaceParticipants } from "@/lib/visits/participants";
 import { getVisitLog, updateVisitLog } from "@/lib/visits/queries";
 import {
   MAX_VISIT_PARTICIPANTS,
+  PHONE_ONLY_ATTEMPT_MESSAGE,
   TOO_MANY_PARTICIPANTS_MESSAGE,
   updateVisitLogSchema,
 } from "@/lib/validation/visit";
@@ -86,6 +87,12 @@ export async function PATCH(
 
     if (!existing) {
       return NextResponse.json({ error: "That visit is not in your ward." }, { status: 404 });
+    }
+
+    // Migration 101 holds a phone call to an attempt. Refused here with a sentence so the edit is
+    // a 400 rather than a constraint violation surfacing as a 500.
+    if (existing.visitType === "phone" && input.outcome === "completed") {
+      return NextResponse.json({ error: PHONE_ONLY_ATTEMPT_MESSAGE }, { status: 400 });
     }
 
     // The same limit POST /api/visits keeps, and for the same reason: nothing below this layer

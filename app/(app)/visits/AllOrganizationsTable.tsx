@@ -151,9 +151,20 @@ function StewardLines({ row, asOf }: { row: AllOrgHouseholdRow; asOf: Date }) {
 //
 // Every row here is a COMPLETED visit (lib/visits/allOrgProgress.ts filters attempts out of
 // `lastVisitedOn` entirely), so the "completed" key is the right one and never a variable.
+//
+// A newer attempt follows as "· Last attempted {date}" (scenario 100): an attempt or a visit that
+// still needs another, by any organization. No reason is named here; the household's card does.
 function LastSeen({ row }: { row: AllOrgHouseholdRow }) {
+  const lastAttempted =
+    row.lastAttemptedOn === null ? null : ` · Last attempted ${formatVisitDate(row.lastAttemptedOn)}`;
+
   if (row.lastVisitedOn === null) {
-    return <span className="text-muted">Never visited</span>;
+    return (
+      <span className="text-muted">
+        Never visited
+        {lastAttempted}
+      </span>
+    );
   }
 
   return (
@@ -163,6 +174,7 @@ function LastSeen({ row }: { row: AllOrgHouseholdRow }) {
       {row.conductedBy === null
         ? VISIT_NOBODY_RECORDED.completed
         : `${VISIT_CONDUCTED_PREFIX.completed} ${row.conductedBy}`}
+      {lastAttempted}
     </span>
   );
 }
@@ -274,7 +286,7 @@ export function AllOrganizationsTable({ progress }: AllOrganizationsTableProps) 
         <p className="mt-1 text-sm text-muted">
           &ldquo;Last seen&rdquo; is ward-wide and all-time — the most recent completed visit by
           any organization, which is the question no single dashboard can answer. Attempts are
-          never counted as a visit.
+          never counted as a visit; a newer attempt shows as &ldquo;Last attempted&rdquo;.
         </p>
 
         {rows.length === 0 ? (

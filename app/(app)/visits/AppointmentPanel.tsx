@@ -53,6 +53,8 @@ export type AppointmentPanelProps = {
   // is formatted in the SERVER's zone there — UTC on Vercel — and re-formatted in the browser's
   // after hydration. See formatAppointmentInstant's header for the whole reversal.
   wardTimeZone: string;
+  // The household a card's Contact window chose "Schedule an appointment" for (ITER-055 bv3).
+  initialHouseholdId?: string;
 };
 
 // "Log this visit" puts the appointment in the URL rather than in shared client state, and
@@ -131,10 +133,11 @@ export function AppointmentPanel({
   households,
   canBook,
   wardTimeZone,
+  initialHouseholdId,
 }: AppointmentPanelProps) {
   const router = useRouter();
 
-  const [householdId, setHouseholdId] = useState("");
+  const [householdId, setHouseholdId] = useState(initialHouseholdId ?? "");
   const [scheduledFor, setScheduledFor] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | undefined>(undefined);

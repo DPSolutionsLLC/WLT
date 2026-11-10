@@ -23,6 +23,18 @@ files:
   - components/ui/NotPermitted.tsx
   - types/domain.ts
   - types/database.ts
+  - supabase/migrations/101_visit_outcomes.sql
+  - lib/visits/visitOutcome.ts
+  - lib/visits/householdStatus.ts
+  - lib/visits/progress.ts
+  - lib/visits/allOrgProgress.ts
+  - lib/visits/reportTiles.ts
+  - app/(app)/visits/ContactPanel.tsx
+  - app/(app)/visits/VisitLogForm.tsx
+  - app/(app)/visits/HouseholdsPanel.tsx
+  - app/(app)/visits/HouseholdPriorityCard.tsx
+  - app/api/visits/route.ts
+  - app/api/visits/[id]/route.ts
 related: [visits-c-report-feed-and-cross-org, visits-f-stewardship-and-all-orgs, zoom-remote-links, notification-trigger-drift, role-access-overrides]
 ---
 
@@ -120,3 +132,62 @@ selected organization**, read-only when it is a shared one — the bv1 follow-up
 Typecheck, harness typecheck and lint on the changed areas clean. `tests/components` + `tests/lib`
 224 files / 3459 tests green. **Not run:** the full suite (RLS/route suites, ~1 hour) and a
 production build (a dev server was running). No migration in bv2.
+
+## bv3 — "Visited, but still needs a visit", and a Contact window (pending commit)
+
+### What was done
+Recording a visit has three answers: **Visited**, **Visited — still needs a visit** (with a
+required reason: someone wasn't home, spouse absent, asked us to come back, other) and
+**Attempted**. Migration 101 stores it as a COMPLETED visit with `needs_another_visit` and a reason,
+never a third outcome, and adds `attempt_detail` (no answer, left a message, couldn't leave one) and
+`visit_type 'phone'`. Each household card gained **Contact**: tap-to-call numbers per member, "Log a
+contact attempt" (always a phone attempt) and "Schedule an appointment", which opens the existing
+Appointments window for that household.
+
+### Key decisions
+- **One meaning of done: `isDoneVisit()` in `lib/visits/householdStatus.ts`**, asked by
+  `progress.ts`, `allOrgProgress.ts`, `reportTiles.ts` and the Recent visits list. A partly-reached
+  visit does not reset the household's clock; it shows as a "Partly reached {date} — {reason}" line
+  in the attention colour, and a later done visit clears it.
+- **A phone call is only ever an attempt** (the user's decision), held by a CHECK and by the schema.
+- The plan's `RecordVisitWindow` and `ScheduleVisitWindow` were not created: the outcome went into
+  the existing `VisitLogForm`, and scheduling reuses `AppointmentPanel` (one form, not two).
+- The plan's status note named the wrong file for `isDoneVisit()`; corrected so bv4 imports it
+  from `householdStatus.ts`.
+
+### Found on the walk (scenario 100, 2026-11-09, driven by Claude)
+- **100-D1: Schedule an appointment opened nothing.** Swapping Contact for Appointments in one state
+  change let the Contact dialog's late native `close` event reset the open window to none. Fixed:
+  each window in `HouseholdsPanel` closes only itself (`closeWindow(kind)`). The jsdom dialog fake
+  in other tests never fires `close`, which is why no test saw it; the new
+  `tests/components/visits/HouseholdsPanel.test.tsx` fires it the way a browser does and was proved
+  to fail without the fix. **Pattern: any button that swaps one Modal for another needs this.**
+- **100-D2: every phone call read "Dropped in"** in Recent visits, because `arrangement` must be
+  `appointment` or `drop_in` and the Contact window sends `drop_in`. Fixed in the display: a call
+  shows no arrangement. Proven on the walk only — `RecentVisits` lives in the page file.
+
+### Answers to the walk's review questions (the user, 2026-11-09)
+- Eastwood (no phone on file) keeps the call form.
+- **All orgs names the newest attempt, not "partly reached"**: `AllOrgHouseholdRow.lastAttemptedOn`
+  is the newest attempt or still-needs visit by any organization, kept only when newer than the
+  last done visit (same day counts as settled), shown as "· Last attempted {date}". Five tests in
+  `tests/lib/allOrgProgress.test.ts`, proved able to fail in both directions; step 9 re-walked.
+- The feed outcome lines and the 375px layout in both themes look good.
+
+### Follow-ups (not built)
+- A call reads "Phone call · Attempted by phone" — the type and the outcome both say phone.
+- `tests/routes/zoom-invitees.test.ts` asserts an audit row never contains "555" (a phone), and a
+  random uuid containing `-4555-` failed it once in the full run. A flaky test, not a leak.
+- On the 375px All orgs cards a date can break across lines ("Oct 28, / 2026").
+
+### Validation
+Lint (5 old warnings elsewhere), typecheck and harness typecheck clean. Full suite before the fixes:
+373 files / 5501 tests green (the first run was killed from outside before running a test and was
+re-run). Production build clean. Migration 101 already applied.
+After the fixes: full suite 374 files / 5503 tests with 3 failures, none in visits — two 30s
+timeouts and the zoom "555" uuid above — all 36 tests in those files passed re-run alone. The run
+took 4.6 hours against 77 minutes before, almost all of it loading code: the C: drive had 1 GB free.
+The All orgs change came after that run: its own tests, the visits component tests, the time-zone
+guard, typecheck and harness typecheck are green. Production build clean on the second try:
+the first failed on a half-written `.next/dev/types/routes.d.ts` (a generated cache left by
+force-stopping the dev server), which was deleted and regenerated.

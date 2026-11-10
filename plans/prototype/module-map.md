@@ -319,6 +319,13 @@ label**. ⚠️ **Do not port the prototype's date handling** — [decisions.md]
 > small Log visit / Cadence buttons on the title line); the old panels open as windows. My visits
 > joins in bv5 and Goal history in bv4. A **Sort by** was kept on the user's choice — the prototype
 > has none.
+> **bv3 BUILT 2026-11-04 (migration 101) — item 2:** a **Contact** button on each card opens the
+> contact panel (tap-to-call per member, log a call attempt with the prototype's three outcomes,
+> on to scheduling — the existing Appointments window, prefilled; bv6 brings the companion
+> scheduler). Recording a visit gains **Visited — still needs a visit** with a fixed reason, shown
+> on the card as *Partly reached*; it does not reset the clock. **A phone call is only ever an
+> attempt** (user's decision), held by a CHECK. The record form is the existing log form extended,
+> not a second window.
 
 ### 2.10 To Do — NEW
 Build this **early** — Sacrament's accept/decline, Agendas' delegation, My Appointments and the

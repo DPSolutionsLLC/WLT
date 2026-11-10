@@ -5,7 +5,11 @@ import {
   subtractCadence,
   type Cadence,
 } from "@/lib/visits/cadence";
-import { VISIT_PRIORITY_BANDS, type VisitPriorityBand } from "@/types/domain";
+import {
+  VISIT_PRIORITY_BANDS,
+  type VisitOutcome,
+  type VisitPriorityBand,
+} from "@/types/domain";
 
 // Where one household stands against its organization's cadence, computed.
 //
@@ -45,6 +49,14 @@ import { VISIT_PRIORITY_BANDS, type VisitPriorityBand } from "@/types/domain";
 // `lastCompletedOn`, not `lastVisitedOn`. Phase 8's youth-activity coverage has the same
 // due/overdue-against-a-cadence shape and should import this rather than write a second meaning
 // of "overdue".
+
+// WHAT COUNTS AS DONE, in one place (ITER-055 P7). A completed visit, and not one marked
+// "Visited, but still needs a visit" — that one is a mark beside the band and does not reset the
+// household's clock. lib/visits/progress.ts and lib/visits/allOrgProgress.ts both ask this, so
+// one organization's page and the all-organizations page cannot disagree about a household.
+export function isDoneVisit(log: { outcome: VisitOutcome; needsAnotherVisit: boolean }): boolean {
+  return log.outcome === "completed" && !log.needsAnotherVisit;
+}
 
 export type VisitPriority = {
   band: VisitPriorityBand;

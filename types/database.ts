@@ -3892,11 +3892,14 @@ export type Database = {
       visit_logs: {
         Row: {
           arrangement: string
+          attempt_detail: string | null
           created_at: string
           flag_sent_at: string | null
           flagged_for_ward_council: boolean
           household_id: string | null
           id: string
+          needs_another_reason: string | null
+          needs_another_visit: boolean
           org_id: string | null
           outcome: string
           recorded_by: string | null
@@ -3907,11 +3910,14 @@ export type Database = {
         }
         Insert: {
           arrangement?: string
+          attempt_detail?: string | null
           created_at?: string
           flag_sent_at?: string | null
           flagged_for_ward_council?: boolean
           household_id?: string | null
           id?: string
+          needs_another_reason?: string | null
+          needs_another_visit?: boolean
           org_id?: string | null
           outcome?: string
           recorded_by?: string | null
@@ -3922,11 +3928,14 @@ export type Database = {
         }
         Update: {
           arrangement?: string
+          attempt_detail?: string | null
           created_at?: string
           flag_sent_at?: string | null
           flagged_for_ward_council?: boolean
           household_id?: string | null
           id?: string
+          needs_another_reason?: string | null
+          needs_another_visit?: boolean
           org_id?: string | null
           outcome?: string
           recorded_by?: string | null

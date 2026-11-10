@@ -2,6 +2,7 @@ import { GaugePill, NeutralPill } from "@/app/(app)/visits/GaugePill";
 import { SmallButton } from "@/app/(app)/todos/SmallButton";
 import type { VisitProgressRow } from "@/lib/visits/progress";
 import { formatVisitDate } from "@/lib/visits/visitDates";
+import { VISIT_NEEDS_ANOTHER_REASON_LABELS } from "@/types/domain";
 
 // One household on the Households tab (ITER-055 bv2, prototype HouseholdPriorityCard). The title
 // line carries the name, where the household stands, and the small buttons that open its windows
@@ -14,6 +15,7 @@ export type HouseholdPriorityCardProps = {
   row: VisitProgressRow;
   asOf: Date;
   // Absent when the reader cannot do it, so the button is absent rather than refused.
+  onContact?: () => void;
   onLogVisit?: () => void;
   onOpenCadence?: () => void;
 };
@@ -51,13 +53,27 @@ export function describeHouseholdHistory(row: VisitProgressRow): string | null {
   return parts.length === 0 ? null : parts.join(" · ");
 }
 
+// ITER-055 bv3: somebody went, and the household still needs a visit. Its own line in the
+// attention colour, because the band beside it has not moved and the reason is why.
+export function describePartlyReached(row: VisitProgressRow): string | null {
+  if (row.partlyReached === null) return null;
+  return (
+    `Partly reached ${formatVisitDate(row.partlyReached.on)} — ` +
+    VISIT_NEEDS_ANOTHER_REASON_LABELS[row.partlyReached.reason].toLowerCase()
+  );
+}
+
 export function HouseholdPriorityCard({
   row,
   asOf,
+  onContact,
   onLogVisit,
   onOpenCadence,
 }: HouseholdPriorityCardProps) {
   const history = describeHouseholdHistory(row);
+  const partlyReached = describePartlyReached(row);
+  const hasActions =
+    onContact !== undefined || onLogVisit !== undefined || onOpenCadence !== undefined;
 
   return (
     <li
@@ -75,8 +91,15 @@ export function HouseholdPriorityCard({
           )}
         </div>
 
-        {onLogVisit === undefined && onOpenCadence === undefined ? null : (
+        {!hasActions ? null : (
           <div className="flex shrink-0 items-center">
+            {onContact === undefined ? null : (
+              <SmallButton
+                label="Contact"
+                accessibleName={`Contact the ${row.familyName} household`}
+                onClick={onContact}
+              />
+            )}
             {onLogVisit === undefined ? null : (
               <SmallButton
                 label="Log visit"
@@ -97,6 +120,9 @@ export function HouseholdPriorityCard({
 
       <p className="text-xs text-muted">{describeHouseholdStanding(row)}</p>
       {history === null ? null : <p className="text-xs text-muted">{history}</p>}
+      {partlyReached === null ? null : (
+        <p className="text-xs font-medium text-warning">{partlyReached}</p>
+      )}
     </li>
   );
 }

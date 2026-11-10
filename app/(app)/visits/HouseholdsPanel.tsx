@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AppointmentPanel, type AppointmentRow } from "@/app/(app)/visits/AppointmentPanel";
+import { ContactPanel, type HouseholdContact } from "@/app/(app)/visits/ContactPanel";
 import { HouseholdCadenceControl } from "@/app/(app)/visits/HouseholdCadenceControl";
 import { HouseholdPriorityCard } from "@/app/(app)/visits/HouseholdPriorityCard";
 import { VISIT_PROGRESS_QUERY_KEY } from "@/app/(app)/visits/progressQueryKey";
@@ -44,7 +45,8 @@ type OpenWindow =
   | { kind: "log"; householdId?: string }
   | { kind: "goal" }
   | { kind: "stewardship" }
-  | { kind: "appointments" }
+  | { kind: "appointments"; householdId?: string }
+  | { kind: "contact"; row: VisitProgressRow }
   | { kind: "cadence"; row: VisitProgressRow }
   | null;
 
@@ -64,6 +66,9 @@ export type HouseholdsPanelProps = {
   stewardshipHouseholds: { id: string; label: string }[];
   initialStewardship: StewardshipPayload | null;
   appointments: AppointmentRow[];
+  // Each household's members and their phones, for the Contact window (ITER-055 bv3). Read through
+  // the caller's own client, so RLS decides whose numbers are here.
+  householdContacts: Record<string, HouseholdContact[]>;
   wardTimeZone: string;
   today: string;
   leaders: LeaderOption[];
@@ -141,6 +146,7 @@ export function HouseholdsPanel({
   stewardshipHouseholds,
   initialStewardship,
   appointments,
+  householdContacts,
   wardTimeZone,
   today,
   leaders,
@@ -173,6 +179,9 @@ export function HouseholdsPanel({
   const canEditSelected = editableOrgId === null || editableOrgId === orgId;
   const sharedReadOnly = orgId !== null && !canEditSelected;
   const canEditCadence = canManageGoals && canEditSelected;
+  // A call or an appointment is recorded for the reader's own organization, so neither is offered
+  // while a shared one is selected — the window still shows the phone numbers.
+  const canContactAndBook = canLog && canEditSelected;
 
   const progress = progressQuery.data;
   const rows = progress === undefined ? [] : sortHouseholdRows(progress.rows, sort);
@@ -182,7 +191,11 @@ export function HouseholdsPanel({
 
   const goalsShown = orgId === null ? goals : goals.filter((goal) => goal.orgId === orgId);
   const scheduledCount = appointments.filter((row) => row.status === "scheduled").length;
-  const close = () => setOpenWindow(null);
+  // EACH WINDOW CLOSES ONLY ITSELF (defect 100-D1). Contact's "Schedule an appointment" swaps one
+  // window for another; the browser then fires the Contact dialog's own `close` event, and a
+  // plain `setOpenWindow(null)` there would shut the Appointments window that just replaced it.
+  const closeWindow = (kind: NonNullable<OpenWindow>["kind"]) =>
+    setOpenWindow((current) => (current?.kind === kind ? null : current));
 
   return (
     <div className="flex flex-col gap-4">
@@ -286,6 +299,11 @@ export function HouseholdsPanel({
                   key={row.householdId}
                   row={row}
                   asOf={asOf}
+                  onContact={
+                    row.doNotContact
+                      ? undefined
+                      : () => setOpenWindow({ kind: "contact", row })
+                  }
                   onLogVisit={
                     canLog && !row.doNotContact
                       ? () => setOpenWindow({ kind: "log", householdId: row.householdId })
@@ -306,7 +324,7 @@ export function HouseholdsPanel({
         {recentVisits}
       </section>
 
-      <Modal isOpen={openWindow?.kind === "log"} onClose={close} title="Log a visit">
+      <Modal isOpen={openWindow?.kind === "log"} onClose={() => closeWindow("log")} title="Log a visit">
         {openWindow?.kind === "log" ? (
           // A new key per opening re-runs the form's initializer, so a card's household or the
           // appointment being kept is what the form starts on.
@@ -325,7 +343,7 @@ export function HouseholdsPanel({
 
       <Modal
         isOpen={openWindow?.kind === "goal"}
-        onClose={close}
+        onClose={() => closeWindow("goal")}
         title={orgName === null ? "Visit goal" : `Visit goal — ${orgName}`}
       >
         {openWindow?.kind === "goal" ? (
@@ -338,7 +356,7 @@ export function HouseholdsPanel({
         ) : null}
       </Modal>
 
-      <Modal isOpen={openWindow?.kind === "stewardship"} onClose={close} title="Which households are ours">
+      <Modal isOpen={openWindow?.kind === "stewardship"} onClose={() => closeWindow("stewardship")} title="Which households are ours">
         {openWindow?.kind === "stewardship" ? (
           <StewardshipPanel
             orgId={orgId}
@@ -350,20 +368,52 @@ export function HouseholdsPanel({
         ) : null}
       </Modal>
 
-      <Modal isOpen={openWindow?.kind === "appointments"} onClose={close} title="Appointments">
+      <Modal isOpen={openWindow?.kind === "appointments"} onClose={() => closeWindow("appointments")} title="Appointments">
         {openWindow?.kind === "appointments" ? (
           <AppointmentPanel
+            key={openWindow.householdId ?? "any-household"}
             appointments={appointments}
             households={householdOptions}
             canBook={canLog}
             wardTimeZone={wardTimeZone}
+            initialHouseholdId={openWindow.householdId}
+          />
+        ) : null}
+      </Modal>
+
+      <Modal
+        isOpen={openWindow?.kind === "contact"}
+        onClose={() => closeWindow("contact")}
+        title={
+          openWindow?.kind === "contact"
+            ? `Contact — ${openWindow.row.familyName}`
+            : "Contact"
+        }
+      >
+        {openWindow?.kind === "contact" ? (
+          <ContactPanel
+            key={openWindow.row.householdId}
+            householdId={openWindow.row.householdId}
+            familyName={openWindow.row.familyName}
+            contacts={householdContacts[openWindow.row.householdId] ?? []}
+            canLog={canContactAndBook}
+            today={today}
+            onSchedule={
+              canContactAndBook
+                ? () =>
+                    setOpenWindow({
+                      kind: "appointments",
+                      householdId: openWindow.row.householdId,
+                    })
+                : undefined
+            }
           />
         ) : null}
       </Modal>
 
       <Modal
         isOpen={openWindow?.kind === "cadence"}
-        onClose={close}
+        onClose={() => closeWindow("cadence")}
         title={
           openWindow?.kind === "cadence"
             ? `How often — ${openWindow.row.familyName}`
@@ -378,7 +428,7 @@ export function HouseholdsPanel({
             source={openWindow.row.priority.cadenceSource}
             canManage={canEditCadence}
             startOpen
-            onSaved={close}
+            onSaved={() => closeWindow("cadence")}
           />
         ) : null}
       </Modal>
