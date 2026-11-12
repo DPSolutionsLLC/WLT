@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CalendarClock, Mic, Music, Pencil, Plus, Video } from "lucide-react";
+import { CalendarClock, House, Mic, Music, Pencil, Plus, Video } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import { Pill, type PillTone } from "@/components/ui/Pill";
@@ -124,6 +124,8 @@ export function TodoCard({
   // So does "Give ___ a Zoom link" (ITER-053 z2c): giving them a link on Zoom closes it.
   // So does "Match ___ to the roster" (ITER-052 z3b): matching them on Zoom → Sign-ups closes it.
   const isZoomTodo = todo.zoomLink !== null || todo.zoomRegistrationLink !== null;
+  // So does "Visit the ___ family" (ITER-055 bv5): a finished bishopric visit closes it.
+  const isVisitTodo = todo.visitLink !== null;
   const bodyId = `todo-body-${todo.id}`;
   const stepFieldId = `todo-step-${todo.id}`;
 
@@ -240,6 +242,13 @@ export function TodoCard({
             className="flex h-11 w-11 shrink-0 items-center justify-center text-muted"
           >
             <Video className="h-4 w-4" />
+          </span>
+        ) : isVisitTodo ? (
+          <span
+            aria-hidden="true"
+            className="flex h-11 w-11 shrink-0 items-center justify-center text-muted"
+          >
+            <House className="h-4 w-4" />
           </span>
         ) : isAsk ? (
           // No checkbox on an ask. An open one is answered with Accepted / Declined in the action
@@ -372,6 +381,17 @@ export function TodoCard({
             >
               <span className="inline-flex h-7 items-center justify-center rounded-md border border-border px-2 text-xs font-medium text-foreground group-hover:bg-surface group-focus-visible:outline-2 group-focus-visible:outline-offset-2 group-focus-visible:outline-primary">
                 Open Zoom
+              </span>
+            </Link>
+          </span>
+        ) : isVisitTodo ? (
+          <span className="ml-auto flex items-center gap-0.5">
+            <Link
+              href="/visits?tab=my_visits&from=todos"
+              className="group inline-flex min-h-11 items-center justify-center px-0.5 focus-visible:outline-none"
+            >
+              <span className="inline-flex h-7 items-center justify-center rounded-md border border-border px-2 text-xs font-medium text-foreground group-hover:bg-surface group-focus-visible:outline-2 group-focus-visible:outline-offset-2 group-focus-visible:outline-primary">
+                Open visit
               </span>
             </Link>
           </span>

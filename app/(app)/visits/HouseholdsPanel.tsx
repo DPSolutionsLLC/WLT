@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AppointmentPanel, type AppointmentRow } from "@/app/(app)/visits/AppointmentPanel";
+import { AssignWindow } from "@/app/(app)/visits/AssignWindow";
 import { ContactPanel, type HouseholdContact } from "@/app/(app)/visits/ContactPanel";
 import { HouseholdCadenceControl } from "@/app/(app)/visits/HouseholdCadenceControl";
 import { HouseholdPriorityCard } from "@/app/(app)/visits/HouseholdPriorityCard";
@@ -20,6 +21,13 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import { Modal } from "@/components/ui/Modal";
+import {
+  assignmentShares,
+  bishopricCallingLabel,
+  describeAssignmentShares,
+  openAssigneeByHousehold,
+  type BishopricMember,
+} from "@/lib/visits/assignmentShares";
 import { compareByPriority } from "@/lib/visits/householdStatus";
 import { compareSweepStatus } from "@/lib/visits/sweep";
 // Type-only, so nothing from the server-only module survives the build (roster-b).
@@ -30,7 +38,7 @@ import {
   type VisitHouseholdSort,
 } from "@/lib/visits/visitsView";
 import type { VisitGoal } from "@/lib/visits/queries";
-import type { SessionUser } from "@/types/domain";
+import type { SessionUser, VisitAssignment } from "@/types/domain";
 
 // The Households tab of /visits (ITER-055 bv2): one organization's households as cards, in
 // priority order, with the goal, the stewardship, appointments and logging a visit each in a
@@ -49,7 +57,19 @@ type OpenWindow =
   | { kind: "appointments"; householdId?: string }
   | { kind: "contact"; row: VisitProgressRow }
   | { kind: "cadence"; row: VisitProgressRow }
+  | { kind: "assign" }
   | null;
+
+// The Bishopric's households divided among its three members (ITER-055 bv5). Present for the
+// bishopric only; `goalId` is null when the Bishopric has no active goal, which is when nothing can
+// be assigned.
+export type HouseholdAssignments = {
+  orgId: string;
+  goalId: string | null;
+  members: BishopricMember[];
+  assignments: VisitAssignment[];
+  canAssign: boolean;
+};
 
 export type HouseholdsPanelProps = {
   initialProgress: VisitProgress | null;
@@ -81,6 +101,7 @@ export type HouseholdsPanelProps = {
   appointmentPrefill?: AppointmentPrefill;
   // Rendered by the server so this client file never touches a visit's notes query.
   recentVisits: ReactNode;
+  assignments: HouseholdAssignments | null;
 };
 
 const SELECT_CLASSES =
@@ -166,6 +187,7 @@ export function HouseholdsPanel({
   memberNames,
   appointmentPrefill,
   recentVisits,
+  assignments,
 }: HouseholdsPanelProps) {
   const [orgId, setOrgId] = useState<string | null>(initialProgress?.orgId ?? null);
   const [openWindow, setOpenWindow] = useState<OpenWindow>(
@@ -213,6 +235,22 @@ export function HouseholdsPanel({
   const closeWindow = (kind: NonNullable<OpenWindow>["kind"]) =>
     setOpenWindow((current) => (current?.kind === kind ? null : current));
 
+  // THE BISHOPRIC'S HOUSEHOLDS ARE DIVIDED UP ONLY WHILE ITS GOAL IS ACTIVE (decided at bv5 start).
+  const dividing =
+    assignments !== null && assignments.goalId !== null && orgId === assignments.orgId
+      ? assignments
+      : null;
+  const openAssignments =
+    dividing === null ? [] : dividing.assignments.filter((assignment) => assignment.endedAt === null);
+  const assigneeByHousehold = openAssigneeByHousehold(openAssignments);
+  const memberById = new Map((dividing?.members ?? []).map((member) => [member.id, member]));
+  const assigneeLabelFor = (householdId: string): string | undefined => {
+    const userId = assigneeByHousehold.get(householdId);
+    if (userId === undefined) return undefined;
+    const member = memberById.get(userId);
+    return member === undefined ? "a former member of the bishopric" : bishopricCallingLabel(member);
+  };
+
   return (
     <div className="flex flex-col gap-4">
       {organizations.length > 1 ? (
@@ -255,6 +293,11 @@ export function HouseholdsPanel({
         <Button variant="secondary" onClick={() => setOpenWindow({ kind: "appointments" })}>
           {scheduledCount === 0 ? "Appointments" : `Appointments · ${scheduledCount}`}
         </Button>
+        {dividing?.canAssign === true ? (
+          <Button variant="secondary" onClick={() => setOpenWindow({ kind: "assign" })}>
+            Assign
+          </Button>
+        ) : null}
       </div>
 
       {orgId === null ? (
@@ -286,6 +329,12 @@ export function HouseholdsPanel({
             activeGoal={progress.activeGoal}
             excludedCount={progress.rows.filter((row) => row.doNotContact).length}
           />
+
+          {dividing === null || dividing.assignments.length === 0 ? null : (
+            <p className="text-sm text-muted">
+              {describeAssignmentShares(assignmentShares(dividing.assignments, dividing.members))}
+            </p>
+          )}
 
           <div className="flex flex-wrap items-end justify-between gap-2">
             <h2 className="font-display text-base font-semibold text-foreground">
@@ -331,6 +380,7 @@ export function HouseholdsPanel({
                   onOpenCadence={
                     row.priority === null ? undefined : () => setOpenWindow({ kind: "cadence", row })
                   }
+                  assigneeLabel={assigneeLabelFor(row.householdId)}
                 />
               ))}
             </ul>
@@ -373,6 +423,11 @@ export function HouseholdsPanel({
             ownOrgId={orgId ?? user.orgId}
             today={wardToday}
             showsPastGoals={showsPastGoals}
+            openAssignmentCounts={
+              dividing === null || dividing.goalId === null
+                ? {}
+                : { [dividing.goalId]: openAssignments.length }
+            }
           />
         ) : null}
       </Modal>
@@ -428,6 +483,21 @@ export function HouseholdsPanel({
                     })
                 : undefined
             }
+          />
+        ) : null}
+      </Modal>
+
+      <Modal isOpen={openWindow?.kind === "assign"} onClose={() => closeWindow("assign")} title="Assign households">
+        {openWindow?.kind === "assign" && dividing !== null && progress !== undefined ? (
+          <AssignWindow
+            households={sortHouseholdRows(
+              progress.rows.filter((row) => !row.doNotContact),
+              "familyName",
+            ).map((row) => ({ id: row.householdId, familyName: row.familyName }))}
+            members={dividing.members}
+            openAssignments={openAssignments}
+            appointments={appointments}
+            onDone={() => closeWindow("assign")}
           />
         ) : null}
       </Modal>

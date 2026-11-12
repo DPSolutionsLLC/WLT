@@ -591,6 +591,29 @@ export const visitSharingSchema = z.object({
 export type VisitSharingInput = z.infer<typeof visitSharingSchema>;
 
 // ---------------------------------------------------------------------------
+// Dividing the bishopric's households — ITER-055 bv5
+// ---------------------------------------------------------------------------
+// A ward has a few hundred households at most; the cap stops one request from being a whole roster
+// several times over.
+export const MAX_ASSIGNED_HOUSEHOLDS = 500;
+
+export const assignVisitsSchema = z.object({
+  householdIds: z
+    .array(z.uuid("That household is not valid."))
+    .min(1, "Choose at least one household.")
+    .max(MAX_ASSIGNED_HOUSEHOLDS, "That is more households than one ward has."),
+  assignedTo: z.uuid("Choose who will visit."),
+});
+export type AssignVisitsInput = z.infer<typeof assignVisitsSchema>;
+
+// One household: to somebody else, or back to nobody. Exactly one of the two.
+export const updateVisitAssignmentSchema = z.union([
+  z.object({ assignedTo: z.uuid("Choose who will visit.") }).strict(),
+  z.object({ unassign: z.literal(true) }).strict(),
+]);
+export type UpdateVisitAssignmentInput = z.infer<typeof updateVisitAssignmentSchema>;
+
+// ---------------------------------------------------------------------------
 // The ward's cross-org visibility setting — YOUTH FOLLOW-UPS ONLY since migration 099
 // ---------------------------------------------------------------------------
 // One boolean. Visits stopped reading it in ITER-055 (each organization's visits are shared by the

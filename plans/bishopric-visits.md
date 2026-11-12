@@ -14,8 +14,9 @@ retro. Build them in order; each depends on the ones before it.
 | bv1 | ✅ committed `393a98c` (migration 099) |
 | bv2 | ✅ committed `280b9aa` |
 | bv3 | ✅ committed `cd8823b` (migration 101, scenario 100) |
-| bv4 | **Built 2026-11-09, NOT committed** — migration **102** (applied), scenario **101** (`visits/scenario-101-a-sweep-and-goal-history`, not yet walked). Decided at start: the Bishopric returns to the Organization picker (progress reads its no-org visits); once done stays done in a sweep; Past goals is bishopric-only. `VisitGoalPanel` was extended rather than a `GoalWindow` created. All orgs shows no sweep organizations yet. |
-| bv5–bv8 | Not started |
+| bv4 | ✅ committed `9b1dcf8` (migration 102, scenario 101). Decided at start: the Bishopric returns to the Organization picker (progress reads its no-org visits); once done stays done in a sweep; Past goals is bishopric-only. `VisitGoalPanel` was extended rather than a `GoalWindow` created. All orgs shows no sweep organizations yet. |
+| bv5 | **Built 2026-11-11, NOT committed** — migration **103** (applied), scenario **102** (`visits/scenario-102-assign-households-to-the-bishopric`, bv5 half; not yet walked). Decided at start: assigning needs an active Bishopric goal; only a finished **Bishopric** visit closes an assignment; ending a goal closes every open assignment either way. Added beyond the plan: close reason `goal_ended` and line kinds `visit_unassigned` / `visit_goal_ended`. |
+| bv6–bv8 | Not started. **bv6's migration is now 104 and its scenario extends 102.** |
 
 **What the 2026-11-09 refresh changed — no decision (D1–D9, P1–P16) moved:**
 - **Migration numbers are one later than first written.** 100 went to `100_zoom_join_links_w_to_j.sql`, so bv3 used 101. From here: **bv4 → 102, bv5 → 103, bv6 → 104, bv7 → 105.** Always re-check `ls supabase/migrations | tail -3` before creating one.

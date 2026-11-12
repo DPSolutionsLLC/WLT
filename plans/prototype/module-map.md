@@ -332,6 +332,12 @@ label**. ⚠️ **Do not port the prototype's date handling** — [decisions.md]
 > end. The **Bishopric returns to the Organization picker**, its progress read from its no-organization
 > visits (undoing 099-D1's removal). The goal window is the existing `VisitGoalPanel` extended, not a
 > new `GoalWindow`. **All orgs does not show sweep organizations yet** — a sweep has no band for a chip.
+> **bv5 BUILT 2026-11-11 (migration 103):** **Assign** on the Bishopric's Households tab divides its
+> households among the bishop and counselors; each assignment is a **"Visit the ___ family"** to-do
+> with no checkbox that a finished Bishopric visit, a reassignment, an unassignment or the goal ending
+> closes. **My visits** joins the tabs (bishopric only); the banner shows each member's share. Decided
+> at bv5 start: assigning needs an active goal; only a finished **Bishopric** visit closes an
+> assignment; ending a goal closes every open one, completed or set aside.
 
 ### 2.10 To Do — NEW
 Build this **early** — Sacrament's accept/decline, Agendas' delegation, My Appointments and the

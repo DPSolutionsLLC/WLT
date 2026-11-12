@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
 import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
-import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
+import { readJsonBody } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServiceSupabaseClient } from "@/lib/supabase/service";
+import { reconcileVisitAssignment, respondToAssignmentError } from "@/lib/visits/assignmentChecks";
+import { isDoneVisit } from "@/lib/visits/householdStatus";
 import { notifyWardCouncilFlag } from "@/lib/visits/flagNotification";
 import { replaceParticipants } from "@/lib/visits/participants";
 import { getVisitLog, updateVisitLog } from "@/lib/visits/queries";
@@ -154,6 +157,15 @@ export async function PATCH(
       );
     }
 
+    // ONLY A CHANGE OF OUTCOME touches the household's assignment (ITER-055 bv5). Editing the notes
+    // of a visit that was already finished must not close an assignment the household has been
+    // given SINCE that visit.
+    const becameDone = !isDoneVisit(existing) && isDoneVisit(visit);
+    const becamePartlyReached =
+      !isDoneVisit(visit) &&
+      visit.needsAnotherVisit &&
+      (!existing.needsAnotherVisit || existing.needsAnotherReason !== visit.needsAnotherReason);
+
     await writeAuditLog(
       {
         wardId: user.wardId,
@@ -190,9 +202,14 @@ export async function PATCH(
       await notifyWardCouncilFlag({ wardId: user.wardId, ...labels });
     }
 
+    // LAST, after the audit row and the notification: the edit is saved whatever happens here.
+    if (becameDone || becamePartlyReached) {
+      await reconcileVisitAssignment(user.wardId, visit, createServiceSupabaseClient());
+    }
+
     return NextResponse.json({ visit });
   } catch (error) {
-    return respondToRouteError(error, {
+    return respondToAssignmentError(error, {
       route: "PATCH /api/visits/[id]",
       fallbackMessage: "Could not save that visit. Please try again.",
       detail: { wardId: user.wardId, userId: user.id },

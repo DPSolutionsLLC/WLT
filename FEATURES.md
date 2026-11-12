@@ -598,8 +598,8 @@ Available to all organizations. Each org manages its own visit goals and logs in
 - Executive secretary adds it to the next ward council agenda
 
 ### Progress Dashboard
-- The Visits page has tabs — **Households**, **Feed**, and for the bishopric **All orgs**
-  and **Sharing** — and reopens on the tab and sort you left it on
+- The Visits page has tabs — **Households**, **Feed**, and for the bishopric **My visits**,
+  **All orgs**, **Past goals** and **Sharing** — and reopens on the tab and sort you left it on
 - All orgs shows each household's last done visit by any organization and, when somebody has
   tried since, **Last attempted** with the date — an attempt, a call, or a visit that still needs
   another
@@ -633,6 +633,15 @@ Available to all organizations. Each org manages its own visit goals and logs in
   as of the day it ended
 - The **Bishopric** is one of the organizations on the Households tab, measured from the
   bishopric's own visits
+- **The bishopric divides its households among the bishop and the two counselors.** On the
+  Bishopric's Households tab, **Assign** picks households and who will visit them; each card then
+  says who holds it, and the banner adds each person's share — "Bishop 3 of 12 · 1st Counselor 2 of 9
+  · 2nd Counselor 4 of 10". Moving a household somebody else holds says so first, and names any visit
+  they already scheduled (it stays on their appointments). Assigning needs an active goal
+- Each assignment puts **Visit the ___ family** on that person's **To Do**, with no checkbox: a
+  finished bishopric visit closes it, and so do reassigning, unassigning or ending the goal, each with
+  a line saying why. A visit that still needs another keeps it open and adds the reason. Each member's
+  **My visits** tab lists only the households given to them
 - The banner states the goal **in words** first — "Every household, every year. Warning 2 months
   ahead." — then the four counts, then the percentage on track. The numbers are read against their
   own definition rather than against an assumption

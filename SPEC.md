@@ -781,6 +781,35 @@ replaces the ward's whole set, audits `visit_sharing_updated` and notifies the o
 Bishopric is refused as a viewer. Day one: a ward whose switch was on got every pair except those
 involving the Bishopric.
 
+### `visit_assignments` (migration 103, ITER-055 bv5)
+
+```sql
+id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
+org_id          uuid NOT NULL  -- the organization whose goal it is (the Bishopric's) → organizations
+household_id    uuid NOT NULL  -- (household_id, ward_id) → households
+goal_id         uuid NOT NULL REFERENCES visit_goals(id) ON DELETE CASCADE
+assigned_to     uuid NOT NULL REFERENCES users(id)  -- a bishopric member (subject column, checked by the route)
+assigned_by     uuid REFERENCES users(id) ON DELETE SET NULL
+created_at      timestamptz DEFAULT now()
+ended_at        timestamptz  -- null while open; ended, never deleted
+end_reason      text  -- reassigned | unassigned | visited | goal_ended; set exactly when ended_at is
+UNIQUE (household_id, org_id) WHERE ended_at IS NULL  -- one open assignment per household
+```
+
+**A SELECT policy and no write policy.** Read by the bishopric, the assignee, and any organization the
+Bishopric's visits are shared with. The only writer is `lib/visits/assignments.ts` on the service role:
+`POST /api/visit-assignments` (`{ householdIds, assignedTo }`, bulk; reassigns a household somebody
+else holds) and `PATCH /api/visit-assignments/[id]` (`{ assignedTo }` or `{ unassign: true }`), both
+behind `visits.assign` (non-overridable) AND a bishopric calling; the assignee must hold a bishopric
+calling in this ward. **Assigning needs an active Bishopric goal** (409 otherwise). Each assignment
+puts **"Visit the ___ family"** on the assignee's To Do (`todos.visit_assignment_id`, written only by
+`lib/todos/visitLinks.ts`) — no checkbox, 409 on delete while open. It closes on a **finished visit
+recorded by the Bishopric** dated on or after the goal's start (`source_completed`, "Visited."), on a
+reassignment or unassignment (`closed_reason` `reassigned` / `unassigned`) and when the goal ends
+(`goal_ended`). A visit that still needs a visit adds a `visit_partly_reached` line and leaves it open.
+Another organization's visit does not touch it.
+
 ### `visit_logs`
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
@@ -1081,11 +1110,15 @@ ask_assignment_id        uuid REFERENCES assignments(id) ON DELETE SET NULL  -- 
 closed_reason            text  -- migration 083: 'handed_over' | 'assistant_released' | 'speaker_changed'
                                -- | 'told_not_needed' | 'talk_back_on'  (migration 084)
                                -- | 'unfinalized'  (migration 088)
+                               -- | 'music_reopened' | 'meeting_cancelled'  (migration 089)
+                               -- | 'reassigned' | 'unassigned' | 'goal_ended'  (migration 103)
+visit_assignment_id      uuid REFERENCES visit_assignments(id) ON DELETE SET NULL  -- migration 103: "Visit the ___ family"
 talk_off_at              timestamptz  -- migration 084: when the owner was told the talk is off
 created_at               timestamptz DEFAULT now()
 updated_at               timestamptz DEFAULT now()
 -- UNIQUE (action_item_id, user_id) WHERE action_item_id IS NOT NULL
 -- UNIQUE (ask_assignment_id, user_id) WHERE ask_assignment_id IS NOT NULL AND completed_at IS NULL
+-- UNIQUE (visit_assignment_id, user_id) WHERE visit_assignment_id IS NOT NULL AND completed_at IS NULL
 ```
 **A talk's ask (Sacrament slice f, migration 083; ITER-036, migration 088).** *Finalizing the
 speakers* on a Sunday (it replaced *Send asks*) creates one "Ask ___ to speak" to-do per speaker not

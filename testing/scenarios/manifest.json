@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 99,
+  "scenarioCount": 100,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -3147,6 +3147,7 @@
         "Step 3: the window lists only the active sweep, *Bishopric · Every household once, from",
         "Step 4: the edit form shows the kind chosen and greyed out, a **Starts** date, and no",
         "Step 5: **Past goals** lists **Bishopric · Every household every year**, *Every year ·",
+        "Step 6: the goal window reads **No active goal. Ended goals are on the Past goals tab.**",
         "Step 6: the banner changes to *No visit goal is set for this organization.* and the",
         "Step 7: the sweep is listed first, *Every household once · … · Completed*, with",
         "Step 8: the new goal saves, starts **today** (the ward's date) and the banner reads",
@@ -3154,6 +3155,43 @@
         "Step 10 (375px): the five tabs scroll sideways rather than wrapping; the three banner tiles"
       ],
       "seedCommand": "npm run seed -- visits/scenario-101-a-sweep-and-goal-history"
+    },
+    {
+      "id": "visits:scenario-102-assign-households-to-the-bishopric",
+      "path": "visits/scenario-102-assign-households-to-the-bishopric",
+      "name": "Assign households to the bishopric",
+      "scope": "visits",
+      "part": 1,
+      "tags": [
+        "visits",
+        "todos",
+        "full",
+        "ITER-055"
+      ],
+      "prerequisites": "Migration 103 applied; Visits released for the Harness Test Ward.",
+      "purpose": "ITER-055 slice **bv5**. The bishopric divides its households among the bishop and the two\ncounselors. Assigning a household puts **Visit the ___ family** on that person's **To Do**. That\nto-do has **no checkbox** and cannot be removed while open. It closes itself:\n\n- when anyone in the bishopric records a **finished** visit to the household (\"Visited.\"),\n- when the household is **reassigned** (\"Reassigned to …\") or **unassigned**,\n- when the bishopric **ends the goal**, completed or set aside (\"The visit goal ended\").\n\nA visit that **still needs a visit** keeps the to-do open and adds a line naming the reason. An\nElders Quorum visit does **not** close the Bishopric's assignment, because it doesn't count toward the\nBishopric's goal either. Each member has a **My visits** tab, and the progress shows each person's\nshare (\"Bishop 0 of 3 · 1st Counselor …\").\n\nDecided with the user at bv5 start: assigning needs an active Bishopric goal; only a finished\nBishopric visit closes an assignment; ending a goal closes every open assignment either way.\n\nbv6 extends this scenario with companions and invites.",
+      "checklist": [
+        "Step 1: an **Assign** button sits beside Appointments; the Ellis card reads **Assigned to 2nd",
+        "Step 1: the tabs are Households · **My visits** · Feed · All orgs · Past goals · Sharing",
+        "Step 2: Abbott, Brooks and Carver read **Assigned to 2nd Counselor**; the line reads",
+        "Step 3: the bishop's own two to-dos have `assigned_by` **null** (they assigned themselves)",
+        "Step 4: with Ellis ticked the window says what **each** button does: **Assign gives Ellis to 1st",
+        "Step 4: ticking **Garcia** as well adds *Garcia isn't assigned to anyone, so Unassign leaves it as",
+        "Step 4: after Assign, the 2nd counselor's *Visit the Ellis family* is closed with",
+        "Step 5: the bishop's To Do shows *Visit the Dalton family* and *Visit the Foster family* with a",
+        "Step 6: deleting is refused with **This closes itself once a finished visit to this household",
+        "Step 7: **My visits** lists Abbott, Brooks and Carver only — not Ellis",
+        "Step 8: Abbott leaves **My visits**; its to-do is closed with **Visited.**; the assignment ends",
+        "Step 9: Brooks **stays** on My visits, marked **Partly reached**",
+        "Step 10: the to-do is still open and its timeline ends **Visited — still needs a visit (Spouse",
+        "Step 11: the Carver assignment is **still open** and its to-do still open (read back) — another",
+        "Step 12: Carver no longer reads *Assigned to …*; its to-do closed with `closed_reason =",
+        "Step 13: after **End goal** the window adds *4 households are still assigned. Ending the goal",
+        "Step 13: every open assignment (Brooks, Dalton, Foster, Ellis) ends `goal_ended`, each to-do",
+        "Step 13: the Elders Quorum president never saw **Assign**, **My visits** or the share line",
+        "Step 14 (375px): six tabs scroll sideways rather than wrapping; the Assign window's household"
+      ],
+      "seedCommand": "npm run seed -- visits/scenario-102-assign-households-to-the-bishopric"
     },
     {
       "id": "youth:scenario-049-entering-an-activity-that-is-not-yours",

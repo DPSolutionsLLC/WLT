@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
 import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
-import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
+import { readJsonBody } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { compareCadences } from "@/lib/visits/cadence";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServiceSupabaseClient } from "@/lib/supabase/service";
+import { respondToAssignmentError } from "@/lib/visits/assignmentChecks";
+import { endAssignmentsForGoal } from "@/lib/visits/assignments";
 import { endVisitGoal, getVisitGoal, updateVisitGoal } from "@/lib/visits/queries";
 import { updateVisitGoalSchema } from "@/lib/validation/visit";
 
@@ -47,6 +50,13 @@ export async function PATCH(
     // instant it ended; changing its cadence or its start afterwards would change what that page
     // says happened.
     if (existing.endedAt !== null) {
+      // A REPEATED END FINISHES WHAT THE FIRST ONE STARTED (bv5). Releasing the goal's assignments
+      // runs after the end is saved, so if it failed, the retry lands here — and without this the
+      // "Visit the ___ family" to-dos would stay open for ever, with no checkbox to clear them.
+      // Idempotent: it touches only assignments still open.
+      if (input.end !== undefined) {
+        await endAssignmentsForGoal({ wardId: user.wardId, goalId }, createServiceSupabaseClient());
+      }
       return NextResponse.json(
         { error: "This goal has ended. It stays as it was in Goal history." },
         { status: 409 },
@@ -75,6 +85,12 @@ export async function PATCH(
         },
         supabase,
       );
+
+      // EVERY HOUSEHOLD STILL ASSIGNED UNDER IT IS RELEASED (ITER-055 bv5, decided with the user:
+      // completed or set aside alike). The goal end above went through this caller's own client,
+      // which is what proves they could; the to-dos are other members', hence the service role.
+      // After the audit row, so the end is recorded even if releasing fails.
+      await endAssignmentsForGoal({ wardId: user.wardId, goalId }, createServiceSupabaseClient());
 
       return NextResponse.json({ goal: ended });
     }
@@ -153,7 +169,7 @@ export async function PATCH(
 
     return NextResponse.json({ goal });
   } catch (error) {
-    return respondToRouteError(error, {
+    return respondToAssignmentError(error, {
       route: "PATCH /api/visit-goals/[id]",
       fallbackMessage: "Could not save that visit goal. Please try again.",
       detail: { wardId: user.wardId, userId: user.id },

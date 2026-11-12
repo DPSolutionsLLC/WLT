@@ -1355,6 +1355,29 @@ export async function createVisitGoal(options: {
   });
 }
 
+// One household given to one bishopric member under a goal (ITER-055 bv5, migration 103a). Seeded
+// directly the way lib/visits/assignments.ts writes it; the app is what normally creates one. Pair
+// it with createTodo({ visitAssignmentId }) for the "Visit the ___ family" to-do the app would add.
+// One OPEN assignment per (household, organization) — a second collides.
+export async function createVisitAssignment(options: {
+  id?: string;
+  org: TestOrgKey;
+  householdId: string;
+  goalId: string;
+  assignedTo: string;
+  assignedBy?: string;
+}): Promise<string> {
+  return insertRow("visit_assignments", {
+    id: options.id ?? testUuid(`visit-assignment:${options.householdId}:${options.assignedTo}`),
+    ward_id: TEST_WARD_ID,
+    org_id: TEST_ORG_IDS[options.org],
+    household_id: options.householdId,
+    goal_id: options.goalId,
+    assigned_to: options.assignedTo,
+    assigned_by: options.assignedBy ?? null,
+  });
+}
+
 // This organization's cadence for this household, overriding its goal. ABSENT means "use the
 // goal" — there is no sentinel row meaning "default" — so a scenario that wants the default
 // simply does not call this.
@@ -2017,6 +2040,8 @@ export async function createTodo(options: {
   musicRole?: "choose" | "review";
   // A public Zoom sign-up (ITER-052 z3b, migration 096g): "Match ___ to the roster".
   zoomRegistrationId?: string;
+  // A household visit assignment (ITER-055 bv5, migration 103b): "Visit the ___ family".
+  visitAssignmentId?: string;
   createdAt?: string;
 }): Promise<string> {
   return insertRow("todos", {
@@ -2038,6 +2063,7 @@ export async function createTodo(options: {
     music_sunday_id: options.musicSundayId ?? null,
     music_role: options.musicRole ?? null,
     zoom_registration_id: options.zoomRegistrationId ?? null,
+    visit_assignment_id: options.visitAssignmentId ?? null,
     ...(options.createdAt === undefined ? {} : { created_at: options.createdAt }),
   });
 }

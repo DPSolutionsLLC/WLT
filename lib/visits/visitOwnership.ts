@@ -61,3 +61,9 @@ export function canManageVisitSharing(
 ): boolean {
   return can(user, "visits.manage_sharing", roleAccess) && isBishopricRole(user.role);
 }
+
+// WHO MAY DIVIDE THE BISHOPRIC'S HOUSEHOLDS (ITER-055 bv5). The same two halves as sharing:
+// `visit_assignments` has no write policy, so a bishopric calling is the structural boundary.
+export function canAssignVisits(user: SessionUser, roleAccess: RoleAccess): boolean {
+  return can(user, "visits.assign", roleAccess) && isBishopricRole(user.role);
+}

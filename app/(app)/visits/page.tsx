@@ -6,6 +6,7 @@ import { ContextualBackLink } from "@/components/layout/ContextualBackLink";
 import { NotPermitted } from "@/components/ui/NotPermitted";
 import { listWardOrganizations, listWardUsers } from "@/lib/auth/adminUsers";
 import { BISHOPRIC_ROLES, can, resolveRoleAccess } from "@/lib/auth/permissions";
+import { listBishopricUsers } from "@/lib/calendar/queries";
 import { requireSessionUser } from "@/lib/auth/session";
 import { formatDateOnly } from "@/lib/calendar/dates";
 import { listHouseholds } from "@/lib/roster/queries";
@@ -17,6 +18,7 @@ import { readAppointmentParam } from "@/lib/visits/appointmentLink";
 import { buildGoalHistory } from "@/lib/visits/goalHistory";
 import { listWardVisitCadences } from "@/lib/visits/householdCadences";
 import { listAppointments } from "@/lib/visits/appointments";
+import { listGoalAssignments, resolveAssignmentContext } from "@/lib/visits/assignments";
 import {
   describeHouseholdForVisits,
   readVisitProgress,
@@ -33,7 +35,11 @@ import {
 } from "@/lib/visits/sharing";
 import { isDoneVisit } from "@/lib/visits/householdStatus";
 import { describeVisitOutcome } from "@/lib/visits/visitOutcome";
-import { canManageVisitLog, canManageVisitSharing } from "@/lib/visits/visitOwnership";
+import {
+  canAssignVisits,
+  canManageVisitLog,
+  canManageVisitSharing,
+} from "@/lib/visits/visitOwnership";
 import {
   initialVisitsTab,
   parseVisitsTabParam,
@@ -51,8 +57,8 @@ import {
 } from "@/types/domain";
 
 // Visits, at /visits — the prototype's sub-view machine since ITER-055 bv2: Households (the
-// progress dashboard, with the goal, stewardship, appointments and logging a visit in windows),
-// Feed, All organizations (bishopric) and Sharing (bishopric). /visits/feed and
+// progress dashboard, with the goal, stewardship, appointments, assigning and logging a visit in
+// windows), My visits (bishopric, bv5), Feed, All organizations, Past goals and Sharing (bishopric). /visits/feed and
 // /visits/all-organizations redirect here with `?tab=`.
 //
 // THIS PAGE DOES NOT IMPORT lib/visits/privateNotes.ts, AND MUST NOT. A private note belongs to
@@ -298,6 +304,50 @@ export default async function VisitsPage({
       })()
     : null;
 
+  // THE BISHOPRIC'S HOUSEHOLDS, DIVIDED AMONG ITS THREE MEMBERS (ITER-055 bv5). The bishopric's
+  // alone: only its members are assigned households, so nobody else has a My visits tab. Read
+  // through the caller's client — migration 103a's policy decides what is visible. Nothing can be
+  // assigned while the Bishopric has no active goal (decided at bv5 start).
+  const assignmentContext = isBishopric
+    ? await resolveAssignmentContext(user.wardId, supabase)
+    : null;
+  const householdAssignments =
+    assignmentContext === null || assignmentContext.kind === "no_bishopric_organization"
+      ? null
+      : await (async () => {
+          const [members, assignments] = await Promise.all([
+            listBishopricUsers(user.wardId, supabase),
+            assignmentContext.kind === "ready"
+              ? listGoalAssignments(user.wardId, assignmentContext.goalId, supabase)
+              : Promise.resolve([]),
+          ]);
+          return {
+            orgId: assignmentContext.orgId,
+            goalId: assignmentContext.kind === "ready" ? assignmentContext.goalId : null,
+            members,
+            assignments,
+            canAssign: canAssignVisits(user, roleAccess),
+          };
+        })();
+
+  // My visits reads the Bishopric's own progress rows, so its cards say exactly what the
+  // Households tab says. The page already read them when the Bishopric is the selected organization.
+  const myVisitRows =
+    householdAssignments === null || householdAssignments.goalId === null
+      ? null
+      : await (async () => {
+          const bishopricProgress =
+            initialProgress?.orgId === householdAssignments.orgId
+              ? initialProgress
+              : await readVisitProgress(user.wardId, householdAssignments.orgId, asOf, supabase);
+          const mine = new Set(
+            householdAssignments.assignments
+              .filter((assignment) => assignment.endedAt === null && assignment.assignedTo === user.id)
+              .map((assignment) => assignment.householdId),
+          );
+          return bishopricProgress.rows.filter((row) => mine.has(row.householdId));
+        })();
+
   // THE FEED AND THE ALL-ORGANIZATIONS VIEW ARE TABS NOW, and their first page is still read here,
   // on the server, for the reason /visits/feed always gave: read state is correct on first paint
   // instead of every tile flashing unread (talks-d measured 268 ms).
@@ -368,10 +418,28 @@ export default async function VisitsPage({
           memberNames,
           appointmentPrefill,
           recentVisits: <RecentVisits visits={visits} canLog={canLog} user={user} />,
+          assignments: householdAssignments,
         }}
         feed={{ initialPage: feedPage, ownOrganizationId: user.orgId, sharingSentence }}
         allOrganizations={allOrganizations}
         goalHistory={goalHistory}
+        myVisits={
+          !isBishopric
+            ? null
+            : {
+                rows: myVisitRows,
+                asOf: asOf.toISOString(),
+                canLog,
+                user,
+                householdOptions,
+                householdContacts,
+                appointments: appointmentRows,
+                wardTimeZone,
+                today,
+                leaders,
+                memberNames,
+              }
+        }
         sharing={
           canManageSharing
             ? {

@@ -54,6 +54,8 @@ export const PERMISSIONS = [
   "visits.manage_goals",
   // Which organizations may read which organization's visits (ITER-055). The bishopric's alone.
   "visits.manage_sharing",
+  // Dividing the bishopric's households among the bishop and counselors (ITER-055 bv5).
+  "visits.assign",
 
   "youth_activities.view",
   "youth_activities.manage",
@@ -147,6 +149,10 @@ export const ADMIN_PERMISSIONS = PERMISSIONS.filter(
 //            The user decided only the bishopric sets it. visit_org_sharing has no write policy, so
 //            the route's check is the boundary and a ward must not be able to hand it to a calling.
 //
+// visits.assign — dividing the bishopric's households among its three members (ITER-055 bv5).
+//            visit_assignments has no write policy, so the route's check is the boundary, and it
+//            writes onto another member's To Do.
+//
 // audit.view is deliberately NOT locked. It is in ADMIN_PERMISSIONS for the bishopric-equivalence
 // loop, but it grants reading rather than writing, and a ward may legitimately want its secretary
 // to see the audit log.
@@ -157,6 +163,7 @@ export const NON_OVERRIDABLE_PERMISSIONS: readonly KnownPermission[] = PERMISSIO
     permission.startsWith("planner.") ||
     permission === "personal_tools.use" ||
     permission === "visits.manage_sharing" ||
+    permission === "visits.assign" ||
     permission === "zoom.manage_remote_links" ||
     permission === "zoom.manage_invitees" ||
     permission === "zoom.manage_registration_questions",

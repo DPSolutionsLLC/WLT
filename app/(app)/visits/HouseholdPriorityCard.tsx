@@ -20,6 +20,9 @@ export type HouseholdPriorityCardProps = {
   onContact?: () => void;
   onLogVisit?: () => void;
   onOpenCadence?: () => void;
+  // Who the bishopric gave this household to, by calling (ITER-055 bv5). Absent when nobody holds it
+  // or the reader is not looking at the Bishopric's households.
+  assigneeLabel?: string;
 };
 
 function plural(count: number, word: string): string {
@@ -86,6 +89,7 @@ export function HouseholdPriorityCard({
   onContact,
   onLogVisit,
   onOpenCadence,
+  assigneeLabel,
 }: HouseholdPriorityCardProps) {
   const history = describeHouseholdHistory(row);
   const partlyReached = describePartlyReached(row);
@@ -139,6 +143,9 @@ export function HouseholdPriorityCard({
 
       <p className="text-xs text-muted">{describeHouseholdStanding(row)}</p>
       {history === null ? null : <p className="text-xs text-muted">{history}</p>}
+      {assigneeLabel === undefined ? null : (
+        <p className="text-xs text-muted">Assigned to {assigneeLabel}</p>
+      )}
       {partlyReached === null ? null : (
         <p className="text-xs font-medium text-warning">{partlyReached}</p>
       )}

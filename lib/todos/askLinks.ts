@@ -202,7 +202,9 @@ export async function resolveAsksForPrayer(params: {
 export async function closeAsksForAssignment(params: {
   wardId: string;
   assignmentId: string;
-  reason: TodoClosedReason;
+  // A reason that is also a timeline kind: the close writes one line named after it. The visit
+  // reasons (ITER-055 bv5) close with their own line kinds and never come through here.
+  reason: Extract<TodoClosedReason, TodoLogKind>;
   body?: string | null;
   // Only the asks whose owner was told the talk is off (f2b's back-on close). An ask sent after the
   // talk came back on is a fresh one and must not be closed with them.

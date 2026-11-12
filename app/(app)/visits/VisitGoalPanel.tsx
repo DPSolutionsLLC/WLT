@@ -42,7 +42,21 @@ export type VisitGoalPanelProps = {
   // Whether this reader has the Past goals tab (bishopric only), so the empty state only points
   // there when it exists.
   showsPastGoals: boolean;
+  // Open bishopric assignments per goal id, so End goal can say how many to-dos it will close
+  // (bv5; decided walking scenario 102). A goal with none is absent.
+  openAssignmentCounts: Readonly<Record<string, number>>;
 };
+
+function AssignmentsClosingNote({ count }: { count: number }) {
+  if (count === 0) return null;
+  return (
+    <p className="text-sm font-medium text-foreground">
+      {count === 1
+        ? '1 household is still assigned. Ending the goal closes its "Visit the ___ family" to-do.'
+        : `${count} households are still assigned. Ending the goal closes their ${count} "Visit the ___ family" to-dos.`}
+    </p>
+  );
+}
 
 const SELECT_CLASSES =
   "min-h-11 rounded-md border border-border bg-surface-raised px-3 text-base text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
@@ -166,6 +180,7 @@ export function VisitGoalPanel({
   ownOrgId,
   today,
   showsPastGoals,
+  openAssignmentCounts,
 }: VisitGoalPanelProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -413,6 +428,7 @@ export function VisitGoalPanel({
                   <p className="text-sm text-foreground">
                     How did this goal end? It stays on the Past goals tab with its numbers.
                   </p>
+                  <AssignmentsClosingNote count={openAssignmentCounts[goal.id] ?? 0} />
                   <div className="flex flex-wrap gap-2">
                     {VISIT_GOAL_END_REASONS.map((reason) => (
                       <Button

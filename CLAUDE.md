@@ -776,6 +776,20 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   (`lib/visits/goalHistory.ts`, the `closed_at` precedent). **Past goals is the bishopric's alone.**
   The Bishopric's goal is stored on its organization's id. **Known limit:** All orgs claims only
   through a cadence goal, so a sweep organization has no chip there yet.
+  **bv5 (2026-11-11, migration 103): the bishopric divides its households, and each assignment is a
+  "Visit the ___ family" to-do.** `visit_assignments` has **a SELECT policy and no write policy**;
+  `lib/visits/assignments.ts` (service role, behind `visits.assign` — non-overridable — AND a
+  bishopric calling via `canAssignVisits()`) is its only writer, and `lib/todos/visitLinks.ts` the
+  only writer of `todos.visit_assignment_id` (`tests/lib/visitTodoSites.test.ts` reads the source).
+  `assigned_to` is a subject column: the assignee must hold a **bishopric calling in this ward**.
+  Ended, never deleted. **Decided at bv5 start:** assigning needs an **active** Bishopric goal; only a
+  **finished Bishopric visit** (`isDoneVisit()`, `org_id` null read as the bishopric organization,
+  dated on or after the goal's start) closes an assignment — another organization's visit does not;
+  **ending a goal closes every open assignment**, completed or set aside. A visit that still needs one
+  adds a line and keeps the to-do open. **The visit edit route reconciles only on a CHANGE of
+  outcome**, so editing an old visit's notes cannot close an assignment made since. The to-do has no
+  checkbox and is not deletable while open; a reassign closes the old holder's first (different
+  owners, so 103b's index never collides). **My visits** is a bishopric-only tab.
 - **SUPERSEDED for visits by ITER-055 (above).** **Cross-org visibility widens an organization's whole PROGRESS — DECIDED 2026-08-27, REVERSING
   ITER-018.** `ward_allows_cross_org_visibility()` now appears in **four** SELECT policies:
   `visit_logs_select` (019), `household_stewardships_select` (052), and — added by migration 053 —

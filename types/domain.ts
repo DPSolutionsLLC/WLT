@@ -796,6 +796,30 @@ export type VisitSharingGrant = {
   viewerOrgId: string;
 };
 
+// Why a household assignment ended (`visit_assignments.end_reason`, migration 103). An assignment is
+// ended, never deleted: `visited` is a finished bishopric visit, `goal_ended` is the goal it was
+// made under ending (completed or set aside).
+export const VISIT_ASSIGNMENT_END_REASONS = [
+  "reassigned",
+  "unassigned",
+  "visited",
+  "goal_ended",
+] as const;
+export type VisitAssignmentEndReason = (typeof VISIT_ASSIGNMENT_END_REASONS)[number];
+
+// One household given to one bishopric member for the current goal (ITER-055 bv5, migration 103).
+export type VisitAssignment = {
+  id: string;
+  orgId: string;
+  householdId: string;
+  goalId: string;
+  assignedTo: string;
+  assignedBy: string | null;
+  createdAt: string;
+  endedAt: string | null;
+  endReason: VisitAssignmentEndReason | null;
+};
+
 // How a visit names the people who went, and it MUST follow the outcome.
 //
 // The first build said "Visited by Miguel Cortez" on a row already labelled "Attempted" —
@@ -1730,6 +1754,13 @@ export const TODO_LOG_KINDS = [
   "music_reopened",
   "topics_changed",
   "meeting_cancelled",
+  // ITER-055 bv5 (migration 103d): a household visit. `visit_reassigned` carries the new holder's
+  // name in `body` and `visit_partly_reached` the reason's label, both snapshotted.
+  "visit_assigned",
+  "visit_reassigned",
+  "visit_unassigned",
+  "visit_goal_ended",
+  "visit_partly_reached",
 ] as const;
 export type TodoLogKind = (typeof TODO_LOG_KINDS)[number];
 
@@ -1762,6 +1793,11 @@ export const TODO_CLOSED_REASONS = [
   // needed; or the Sunday stopped holding sacrament meeting.
   "music_reopened",
   "meeting_cancelled",
+  // ITER-055 bv5 (migration 103c): a "Visit the ___ family" to-do whose household went to somebody
+  // else, to nobody, or whose goal ended. A finished visit closes it with no reason.
+  "reassigned",
+  "unassigned",
+  "goal_ended",
 ] as const;
 export type TodoClosedReason = (typeof TODO_CLOSED_REASONS)[number];
 
@@ -1810,6 +1846,10 @@ export type Todo = {
   // null for every other to-do. Matching them on Zoom → Sign-ups closes it, so it has no checkbox
   // and cannot be removed while open.
   zoomRegistrationLink: { registrationId: string } | null;
+  // The household assignment this "Visit the ___ family" to-do is about (ITER-055 bv5, migration
+  // 103b); null for every other to-do. A finished bishopric visit closes it, so it has no checkbox
+  // and cannot be removed while open.
+  visitLink: { assignmentId: string } | null;
   // Set only on an ask that left this list unanswered — see TODO_CLOSED_REASONS.
   closedReason: TodoClosedReason | null;
   // When the owner was told this ask's talk is off (Sacrament slice f2b, migration 084).

@@ -133,6 +133,7 @@ export const RELEASED_MODULES = [
       "household_visit_cadences",
       "household_stewardships",
       "visit_org_sharing",
+      "visit_assignments",
       "goals",
     ],
   },

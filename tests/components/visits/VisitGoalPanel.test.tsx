@@ -36,7 +36,11 @@ const SWEEP: VisitGoal = {
   createdAt: "2027-01-03T00:00:00.000Z",
 };
 
-function renderPanel(goals: VisitGoal[], showsPastGoals = true) {
+function renderPanel(
+  goals: VisitGoal[],
+  showsPastGoals = true,
+  openAssignmentCounts: Record<string, number> = {},
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
@@ -47,6 +51,7 @@ function renderPanel(goals: VisitGoal[], showsPastGoals = true) {
         ownOrgId={ORG_ID}
         today="2027-03-01"
         showsPastGoals={showsPastGoals}
+        openAssignmentCounts={openAssignmentCounts}
       />
     </QueryClientProvider>,
   );
@@ -77,6 +82,25 @@ describe("VisitGoalPanel", () => {
       "/api/visit-goals/goal-1",
       expect.objectContaining({ method: "PATCH", body: JSON.stringify({ end: "set_aside" }) }),
     );
+  });
+
+  it("says how many assignment to-dos ending the goal will close", () => {
+    renderPanel([SWEEP], true, { [SWEEP.id]: 4 });
+    fireEvent.click(screen.getByRole("button", { name: "End goal" }));
+    expect(
+      screen.getByText('4 households are still assigned. Ending the goal closes their 4 "Visit the ___ family" to-dos.'),
+    ).toBeTruthy();
+    cleanup();
+
+    renderPanel([SWEEP], true, { [SWEEP.id]: 1 });
+    fireEvent.click(screen.getByRole("button", { name: "End goal" }));
+    expect(screen.getByText(/1 household is still assigned\. .*closes its/)).toBeTruthy();
+  });
+
+  it("says nothing about to-dos when no household is assigned", () => {
+    renderPanel([SWEEP]);
+    fireEvent.click(screen.getByRole("button", { name: "End goal" }));
+    expect(screen.queryByText(/still assigned/)).toBeNull();
   });
 
   it("does not offer End goal while the goal is being edited (defect 101-D1)", () => {

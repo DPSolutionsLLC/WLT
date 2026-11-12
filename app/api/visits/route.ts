@@ -5,6 +5,8 @@ import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { getHousehold } from "@/lib/roster/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServiceSupabaseClient } from "@/lib/supabase/service";
+import { reconcileVisitAssignment, respondToAssignmentError } from "@/lib/visits/assignmentChecks";
 import { getAppointment, updateAppointment } from "@/lib/visits/appointments";
 import { replaceParticipants } from "@/lib/visits/participants";
 import { createVisitLog, listVisitLogs } from "@/lib/visits/queries";
@@ -222,9 +224,16 @@ export async function POST(request: Request) {
       supabase,
     );
 
+    // A FINISHED bishopric visit closes the household's assignment and its "Visit the ___ family"
+    // to-do; one that still needs a visit adds a line (ITER-055 bv5). On the service role, because
+    // the to-do is another member's — the visit this caller's own client just wrote is what proves
+    // they could record it. LAST, after the audit row: the visit is saved whatever happens here, so
+    // it must be audited even if this fails (the zoom-link-pool lesson).
+    await reconcileVisitAssignment(user.wardId, visit, createServiceSupabaseClient());
+
     return NextResponse.json({ visit }, { status: 201 });
   } catch (error) {
-    return respondToRouteError(error, {
+    return respondToAssignmentError(error, {
       route: "POST /api/visits",
       fallbackMessage: "Could not save that visit. Please try again.",
       detail: { wardId: user.wardId, userId: user.id },

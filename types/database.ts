@@ -3348,6 +3348,7 @@ export type Database = {
           title: string
           updated_at: string
           user_id: string
+          visit_assignment_id: string | null
           ward_id: string
           zoom_invitee_id: string | null
           zoom_registration_id: string | null
@@ -3375,6 +3376,7 @@ export type Database = {
           title: string
           updated_at?: string
           user_id: string
+          visit_assignment_id?: string | null
           ward_id: string
           zoom_invitee_id?: string | null
           zoom_registration_id?: string | null
@@ -3402,6 +3404,7 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string
+          visit_assignment_id?: string | null
           ward_id?: string
           zoom_invitee_id?: string | null
           zoom_registration_id?: string | null
@@ -3461,6 +3464,13 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_visit_assignment_id_fkey"
+            columns: ["visit_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "visit_assignments"
             referencedColumns: ["id"]
           },
           {
@@ -3815,6 +3825,88 @@ export type Database = {
           },
           {
             foreignKeyName: "visit_appointments_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visit_assignments: {
+        Row: {
+          assigned_by: string | null
+          assigned_to: string
+          created_at: string
+          end_reason: string | null
+          ended_at: string | null
+          goal_id: string
+          household_id: string
+          id: string
+          org_id: string
+          ward_id: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          assigned_to: string
+          created_at?: string
+          end_reason?: string | null
+          ended_at?: string | null
+          goal_id: string
+          household_id: string
+          id?: string
+          org_id: string
+          ward_id: string
+        }
+        Update: {
+          assigned_by?: string | null
+          assigned_to?: string
+          created_at?: string
+          end_reason?: string | null
+          ended_at?: string | null
+          goal_id?: string
+          household_id?: string
+          id?: string
+          org_id?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visit_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visit_assignments_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visit_assignments_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "visit_goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visit_assignments_household_fkey"
+            columns: ["household_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "visit_assignments_org_fkey"
+            columns: ["org_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "visit_assignments_ward_id_fkey"
             columns: ["ward_id"]
             isOneToOne: false
             referencedRelation: "wards"

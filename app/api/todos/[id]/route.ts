@@ -22,6 +22,8 @@ const OPEN_MUSIC =
   "This comes from a Sunday's music and closes itself when the music moves on.";
 const OPEN_ZOOM = "This closes itself once they're given a link.";
 const OPEN_ZOOM_MATCH = "This closes itself once they're matched on Zoom → Sign-ups.";
+const OPEN_VISIT =
+  "This closes itself once a finished visit to this household is recorded. To give it to somebody else, reassign the household on Visits.";
 
 export async function GET(
   _request: Request,
@@ -139,6 +141,9 @@ export async function DELETE(
     }
     if (outcome === "open_zoom_match") {
       return NextResponse.json({ error: OPEN_ZOOM_MATCH }, { status: 409 });
+    }
+    if (outcome === "open_visit") {
+      return NextResponse.json({ error: OPEN_VISIT }, { status: 409 });
     }
 
     await writeAuditLog(

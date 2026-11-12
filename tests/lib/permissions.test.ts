@@ -402,13 +402,15 @@ describe("mergeRoleAccess — non-overridable permissions", () => {
   // for a role would strand every agenda assignment to that role on a list its owner cannot open.
   // `planner.*` is the second (ITER-045): the Sacrament Planner is bishopric only until ITER-046,
   // and migration 093 refuses everybody else whatever a ward configures. `visits.manage_sharing`
-  // (ITER-055) is the bishopric deciding which organizations see which organization's visits.
+  // (ITER-055) is the bishopric deciding which organizations see which organization's visits, and
+  // `visits.assign` (bv5) the bishopric dividing its households and writing onto each other's To Do.
   // Any other permission appearing here is still a mistake this test should catch.
-  it("locks every admin.*, sacrament.* and planner.* permission, plus personal_tools.use, visits.manage_sharing and the three zoom.manage_* permissions", () => {
+  it("locks every admin.*, sacrament.* and planner.* permission, plus personal_tools.use, visits.manage_sharing, visits.assign and the three zoom.manage_* permissions", () => {
     expect(NON_OVERRIDABLE_PERMISSIONS.length).toBeGreaterThan(0);
     expect(NON_OVERRIDABLE_PERMISSIONS).toContain("personal_tools.use");
     expect(NON_OVERRIDABLE_PERMISSIONS).toContain("planner.use");
     expect(NON_OVERRIDABLE_PERMISSIONS).toContain("visits.manage_sharing");
+    expect(NON_OVERRIDABLE_PERMISSIONS).toContain("visits.assign");
     expect(NON_OVERRIDABLE_PERMISSIONS).toContain("zoom.manage_remote_links");
     expect(NON_OVERRIDABLE_PERMISSIONS).toContain("zoom.manage_invitees");
     expect(NON_OVERRIDABLE_PERMISSIONS).toContain("zoom.manage_registration_questions");
@@ -420,10 +422,11 @@ describe("mergeRoleAccess — non-overridable permissions", () => {
           permission.startsWith("planner.") ||
           permission === "personal_tools.use" ||
           permission === "visits.manage_sharing" ||
+          permission === "visits.assign" ||
           permission === "zoom.manage_remote_links" ||
           permission === "zoom.manage_invitees" ||
           permission === "zoom.manage_registration_questions",
-        `"${permission}" is locked but is neither admin.*, sacrament.*, planner.*, personal_tools.use visits.manage_sharing nor a zoom.manage_* permission`,
+        `"${permission}" is locked but is neither admin.*, sacrament.*, planner.*, personal_tools.use, visits.manage_sharing, visits.assign nor a zoom.manage_* permission`,
       ).toBe(true);
     }
   });

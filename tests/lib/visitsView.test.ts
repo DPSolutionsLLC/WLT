@@ -14,6 +14,7 @@ describe("visibleVisitsTabs", () => {
   it("gives the bishopric every tab, in order", () => {
     expect(visibleVisitsTabs({ isBishopric: true, canManageSharing: true })).toEqual([
       "households",
+      "my_visits",
       "feed",
       "all_organizations",
       "goal_history",
@@ -26,6 +27,13 @@ describe("visibleVisitsTabs", () => {
   it("keeps Past goals to the bishopric", () => {
     expect(visibleVisitsTabs({ isBishopric: false, canManageSharing: true })).not.toContain(
       "goal_history",
+    );
+  });
+
+  // Only a bishopric member is ever assigned households (ITER-055 bv5).
+  it("never gives My visits to anyone outside the bishopric", () => {
+    expect(visibleVisitsTabs({ isBishopric: false, canManageSharing: true })).not.toContain(
+      "my_visits",
     );
   });
 
@@ -63,7 +71,7 @@ describe("parseVisitsView", () => {
   });
 
   it("falls back field by field, keeping the part it can read", () => {
-    expect(parseVisitsView({ tab: "my_visits", sort: "dueOn" })).toEqual({
+    expect(parseVisitsView({ tab: "not_a_tab", sort: "dueOn" })).toEqual({
       tab: "households",
       sort: "dueOn",
     });

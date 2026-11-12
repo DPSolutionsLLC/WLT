@@ -59,6 +59,18 @@ export function describeLogEntry(entry: Pick<TodoLogEntry, "kind" | "body">): st
       return "The topics changed — check the music";
     case "meeting_cancelled":
       return "No sacrament meeting this Sunday any more";
+    case "visit_assigned":
+      return "Assigned to you";
+    case "visit_reassigned":
+      return entry.body === null ? "Reassigned" : `Reassigned to ${entry.body}`;
+    case "visit_unassigned":
+      return "No longer assigned to anyone";
+    case "visit_goal_ended":
+      return "The visit goal ended";
+    case "visit_partly_reached":
+      return entry.body === null
+        ? "Visited — still needs a visit"
+        : `Visited — still needs a visit (${entry.body})`;
     default: {
       const unhandled: never = entry.kind;
       throw new Error(`No sentence for to-do log kind "${String(unhandled)}".`);

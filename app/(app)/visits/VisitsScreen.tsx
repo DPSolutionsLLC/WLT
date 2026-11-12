@@ -5,6 +5,7 @@ import { AllOrganizationsTable } from "@/app/(app)/visits/AllOrganizationsTable"
 import { VisitReportFeed } from "@/app/(app)/visits/feed/VisitReportFeed";
 import { GoalHistory } from "@/app/(app)/visits/GoalHistory";
 import { HouseholdsPanel, type HouseholdsPanelProps } from "@/app/(app)/visits/HouseholdsPanel";
+import { MyVisits, type MyVisitsProps } from "@/app/(app)/visits/MyVisits";
 import { SharingPanel, type SharingPanelProps } from "@/app/(app)/visits/SharingPanel";
 import { FormError } from "@/components/ui/FormError";
 import type { ReportFeedPage } from "@/lib/reports/types";
@@ -50,6 +51,7 @@ export type VisitsScreenProps = {
   allOrganizations: AllOrgProgress | null;
   goalHistory: GoalHistoryEntry[] | null;
   sharing: SharingPanelProps | null;
+  myVisits: MyVisitsProps | null;
 };
 
 export function VisitsScreen({
@@ -60,6 +62,7 @@ export function VisitsScreen({
   allOrganizations,
   goalHistory,
   sharing,
+  myVisits,
 }: VisitsScreenProps) {
   const [view, setView] = useState<VisitsView>(initialView);
   const [saveError, setSaveError] = useState<string | undefined>();
@@ -126,6 +129,8 @@ export function VisitsScreen({
     if (tab === "goal_history" && goalHistory !== null) return <GoalHistory entries={goalHistory} />;
 
     if (tab === "sharing" && sharing !== null) return <SharingPanel {...sharing} />;
+
+    if (tab === "my_visits" && myVisits !== null) return <MyVisits {...myVisits} />;
 
     return <HouseholdsPanel {...households} sort={view.sort} onSortChange={changeSort} />;
   }

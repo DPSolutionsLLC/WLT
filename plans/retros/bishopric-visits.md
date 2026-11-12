@@ -46,6 +46,18 @@ files:
   - app/(app)/visits/VisitProgressBanner.tsx
   - app/(app)/visits/GoalHistory.tsx
   - app/(app)/visits/VisitsScreen.tsx
+  - supabase/migrations/103_visit_assignments.sql
+  - lib/visits/assignments.ts
+  - lib/visits/assignmentShares.ts
+  - lib/visits/assignmentChecks.ts
+  - lib/todos/visitLinks.ts
+  - lib/todos/queries.ts
+  - lib/todos/logLines.ts
+  - app/api/visit-assignments/route.ts
+  - app/api/visit-assignments/[id]/route.ts
+  - app/(app)/visits/AssignWindow.tsx
+  - app/(app)/visits/MyVisits.tsx
+  - app/(app)/todos/TodoCard.tsx
 related: [visits-c-report-feed-and-cross-org, visits-f-stewardship-and-all-orgs, zoom-remote-links, notification-trigger-drift, role-access-overrides]
 ---
 
@@ -248,3 +260,52 @@ its own `org_id = null` visits, with its goal stored on the bishopric-typed orga
 Lint (5 old warnings elsewhere), typecheck and harness typecheck clean. Full suite 380 files /
 5565 tests green before the walk fixes; after them, the visits component tests (6 files, 31 tests),
 typecheck and lint are green. Production build clean both times. Migration 102 applied.
+
+## bv5 — The bishopric divides its households (pending commit)
+
+### What was done
+The bishopric can split its households between the bishop and the two counselors. **Assign** on the
+Households tab puts **Visit the ___ family** on that person's To Do, a **My visits** tab lists what
+each member holds, and a share line under the banner reads "Bishop 0 of 2 · 1st Counselor …". The
+assignment, and its to-do, close themselves on a finished Bishopric visit ("Visited."), a reassign
+("Reassigned to …"), an unassign, or the end of the goal. A visit that still needs another adds a
+line and keeps the to-do open.
+
+### Key decisions
+- **`visit_assignments` has a SELECT policy and no write policy** (migration 103).
+  `lib/visits/assignments.ts` is the only writer (service role, behind `canAssignVisits()`:
+  `visits.assign`, which is non-overridable, AND a bishopric calling). `lib/todos/visitLinks.ts` is
+  the only writer of `todos.visit_assignment_id`, held by `tests/lib/visitTodoSites.test.ts`.
+  `assigned_to` is a subject column, so the assignee must hold a bishopric calling in this ward.
+- **Decided with the user at bv5 start:** assigning needs an **active** Bishopric goal; only a
+  **finished Bishopric visit** dated on or after the goal's start closes an assignment (an Elders
+  Quorum visit does not); ending a goal closes every open assignment, whether completed or set aside.
+- **The visit edit route reconciles only on a change of outcome**, so editing an old visit's notes
+  cannot close an assignment made since. A reassign closes the old holder's to-do before opening
+  the new one, so migration 103b's index never collides. A to-do closed because its visit happened
+  keeps `closed_reason` null, as Zoom does: the to-do did its job.
+- The to-do has no checkbox, and deleting it while open is refused with a sentence (409). Assigning
+  yourself leaves `assigned_by` null, the same as a to-do you made yourself.
+
+### Found on the walk (scenario 102, 2026-11-11, driven by Claude)
+- All 24 machine checks passed against the database. No bv5 defect.
+- **The Assign window's warning only described Assign**, while the window also offered Unassign.
+  The user found it unclear what each button would do. Changed: once a ticked household is held by
+  anyone, the box has one line per button, and says when Unassign will skip a ticked household
+  nobody holds. Checked in the browser after the change (`15-assign-both-buttons.png`).
+- **End goal closed four to-dos on three people's lists without saying so.** Changed: the
+  confirmation now says how many to-dos it will close. `HouseholdsPanel` passes the open-assignment
+  count per goal. Checked in the browser (`16-end-goal-count.png`).
+- The user kept "0 of 0" in the share line, the dark-mode tab scrollbar, and the ✕ on an open visit
+  to-do (its refusal explains itself).
+- **From before bv5:** `app/(app)/visits/page.tsx` sets the form's date with
+  `formatDateOnly(new Date())`, which is UTC. From about 5pm in the ward's zone, a visit logged
+  "today" is saved as tomorrow. Reported, not fixed.
+
+### Follow-ups (not built)
+- Fix the visit form's UTC default date (above). It goes against the intent of rule 12.
+- After Assign closes, the page takes about 4s to catch up on the dev server.
+- bv6: companions and invites extend scenario 102.
+
+### Validation
+Typecheck and lint clean. Full suite 385 files / 5617 tests green, including the walk changes. The production build and harness typecheck were clean before the walk; the walk changes touched only three client components and their tests. Migration 103 applied.

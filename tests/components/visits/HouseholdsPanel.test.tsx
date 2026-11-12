@@ -80,6 +80,8 @@ function renderPanel() {
     leaders: [],
     memberNames: {},
     recentVisits: null,
+    // An Elders Quorum reader: the Bishopric's assignments are never handed to this tab.
+    assignments: null,
   };
 
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

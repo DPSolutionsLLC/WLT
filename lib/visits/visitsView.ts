@@ -4,10 +4,11 @@ import { z } from "zod";
 // (the user's standing rule: every page reopens as it was left). A reader who cannot see a stored
 // tab gets Households; the page decides that through visibleVisitsTabs(), not this parse.
 //
-// bv4 added Goal history; bv5 adds My visits.
+// bv4 added Goal history; bv5 added My visits.
 
 export const VISITS_TABS = [
   "households",
+  "my_visits",
   "feed",
   "all_organizations",
   "goal_history",
@@ -17,9 +18,11 @@ export type VisitsTab = (typeof VISITS_TABS)[number];
 
 export const VISITS_TAB_LABELS: Record<VisitsTab, string> = {
   households: "Households",
+  // The households the bishopric gave this member to visit (ITER-055 bv5).
+  my_visits: "My visits",
   feed: "Feed",
   all_organizations: "All orgs",
-  // Short so five tabs still scroll rather than wrap at 375px (the 099-D2 lesson).
+  // Short so six tabs still scroll rather than wrap at 375px (the 099-D2 lesson).
   goal_history: "Past goals",
   sharing: "Sharing",
 };
@@ -72,12 +75,13 @@ export function parseVisitsTabParam(value: string | string[] | undefined): Visit
 }
 
 // Which tabs a reader sees, in order. All organizations is the bishopric's alone (ITER-055 P4), and
-// so is Goal history (decided with the user at bv4 start); Sharing follows canManageVisitSharing().
+// so is Goal history (decided with the user at bv4 start); so is My visits, because only a
+// bishopric member is ever assigned households (bv5). Sharing follows canManageVisitSharing().
 export function visibleVisitsTabs(reader: {
   isBishopric: boolean;
   canManageSharing: boolean;
 }): VisitsTab[] {
-  const tabs: VisitsTab[] = ["households", "feed"];
+  const tabs: VisitsTab[] = reader.isBishopric ? ["households", "my_visits", "feed"] : ["households", "feed"];
   if (reader.isBishopric) tabs.push("all_organizations", "goal_history");
   if (reader.canManageSharing) tabs.push("sharing");
   return tabs;
