@@ -2,7 +2,7 @@
 id: bishopric-visits
 type: feature
 iter: ITER-055
-commits: ["393a98c", "280b9aa", "cd8823b", "9b1dcf8"]
+commits: ["393a98c", "280b9aa", "cd8823b", "9b1dcf8", "fecc891"]
 date: 2026-10-31
 files:
   - supabase/migrations/099_visit_org_sharing.sql
@@ -261,7 +261,7 @@ Lint (5 old warnings elsewhere), typecheck and harness typecheck clean. Full sui
 5565 tests green before the walk fixes; after them, the visits component tests (6 files, 31 tests),
 typecheck and lint are green. Production build clean both times. Migration 102 applied.
 
-## bv5 — The bishopric divides its households (pending commit)
+## bv5 — The bishopric divides its households (fecc891)
 
 ### What was done
 The bishopric can split its households between the bishop and the two counselors. **Assign** on the
