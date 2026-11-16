@@ -310,7 +310,7 @@ line and keeps the to-do open.
 ### Validation
 Typecheck and lint clean. Full suite 385 files / 5617 tests green, including the walk changes. The production build and harness typecheck were clean before the walk; the walk changes touched only three client components and their tests. Migration 103 applied.
 
-## bv6 — Companions on a booked visit, and invites (not yet committed)
+## bv6 — Companions on a booked visit, and invites (65fcc38)
 
 ### What was done
 Booking a visit can bring companions along. A **leader** in the ward is **invited**: they get a
