@@ -3,14 +3,24 @@ import { writeAuditLog } from "@/lib/audit/writeAuditLog";
 import { assertCan, BISHOPRIC_ROLES, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
+import { emitNotification } from "@/lib/notifications/emitNotification";
 import { getHousehold } from "@/lib/roster/queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { createAppointment, listAppointments } from "@/lib/visits/appointments";
+import { createServiceSupabaseClient } from "@/lib/supabase/service";
+import {
+  createAppointment,
+  deleteNewAppointment,
+  listAppointments,
+} from "@/lib/visits/appointments";
+import { getAssignment } from "@/lib/visits/assignments";
+import { VISIT_INVITE_TITLE, visitInviteBody } from "@/lib/visits/companionText";
+import { assertCompanionsAllowed, inviteCompanions } from "@/lib/visits/companions";
+import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import {
   createAppointmentSchema,
   listAppointmentsQuerySchema,
 } from "@/lib/validation/visit";
-import type { Role } from "@/types/domain";
+import type { Role, VisitCompanion } from "@/types/domain";
 
 // Appointments — visits ARRANGED, before they happen.
 //
@@ -20,6 +30,17 @@ import type { Role } from "@/types/domain";
 //
 // THIS FILE DOES NOT IMPORT lib/visits/privateNotes.ts, AND MUST NOT — see the header of
 // app/api/visits/route.ts.
+//
+// COMPANIONS (ITER-055 bv6). A leader is INVITED and a roster member or a typed name is RECORDED
+// (lib/visits/companions.ts). The appointment is inserted through the caller's own client, then its
+// companions in ONE insert on the service role; if that fails the appointment is deleted again and
+// the response says so, so nobody is left holding half an invite (visits-d's pitfall). Each invited
+// leader gets a `visit_companion_invited` bell notification. The audit row carries COUNTS, never
+// names — a companion's name is a person's movements.
+//
+// FROM A VISIT TO-DO (P11). `assignmentId` books the visit for a bishopric assignment, so it appears
+// once on My Appointments rather than as a scheduled to-do as well. Only a bishopric author, and only
+// for an open assignment of the same household.
 //
 // The session is resolved OUTSIDE the try block: requireSessionUser() redirects by throwing an
 // internal Next.js error, and catching that would turn a redirect into a 500.
@@ -103,12 +124,78 @@ export async function POST(request: Request) {
       );
     }
 
+    if (input.assignmentId !== undefined) {
+      if (!bishopricAuthor) {
+        return NextResponse.json(
+          { error: "Only the bishopric books a visit for a household it has assigned." },
+          { status: 403 },
+        );
+      }
+
+      const assignment = await getAssignment(user.wardId, input.assignmentId, supabase);
+
+      if (assignment === null) {
+        return NextResponse.json({ error: "That assignment is not in your ward." }, { status: 404 });
+      }
+
+      if (assignment.endedAt !== null || assignment.householdId !== input.householdId) {
+        return NextResponse.json(
+          {
+            error:
+              "That household is no longer assigned this way. Reload the page and schedule it " +
+              "from the household instead.",
+          },
+          { status: 409 },
+        );
+      }
+    }
+
+    const service = createServiceSupabaseClient();
+
+    await assertCompanionsAllowed(
+      { wardId: user.wardId, bookerUserId: user.id, companions: input.companions },
+      supabase,
+      service,
+    );
+
     const appointment = await createAppointment(
       user.wardId,
       bishopricAuthor ? null : user.orgId,
       user.id,
       input,
       supabase,
+    );
+
+    let companions: VisitCompanion[];
+    try {
+      companions = await inviteCompanions(
+        { wardId: user.wardId, appointmentId: appointment.id, companions: input.companions },
+        service,
+      );
+    } catch (companionError) {
+      try {
+        await deleteNewAppointment(user.wardId, appointment.id, supabase);
+      } catch (undoError) {
+        console.error("A visit appointment was saved without its companions and not undone", {
+          wardId: user.wardId,
+          appointmentId: appointment.id,
+          companionError,
+          undoError,
+        });
+        return NextResponse.json(
+          {
+            error:
+              "The appointment was booked, but who is going along was not saved. Open " +
+              "Appointments, cancel it, and book it again.",
+          },
+          { status: 500 },
+        );
+      }
+      throw companionError;
+    }
+
+    const invitedUserIds = companions.flatMap((companion) =>
+      companion.userId === null ? [] : [companion.userId],
     );
 
     // No `notes` text in the detail. The note on an appointment is ordinary shared text rather
@@ -125,12 +212,31 @@ export async function POST(request: Request) {
           orgId: appointment.orgId,
           householdId: appointment.householdId,
           scheduledFor: appointment.scheduledFor,
+          assignmentId: appointment.assignmentId,
+          invitedCount: invitedUserIds.length,
+          recordedCompanionCount: companions.length - invitedUserIds.length,
         },
       },
       supabase,
     );
 
-    return NextResponse.json({ appointment }, { status: 201 });
+    if (invitedUserIds.length > 0) {
+      const wardZone = await readWardTimezone(user.wardId, supabase);
+      await emitNotification({
+        wardId: user.wardId,
+        triggerKey: "visit_companion_invited",
+        title: VISIT_INVITE_TITLE,
+        body: visitInviteBody({
+          bookerName: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || null,
+          familyName: household.familyName,
+          scheduledFor: appointment.scheduledFor,
+          wardZone,
+        }),
+        recipientUserIds: invitedUserIds,
+      });
+    }
+
+    return NextResponse.json({ appointment, companions }, { status: 201 });
   } catch (error) {
     return respondToRouteError(error, {
       route: "POST /api/visit-appointments",

@@ -11,7 +11,11 @@ import {
 
 const DENVER = "America/Denver";
 
-function visit(id: string, startsAt: string): MyAppointmentSource {
+function visit(
+  id: string,
+  startsAt: string,
+  role: "booker" | "companion" = "booker",
+): MyAppointmentSource {
   return {
     kind: "visit",
     id,
@@ -21,6 +25,7 @@ function visit(id: string, startsAt: string): MyAppointmentSource {
     detail: null,
     href: "/visits",
     viewState: "scheduled",
+    role,
   };
 }
 
@@ -170,5 +175,21 @@ describe("groupByWardDay", () => {
 
   it("returns no days for nothing", () => {
     expect(groupByWardDay([], DENVER)).toEqual([]);
+  });
+});
+
+describe("a visit somebody accepted an invite to (ITER-055 bv6)", () => {
+  it("is the same kind as a booked visit, in the same list", () => {
+    const asOf = new Date("2026-09-24T18:00:00.000Z");
+    const { upcoming } = buildMyAppointments(
+      [
+        visit("booked", "2026-09-26T01:00:00.000Z"),
+        visit("invited", "2026-09-25T01:00:00.000Z", "companion"),
+      ],
+      asOf,
+      DENVER,
+    );
+    expect(ids(upcoming)).toEqual(["invited", "booked"]);
+    expect(upcoming.map((source) => source.kind)).toEqual(["visit", "visit"]);
   });
 });

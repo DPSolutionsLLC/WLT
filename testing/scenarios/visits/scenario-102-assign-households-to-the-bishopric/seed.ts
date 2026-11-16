@@ -19,7 +19,8 @@ import {
 // has already SCHEDULED for three days from now — which is what the Assign window must warn about
 // before moving it (D8). Everything else is unassigned.
 //
-// bv6 extends this scenario with companions and invites (plans/bishopric-visits.md, scenario 102).
+// bv6 extends this scenario with companions and invites (Part 2 of scenario.md). It needs nothing
+// more seeded: the 2nd counselor books from the Ellis to-do and the invites are made in the walk.
 //
 // DATES ARE RELATIVE TO THE DAY OF SEEDING: the sweep started 30 days ago.
 

@@ -56,6 +56,17 @@ export type VisitParticipantsFieldProps = {
   // visit list had (types/domain.ts §VISIT_NOBODY_RECORDED).
   outcome: VisitOutcome;
   disabled?: boolean;
+  // THE SAME FIELD PICKS A BOOKED VISIT'S COMPANIONS (ITER-055 bv6), so there is one picker for
+  // "a leader, a member, someone else". These replace the words and the cap; the defaults are the
+  // "Who went" field's own.
+  copy?: {
+    legend: string;
+    intro: string;
+    empty: string;
+    capacityMessage: string;
+  };
+  maxPeople?: number;
+  idPrefix?: string;
 };
 
 type AddMode = "leader" | "member" | "name";
@@ -104,12 +115,16 @@ export function VisitParticipantsField({
   memberNames,
   outcome,
   disabled = false,
+  copy,
+  maxPeople = MAX_VISIT_PARTICIPANTS,
+  idPrefix = "visit-participant",
 }: VisitParticipantsFieldProps) {
   const [mode, setMode] = useState<AddMode>("leader");
   const [typedName, setTypedName] = useState("");
   const [addError, setAddError] = useState<string | undefined>(undefined);
 
-  const atCapacity = value.length >= MAX_VISIT_PARTICIPANTS;
+  const atCapacity = value.length >= maxPeople;
+  const capacityMessage = copy?.capacityMessage ?? AT_CAPACITY_MESSAGE;
 
   const chosenUserIds = value.flatMap((participant) =>
     participant.kind === "user" ? [participant.userId] : [],
@@ -127,7 +142,7 @@ export function VisitParticipantsField({
     }
 
     if (atCapacity) {
-      setAddError(AT_CAPACITY_MESSAGE);
+      setAddError(capacityMessage);
       return;
     }
 
@@ -155,16 +170,19 @@ export function VisitParticipantsField({
 
   return (
     <fieldset className="m-0 flex flex-col gap-3 border-0 p-0">
-      <legend className="mb-2 text-sm font-semibold text-foreground">Who went</legend>
+      <legend className="mb-2 text-sm font-semibold text-foreground">
+        {copy?.legend ?? "Who went"}
+      </legend>
 
       <p className="text-sm text-muted">
-        You are on this list by default. Take yourself off if you did not go — the person who
-        writes a visit up is not always the person who made it.
+        {copy?.intro ??
+          "You are on this list by default. Take yourself off if you did not go — the person " +
+            "who writes a visit up is not always the person who made it."}
       </p>
 
       {value.length === 0 ? (
         // Words, never a blank. A blank where a name goes reads as a page that failed to load.
-        <p className="text-sm text-muted">{`${VISIT_NOBODY_RECORDED[outcome]}.`}</p>
+        <p className="text-sm text-muted">{copy?.empty ?? `${VISIT_NOBODY_RECORDED[outcome]}.`}</p>
       ) : (
         <ul className="flex flex-wrap gap-2">
           {value.map((participant, index) => (
@@ -201,7 +219,7 @@ export function VisitParticipantsField({
         // page is indistinguishable from one that is broken, and a tooltip does not exist on a
         // phone at all.
         <p role="status" className="text-sm text-warning">
-          {AT_CAPACITY_MESSAGE}
+          {capacityMessage}
         </p>
       ) : (
         <div className="flex flex-col gap-3">
@@ -231,13 +249,13 @@ export function VisitParticipantsField({
           {mode === "leader" ? (
             <div className="flex flex-col gap-1.5">
               <label
-                htmlFor="visit-participant-leader"
+                htmlFor={`${idPrefix}-leader`}
                 className="text-sm font-medium text-foreground"
               >
                 Add a leader
               </label>
               <select
-                id="visit-participant-leader"
+                id={`${idPrefix}-leader`}
                 className={SELECT_CLASSES}
                 value=""
                 disabled={disabled || availableLeaders.length === 0}
@@ -297,7 +315,7 @@ export function VisitParticipantsField({
           {mode === "name" ? (
             <div className="flex flex-col gap-2">
               <Input
-                id="visit-participant-name"
+                id={`${idPrefix}-name`}
                 label="Add somebody by name"
                 value={typedName}
                 maxLength={MAX_PARTICIPANT_LABEL}

@@ -820,6 +820,37 @@ export type VisitAssignment = {
   endReason: VisitAssignmentEndReason | null;
 };
 
+// An invited companion's answer (ITER-055 bv6, migration 104b). Only a leader with an account is
+// invited; a roster member or a typed name is recorded and has no status at all.
+export const VISIT_INVITE_STATUSES = ["pending", "accepted", "declined"] as const;
+export type VisitInviteStatus = (typeof VISIT_INVITE_STATUSES)[number];
+
+export const VISIT_INVITE_STATUS_LABELS: Record<VisitInviteStatus, string> = {
+  pending: "invited",
+  accepted: "coming",
+  declined: "can't come",
+};
+
+export type VisitCompanion = {
+  id: string;
+  appointmentId: string;
+  kind: "user" | "member" | "label";
+  userId: string | null;
+  memberId: string | null;
+  displayName: string;
+  // Null for a recorded companion, never for an invited one (104b's CHECK).
+  status: VisitInviteStatus | null;
+};
+
+// A pending invite, as the invitee sees it: what, when, and who asked.
+export type VisitInvite = {
+  companionId: string;
+  appointmentId: string;
+  scheduledFor: string;
+  householdName: string | null;
+  madeByName: string | null;
+};
+
 // How a visit names the people who went, and it MUST follow the outcome.
 //
 // The first build said "Visited by Miguel Cortez" on a row already labelled "Attempted" —
@@ -1761,6 +1792,8 @@ export const TODO_LOG_KINDS = [
   "visit_unassigned",
   "visit_goal_ended",
   "visit_partly_reached",
+  // ITER-055 bv6 (migration 104e): an invited companion can't come. `body` is their name, snapshotted.
+  "visit_companion_declined",
 ] as const;
 export type TodoLogKind = (typeof TODO_LOG_KINDS)[number];
 
@@ -1956,6 +1989,17 @@ export type TodoSummary = Todo & {
   // "Schedule this" (p5-c): the member's name, read through the ward-scoped composite foreign key,
   // so the card and My Appointments can say who it is with. Null when nobody was named.
   scheduledWithMemberName: string | null;
+  // A "Visit the ___ family" to-do's household, and the SOONEST still-scheduled visit appointment
+  // booked from it (ITER-055 bv6, P11) — the one to act on next, which is also what the to-do's
+  // state reads. A second booking is allowed after a confirm, so the rest are counted, not named.
+  // Scheduling such a to-do books a visit appointment rather than putting a time on the to-do.
+  // Null on every other to-do.
+  visitSource: {
+    householdId: string;
+    familyName: string | null;
+    bookedFor: string | null;
+    otherBookingCount: number;
+  } | null;
 };
 
 // COMPUTED, never stored — lib/todos/viewState.ts. "Overdue" is decided by the clock, and nothing

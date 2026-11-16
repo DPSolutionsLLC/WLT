@@ -71,6 +71,8 @@ export function describeLogEntry(entry: Pick<TodoLogEntry, "kind" | "body">): st
       return entry.body === null
         ? "Visited — still needs a visit"
         : `Visited — still needs a visit (${entry.body})`;
+    case "visit_companion_declined":
+      return entry.body === null ? "A companion can't come" : `${entry.body} can't come`;
     default: {
       const unhandled: never = entry.kind;
       throw new Error(`No sentence for to-do log kind "${String(unhandled)}".`);

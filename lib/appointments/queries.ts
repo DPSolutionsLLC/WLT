@@ -7,10 +7,13 @@ import {
   type PrayerAskSourceRow,
 } from "@/lib/todos/askSource";
 import { appointmentViewState } from "@/lib/visits/appointmentStatus";
+import { describeCompanions } from "@/lib/visits/companionText";
+import { listCompanionsForAppointments, listInvitedAppointments } from "@/lib/visits/companions";
 import type { Database } from "@/types/database";
 import { APPOINTMENT_STATUSES, type AppointmentStatus } from "@/types/domain";
 
-// My Appointments — the three sources, each read for ONE PERSON through the caller's own client.
+// My Appointments — the sources, each read for ONE PERSON through the caller's own client. Since
+// ITER-055 bv6 a visit is either one this person booked or one they accepted an invite to.
 //
 // ---------------------------------------------------------------------------
 // THE `user_id` / `made_by` FILTERS HERE ARE THE MEANING, NOT A SECOND COPY OF A POLICY
@@ -107,7 +110,15 @@ async function readVisitAppointments(
     throw new Error(`Could not load your visit appointments: ${error.message}`);
   }
 
-  return ((data ?? []) as unknown as VisitRow[]).map((row) => {
+  const rows = (data ?? []) as unknown as VisitRow[];
+  // Who is going along, so the booker sees who accepted and who can't come (ITER-055 bv6).
+  const companions = await listCompanionsForAppointments(
+    wardId,
+    rows.map((row) => row.id),
+    supabase,
+  );
+
+  return rows.map((row) => {
     const status = toAppointmentStatus(row.status);
     return {
       kind: "visit",
@@ -118,11 +129,38 @@ async function readVisitAppointments(
         row.households === null
           ? "Visit"
           : `Visit — ${row.households.family_name} family`,
-      detail: null,
+      detail: describeCompanions(companions.get(row.id) ?? []),
       href: "/visits",
       viewState: appointmentViewState({ status, scheduledFor: row.scheduled_for }, asOf),
+      role: "booker",
     };
   });
+}
+
+// Visits this person was invited to and ACCEPTED (ITER-055 bv6). A pending invite is not yet a
+// commitment, so it is the panel above the list rather than a row in it; a declined one is not one
+// at all. Read through the caller's client — 104d's `is_visit_companion()` arm is what lets them
+// read the appointment.
+async function readAcceptedVisitInvites(
+  supabase: Client,
+  wardId: string,
+  userId: string,
+  asOf: Date,
+): Promise<MyAppointmentSource[]> {
+  const invites = await listInvitedAppointments(wardId, userId, "accepted", supabase);
+
+  return invites.map((invite) => ({
+    kind: "visit",
+    id: invite.appointmentId,
+    startsAt: invite.scheduledFor,
+    allDay: false,
+    title:
+      invite.householdName === null ? "Visit" : `Visit — ${invite.householdName} family`,
+    detail: invite.madeByName === null ? null : `With ${invite.madeByName}`,
+    href: "/visits",
+    viewState: appointmentViewState({ status: "scheduled", scheduledFor: invite.scheduledFor }, asOf),
+    role: "companion",
+  }));
 }
 
 async function readScheduledTodos(supabase: Client, wardId: string): Promise<MyAppointmentSource[]> {
@@ -208,11 +246,12 @@ export async function listMyAppointmentSources(
   userId: string,
   asOf: Date,
 ): Promise<MyAppointmentSource[]> {
-  const [visits, todos, youth] = await Promise.all([
+  const [visits, companionVisits, todos, youth] = await Promise.all([
     readVisitAppointments(supabase, wardId, userId, asOf),
+    readAcceptedVisitInvites(supabase, wardId, userId, asOf),
     readScheduledTodos(supabase, wardId),
     readYouthSignUps(supabase, wardId, userId),
   ]);
 
-  return [...visits, ...todos, ...youth];
+  return [...visits, ...companionVisits, ...todos, ...youth];
 }

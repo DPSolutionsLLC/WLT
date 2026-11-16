@@ -33,6 +33,8 @@ export type VisitAppointment = {
   visitLogId: string | null;
   madeBy: string | null;
   notes: string | null;
+  // The visit assignment it was booked from (ITER-055 bv6, migration 104a), or null.
+  assignmentId: string | null;
   createdAt: string;
 };
 
@@ -51,6 +53,7 @@ type VisitAppointmentRow = {
   visit_log_id: string | null;
   made_by: string | null;
   notes: string | null;
+  assignment_id: string | null;
   created_at: string;
 };
 
@@ -63,7 +66,7 @@ type VisitAppointmentJoinedRow = VisitAppointmentRow & {
 // `string` and defeats supabase-js's literal parsing of the select list
 // (plans/retros/calendar-a-rules-and-api.md). And never `select("*")`.
 const APPOINTMENT_COLUMNS =
-  "id, org_id, household_id, scheduled_for, status, visit_log_id, made_by, notes, created_at";
+  "id, org_id, household_id, scheduled_for, status, visit_log_id, made_by, notes, assignment_id, created_at";
 
 const APPOINTMENT_JOINED_COLUMNS = `${APPOINTMENT_COLUMNS}, households (id, family_name), users (id, first_name, last_name)` as const;
 
@@ -89,6 +92,7 @@ export function mapAppointmentRow(row: VisitAppointmentRow): VisitAppointment {
     visitLogId: row.visit_log_id,
     madeBy: row.made_by,
     notes: row.notes,
+    assignmentId: row.assignment_id,
     createdAt: row.created_at,
   };
 }
@@ -202,6 +206,7 @@ export async function createAppointment(
       scheduled_for: input.scheduledFor,
       notes: input.notes ?? null,
       made_by: userId,
+      assignment_id: input.assignmentId ?? null,
     })
     .select(APPOINTMENT_COLUMNS)
     .single();
@@ -212,6 +217,26 @@ export async function createAppointment(
   }
 
   return mapAppointmentRow(data);
+}
+
+// Undoes an appointment THIS request just created, when writing its companions failed — the one
+// delete of an appointment in this app (visits-d's pitfall: never leave a half invite). Through the
+// caller's own client, so visit_appointments_delete decides, as it decided the insert.
+export async function deleteNewAppointment(
+  wardId: string,
+  appointmentId: string,
+  client: SupabaseClient<Database>,
+): Promise<void> {
+  const { error } = await client
+    .from("visit_appointments")
+    .delete()
+    .eq("ward_id", wardId)
+    .eq("id", appointmentId);
+
+  if (error) {
+    console.error(`Could not undo a visit appointment — ${error.message}`, { wardId, appointmentId });
+    throw new Error(`Could not undo that appointment: ${error.message}`);
+  }
 }
 
 export type AppointmentPatch = {

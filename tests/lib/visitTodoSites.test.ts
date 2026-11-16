@@ -47,6 +47,9 @@ const ASSIGNMENT_WRITE = /\.from\(\s*"visit_assignments"\s*\)[^;]*?\.(insert|upd
 // A todos row naming the link column as a key with a VALUE — an insert or an update setting it. A
 // row type (`visit_assignment_id: string | null;`) is not a write.
 const TODO_LINK_WRITE = /\bvisit_assignment_id\s*:(?!\s*string\b)/;
+// ITER-055 bv6: the companions table has no write policy either.
+const COMPANION_WRITE =
+  /\.from\(\s*"visit_appointment_companions"\s*\)[^;]*?\.(insert|update|upsert|delete)\s*\(/;
 
 // The routes that record a visit, edit one, or end a goal, and the call each must make.
 const RECONCILING_ROUTES: Record<string, RegExp> = {
@@ -71,6 +74,13 @@ describe("visit assignments and their to-dos have one writer each", () => {
   it("writes visit_assignments only from lib/visits/assignments.ts", () => {
     const writers = SOURCE_FILES.filter((file) => ASSIGNMENT_WRITE.test(read(file))).sort();
     expect(writers).toEqual(["lib/visits/assignments.ts"]);
+  });
+
+  it("writes visit_appointment_companions only from lib/visits/companions.ts", () => {
+    expect(COMPANION_WRITE.test(`await db.from("visit_appointment_companions").insert(rows)`)).toBe(true);
+    expect(COMPANION_WRITE.test(`await db.from("visit_appointment_companions").select("id");`)).toBe(false);
+    const writers = SOURCE_FILES.filter((file) => COMPANION_WRITE.test(read(file))).sort();
+    expect(writers).toEqual(["lib/visits/companions.ts"]);
   });
 
   it("writes todos.visit_assignment_id only from lib/todos/visitLinks.ts", () => {

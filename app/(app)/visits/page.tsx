@@ -1,6 +1,7 @@
 import { type AppointmentRow } from "@/app/(app)/visits/AppointmentPanel";
 import { type HouseholdContact } from "@/app/(app)/visits/ContactPanel";
 import { VisitFlagButton, type AppointmentPrefill } from "@/app/(app)/visits/VisitLogForm";
+import { InvitesPanel } from "@/app/(app)/visits/InvitesPanel";
 import { VisitsScreen } from "@/app/(app)/visits/VisitsScreen";
 import { ContextualBackLink } from "@/components/layout/ContextualBackLink";
 import { NotPermitted } from "@/components/ui/NotPermitted";
@@ -18,6 +19,8 @@ import { readAppointmentParam } from "@/lib/visits/appointmentLink";
 import { buildGoalHistory } from "@/lib/visits/goalHistory";
 import { listWardVisitCadences } from "@/lib/visits/householdCadences";
 import { listAppointments } from "@/lib/visits/appointments";
+import { describeCompanions, orderCompanionLeaders } from "@/lib/visits/companionText";
+import { listCompanionsForAppointments, listPendingInvitesFor } from "@/lib/visits/companions";
 import { listGoalAssignments, resolveAssignmentContext } from "@/lib/visits/assignments";
 import {
   describeHouseholdForVisits,
@@ -249,6 +252,24 @@ export default async function VisitsPage({
         }))
     : [];
 
+  // Who is going along on each appointment, and this reader's own pending invites (ITER-055 bv6).
+  // Through the caller's client: 104d decides which companion rows are readable. The bishopric is
+  // listed first in the companion picker.
+  const [companionsByAppointment, pendingInvites, bishopricForPicker] = await Promise.all([
+    listCompanionsForAppointments(
+      user.wardId,
+      appointments.map((appointment) => appointment.id),
+      supabase,
+    ),
+    listPendingInvitesFor(user.wardId, user.id, asOf, supabase),
+    canLog ? listBishopricUsers(user.wardId, supabase) : Promise.resolve([]),
+  ]);
+  const companionLeaders = orderCompanionLeaders(
+    leaders,
+    bishopricForPicker.map((member) => member.id),
+    user.id,
+  );
+
   const appointmentRows: AppointmentRow[] = appointments.map((appointment) => ({
     id: appointment.id,
     householdId: appointment.householdId,
@@ -258,6 +279,7 @@ export default async function VisitsPage({
     visitLogId: appointment.visitLogId,
     madeByName: appointment.madeByName,
     notes: appointment.notes,
+    companionsText: describeCompanions(companionsByAppointment.get(appointment.id) ?? []),
   }));
 
   // `?appointment=` is the whole protocol between the appointments window and the log form — see
@@ -391,7 +413,8 @@ export default async function VisitsPage({
         </p>
       </div>
 
-      {/* bv6 puts pending visit invites here, above the tabs whatever tab is open (prototype). */}
+      {/* Pending visit invites, above the tabs whatever tab is open (prototype, ITER-055 bv6). */}
+      <InvitesPanel invites={pendingInvites} wardTimeZone={wardTimeZone} />
 
       <VisitsScreen
         visibleTabs={visibleTabs}
@@ -415,6 +438,7 @@ export default async function VisitsPage({
           wardToday,
           showsPastGoals: visibleTabs.includes("goal_history"),
           leaders,
+          companionLeaders,
           memberNames,
           appointmentPrefill,
           recentVisits: <RecentVisits visits={visits} canLog={canLog} user={user} />,
@@ -437,6 +461,7 @@ export default async function VisitsPage({
                 wardTimeZone,
                 today,
                 leaders,
+                companionLeaders,
                 memberNames,
               }
         }

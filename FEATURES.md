@@ -642,6 +642,17 @@ Available to all organizations. Each org manages its own visit goals and logs in
   finished bishopric visit closes it, and so do reassigning, unassigning or ending the goal, each with
   a line saying why. A visit that still needs another keeps it open and adds the reason. Each member's
   **My visits** tab lists only the households given to them
+- **Booking a visit can bring companions.** A leader with an account is **invited** and accepts or
+  declines; a member of the ward or somebody typed by name is just noted on the visit. Invites wait at
+  the top of **My Appointments** and above the tabs on **Visits**, and a notification is saved for the
+  bell (which shows nothing until the notifications screen is built). An accepted visit
+  joins the companion's My Appointments; a declined one disappears from their screens, and the person
+  who booked it sees "can't come" beside the name. Companions are listed leaders first, then everyone
+  else, each A to Z. **Schedule** on a *Visit the ___ family* to-do books the visit itself, so it shows
+  once on My Appointments; the window stays open to say whether the invites went out. The to-do names
+  the soonest booked visit (and how many more), and reads Upcoming, Do today or Overdue from it. A
+  second visit can be booked for the same family after the card asks "Book another visit?" — the first
+  one stays. Times are the ward's clock
 - The banner states the goal **in words** first — "Every household, every year. Warning 2 months
   ahead." — then the four counts, then the percentage on track. The numbers are read against their
   own definition rather than against an assumption

@@ -47,6 +47,7 @@ const ELLIS_APPOINTMENT: AppointmentRow = {
   visitLogId: null,
   madeByName: "Lena Ortiz",
   notes: null,
+  companionsText: null,
 };
 
 function renderWindow(appointments: AppointmentRow[] = []) {

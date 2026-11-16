@@ -93,7 +93,16 @@ type TodoSummaryRow = TodoRow & {
   ask: AskSourceRow;
   prayer: PrayerAskSourceRow;
   scheduled_member: ScheduledMemberRow;
+  visit_assignment: VisitAssignmentRow;
 };
+
+// Read through visit_assignments' own SELECT (103a): the to-do's owner is the assignee, who always
+// reads their own assignment, and the bishopric reads every appointment (099c).
+type VisitAssignmentRow = {
+  household_id: string;
+  households: { family_name: string } | null;
+  visit_appointments: { scheduled_for: string; status: string }[] | null;
+} | null;
 
 type StepRow = {
   id: string;
@@ -124,7 +133,7 @@ type LogRow = {
 const TODO_COLUMNS =
   "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, ask_prayer_id, music_sunday_id, music_role, zoom_invitee_id, zoom_registration_id, visit_assignment_id, closed_reason, talk_off_at, created_at, updated_at";
 const TODO_WITH_STEPS_COLUMNS =
-  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, ask_prayer_id, music_sunday_id, music_role, zoom_invitee_id, zoom_registration_id, visit_assignment_id, closed_reason, talk_off_at, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date)), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number, cancelled_at, topic_title, sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), talk_references!talk_references_assignment_id_ward_id_fkey (citation, created_at)), prayer:prayer_assignments!todos_ask_prayer_id_fkey (id, member_id, prayer_type, cancelled_at, sundays!prayer_assignments_sunday_id_ward_id_fkey (date), members!prayer_assignments_member_id_ward_id_fkey (first_name, last_name, phone)), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name)";
+  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, ask_prayer_id, music_sunday_id, music_role, zoom_invitee_id, zoom_registration_id, visit_assignment_id, closed_reason, talk_off_at, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date)), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number, cancelled_at, topic_title, sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), talk_references!talk_references_assignment_id_ward_id_fkey (citation, created_at)), prayer:prayer_assignments!todos_ask_prayer_id_fkey (id, member_id, prayer_type, cancelled_at, sundays!prayer_assignments_sunday_id_ward_id_fkey (date), members!prayer_assignments_member_id_ward_id_fkey (first_name, last_name, phone)), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name), visit_assignment:visit_assignments!todos_visit_assignment_id_fkey (household_id, households!visit_assignments_household_fkey (family_name), visit_appointments!visit_appointments_assignment_id_fkey (scheduled_for, status))";
 const STEP_COLUMNS = "id, todo_id, label, position, done_at";
 const LOG_COLUMNS = "id, todo_id, kind, body, created_at";
 
@@ -273,6 +282,21 @@ function mapTodoWithSteps(row: TodoSummaryRow): TodoSummary {
     agendaSource: mapAgendaSource(row.action_items),
     askSource: mapAskSource(row.ask, row.completed_at) ?? mapPrayerAskSource(row.prayer, row.completed_at),
     scheduledWithMemberName: memberName(row.scheduled_member),
+    visitSource: mapVisitSource(row.visit_assignment),
+  };
+}
+
+function mapVisitSource(row: VisitAssignmentRow): TodoSummary["visitSource"] {
+  if (row === null) return null;
+  const booked = (row.visit_appointments ?? [])
+    .filter((appointment) => appointment.status === "scheduled")
+    .map((appointment) => appointment.scheduled_for)
+    .sort();
+  return {
+    householdId: row.household_id,
+    familyName: row.households?.family_name ?? null,
+    bookedFor: booked[0] ?? null,
+    otherBookingCount: Math.max(booked.length - 1, 0),
   };
 }
 
@@ -462,6 +486,7 @@ export async function createTodo(
     agendaSource: null,
     askSource: null,
     scheduledWithMemberName: null,
+    visitSource: null,
   };
 }
 
@@ -593,6 +618,7 @@ export async function updateTodo(
       ...mapTodoRow(data),
       steps: current.steps,
       agendaSource: current.agendaSource,
+      visitSource: current.visitSource,
       // Scheduling their own time retires the note about somebody else's (f3a).
       askSource:
         current.askSource !== null && data.scheduled_for !== null

@@ -4,8 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { CalendarClock, House, Mic, Music, Pencil, Plus, Video } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
+import { Modal } from "@/components/ui/Modal";
 import { Pill, type PillTone } from "@/components/ui/Pill";
 import { todoProgress } from "@/lib/todos/progress";
 import { todoViewState } from "@/lib/todos/viewState";
@@ -25,6 +27,8 @@ import { ScheduleDialog } from "@/app/(app)/todos/ScheduleDialog";
 import { RemoveButton, SmallButton } from "@/app/(app)/todos/SmallButton";
 import { TodoFormDialog } from "@/app/(app)/todos/TodoFormDialog";
 import { TodoTimeline } from "@/app/(app)/todos/TodoTimeline";
+import { ScheduleVisitWindow } from "@/app/(app)/visits/ScheduleVisitWindow";
+import type { LeaderOption } from "@/app/(app)/visits/VisitParticipantsField";
 import { TODO_DETAIL_QUERY_KEY, fetchTodoLog, sendTodoRequest } from "@/app/(app)/todos/todoApi";
 import { useArmedRemoval } from "@/app/(app)/todos/useArmedRemoval";
 
@@ -75,12 +79,20 @@ type CardRequest = {
   place: ErrorPlace;
 };
 
+// What the visit scheduler needs to offer companions (ITER-055 bv6): leaders to invite (bishopric
+// first, without the reader) and member names for the picker's chips.
+export type VisitBookingOptions = {
+  leaders: LeaderOption[];
+  memberNames: Record<string, string>;
+};
+
 export type TodoCardProps = {
   todo: TodoSummary;
   today: string;
   wardZone: string;
   user: SessionUser;
   canPickMember: boolean;
+  visitBooking?: VisitBookingOptions | null;
   onChanged: () => void;
 };
 
@@ -90,11 +102,13 @@ export function TodoCard({
   wardZone,
   user,
   canPickMember,
+  visitBooking = null,
   onChanged,
 }: TodoCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [scheduling, setScheduling] = useState(false);
+  const [confirmingAnotherVisit, setConfirmingAnotherVisit] = useState(false);
   const [declining, setDeclining] = useState(false);
   const [newStep, setNewStep] = useState("");
   const [error, setError] = useState<{ message: string; place: ErrorPlace } | undefined>(
@@ -126,6 +140,13 @@ export function TodoCard({
   const isZoomTodo = todo.zoomLink !== null || todo.zoomRegistrationLink !== null;
   // So does "Visit the ___ family" (ITER-055 bv5): a finished bishopric visit closes it.
   const isVisitTodo = todo.visitLink !== null;
+  // SCHEDULING ONE BOOKS A VISIT APPOINTMENT (P11), never a time on the to-do, so the visit is on My
+  // Appointments once. Only while it is open and its household is readable.
+  const visitSource = todo.visitSource;
+  const booksVisit = isVisitTodo && visitSource !== null && !isDone;
+  // A SECOND BOOKING IS ALLOWED, AFTER A CONFIRM (the user's decision walking scenario 102): the
+  // calendar asks first whenever a visit is already booked, and the first booking stays.
+  const alreadyBookedFor = booksVisit ? visitSource.bookedFor : null;
   const bodyId = `todo-body-${todo.id}`;
   const stepFieldId = `todo-step-${todo.id}`;
 
@@ -309,6 +330,14 @@ export function TodoCard({
               {todo.scheduledWithMemberName === null ? "" : ` · with ${todo.scheduledWithMemberName}`}
             </span>
           )}
+          {visitSource?.bookedFor ? (
+            <span className="text-xs font-medium text-foreground">
+              Visit booked {formatAppointmentInstant(visitSource.bookedFor, wardZone)}
+              {visitSource.otherBookingCount === 0
+                ? ""
+                : ` · and ${visitSource.otherBookingCount} more booked`}
+            </span>
+          ) : null}
           {/* A `date` column, so UTC like the do and due dates above. */}
           {todo.askSource === null ? null : (
             <span className="text-xs text-muted">
@@ -338,7 +367,9 @@ export function TodoCard({
         {/* Icons alone, so the row stays short at 375px (defect 077-D1). */}
         <SmallButton
           accessibleName={`Schedule ${todo.title}`}
-          onClick={() => setScheduling(true)}
+          onClick={() =>
+            alreadyBookedFor === null ? setScheduling(true) : setConfirmingAnotherVisit(true)
+          }
           disabled={busy}
         >
           <CalendarClock aria-hidden="true" className="h-3.5 w-3.5" />
@@ -505,8 +536,66 @@ export function TodoCard({
         </div>
       ) : null}
 
+      {/* EACH WINDOW CLOSES ONLY ITSELF (defect 100-D1): "Book another" opens the booking window
+          while this one is closing, and its late native `close` must not shut the new one. */}
+      {confirmingAnotherVisit && alreadyBookedFor !== null ? (
+        <Modal
+          isOpen={confirmingAnotherVisit}
+          onClose={() => setConfirmingAnotherVisit(false)}
+          title="Book another visit?"
+        >
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-foreground">
+              {visitSource?.familyName ? `The ${visitSource.familyName} family` : "This household"}{" "}
+              already has a visit booked {formatAppointmentInstant(alreadyBookedFor, wardZone)}.
+              Booking another keeps that one as it is.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                onClick={() => {
+                  setConfirmingAnotherVisit(false);
+                  setScheduling(true);
+                }}
+              >
+                Book another
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setConfirmingAnotherVisit(false)}
+              >
+                Keep just that one
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
       {/* Mounted only while open, so each re-reads the to-do's current values every time. */}
-      {scheduling ? (
+      {scheduling && booksVisit && todo.visitLink !== null ? (
+        <ScheduleVisitWindow
+          isOpen={scheduling}
+          onClose={() => setScheduling(false)}
+          onBooked={changed}
+          title="Book this visit"
+          households={[
+            {
+              id: visitSource.householdId,
+              label:
+                visitSource.familyName === null
+                  ? todo.title
+                  : `The ${visitSource.familyName} family`,
+            },
+          ]}
+          initialHouseholdId={visitSource.householdId}
+          assignmentId={todo.visitLink.assignmentId}
+          wardTimeZone={wardZone}
+          user={user}
+          leaders={visitBooking?.leaders ?? []}
+          memberNames={visitBooking?.memberNames ?? {}}
+        />
+      ) : scheduling ? (
         <ScheduleDialog
           isOpen={scheduling}
           onClose={() => setScheduling(false)}

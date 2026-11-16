@@ -16,7 +16,9 @@ retro. Build them in order; each depends on the ones before it.
 | bv3 | ✅ committed `cd8823b` (migration 101, scenario 100) |
 | bv4 | ✅ committed `9b1dcf8` (migration 102, scenario 101). Decided at start: the Bishopric returns to the Organization picker (progress reads its no-org visits); once done stays done in a sweep; Past goals is bishopric-only. `VisitGoalPanel` was extended rather than a `GoalWindow` created. All orgs shows no sweep organizations yet. |
 | bv5 | **Built 2026-11-11, NOT committed** — migration **103** (applied), scenario **102** (`visits/scenario-102-assign-households-to-the-bishopric`, bv5 half; not yet walked). Decided at start: assigning needs an active Bishopric goal; only a finished **Bishopric** visit closes an assignment; ending a goal closes every open assignment either way. Added beyond the plan: close reason `goal_ended` and line kinds `visit_unassigned` / `visit_goal_ended`. |
-| bv6–bv8 | Not started. **bv6's migration is now 104 and its scenario extends 102.** |
+| bv5 commit | ✅ committed `fecc891` |
+| bv6 | **Built 2026-11-12, NOT committed** — migration **104** (applied), scenario **102** Part 2 (walked by Claude 2026-11-15; three defects fixed and re-walked: the booking window keeps its confirmation, companions sort leaders-first A–Z, a booked visit sets the to-do's state; a second booking asks first). Decided at start: any ward leader can be invited; an invite is answered once, while pending; cancel/reschedule notifies nobody. Added beyond the plan: to-do log kind `visit_companion_declined`; the booker's My Appointments row lists companions with their answers. |
+| bv7–bv8 | Not started. bv7's migration is 105. |
 
 **What the 2026-11-09 refresh changed — no decision (D1–D9, P1–P16) moved:**
 - **Migration numbers are one later than first written.** 100 went to `100_zoom_join_links_w_to_j.sql`, so bv3 used 101. From here: **bv4 → 102, bv5 → 103, bv6 → 104, bv7 → 105.** Always re-check `ls supabase/migrations | tail -3` before creating one.

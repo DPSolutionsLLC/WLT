@@ -50,6 +50,9 @@ cross join (values
   -- §Step 3 both give the ward council agenda to that role, and the notification carries the
   -- one-liner only. Nobody who cannot already see the visit learns anything from it.
   ('visit_flagged_for_ward_council', array['executive_secretary']),
+  -- An invited companion on a visit appointment (ITER-055 bv6, migration 104f). Addressed to each
+  -- invited leader explicitly, so this list is the opt-out surface rather than the address list.
+  ('visit_companion_invited',       array['bishop', 'counselor']),
   ('new_household_added',           array['bishop', 'counselor', 'org_president', 'ward_secretary']),
 
   -- Youth activities

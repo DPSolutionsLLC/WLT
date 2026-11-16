@@ -28,6 +28,7 @@ export const NOTIFICATION_TRIGGER_DEFAULTS: readonly NotificationTriggerDefault[
   { triggerKey: "org_conducting_rotation_changed", defaultRoles: ["org_president", "org_counselor", "org_secretary"] },
   { triggerKey: "visit_overdue", defaultRoles: ["org_president", "org_counselor", "org_secretary"] },
   { triggerKey: "visit_flagged_for_ward_council", defaultRoles: ["executive_secretary"] },
+  { triggerKey: "visit_companion_invited", defaultRoles: ["bishop", "counselor"] },
   { triggerKey: "new_household_added", defaultRoles: ["bishop", "counselor", "org_president", "ward_secretary"] },
   { triggerKey: "youth_activity_added", defaultRoles: ["org_president", "org_counselor", "org_secretary"] },
   { triggerKey: "youth_event_uncovered", defaultRoles: ["org_president", "org_counselor"] },

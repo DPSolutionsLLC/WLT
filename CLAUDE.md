@@ -790,6 +790,24 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   outcome**, so editing an old visit's notes cannot close an assignment made since. The to-do has no
   checkbox and is not deletable while open; a reassign closes the old holder's first (different
   owners, so 103b's index never collides). **My visits** is a bishopric-only tab.
+  **bv6 (2026-11-12, migration 104): a booked visit has companions — a leader is INVITED, a member or
+  a typed name is RECORDED.** `visit_appointment_companions` has **a SELECT policy and no write
+  policy**; `lib/visits/companions.ts` is its only writer (`tests/lib/visitTodoSites.test.ts`).
+  `visit_appointments_select` gains ONE arm, `is_visit_companion(id)`, exposing that appointment and
+  nothing else — no log, no participant, no assignment; a decline drops it. **Decided at bv6 start:**
+  any leader with a calling in the ward may be invited (`findUsersOutsideWard()`, the booker refused);
+  an invite is answered **once, while pending**; cancelling or rescheduling **notifies nobody**.
+  **Schedule on a visit to-do books a `visit_appointments` row carrying `assignment_id`** (P11), never
+  a time on the to-do, so the visit is on My Appointments once. **Accepted invites are the same `visit`
+  kind in `buildMyAppointments()`** with `role: "companion"` — one list, no Cancel. Booking is ONE form,
+  `ScheduleVisitForm`, on the **ward's clock** (the old one read the browser's); the companion picker is
+  `VisitParticipantsField` with `copy`, not a second picker. Trigger `visit_companion_invited` is in all
+  four copies plus 104f's backfill. **Decided walking scenario 102:** the booking window stays open on
+  its "Visit booked…" sentence with Done (102-D1); companions sort leaders first then the rest, each A
+  to Z, in `compareCompanions()` (102-D2); a second booking for one assignment is allowed **after an
+  in-page confirm**, and the to-do names the SOONEST booking plus a count; **a booked visit counts as
+  the to-do's scheduled time in `todoViewState()`** (102-D3, 077-D2 by a second route) — a new way to
+  schedule a to-do must be added there too.
 - **SUPERSEDED for visits by ITER-055 (above).** **Cross-org visibility widens an organization's whole PROGRESS — DECIDED 2026-08-27, REVERSING
   ITER-018.** `ward_allows_cross_org_visibility()` now appears in **four** SELECT policies:
   `visit_logs_select` (019), `household_stewardships_select` (052), and — added by migration 053 —

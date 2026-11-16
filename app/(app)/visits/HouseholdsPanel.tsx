@@ -97,6 +97,8 @@ export type HouseholdsPanelProps = {
   // The reader has the Past goals tab (bishopric only).
   showsPastGoals: boolean;
   leaders: LeaderOption[];
+  // The leaders a booked visit can invite: everybody but the reader, bishopric first (bv6).
+  companionLeaders: LeaderOption[];
   memberNames: Record<string, string>;
   appointmentPrefill?: AppointmentPrefill;
   // Rendered by the server so this client file never touches a visit's notes query.
@@ -184,6 +186,7 @@ export function HouseholdsPanel({
   wardToday,
   showsPastGoals,
   leaders,
+  companionLeaders,
   memberNames,
   appointmentPrefill,
   recentVisits,
@@ -453,6 +456,9 @@ export function HouseholdsPanel({
             canBook={canLog}
             wardTimeZone={wardTimeZone}
             initialHouseholdId={openWindow.householdId}
+            user={user}
+            leaders={companionLeaders}
+            memberNames={memberNames}
           />
         ) : null}
       </Modal>

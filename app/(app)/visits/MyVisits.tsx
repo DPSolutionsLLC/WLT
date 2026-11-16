@@ -30,6 +30,7 @@ export type MyVisitsProps = {
   wardTimeZone: string;
   today: string;
   leaders: LeaderOption[];
+  companionLeaders: LeaderOption[];
   memberNames: Record<string, string>;
 };
 
@@ -58,6 +59,7 @@ export function MyVisits({
   wardTimeZone,
   today,
   leaders,
+  companionLeaders,
   memberNames,
 }: MyVisitsProps) {
   const [openWindow, setOpenWindow] = useState<OpenWindow>(null);
@@ -152,6 +154,9 @@ export function MyVisits({
             canBook={canLog}
             wardTimeZone={wardTimeZone}
             initialHouseholdId={openWindow.householdId}
+            user={user}
+            leaders={companionLeaders}
+            memberNames={memberNames}
           />
         ) : null}
       </Modal>

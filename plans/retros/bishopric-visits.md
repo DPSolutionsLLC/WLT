@@ -309,3 +309,61 @@ line and keeps the to-do open.
 
 ### Validation
 Typecheck and lint clean. Full suite 385 files / 5617 tests green, including the walk changes. The production build and harness typecheck were clean before the walk; the walk changes touched only three client components and their tests. Migration 103 applied.
+
+## bv6 — Companions on a booked visit, and invites (not yet committed)
+
+### What was done
+Booking a visit can bring companions along. A **leader** in the ward is **invited**: they get a
+`visit_companion_invited` notification, and an invite with Accept / Decline on Visits and on My
+Appointments. A **member** or a **typed name** is simply recorded. **Schedule** on a "Visit the ___
+family" to-do books a `visit_appointments` row carrying the `assignment_id`, so the visit shows on My
+Appointments once. An accepted invite joins the companion's own My Appointments as the same `visit`
+kind, with `role: "companion"` and no Cancel. A decline adds "___ can't come" to the booker's to-do
+timeline (`visit_companion_declined`). Booking is one form, `ScheduleVisitForm`, inside the new
+`ScheduleVisitWindow`, and it reads the **ward's** clock.
+
+### Key decisions
+- **`visit_appointment_companions` has a SELECT policy and no write policy** (migration 104).
+  `lib/visits/companions.ts` is its only writer, held by `tests/lib/visitTodoSites.test.ts`.
+  `visit_appointments_select` gains one arm, `is_visit_companion(id)`. It exposes that appointment
+  and nothing else: no log, no participant, no assignment. A decline removes the access.
+- **Decided at bv6 start:**
+  - Any leader with a calling in the ward may be invited. `findUsersOutsideWard()` checks this, and
+    the booker cannot invite themselves.
+  - An invite is answered once, while pending.
+  - Cancelling or rescheduling a visit notifies nobody.
+- **The companion picker is `VisitParticipantsField` with `copy`**, not a second picker. The trigger
+  is in all four copies of the list, plus migration 104f's backfill.
+
+### Found on the walk (scenario 102 Part 2, 2026-11-15, driven by Claude)
+- **102-D1:** the booking window closed the moment the save succeeded, so "Visit booked. 2 invites
+  have been sent." was never seen. **Fixed:** the window now stays open on that sentence with a
+  **Done** button (the user's choice).
+- **102-D2:** companions were listed in random UUID order, because one statement inserts them all.
+  **Fixed:** `compareCompanions()` sorts leaders first, then everyone else, each A to Z (the user's
+  choice).
+- **102-D3:** a booked visit to-do read **Someday**, because `todoViewState()` read only the to-do's
+  own dates. This is 077-D2 again, reached by a second route. **Fixed:** the soonest booking counts
+  as the scheduled time. A new way to schedule a to-do must be added there too.
+- **A second booking for one assignment** used to add an appointment silently, and the to-do then
+  named the *latest* booking. **The user decided:** allow it, but only after an in-page "Book another
+  visit?" confirmation. The to-do now names the **soonest** booking, plus "· and N more booked".
+- **Checklist corrections:**
+  - Step 18 now reads the notification row back, because the bell is a placeholder until P12.
+  - Step 20's visit-log check could never fail on that seed, so it now points at
+    `tests/rls/visit-companions.test.ts`.
+- **Re-walked after the fixes:** full width, then 375px in light and dark. The Ellis household ends
+  with 4 appointments, read back. The one console error came from the dev server compiling between
+  two edits; four fresh page loads afterwards logged none.
+
+### Follow-ups (not built)
+- From bv5, still open: the visit form's default date is in UTC, not the ward's zone.
+- Accepting an invite on Visits took 2.5–8 s to clear the panel on the dev server.
+- bv7 (scenario 103) is next in this plan.
+
+### Validation
+- Typecheck and lint are clean.
+- Full suite: 390 files, 5,663 tests, all passing. This run included the walk fixes and the new
+  `ScheduleVisitWindow` and `TodoCard` component tests.
+- The production build is clean.
+- Migration 104 is applied.

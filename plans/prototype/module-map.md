@@ -338,6 +338,13 @@ label**. ⚠️ **Do not port the prototype's date handling** — [decisions.md]
 > closes. **My visits** joins the tabs (bishopric only); the banner shows each member's share. Decided
 > at bv5 start: assigning needs an active goal; only a finished **Bishopric** visit closes an
 > assignment; ending a goal closes every open one, completed or set aside.
+>
+> **bv6 BUILT 2026-11-12 (migration 104) — item 1 delivered.** Booking a visit takes companions: a
+> leader is **invited** (pending → accept / decline, once) and a member or typed name is **recorded**,
+> never silently added. Pending invites sit above the tabs on Visits and at the top of My
+> Appointments, plus the bell; an accepted one joins the companion's My Appointments. Schedule on a
+> visit to-do books the appointment itself (P11). Decided at bv6 start: any ward leader may be
+> invited; cancel or reschedule notifies nobody.
 
 ### 2.10 To Do — NEW
 Build this **early** — Sacrament's accept/decline, Agendas' delegation, My Appointments and the

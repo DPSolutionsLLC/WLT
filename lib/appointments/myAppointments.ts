@@ -48,7 +48,14 @@ type AppointmentBase = {
 };
 
 export type MyAppointmentSource =
-  | (AppointmentBase & { kind: "visit"; allDay: false; viewState: AppointmentViewState })
+  // `role` (ITER-055 bv6): a visit this person BOOKED, or one they were invited to and accepted. The
+  // same kind, so it is one list and one conflict answer; only the booker may cancel it.
+  | (AppointmentBase & {
+      kind: "visit";
+      allDay: false;
+      viewState: AppointmentViewState;
+      role: "booker" | "companion";
+    })
   // `ask` is set on a talk's ask (Sacrament slice f1): its topic and contact details, and whether
   // it still waits for an answer, which the row can record.
   | (AppointmentBase & { kind: "todo"; allDay: false; completed: boolean; ask: TodoAskSource | null })

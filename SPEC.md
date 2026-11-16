@@ -810,6 +810,38 @@ reassignment or unassignment (`closed_reason` `reassigned` / `unassigned`) and w
 (`goal_ended`). A visit that still needs a visit adds a `visit_partly_reached` line and leaves it open.
 Another organization's visit does not touch it.
 
+### `visit_appointment_companions` (migration 104, ITER-055 bv6)
+
+```sql
+id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
+ward_id         uuid NOT NULL REFERENCES wards(id)
+appointment_id  uuid NOT NULL  -- (appointment_id, ward_id) → visit_appointments ON DELETE CASCADE
+user_id         uuid REFERENCES users(id)   -- an INVITED leader (subject column, checked by the route)
+member_id       uuid  -- (member_id, ward_id) → members; a RECORDED roster member
+label           text  -- a RECORDED typed name
+status          text  -- pending | accepted | declined; set exactly when user_id is
+responded_at    timestamptz  -- set exactly when status is accepted or declined
+created_at      timestamptz DEFAULT now()
+-- exactly one of user_id / member_id / label; one row per (appointment, user) and (appointment, member)
+```
+
+`visit_appointments.assignment_id uuid REFERENCES visit_assignments(id) ON DELETE SET NULL` (104a): the
+visit was booked from a "Visit the ___ family" to-do.
+
+**A SELECT policy and no write policy.** Readable by whoever can read the appointment, and an invitee
+always reads their own invite. `visit_appointments_select` gains ONE arm, `is_visit_companion(id)`
+(`security definer`; a pending or accepted invite on THAT appointment) — it never widens a visit log, a
+participant, an assignment or a private note. The only writer is `lib/visits/companions.ts` on the
+service role. `POST /api/visit-appointments` takes `companions` (the participants union, at most
+`MAX_VISIT_COMPANIONS`; the booker, a leader with no calling in the ward, or a member off the roster is
+a 400) and `assignmentId` (bishopric authors only, for an open assignment of the same household; 403 /
+404 / 409). The appointment is inserted through the caller's client and its companions in one service
+insert; if that fails the appointment is deleted again. Each invited leader gets
+`visit_companion_invited`; the audit row carries counts only. `POST /api/visit-invites/[id]`
+(`{ accept }`, `personal_tools.use`) answers once while pending — somebody else's invite is a 404, a
+second answer a 409 — and a decline on an assignment's visit writes a `visit_companion_declined` line on
+its open to-do. Cancelling or rescheduling notifies nobody (decided at bv6 start).
+
 ### `visit_logs`
 ```sql
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
@@ -1792,7 +1824,9 @@ readable by `audit.view`; a to-do is not).
 ### My Appointments  *(P5 slice c — `personal_tools.use`)*
 No routes of its own. `/appointments` is a Server Component reading three sources for the caller
 (`lib/appointments/queries.ts`) — `visit_appointments` where `made_by` is the caller and the status
-is not cancelled, the caller's scheduled `todos`, and `activity_attendees` rows for the caller on
+is not cancelled (`role: "booker"`, its companions in the detail), visits the caller ACCEPTED an
+invite to (`role: "companion"`, same `visit` kind, no Cancel; ITER-055 bv6), the caller's scheduled
+`todos`, and `activity_attendees` rows for the caller on
 events that are not cancelled — and merging them in ONE pure function,
 `buildMyAppointments()` (`lib/appointments/myAppointments.ts`). Its inline actions call the owning
 modules' existing routes: `PATCH /api/visit-appointments/[id] { action: "cancel" }` and
@@ -2396,6 +2430,7 @@ org_conducting_rotation_changed
 -- Visits
 visit_overdue
 visit_flagged_for_ward_council
+visit_companion_invited        -- somebody booked a visit and invited you along; accept or decline (ITER-055 bv6)
 new_household_added
 
 -- Youth Activities

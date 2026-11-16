@@ -2422,6 +2422,7 @@ export const NOTIFICATION_TRIGGERS: Array<{ key: string; defaultRoles: Role[] }>
   // The comment that used to sit here said the same thing without a test behind it, and was wrong
   // by five keys while saying it.
   { key: "visit_flagged_for_ward_council", defaultRoles: ["executive_secretary"] },
+  { key: "visit_companion_invited", defaultRoles: ["bishop", "counselor"] },
   { key: "new_household_added", defaultRoles: ["bishop", "counselor", "org_president", "ward_secretary"] },
   { key: "youth_activity_added", defaultRoles: ["org_president", "org_counselor", "org_secretary"] },
   { key: "youth_event_uncovered", defaultRoles: ["org_president", "org_counselor"] },

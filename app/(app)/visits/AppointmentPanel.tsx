@@ -5,16 +5,17 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
-import { Input } from "@/components/ui/Input";
 import { appointmentViewState } from "@/lib/visits/appointmentStatus";
 import { logVisitHref } from "@/lib/visits/appointmentLink";
 import { formatAppointmentInstant } from "@/lib/visits/visitDates";
-import { MAX_SHARED_NOTES } from "@/lib/validation/visit";
 import {
   APPOINTMENT_VIEW_STATE_LABELS,
   type AppointmentStatus,
   type AppointmentViewState,
+  type SessionUser,
 } from "@/types/domain";
+import { ScheduleVisitForm } from "@/app/(app)/visits/ScheduleVisitWindow";
+import type { LeaderOption } from "@/app/(app)/visits/VisitParticipantsField";
 import type { HouseholdOption } from "@/app/(app)/visits/VisitLogForm";
 
 // Appointments — the visits a ward has ARRANGED but not yet made.
@@ -42,6 +43,8 @@ export type AppointmentRow = {
   visitLogId: string | null;
   madeByName: string | null;
   notes: string | null;
+  // "With Ann Lee (coming), a neighbour" — lib/visits/companionText.ts, or null (ITER-055 bv6).
+  companionsText: string | null;
 };
 
 export type AppointmentPanelProps = {
@@ -55,6 +58,10 @@ export type AppointmentPanelProps = {
   wardTimeZone: string;
   // The household a card's Contact window chose "Schedule an appointment" for (ITER-055 bv3).
   initialHouseholdId?: string;
+  // For the companion picker (ITER-055 bv6): leaders to invite, and member names for the chips.
+  user: SessionUser;
+  leaders: LeaderOption[];
+  memberNames: Record<string, string>;
 };
 
 // "Log this visit" puts the appointment in the URL rather than in shared client state, and
@@ -102,12 +109,6 @@ const STATE_MARKS: Record<AppointmentViewState, string> = {
   missed: "!",
 };
 
-const TEXTAREA_CLASSES =
-  "min-h-20 rounded-md border border-border bg-surface-raised px-3 py-2 text-base text-foreground placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
-
-const SELECT_CLASSES =
-  "min-h-11 rounded-md border border-border bg-surface-raised px-3 text-base text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
-
 async function readJson(response: Response): Promise<Record<string, unknown>> {
   try {
     return (await response.json()) as Record<string, unknown>;
@@ -121,8 +122,7 @@ function errorFrom(payload: Record<string, unknown>, fallback: string): string {
 }
 
 // <input type="datetime-local"> speaks local wall-clock with no offset, and the API takes an ISO
-// instant. Converting through Date rather than string-building is what keeps a ward on the far
-// side of a timezone from booking Tuesday and reading back Monday.
+// instant. Only Reschedule still reads it this way; booking reads the WARD's clock (bv6).
 function toIsoInstant(localValue: string): string | null {
   const parsed = new Date(localValue);
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
@@ -134,67 +134,19 @@ export function AppointmentPanel({
   canBook,
   wardTimeZone,
   initialHouseholdId,
+  user,
+  leaders,
+  memberNames,
 }: AppointmentPanelProps) {
   const router = useRouter();
 
-  const [householdId, setHouseholdId] = useState(initialHouseholdId ?? "");
-  const [scheduledFor, setScheduledFor] = useState("");
-  const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | undefined>(undefined);
-  const [notice, setNotice] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
 
   const now = new Date();
 
-  async function book(): Promise<void> {
-    setError(undefined);
-    setNotice(undefined);
-
-    if (householdId === "") {
-      setError("Choose which household this appointment is with.");
-      return;
-    }
-
-    const instant = toIsoInstant(scheduledFor);
-
-    if (instant === null) {
-      setError("Give the day and time of the appointment.");
-      return;
-    }
-
-    setSaving(true);
-
-    try {
-      const response = await fetch("/api/visit-appointments", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          householdId,
-          scheduledFor: instant,
-          notes: notes.trim() === "" ? null : notes,
-        }),
-      });
-
-      if (!response.ok) {
-        setError(errorFrom(await readJson(response), "Could not book that appointment."));
-        return;
-      }
-
-      setHouseholdId("");
-      setScheduledFor("");
-      setNotes("");
-      setNotice("Appointment booked.");
-      router.refresh();
-    } catch {
-      setError("Could not reach the server. Check your connection and try again.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function patch(appointmentId: string, body: unknown, fallback: string): Promise<void> {
     setError(undefined);
-    setNotice(undefined);
     setSaving(true);
 
     try {
@@ -282,6 +234,9 @@ export function AppointmentPanel({
                   {formatAppointmentInstant(appointment.scheduledFor, wardTimeZone)}
                   {appointment.madeByName === null ? "" : ` · booked by ${appointment.madeByName}`}
                 </p>
+                {appointment.companionsText === null ? null : (
+                  <p className="mt-1 text-sm text-muted">{appointment.companionsText}</p>
+                )}
 
                 {/* The word AND a shape, never the colour alone. */}
                 <p className="mt-2">
@@ -330,73 +285,21 @@ export function AppointmentPanel({
         </ul>
       )}
 
+      <FormError message={error} />
+
       {canBook ? (
         <div className="mt-6 flex flex-col gap-4 border-t border-border pt-4">
-          <h3 className="text-sm font-semibold text-foreground">Book an appointment</h3>
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="appointment-household" className="text-sm font-medium text-foreground">
-              Household
-            </label>
-            <select
-              id="appointment-household"
-              className={SELECT_CLASSES}
-              value={householdId}
-              onChange={(event) => setHouseholdId(event.target.value)}
-            >
-              <option value="">Choose a household…</option>
-              {households.map((household) => (
-                <option key={household.id} value={household.id}>
-                  {household.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* No `min`. An appointment recorded after the fact is a real thing — a leader writes
-              down on Wednesday the visit they arranged for Tuesday — and refusing it would push
-              that record into a notes field where nothing can count it. */}
-          <Input
-            id="appointment-scheduled-for"
-            label="Day and time"
-            type="datetime-local"
-            value={scheduledFor}
-            onChange={(event) => setScheduledFor(event.target.value)}
+          <h3 className="text-sm font-semibold text-foreground">Book a visit</h3>
+          <ScheduleVisitForm
+            households={households}
+            initialHouseholdId={initialHouseholdId}
+            wardTimeZone={wardTimeZone}
+            user={user}
+            leaders={leaders}
+            memberNames={memberNames}
           />
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="appointment-notes" className="text-sm font-medium text-foreground">
-              Note
-            </label>
-            <p id="appointment-notes-help" className="text-sm text-muted">
-              Anyone who can see this appointment will read this.
-            </p>
-            <textarea
-              id="appointment-notes"
-              aria-describedby="appointment-notes-help"
-              className={TEXTAREA_CLASSES}
-              maxLength={MAX_SHARED_NOTES}
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-            />
-          </div>
-
-          <FormError message={error} />
-          {notice ? (
-            <p role="status" className="text-sm text-success">
-              {notice}
-            </p>
-          ) : null}
-
-          <div>
-            <Button onClick={() => void book()} disabled={saving}>
-              {saving ? "Saving…" : "Book appointment"}
-            </Button>
-          </div>
         </div>
-      ) : (
-        <FormError message={error} />
-      )}
+      ) : null}
     </Card>
   );
 }

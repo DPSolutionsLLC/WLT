@@ -1,5 +1,5 @@
 import { wardDateOnly } from "@/lib/ward/wardDate";
-import type { Todo, TodoViewState } from "@/types/domain";
+import type { Todo, TodoSummary, TodoViewState } from "@/types/domain";
 
 // Where a to-do stands today. COMPUTED on read — "overdue" is decided by the clock, and nothing in
 // this project refreshes a stored value.
@@ -15,11 +15,23 @@ import type { Todo, TodoViewState } from "@/types/domain";
 // difference from a do date: a scheduled day that has PASSED without the to-do being done is
 // overdue — an appointment is a commitment to a moment, where a do date is only an intention. The
 // instant becomes a day in the ward's zone, never UTC (rule 12), so `wardZone` is a parameter.
+//
+// A BOOKED VISIT COUNTS AS A SCHEDULED TIME (defect 102-D3). A "Visit the ___ family" to-do is
+// scheduled by booking a visit appointment, never by `scheduled_for`, so without this it read
+// "Someday" beside "Visit booked Fri, 7:30 PM" — 077-D2 again, by a second route. When both exist
+// the earlier wins, because that is the one to act on first.
 
-type TodoDates = Pick<Todo, "completedAt" | "doDate" | "dueDate" | "scheduledFor">;
+type TodoDates = Pick<Todo, "completedAt" | "doDate" | "dueDate" | "scheduledFor"> & {
+  visitSource?: Pick<NonNullable<TodoSummary["visitSource"]>, "bookedFor"> | null;
+};
 
 function scheduledDay(todo: TodoDates, wardZone: string): string | null {
-  return todo.scheduledFor === null ? null : wardDateOnly(new Date(todo.scheduledFor), wardZone);
+  const instants = [todo.scheduledFor, todo.visitSource?.bookedFor ?? null].filter(
+    (instant): instant is string => instant !== null,
+  );
+  if (instants.length === 0) return null;
+  const earliest = instants.reduce((a, b) => (new Date(a) < new Date(b) ? a : b));
+  return wardDateOnly(new Date(earliest), wardZone);
 }
 
 export function todoViewState(todo: TodoDates, today: string, wardZone: string): TodoViewState {

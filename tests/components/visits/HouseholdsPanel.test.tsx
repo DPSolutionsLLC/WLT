@@ -78,6 +78,7 @@ function renderPanel() {
     wardToday: "2026-11-09",
     showsPastGoals: true,
     leaders: [],
+    companionLeaders: [],
     memberNames: {},
     recentVisits: null,
     // An Elders Quorum reader: the Bishopric's assignments are never handed to this tab.

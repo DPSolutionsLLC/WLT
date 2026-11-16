@@ -3757,8 +3757,74 @@ export type Database = {
           },
         ]
       }
+      visit_appointment_companions: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          id: string
+          label: string | null
+          member_id: string | null
+          responded_at: string | null
+          status: string | null
+          user_id: string | null
+          ward_id: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          member_id?: string | null
+          responded_at?: string | null
+          status?: string | null
+          user_id?: string | null
+          ward_id: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          member_id?: string | null
+          responded_at?: string | null
+          status?: string | null
+          user_id?: string | null
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visit_appointment_companions_appointment_fkey"
+            columns: ["appointment_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "visit_appointments"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "visit_appointment_companions_member_fkey"
+            columns: ["member_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "visit_appointment_companions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visit_appointment_companions_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       visit_appointments: {
         Row: {
+          assignment_id: string | null
           created_at: string
           household_id: string | null
           id: string
@@ -3771,6 +3837,7 @@ export type Database = {
           ward_id: string
         }
         Insert: {
+          assignment_id?: string | null
           created_at?: string
           household_id?: string | null
           id?: string
@@ -3783,6 +3850,7 @@ export type Database = {
           ward_id: string
         }
         Update: {
+          assignment_id?: string | null
           created_at?: string
           household_id?: string | null
           id?: string
@@ -3795,6 +3863,13 @@ export type Database = {
           ward_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "visit_appointments_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "visit_assignments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "visit_appointments_household_id_ward_id_fkey"
             columns: ["household_id", "ward_id"]
@@ -5050,6 +5125,10 @@ export type Database = {
       is_active_sacrament_manager: { Args: never; Returns: boolean }
       is_bishopric: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
+      is_visit_companion: {
+        Args: { p_appointment_id: string }
+        Returns: boolean
+      }
       match_document_chunks: {
         Args: {
           filter_since?: string

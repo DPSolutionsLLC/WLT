@@ -389,35 +389,37 @@ export const TOO_MANY_PARTICIPANTS_MESSAGE =
   `A visit records at most ${MAX_VISIT_COMPANIONS} companions besides the person recording it. ` +
   "Remove somebody before adding another.";
 
+// The same person twice is refused HERE as well as by the partial unique indexes (migration 046 for
+// participants, 104b for companions), because a constraint violation surfaces as a 500 reporting
+// the server's own fault for the caller's duplicate. There is deliberately no duplicate check on
+// `label`: two people can genuinely be "a neighbour".
+function refuseDuplicatePeople(
+  people: readonly VisitParticipantInput[],
+  context: z.RefinementCtx,
+): void {
+  const seen = new Set<string>();
+
+  people.forEach((person, index) => {
+    if (person.kind === "label") return;
+
+    const key = person.kind === "user" ? `user:${person.userId}` : `member:${person.memberId}`;
+
+    if (seen.has(key)) {
+      context.addIssue({
+        code: "custom",
+        message: "That person is already on this visit.",
+        path: [index],
+      });
+    }
+
+    seen.add(key);
+  });
+}
+
 export const participantsSchema = z
   .array(visitParticipantSchema)
   .max(MAX_VISIT_PARTICIPANTS, TOO_MANY_PARTICIPANTS_MESSAGE)
-  .superRefine((participants, context) => {
-    // The same person twice is refused HERE as well as by migration 046's two partial unique
-    // indexes, because a constraint violation surfaces as a 500 reporting the server's own fault
-    // for the caller's duplicate. There is deliberately no duplicate check on `label`: two
-    // people can genuinely be "a neighbour".
-    const seen = new Set<string>();
-
-    participants.forEach((participant, index) => {
-      if (participant.kind === "label") return;
-
-      const key =
-        participant.kind === "user"
-          ? `user:${participant.userId}`
-          : `member:${participant.memberId}`;
-
-      if (seen.has(key)) {
-        context.addIssue({
-          code: "custom",
-          message: "That person is already on this visit.",
-          path: [index],
-        });
-      }
-
-      seen.add(key);
-    });
-  });
+  .superRefine(refuseDuplicatePeople);
 
 // `participants` is OPTIONAL and that is load-bearing: absent means "the recorder went", which
 // is the default requirement 4 asks for, and an empty array means "nobody is recorded as having
@@ -510,10 +512,26 @@ const appointmentNotesSchema = z
 // fact is a real thing — a leader writes down on Wednesday the visit they arranged for Tuesday —
 // and refusing it would push that record back into a notes field where nothing can count it.
 // The past-and-still-scheduled row is also exactly what reads as "missed".
+export const TOO_MANY_COMPANIONS_MESSAGE =
+  `A visit can have at most ${MAX_VISIT_COMPANIONS} companions besides you. ` +
+  "Remove somebody before adding another.";
+
+// WHO IS GOING ALONG (ITER-055 bv6). The same three kinds as "who went" — a leader is INVITED, a
+// roster member or a typed name is RECORDED — and the booker is never one of them: they are the
+// appointment's `made_by`. The route refuses the booker by id, because only it knows who that is.
+export const companionsSchema = z
+  .array(visitParticipantSchema)
+  .max(MAX_VISIT_COMPANIONS, TOO_MANY_COMPANIONS_MESSAGE)
+  .superRefine(refuseDuplicatePeople);
+
+// `assignmentId` is set when the visit is booked from a "Visit the ___ family" to-do (P11), so the
+// appointment carries the assignment and the visit is on My Appointments once.
 export const createAppointmentSchema = z.object({
   householdId: z.uuid("That household is not valid."),
   scheduledFor: scheduledForSchema,
   notes: appointmentNotesSchema,
+  companions: companionsSchema.default([]),
+  assignmentId: z.uuid("That assignment is not valid.").optional(),
 });
 export type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>;
 
@@ -664,3 +682,10 @@ export const homeVenuesSchema = z.object({
     .max(MAX_HOME_VENUES, `Keep the list to ${MAX_HOME_VENUES} places.`),
 });
 export type HomeVenuesInput = z.infer<typeof homeVenuesSchema>;
+
+// Accepting or declining a visit invite (ITER-055 bv6). Once, while it is pending — decided at bv6
+// start.
+export const respondToInviteSchema = z.object({
+  accept: z.boolean({ error: "Say whether you can come." }),
+});
+export type RespondToInviteInput = z.infer<typeof respondToInviteSchema>;

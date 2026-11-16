@@ -95,6 +95,49 @@ describe("todoViewState with a scheduled time", () => {
   });
 });
 
+// A "Visit the ___ family" to-do is scheduled by BOOKING A VISIT, never by `scheduled_for`
+// (defect 102-D3: it read "Someday" beside "Visit booked Fri, 7:30 PM").
+describe("todoViewState with a booked visit", () => {
+  const booked = (bookedFor: string, overrides: Partial<Dated> = {}) => ({
+    ...todo(overrides),
+    visitSource: { bookedFor },
+  });
+
+  it("is upcoming, not someday, when the visit is on a later day", () => {
+    expect(todoViewState(booked("2026-09-26T01:30:00.000Z"), TODAY, ZONE)).toBe("upcoming");
+  });
+
+  it("is do today when the visit is this evening in the ward's zone", () => {
+    expect(todoViewState(booked("2026-09-25T01:30:00.000Z"), TODAY, ZONE)).toBe("do_today");
+  });
+
+  it("is overdue once the visit's day has passed with the to-do still open", () => {
+    expect(todoViewState(booked("2026-09-18T16:00:00.000Z"), TODAY, ZONE)).toBe("overdue");
+  });
+
+  it("reads the earlier of a scheduled time and a booked visit", () => {
+    expect(
+      todoViewState(
+        booked("2026-09-18T16:00:00.000Z", { scheduledFor: "2026-10-01T16:00:00.000Z" }),
+        TODAY,
+        ZONE,
+      ),
+    ).toBe("overdue");
+  });
+
+  it("is someday when nothing is booked", () => {
+    expect(todoViewState({ ...todo(), visitSource: { bookedFor: null } }, TODAY, ZONE)).toBe(
+      "someday",
+    );
+  });
+
+  it("sorts a booked visit ahead of an undated to-do", () => {
+    const undated = todo({ createdAt: "2026-08-01T00:00:00.000Z" });
+    const visit = booked("2026-09-26T01:30:00.000Z");
+    expect([undated, visit].sort((a, b) => compareTodos(a, b, TODAY, ZONE))[0]).toBe(visit);
+  });
+});
+
 describe("compareTodos", () => {
   const sort = (items: Dated[]) => [...items].sort((a, b) => compareTodos(a, b, TODAY, ZONE));
 

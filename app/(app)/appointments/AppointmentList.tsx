@@ -335,7 +335,12 @@ export function AppointmentList({
             </div>
 
             <div className="flex shrink-0 items-center">
-              {source.kind === "visit" && canCancelVisits && source.viewState === "scheduled" ? (
+              {/* Only the booker may cancel; a companion reads the appointment and never writes it
+                  (migration 104d). */}
+              {source.kind === "visit" &&
+              source.role === "booker" &&
+              canCancelVisits &&
+              source.viewState === "scheduled" ? (
                 <SmallButton
                   label={busy ? "Cancelling…" : "Cancel"}
                   accessibleName={`Cancel ${source.title}`}

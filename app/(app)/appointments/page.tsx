@@ -1,5 +1,6 @@
 import { AppointmentList } from "@/app/(app)/appointments/AppointmentList";
 import { CalendarSyncCard } from "@/app/(app)/appointments/CalendarSyncCard";
+import { InvitesPanel } from "@/app/(app)/visits/InvitesPanel";
 import { ContextualBackLink } from "@/components/layout/ContextualBackLink";
 import { NotPermitted } from "@/components/ui/NotPermitted";
 import { parseAppointmentsView } from "@/lib/appointments/appointmentsView";
@@ -9,6 +10,7 @@ import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { readPageView } from "@/lib/users/userSettings";
+import { listPendingInvitesFor } from "@/lib/visits/companions";
 import { wardDateOnly } from "@/lib/ward/wardDate";
 import { readWardTimezone } from "@/lib/ward/wardTimezone";
 
@@ -46,7 +48,12 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
   const params = await searchParams;
   const wardZone = await readWardTimezone(user.wardId, supabase);
   const asOf = new Date();
-  const sources = await listMyAppointmentSources(supabase, user.wardId, user.id, asOf);
+  // Pending visit invites sit ABOVE the list, not in it: an invite is not yet a commitment
+  // (ITER-055 bv6). Accepted ones are already among the sources.
+  const [sources, pendingInvites] = await Promise.all([
+    listMyAppointmentSources(supabase, user.wardId, user.id, asOf),
+    listPendingInvitesFor(user.wardId, user.id, asOf, supabase),
+  ]);
   const { upcoming, past } = buildMyAppointments(sources, asOf, wardZone);
   const initialView = parseAppointmentsView(await readPageView(user.id, "appointments", supabase));
 
@@ -57,10 +64,12 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
       <div className="min-w-0">
         <h1 className="text-xl font-semibold text-foreground">My Appointments</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          Everything you have said you will be at, in one list: visits you booked, to-dos you
-          scheduled and youth events you signed up for.
+          Everything you have said you will be at, in one list: visits you booked or said you
+          would go on, to-dos you scheduled and youth events you signed up for.
         </p>
       </div>
+
+      <InvitesPanel invites={pendingInvites} wardTimeZone={wardZone} />
 
       <AppointmentList
         upcoming={upcoming}

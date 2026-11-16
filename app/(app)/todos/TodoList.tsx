@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import { compareTodos } from "@/lib/todos/viewState";
 import type { SessionUser, TodoSummary } from "@/types/domain";
-import { TodoCard } from "@/app/(app)/todos/TodoCard";
+import { TodoCard, type VisitBookingOptions } from "@/app/(app)/todos/TodoCard";
 import { TodoFormDialog } from "@/app/(app)/todos/TodoFormDialog";
 import { TODOS_QUERY_KEY, fetchTodos, type TodoStatusFilter } from "@/app/(app)/todos/todoApi";
 
@@ -33,6 +33,9 @@ export type TodoListProps = {
   user: SessionUser;
   // `roster.view` — whether "Schedule this" may offer the member picker, which reads /api/members.
   canPickMember: boolean;
+  // For booking a "Visit the ___ family" to-do with companions (ITER-055 bv6). Null for anybody
+  // outside the bishopric, who is never given a visit to-do.
+  visitBooking?: VisitBookingOptions | null;
 };
 
 function FilterPill({
@@ -72,6 +75,7 @@ export function TodoList({
   wardZone,
   user,
   canPickMember,
+  visitBooking = null,
 }: TodoListProps) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<TodoStatusFilter>("open");
@@ -151,6 +155,7 @@ export function TodoList({
                 wardZone={wardZone}
                 user={user}
                 canPickMember={canPickMember}
+                visitBooking={visitBooking}
                 onChanged={refresh}
               />
             </li>
