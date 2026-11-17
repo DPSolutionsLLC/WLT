@@ -1,7 +1,8 @@
 # ITER-058: The ward roster decides who holds which calling
 
 **Type:** Modification
-**Status:** Backlogged
+**Status:** In Progress
+**Plan:** plans/roster-decides-callings.md
 **Created:** 2026-10-30
 
 ## Summary
@@ -70,7 +71,22 @@ The user chose NOT to hand-correct the number in the meantime — it is fixed by
 - Related: ITER-040's deferred "three-way review" needed a stored callings snapshot — this may
   provide it. The roster paste import (`buildRosterDiff()`) is where review rows come from.
 
-## Open Questions
+- **Added 2026-11-11 (raised while scoping ITER-060):** long term, the app keeps its OWN record of
+  callings that can run ahead of LCR — once a calling plan from the sandbox is carried out through
+  the app, the app records it as done, and the next roster paste confirms it or flags the
+  discrepancy. For this item the paste is still the only source of calling changes, but the design
+  must not rule out the app being ahead (see Deferred "Carry out a sandbox calling plan").
+- The user wants this **soon**: the bishop and 1st counselor should not start using the app until
+  their logins show their real callings.
+
+## Decisions (settled with the user 2026-11-11, during `/planning`)
+- Rollout: existing accounts keep their current calling until linked.
+- A linked person who moves out or vanishes is reviewed like a release (unticked).
+- Override: super admin only, marked, and it reappears on every review.
+- Two mapped callings: the higher-ranked one wins and the review names both.
+- LCR titles match exactly against a known list; anything else grants nothing (stated by Claude).
+
+## Open Questions (answered above)
 - Exact LCR calling strings and how robustly to match them (LCR wording changes).
 - What happens to an account whose roster record moves out or disappears.
 - Whether an admin can still override a derived role in an emergency, and how that is reviewed.

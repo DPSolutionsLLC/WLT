@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 100,
+  "scenarioCount": 101,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -163,6 +163,37 @@
         "In the release editor, do the five sacrament-area tickboxes read as one family, and is it"
       ],
       "seedCommand": "npm run seed -- admin/scenario-092-the-sacrament-tile-alone"
+    },
+    {
+      "id": "admin:scenario-103-link-accounts-to-the-ward-list",
+      "path": "admin/scenario-103-link-accounts-to-the-ward-list",
+      "name": "Link accounts to the ward list",
+      "scope": "admin",
+      "part": 1,
+      "tags": [
+        "callings",
+        "admin",
+        "full",
+        "security",
+        "ITER-058"
+      ],
+      "prerequisites": "Migration 105 applied; Admin released for the Harness Test Ward.",
+      "purpose": "ITER-058 slice **cr1**. Each login is linked, once per ward, to its person on the ward list. Linking\non its own **changes nobody's calling or access**. From cr2 on, a linked account's calling follows\nthe ward list, after a review.\n\nThere are three ways to be linked:\n\n- **Is this you?** — when exactly one person on the ward list has the account's login email, the\n  dashboard offers that person; **Yes, this is me** links them.\n- **Ask the bishopric** — anyone else asks, and never browses or picks from the ward list.\n- **A bishopric member links them** on Admin → Users, choosing the person. **Nobody can link their\n  own account** this way, the super admin included.\n\nA link decides privileges from cr2 on, so `user_member_links` has no write policy at all: only the\nserver writes it.",
+      "checklist": [
+        "Step 1: a small card titled **Is this you?** reads *Aaron Pike, born 1979*, with **Yes, this is",
+        "Step 2: **No** swaps the card to *Your account isn't linked to the ward list yet…* with **Ask the",
+        "Step 3: the card disappears. `user_member_links` has an `active` row for Aaron with",
+        "Step 4: the card reads *Waiting for the bishopric to link your account.*, before and after the",
+        "Step 5: Ruth gets the **ask** card, not *Is this you?* — two people share her email",
+        "Step 6: **Waiting to be linked to the ward list** sits above the invite form, listing Tom Reyes",
+        "Step 7: Tom leaves the waiting list and his row reads **Linked to Tom Reyes**. The same row id",
+        "Step 8: Unlink leaves the Hannah Baker row as `ended` with `ended_by` = the bishop — never",
+        "Step 9: the bishop's own row has **no** link controls. A direct",
+        "Step 10: Lena's card is gone",
+        "Every step: nobody's role, organization or counselor position changed (read back",
+        "Step 11 (375px): the card's buttons wrap without overflow; the waiting list and the row controls"
+      ],
+      "seedCommand": "npm run seed -- admin/scenario-103-link-accounts-to-the-ward-list"
     },
     {
       "id": "ai:scenario-020-preview-before-you-save",

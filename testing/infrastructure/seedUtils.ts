@@ -797,6 +797,8 @@ export async function createMember(options: {
   preferredName?: string;
   birthDate?: string;
   email?: string;
+  // LCR's callings cell, one calling per line, exactly as the roster paste stores it (ITER-058).
+  callings?: string;
 }): Promise<string> {
   return insertRow("members", {
     id: options.id ?? testUuid(`member:${options.firstName}:${options.lastName}`),
@@ -812,6 +814,32 @@ export async function createMember(options: {
     preferred_name: options.preferredName ?? null,
     birth_date: options.birthDate ?? null,
     email: options.email ?? null,
+    callings: options.callings ?? null,
+  });
+}
+
+// Which roster member an account is (ITER-058, migration 105a). `active` needs a member and a
+// method; `pending` is an account that asked to be linked and has neither.
+export async function createMemberLink(options: {
+  id?: string;
+  userId: string;
+  memberId?: string;
+  status: "pending" | "active";
+  method?: "email_match" | "admin" | "invite";
+  linkedBy?: string;
+}): Promise<string> {
+  const now = new Date().toISOString();
+  return insertRow("user_member_links", {
+    id: options.id ?? testUuid(`member-link:${options.userId}`),
+    ward_id: TEST_WARD_ID,
+    user_id: options.userId,
+    member_id: options.memberId ?? null,
+    status: options.status,
+    method: options.method ?? null,
+    linked_by: options.linkedBy ?? null,
+    decided_by: options.status === "active" ? (options.linkedBy ?? null) : null,
+    decided_at: options.status === "active" ? now : null,
+    requested_at: options.status === "pending" ? now : null,
   });
 }
 

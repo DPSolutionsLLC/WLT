@@ -1,4 +1,5 @@
 import { Building2 } from "lucide-react";
+import { IsThisYouCard } from "@/components/callings/IsThisYouCard";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
 import { QuickLinksButton } from "@/components/layout/QuickLinksButton";
 import { WardSwitcher } from "@/components/layout/WardSwitcher";
@@ -7,7 +8,10 @@ import { visibleNavigationItems, type NavigationItem } from "@/lib/auth/navigati
 import { resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { readCallingLabel } from "@/lib/callings/callingLabel";
+import { needsRosterLink } from "@/lib/callings/linkAccess";
+import { readMyLinkState, type MyLinkState } from "@/lib/callings/memberLinks";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import { isSuperAdmin } from "@/lib/units/queries";
 import { readQuickLinks } from "@/lib/users/userSettings";
 
@@ -89,6 +93,8 @@ export default async function DashboardPage() {
     !user.isSuperAdmin && unreleasedBuiltModules(user.releasedModules).length > 0;
   const wardName = showComingSoon ? await readWardName(user.wardId, supabase) : null;
 
+  const linkState = needsRosterLink(user) ? await readLinkStateForCard(user.id, user.wardId) : null;
+
   return (
     <div className="flex flex-col gap-4">
       <DashboardHeader
@@ -100,6 +106,11 @@ export default async function DashboardPage() {
         // Renders nothing at all for the great majority of people, who hold one calling.
         wardSwitcher={<WardSwitcher />}
         quickLinks={<QuickLinksButton items={items} pinnedHrefs={pinnedHrefs} />}
+        beforeGrid={
+          linkState && linkState.link?.status !== "active" ? (
+            <IsThisYouCard initialLink={linkState.link} emailCandidate={linkState.emailCandidate} />
+          ) : undefined
+        }
       />
       {showComingSoon && (
         <p className="text-sm text-muted">
@@ -108,6 +119,22 @@ export default async function DashboardPage() {
       )}
     </div>
   );
+}
+
+// "IS THIS YOU?" (ITER-058 cr1). Read on the SERVICE ROLE because the email match compares against
+// the login email Supabase Auth holds. A failure is logged and the card is left off rather than
+// taking the dashboard down: the card returns on the next load, and nothing about the account
+// changes while it is missing.
+async function readLinkStateForCard(userId: string, wardId: string): Promise<MyLinkState | null> {
+  try {
+    return await readMyLinkState(userId, wardId, createServiceSupabaseClient());
+  } catch (error) {
+    console.error(
+      `Could not read the ward list link for the dashboard — ${error instanceof Error ? error.message : String(error)}`,
+      { userId, wardId },
+    );
+    return null;
+  }
 }
 
 // The same read the (app) layout makes for the chrome bar. A failure falls back to "your ward"

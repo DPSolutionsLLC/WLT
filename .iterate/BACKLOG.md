@@ -1,6 +1,6 @@
 # Backlog
 
-_Last updated: 2026-11-01_
+_Last updated: 2026-11-16_
 
 ---
 
@@ -12,6 +12,8 @@ Items currently being planned or actively worked.
   _Three slices, three commits: z3a public form + auto-approve, z3b approvals + matching, z3c emails (send nothing until ITER-039)._
 - [ ] ITER-055 — Bishopric Visits: the ward-wide visiting effort → [scope](.iterate/scopes/ITER-055.md) | [plan](plans/bishopric-visits.md)
   _Eight slices, eight commits (bv1 sharing … bv8 street grouping)._
+- [ ] ITER-058 — The ward roster decides who holds which calling → [scope](.iterate/scopes/ITER-058.md) | [plan](plans/roster-decides-callings.md)
+  _Four slices, four commits (cr1 link … cr4 invites). Task 0 confirms the LCR title map with the user first._
 - [ ] ITER-043 — Keep the screen on while the tithing calculator is open → [scope](.iterate/scopes/ITER-043.md) | [plan](plans/tithing-screen-wake-lock.md)
 - [ ] ITER-034 — Youth Support: the module the user actually wants → [scope](.iterate/scopes/ITER-034.md) — **PARKED 2026-08-31**
   _Raised by the user 2026-08-31 after walking 062 and 063, and **this is the destination Phase 8
@@ -91,6 +93,21 @@ _**COMPLETED 2026-10-30** in one commit (9853e5a), plan `plans/sacrament-planner
 - ITER-056 — _completed 2026-10-30 (9853e5a)_
 - ITER-057 — _completed 2026-10-30 (9853e5a)_
 
+### [GROUP-06] Sacrament Planner refinements, round 2
+_Raised 2026-11-15/16 by the user while using the Planner. Deliberate, user-requested edits
+to `lib/sacramentPlanner/assets/`, as in GROUP-04. All touch Who's Next, how the Planner shows people,
+or the messages it writes to them._
+- [ ] ITER-061 — Place on Sunday from the person window on Who's Next → [scope](.iterate/scopes/ITER-061.md)
+- [ ] ITER-062 — Sunday fill summaries in the Planner's Sunday/month picker → [scope](.iterate/scopes/ITER-062.md)
+  _Open: what a no-speaker Sunday (Fast, conference) shows — answer before planning._
+- [ ] ITER-064 — Missionaries in the Sacrament Planner → [scope](.iterate/scopes/ITER-064.md)
+  _Added 2026-11-16. Larger than the other two: new stored data (missionary units), a unit row on
+  Who's Next, and Elder/Sister on the program. If it makes the group too big, plan it on its own._
+- [ ] ITER-065 — Drop middle names, and use goes-by everywhere in the Planner → [scope](.iterate/scopes/ITER-065.md)
+  _Added 2026-11-16. Shares the program's name/honorific logic with ITER-064; plan them to agree._
+- [ ] ITER-066 — Messages window: tabs that fit on a phone, references grouped with their links → [scope](.iterate/scopes/ITER-066.md)
+  _Added 2026-11-16. Small: tab text size plus the speaker-message reference layout. Check on a real phone._
+
 ### [GROUP-05] Zoom stream: remote controls and invitees
 _Raised 2026-10-27. The Zoom tile — first slice of P10's Zoom module, built without Zoom API
 access. Update the Zoom row in `plans/prototype/module-map.md` before planning.
@@ -100,20 +117,38 @@ Suggested order: 051 → 053 → 052 → 054. Future (design for, don't build): 
 - ITER-052 — _in progress (see In Progress)_
 - [ ] ITER-054 — Weekly Zoom attendance import → [scope](.iterate/scopes/ITER-054.md)
   _Get a real exported Zoom report from the church account before planning._
+- [ ] ITER-067 — Save a Zoom QR code as a PNG, and general invites with a ready-made message → [scope](.iterate/scopes/ITER-067.md)
+  _Added 2026-11-16. Wanted for the upcoming Primary program. Assumes one registrant link works for
+  many viewers; the user will test it. Plan ahead of ITER-054 (it does not depend on it)._
 
 ---
 
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
 
+- [ ] ITER-060 — Callings sandbox on the real roster → [scope](.iterate/scopes/ITER-060.md)
+  _Reason: a new module (P9) porting the prototype's scenario engine with branching onto the real
+  roster, bishopric-only by RLS. Planning tool only — nothing changes a real calling. Follows
+  ITER-058 in priority and shares its LCR calling-text mapping._
 - [ ] ITER-059 — Organization event history (fundraisers, joint org access) → [scope](.iterate/scopes/ITER-059.md)
   _Reason: a new module with its own tables and a new sharing boundary (presidency-only, per-org
   read/write, creator handover with acceptance) enforced by RLS. Depends on knowing current
   presidencies, so it should follow ITER-058._
-- [ ] ITER-058 — The ward roster decides who holds which calling → [scope](.iterate/scopes/ITER-058.md)
-  _Reason: moves the source of every permission decision (RLS, can(), Planner identity, Zoom) onto
-  the LCR roster, with a login↔member link and reviewed calling changes — security-sensitive and
-  several slices. Fixes the user showing as 1st Counselor on Zoom Remote links._
+
+- [ ] ITER-069 — Installable app: one window, and an install option anytime → [scope](.iterate/scopes/ITER-069.md)
+  _Reason: app-wide plumbing (manifest, service worker, root layout, middleware matcher) touching
+  every shell — app, youth and the Planner frame — plus a new install flow. Raised 2026-11-16; the
+  user also wants a global PWA rule written once it ships._
+
+- [ ] ITER-068 — A clear (✕) button in every typing field, app-wide → [scope](.iterate/scopes/ITER-068.md)
+  _Reason: touches the shared field primitives, ~40 hand-written inputs, ~26 text areas across every
+  module, and the imported Planner. Broad and mechanical; may split by area. Raised 2026-11-16._
+
+- [ ] ITER-063 — Fill in a past Sunday from the Planner's Meetings tab → [scope](.iterate/scopes/ITER-063.md)
+  _Reason: besides a user-requested edit to the imported Planner (filling in prayers, a speaker,
+  the conductor and hymns on Report a change), it opens the bishopric-only Planner to the
+  executive secretary for past Sundays only, a security boundary that must hold at the save route
+  and RLS. Raised 2026-11-15. Check ITER-046's status when planning._
 
 - [ ] ITER-046 — Module access by title, set by the super admin → [scope](.iterate/scopes/ITER-046.md)
   _Reason: rebuilds the access model (replaces per-ward release, ward self-service and access
@@ -331,6 +366,8 @@ Each of these is large or complex enough to tackle on its own.
 
 ## Deferred
 _Items that need testing or further exploration before scoping. Each entry should include enough context to restart the conversation in a future session._
+
+- **Carry out a sandbox calling plan** — Once the bishopric settles on a plan in the Callings sandbox (ITER-060), start it from the sandbox and have the app walk it through in the right order per standard procedure: releases before the next call, a call extended before sustaining, released over the pulpit before the replacement is sustained, set apart, and finally "updated in LCR". When carried through, **the app records the new callings as done, ahead of LCR**, reminding leaders along the way to make the LCR updates; the gap is shown in the app until the next roster paste, and the paste then highlights any discrepancies to resolve (ITER-058 gains a note that the app's calling record may lead LCR). Also held here from the prototype: the "From the Agenda" queue, sending a scenario to the agenda (visible then to the ward clerk and executive secretary, which the user is fine with), Calling Requests as a source (P9), and auto-filing a finished plan's scenarios into a history. Long-term hope: direct church integration, where changes made here reach LCR itself. **Key considerations:** needs pipelines that do not exist yet — calling to-dos and appointments (the user expects to wake these up fairly soon), agenda work (the user is holding that off), and the conducting sheet's post-meeting confirmation (P6) for sustain/release checkpoints. **Action needed:** ITER-058 and ITER-060 shipped, plus the To Do/appointment and agenda connections, then a discovery conversation of its own.
 
 - **Pause / resume a Zoom stream link** — Temporarily or permanently block one invitee's personal Zoom join link, and later turn it back on (GROUP-05). No Zoom API access; the web portal offers approve / deny / cancel on registrants. The app can mark someone paused in its own records, but that does not stop a URL the person already holds — only Zoom can. **Key considerations:** unknown whether a cancelled registrant can be re-approved, and if so whether their join link stays the same. **Action needed:** the user tests with one placeholder registrant in the ward's Zoom account (cancel, then try to re-approve; compare the link) before this is scoped.
 - **Per-person email alerts on/off, app-wide** — Each leader chooses whether app notifications also arrive by email (SMS later, not now). Raised 2026-10-27 during the Zoom discussion (new-registration emails). Partial precedent exists: `notification_user_prefs.email_enabled` for the two music triggers, toggled on `/music`; its known limit is one row per (user, trigger), not per ward. **Key considerations:** bigger than Zoom — touches every notification trigger; where the switch lives (account settings vs. per module). **Action needed:** a discovery conversation of its own.

@@ -1588,6 +1588,39 @@ export type Calling = {
   startedOn: string | null;
   endedOn: string | null;
   createdAt: string;
+  source: CallingSource;
+  overrideBy: string | null;
+  overrideAt: string | null;
+};
+
+// WHERE A CALLING CAME FROM (migration 105b, ITER-058). `manual` is typed in by hand and is every
+// calling that existed before the roster decided them; `roster` was applied from a reviewed LCR
+// calling; `override` was set by the super admin and is put back on every review.
+export const CALLING_SOURCES = ["manual", "roster", "override"] as const;
+export type CallingSource = (typeof CALLING_SOURCES)[number];
+
+// ---------------------------------------------------------------------------
+// The login ↔ roster link (migration 105a, ITER-058)
+// ---------------------------------------------------------------------------
+// Which roster member an app account IS, per ward. Written only by lib/callings/memberLinks.ts on
+// the service role; nobody links their own account except through the email match.
+export const MEMBER_LINK_STATUSES = ["pending", "active", "declined", "ended"] as const;
+export type MemberLinkStatus = (typeof MEMBER_LINK_STATUSES)[number];
+
+export const MEMBER_LINK_METHODS = ["email_match", "admin", "invite"] as const;
+export type MemberLinkMethod = (typeof MEMBER_LINK_METHODS)[number];
+
+export type MemberLink = {
+  id: string;
+  userId: string;
+  wardId: string;
+  memberId: string | null;
+  status: MemberLinkStatus;
+  method: MemberLinkMethod | null;
+  requestedAt: string | null;
+  decidedAt: string | null;
+  endedAt: string | null;
+  createdAt: string;
 };
 
 // ---------------------------------------------------------------------------

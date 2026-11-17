@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
-import { ROLES, type Calling, type Role } from "@/types/domain";
+import { CALLING_SOURCES, ROLES, type Calling, type CallingSource, type Role } from "@/types/domain";
 
 // Reads over `ward_role_assignments` (migration 068). Shaped after lib/units/queries.ts: small
 // named exports, snake_case → camelCase mapped ONCE, here.
@@ -16,7 +16,7 @@ import { ROLES, type Calling, type Role } from "@/types/domain";
 // from session_context() rather than from anything here.
 
 export const CALLING_COLUMNS =
-  "id, user_id, ward_id, role, org_id, counselor_position, is_active, started_on, ended_on, created_at";
+  "id, user_id, ward_id, role, org_id, counselor_position, is_active, started_on, ended_on, created_at, source, override_by, override_at";
 
 // A role the TypeScript union does not know means the CHECK constraint in migration 068 and ROLES
 // in types/domain.ts have drifted — the same reasoning, and the same refusal to guess, as
@@ -36,6 +36,18 @@ function toCounselorPosition(value: number | null): 1 | 2 | null {
   return value === 1 || value === 2 ? value : null;
 }
 
+// The same refusal to guess as toRole(): a value the CHECK in migration 105b forbids means the
+// constraint and CALLING_SOURCES have drifted.
+function toCallingSource(value: string): CallingSource {
+  if (!(CALLING_SOURCES as readonly string[]).includes(value)) {
+    throw new Error(
+      `ward_role_assignments.source holds "${value}", which is not a known source. The CHECK ` +
+        "constraint in migration 105 and CALLING_SOURCES in types/domain.ts have drifted.",
+    );
+  }
+  return value as CallingSource;
+}
+
 type CallingRow = {
   id: string;
   user_id: string;
@@ -47,6 +59,9 @@ type CallingRow = {
   started_on: string | null;
   ended_on: string | null;
   created_at: string;
+  source: string;
+  override_by: string | null;
+  override_at: string | null;
 };
 
 export function toCalling(row: CallingRow): Calling {
@@ -61,6 +76,9 @@ export function toCalling(row: CallingRow): Calling {
     startedOn: row.started_on,
     endedOn: row.ended_on,
     createdAt: row.created_at,
+    source: toCallingSource(row.source),
+    overrideBy: row.override_by,
+    overrideAt: row.override_at,
   };
 }
 

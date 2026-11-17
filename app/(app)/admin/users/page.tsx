@@ -1,10 +1,13 @@
 import { InviteForm } from "@/app/(app)/admin/users/InviteForm";
+import { MemberLinkControls } from "@/app/(app)/admin/users/MemberLinkControls";
 import { UserRow } from "@/app/(app)/admin/users/UserRow";
 import { YouthAccountForm } from "@/app/(app)/admin/users/YouthAccountForm";
 import { NotPermitted } from "@/components/ui/NotPermitted";
-import { listWardOrganizations, listWardUsers } from "@/lib/auth/adminUsers";
+import { displayName, listWardOrganizations, listWardUsers } from "@/lib/auth/adminUsers";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
+import { canManageMemberLinks, roleNeedsRosterLink } from "@/lib/callings/linkAccess";
+import { listOpenWardLinks } from "@/lib/callings/memberLinks";
 import { listYouthAccounts } from "@/lib/auth/youthAccounts";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -19,15 +22,36 @@ export default async function AdminUsersPage() {
     return <NotPermitted detail="Managing accounts is limited to the bishopric." />;
   }
 
-  const [users, organizations, youthAccounts] = await Promise.all([
+  const [users, organizations, youthAccounts, links] = await Promise.all([
     listWardUsers(user.wardId, supabase),
     listWardOrganizations(user.wardId, supabase),
     listYouthAccounts(user.wardId, supabase),
+    listOpenWardLinks(user.wardId, supabase),
   ]);
+
+  const canLink = canManageMemberLinks(user, roleAccess);
+  const linksByUser = new Map(links.map((link) => [link.userId, link]));
+  const usersById = new Map(users.map((wardUser) => [wardUser.id, wardUser]));
+
+  // Marks who is already taken in the picker (walking scenario 103). Marked, not hidden: the
+  // bishop can still see why a person they expected is not the right pick.
+  const linkedMemberNotes: Record<string, string> = {};
+  for (const link of links) {
+    if (link.status !== "active" || link.memberId === null) continue;
+    const holder = usersById.get(link.userId);
+    linkedMemberNotes[link.memberId] = holder
+      ? `Linked to ${displayName(holder)}'s account`
+      : "Linked to another account";
+  }
 
   // Youth accounts get their own section below, so the adult list does not show rows with no
   // email, no organization, and controls that do not apply to them.
   const adultUsers = users.filter((wardUser) => wardUser.role !== "sacrament_manager");
+
+  // Requests to be linked sit at the top, so they are acted on rather than found (ITER-058 cr1).
+  const waitingUsers = adultUsers.filter(
+    (wardUser) => linksByUser.get(wardUser.id)?.status === "pending" && wardUser.id !== user.id,
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -42,6 +66,32 @@ export default async function AdminUsersPage() {
           .
         </p>
       </div>
+
+      {canLink && waitingUsers.length > 0 && (
+        <section aria-labelledby="link-requests-heading" className="flex flex-col gap-2">
+          <h2 id="link-requests-heading" className="text-sm font-semibold text-foreground">
+            Waiting to be linked to the ward list
+          </h2>
+          <ul className="flex flex-col gap-2">
+            {waitingUsers.map((wardUser) => (
+              <li
+                key={wardUser.id}
+                className="flex flex-col gap-2 rounded-lg border border-border bg-surface-raised p-3"
+              >
+                <p className="text-sm text-foreground">{displayName(wardUser)} asked to be linked.</p>
+                <MemberLinkControls
+                  sessionUser={user}
+                  targetUserId={wardUser.id}
+                  targetName={displayName(wardUser)}
+                  linkId={linksByUser.get(wardUser.id)?.id ?? null}
+                  linkStatus="pending"
+                  linkedMemberNotes={linkedMemberNotes}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <InviteForm organizations={organizations} />
 
@@ -62,6 +112,19 @@ export default async function AdminUsersPage() {
               user={wardUser}
               organizations={organizations}
               isSelf={wardUser.id === user.id}
+              link={linksByUser.get(wardUser.id) ?? null}
+              linkControls={
+                canLink && wardUser.id !== user.id && roleNeedsRosterLink(wardUser.role) ? (
+                  <MemberLinkControls
+                    sessionUser={user}
+                    targetUserId={wardUser.id}
+                    targetName={displayName(wardUser)}
+                    linkId={linksByUser.get(wardUser.id)?.id ?? null}
+                    linkStatus={linksByUser.get(wardUser.id)?.status ?? null}
+                    linkedMemberNotes={linkedMemberNotes}
+                  />
+                ) : null
+              }
             />
           ))}
         </ul>

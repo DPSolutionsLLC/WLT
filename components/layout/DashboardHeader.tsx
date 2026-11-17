@@ -60,6 +60,9 @@ export type DashboardHeaderProps = {
   // The quick-links button (P3e). It belongs in the STICKY bar, so it is reachable after the
   // extras have collapsed.
   quickLinks?: ReactNode;
+  // Something that must be answered before the tiles — "Is this you?" (ITER-058 cr1, moved above
+  // the tiles walking scenario 103). A sibling of the grid, never wrapped with the sticky bar.
+  beforeGrid?: ReactNode;
 };
 
 export function DashboardHeader({
@@ -70,6 +73,7 @@ export function DashboardHeader({
   tileNotes,
   wardSwitcher,
   quickLinks,
+  beforeGrid,
 }: DashboardHeaderProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const isCollapsed = useCollapsingHeader();
@@ -116,6 +120,8 @@ export function DashboardHeader({
           {wardSwitcher === undefined ? null : wardSwitcher}
         </div>
       </div>
+
+      {beforeGrid}
 
       {/* SIBLING THREE — the grid. Still a sibling; the fragment adds no DOM node. */}
       <DashboardGrid

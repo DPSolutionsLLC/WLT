@@ -810,6 +810,46 @@ reassignment or unassignment (`closed_reason` `reassigned` / `unassigned`) and w
 (`goal_ended`). A visit that still needs a visit adds a `visit_partly_reached` line and leaves it open.
 Another organization's visit does not touch it.
 
+### `user_member_links` (migration 105, ITER-058 cr1)
+
+```sql
+id            uuid PRIMARY KEY DEFAULT gen_random_uuid()
+user_id       uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE
+ward_id       uuid NOT NULL REFERENCES wards(id) ON DELETE CASCADE
+member_id     uuid  -- (member_id, ward_id) → members; null only while a request is pending
+status        text NOT NULL  -- pending | active | declined | ended; ended, never deleted
+method        text  -- email_match | admin | invite; set on every active link
+requested_at  timestamptz
+linked_by     uuid REFERENCES users(id) ON DELETE SET NULL  -- null for email_match
+decided_by    uuid REFERENCES users(id) ON DELETE SET NULL
+decided_at    timestamptz
+ended_at      timestamptz
+ended_by      uuid REFERENCES users(id) ON DELETE SET NULL
+created_at    timestamptz DEFAULT now()
+UNIQUE (user_id, ward_id) WHERE status IN ('pending', 'active')
+UNIQUE (member_id) WHERE status = 'active'
+```
+
+Which person on the ward list an account is, **per ward**. **A SELECT policy and no write policy**:
+you read your own, the bishopric reads the ward's. The only writer is `lib/callings/memberLinks.ts`
+on the service role. No released-module policy — linking is account-level.
+
+- `GET /api/member-link` — my link in the ward I am acting in, and an **email candidate**: the one
+  active member whose email (case-insensitive) is my login email. Two such members → no candidate.
+- `POST /api/member-link` — `{ action: "confirm", memberId }` (re-checked against the login email; 403
+  otherwise) or `{ action: "ask" }` (a `pending` row; idempotent). Signed-in session only, no
+  permission: a ward that has not released To Do must still be able to link.
+- `POST /api/admin/member-links` `{ userId, memberId }` and `PATCH /api/admin/member-links/[id]`
+  `{ action: "decline" | "end" }` — `admin.manage_users` AND a bishopric calling or super admin.
+  **Linking, declining or ending your own account is refused (403)**, the super admin included. The
+  account must hold a calling in this ward; the member must be active in this ward.
+
+Audit: `member_link_created` / `_requested` / `_approved` / `_declined` / `_ended`, ids and method
+only. Each notifies the bishopric (`notifyOtherBishopric`).
+
+`ward_role_assignments` gains `source` (`manual` | `roster` | `override`, default `manual`),
+`override_by` and `override_at` (set exactly when `source = 'override'`). cr1 only reads them.
+
 ### `visit_appointment_companions` (migration 104, ITER-055 bv6)
 
 ```sql

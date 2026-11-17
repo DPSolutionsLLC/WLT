@@ -3700,6 +3700,97 @@ export type Database = {
           },
         ]
       }
+      user_member_links: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          ended_at: string | null
+          ended_by: string | null
+          id: string
+          linked_by: string | null
+          member_id: string | null
+          method: string | null
+          requested_at: string | null
+          status: string
+          user_id: string
+          ward_id: string
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          ended_at?: string | null
+          ended_by?: string | null
+          id?: string
+          linked_by?: string | null
+          member_id?: string | null
+          method?: string | null
+          requested_at?: string | null
+          status: string
+          user_id: string
+          ward_id: string
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          ended_at?: string | null
+          ended_by?: string | null
+          id?: string
+          linked_by?: string | null
+          member_id?: string | null
+          method?: string | null
+          requested_at?: string | null
+          status?: string
+          user_id?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_member_links_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_member_links_ended_by_fkey"
+            columns: ["ended_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_member_links_linked_by_fkey"
+            columns: ["linked_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_member_links_member_fkey"
+            columns: ["member_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "user_member_links_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_member_links_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           active_ward_id: string | null
@@ -4376,7 +4467,10 @@ export type Database = {
           id: string
           is_active: boolean
           org_id: string | null
+          override_at: string | null
+          override_by: string | null
           role: string
+          source: string
           started_on: string | null
           user_id: string
           ward_id: string
@@ -4389,7 +4483,10 @@ export type Database = {
           id?: string
           is_active?: boolean
           org_id?: string | null
+          override_at?: string | null
+          override_by?: string | null
           role: string
+          source?: string
           started_on?: string | null
           user_id: string
           ward_id: string
@@ -4402,7 +4499,10 @@ export type Database = {
           id?: string
           is_active?: boolean
           org_id?: string | null
+          override_at?: string | null
+          override_by?: string | null
           role?: string
+          source?: string
           started_on?: string | null
           user_id?: string
           ward_id?: string
@@ -4421,6 +4521,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id", "ward_id"]
+          },
+          {
+            foreignKeyName: "ward_role_assignments_override_by_fkey"
+            columns: ["override_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "ward_role_assignments_user_id_fkey"

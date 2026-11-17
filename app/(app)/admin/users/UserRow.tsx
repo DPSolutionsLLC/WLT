@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { FormError } from "@/components/ui/FormError";
 import type { WardOrganization, WardUser } from "@/lib/auth/adminUsers";
+import type { WardLinkSummary } from "@/lib/callings/memberLinks";
 import type { UpdateUserInput } from "@/lib/validation/adminUser";
 import { INVITABLE_ROLES, ROLE_LABELS, type Role } from "@/types/domain";
 
@@ -11,14 +12,22 @@ export type UserRowProps = {
   user: WardUser;
   organizations: WardOrganization[];
   isSelf: boolean;
+  link: WardLinkSummary | null;
+  linkControls: ReactNode;
 };
+
+function describeLink(link: WardLinkSummary | null): string {
+  if (link?.status === "active") return `Linked to ${link.memberName ?? "someone on the ward list"}`;
+  if (link?.status === "pending") return "Waiting to be linked";
+  return "Not linked to the ward list";
+}
 
 const SELECT_CLASSES =
   "min-h-11 w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm " +
   "text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 " +
   "focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60";
 
-export function UserRow({ user, organizations, isSelf }: UserRowProps) {
+export function UserRow({ user, organizations, isSelf, link, linkControls }: UserRowProps) {
   const router = useRouter();
   const [role, setRole] = useState<Role>(user.role);
   const [orgId, setOrgId] = useState<string>(user.orgId ?? "");
@@ -68,6 +77,7 @@ export function UserRow({ user, organizations, isSelf }: UserRowProps) {
         {user.counselorPosition && (
           <p className="text-xs text-muted">Counselor {user.counselorPosition}</p>
         )}
+        <p className="text-xs text-muted">{describeLink(link)}</p>
       </div>
 
       <div className="mt-3 md:mt-0">
@@ -141,6 +151,8 @@ export function UserRow({ user, organizations, isSelf }: UserRowProps) {
           {isActive ? "Deactivate" : "Reactivate"}
         </button>
       </div>
+
+      {linkControls && <div className="mt-3 md:col-span-4 md:mt-0">{linkControls}</div>}
 
       <div className="md:col-span-4">
         <FormError message={error} />

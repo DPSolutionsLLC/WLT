@@ -853,6 +853,12 @@ All admin capabilities are shared equally by the bishop and both counselors. Any
 - Generate invite links (tied to role and org)
 - Deactivate accounts, change roles
 - Re-enable notification subscriptions
+- **Link each account to its person on the ward list** (ITER-058). An account whose login email is
+  on exactly one person's ward-list record is asked **"Is this you?"** on its dashboard; anyone else
+  presses **Ask the bishopric to link me** and waits. On Admin → Users, requests wait at the top and
+  each row says whether the account is linked; a bishopric member links, declines or unlinks with a
+  ward-list picker. **Nobody can link their own account** except by confirming their own email
+  match. Linking alone changes nobody's calling (from cr2 on, the ward list decides it after review)
 
 ### Role Access Summary Page
 - Visual table of all roles and their module access

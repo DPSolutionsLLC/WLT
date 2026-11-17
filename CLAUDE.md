@@ -529,6 +529,24 @@ calling — an empty page with no error to explain it.
 
 ---
 
+### The roster decides the calling — ITER-058, BEING BUILT (cr1 shipped, migration 105)
+
+`plans/roster-decides-callings.md`. **`user_member_links` says which person on the ward list an
+account is, per ward**, and has a SELECT policy and NO write policy: `lib/callings/memberLinks.ts` on
+the service role is its only writer (`tests/lib/callingWriteSites.test.ts`). **Nobody links their own
+account except by confirming their own email match** — the route and the library both refuse it,
+the super admin included — because from cr2 on a link decides the calling, and linking yourself to
+the Bishop's record is the escalation. The match is the login email (Supabase Auth's) against the
+roster email, case-insensitive, and **two people sharing an address is no match**. Asking never lets
+the requester browse or pick a record.
+
+**`lib/callings/lcrCallingMap.ts` is the one map from LCR title to app calling** (exact,
+case-sensitive, agreed with the user 2026-11-16; anything else grants nothing; the higher-ranked of
+two wins; the organization is found by type and never guessed). **No title maps to
+`ward_council_member`**; `Resource Center Specialist` maps to `resource_center_specialist`. ITER-060
+must import it, not copy it. `ward_role_assignments.source` (`manual` | `roster` | `override`) says
+where a calling came from; every calling before this is `manual`, and linking changes no calling.
+
 ## 8. Testing
 
 Tests accompany new code by default. Priority order when time is short:
