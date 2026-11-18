@@ -170,6 +170,7 @@ export async function createYouthAccount(
         wardId,
         role: YOUTH_ROLE,
         createdBy: actingUserId,
+        source: "manual",
       },
       service,
     );

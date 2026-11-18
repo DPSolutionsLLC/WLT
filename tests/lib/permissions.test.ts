@@ -860,9 +860,12 @@ describe("INVITABLE_ROLES", () => {
 
   // updateUserSchema is the OTHER half of the friction: the schema refuses the value, so a
   // hand-rolled PATCH is a 400 rather than a promotion to app-wide administrator.
-  it("is matched by the admin role-change schema refusing super_admin", () => {
+  // Since ITER-058 cr2 the schema carries no role at all, and `.strict()` refuses one sent anyway.
+  it("is matched by the admin user schema refusing any role, super_admin included", () => {
     expect(updateUserSchema.safeParse({ role: "super_admin" }).success).toBe(false);
-    expect(updateUserSchema.safeParse({ role: "ward_secretary" }).success).toBe(true);
+    expect(updateUserSchema.safeParse({ role: "ward_secretary" }).success).toBe(false);
+    expect(updateUserSchema.safeParse({ isActive: false, role: "bishop" }).success).toBe(false);
+    expect(updateUserSchema.safeParse({ isActive: false }).success).toBe(true);
   });
 });
 

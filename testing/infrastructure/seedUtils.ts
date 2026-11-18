@@ -604,6 +604,11 @@ async function upsertCalling(options: {
       org_id: options.orgId,
       counselor_position: options.counselorPosition,
       is_active: true,
+      // Written on every seed, so a re-seed after the Calling review or an override (ITER-058 cr2)
+      // starts from a hand-typed calling again rather than keeping the last walk's marker.
+      source: "manual",
+      override_by: null,
+      override_at: null,
     },
     { onConflict: "id" },
   );

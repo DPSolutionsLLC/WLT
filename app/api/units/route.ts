@@ -109,6 +109,7 @@ export async function POST(request: Request) {
             role: input.callingRole,
             counselorPosition: input.callingRole === "counselor" ? 1 : null,
             createdBy: user.id,
+            source: "manual",
           });
           callingCreated = true;
         }

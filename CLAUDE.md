@@ -529,7 +529,7 @@ calling — an empty page with no error to explain it.
 
 ---
 
-### The roster decides the calling — ITER-058, BEING BUILT (cr1 shipped, migration 105)
+### The roster decides the calling — ITER-058, BEING BUILT (cr1 and cr2 shipped, migration 105)
 
 `plans/roster-decides-callings.md`. **`user_member_links` says which person on the ward list an
 account is, per ward**, and has a SELECT policy and NO write policy: `lib/callings/memberLinks.ts` on
@@ -546,6 +546,19 @@ two wins; the organization is found by type and never guessed). **No title maps 
 `ward_council_member`**; `Resource Center Specialist` maps to `resource_center_specialist`. ITER-060
 must import it, not copy it. `ward_role_assignments.source` (`manual` | `roster` | `override`) says
 where a calling came from; every calling before this is `manual`, and linking changes no calling.
+
+**cr2: THE CALLING REVIEW IS COMPUTED ON READ, AND NOTHING APPLIES UNTICKED.** `buildCallingReview()`
+(`lib/callings/callingReview.ts`, pure) is the ONE comparison of the ward list with the app; cr3's
+paste review must call it, never a second copy. `applyCallingReview()` takes only ticked IDS, recomputes,
+and writes through `createCalling` / `updateCalling` / `endCalling` alone — **both now take a REQUIRED
+`source`**, so every caller says where a calling came from. A row id carries its TARGET, so a tick the
+recompute no longer produces is stale, never applied to something nobody saw. Each guard refuses only
+its own row: the last bishop, **your own calling unless you are the super admin**, and an unresolvable
+organization. **Admin → Users no longer sets roles** (`updateUserSchema` is `{ isActive }`, `.strict()`,
+and refuses self-deactivation on the server); the one hand edit left is the **super admin's override**,
+marked and put back on every review. A `ward_council_member` is never proposed for release by a roster
+that cannot name the role — only by leaving the list. **A released account is not a 500:**
+`lib/auth/session.ts` throws `NoCallingError`, pages redirect to `/no-calling`, and sign-out still audits.
 
 ## 8. Testing
 

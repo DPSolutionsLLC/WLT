@@ -42,7 +42,8 @@ function describeChange(change: FieldChange): string {
   return `${change.label}: ${displayValue(change, change.before ?? "")} → ${displayValue(change, change.after ?? "")}`;
 }
 
-type GroupProps = {
+// Exported for the Calling review on Admin → Users (ITER-058 cr2), which is the same checklist.
+export type GroupProps = {
   title: string;
   emptyText: string;
   ids: readonly string[];
@@ -53,7 +54,7 @@ type GroupProps = {
   children: ReactNode;
 };
 
-function ChecklistGroup({
+export function ChecklistGroup({
   title,
   emptyText,
   ids,
@@ -125,7 +126,7 @@ type ItemProps = {
   children: ReactNode;
 };
 
-function ChecklistItem({ id, name, selectedIds, onChange, disabled, children }: ItemProps) {
+export function ChecklistItem({ id, name, selectedIds, onChange, disabled, children }: ItemProps) {
   const inputId = `review-${id}`;
 
   function toggle(): void {

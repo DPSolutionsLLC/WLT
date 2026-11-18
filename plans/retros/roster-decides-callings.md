@@ -21,6 +21,18 @@ files:
   - app/(app)/admin/users/MemberLinkControls.tsx
   - types/domain.ts
   - testing/infrastructure/seedUtils.ts
+  - lib/callings/callingReview.ts
+  - lib/callings/applyCallingReview.ts
+  - lib/callings/loadCallingReview.ts
+  - lib/callings/writeCalling.ts
+  - lib/validation/callingReview.ts
+  - lib/validation/adminUser.ts
+  - lib/auth/session.ts
+  - app/api/callings/review/route.ts
+  - app/api/callings/override/route.ts
+  - app/(app)/admin/users/CallingReview.tsx
+  - app/(app)/admin/users/OverrideControls.tsx
+  - app/(auth)/no-calling/page.tsx
 related: [ward-callings-model, zoom-remote-links, roster-paste-import, bishopric-visits, p2-admin-and-access]
 ---
 
@@ -62,3 +74,55 @@ came from. **Linking changes nobody's calling yet**; cr2 adds the review that do
   `seedUtils.ts` comment and broke the harness typecheck. Avoid backslash escapes in heredoc edits.
 - **Buffalo runbook (before cr2 matters):** Admin is unreleased there, so only the super admin can
   open Admin → Users until it is released (ITER-041). "Is this you?" works regardless.
+
+## cr2 — the Calling review (2026-11-17)
+
+### What was done
+
+**cr2 (ITER-058, slice 2 of 4).** Admin → Users now compares the ward list with the app for every
+linked account and lists each difference as an unticked row. Nothing changes until a person ticks a
+row and presses Apply. Admin → Users no longer sets roles: the one hand edit left is the super
+admin's marked override, which goes back on every review. An account with no calling left lands on
+`/no-calling` instead of a 500.
+
+### Key decisions
+
+- **The review is computed on read, and `buildCallingReview()` is the one comparison.** cr3's paste
+  review must call it rather than write a second copy.
+- **Apply takes only ticked ids and recomputes first.** A row id carries its target, so a tick the
+  recompute no longer produces counts as stale and is never applied to something nobody saw.
+- **`createCalling` and `updateCalling` and `endCalling` take a required `source`,** so every caller
+  has to say where a calling came from.
+- **Each guard refuses only its own row:** the last bishop, your own calling unless you are the super
+  admin, and an organization that cannot be resolved.
+- **A row with a waiting change says so** ("Change waiting in the Calling review"), decided by the
+  user on walking scenario 103b. An override row keeps its own line, because an override always has
+  a review row.
+
+### Defects found walking scenario 103b, all fixed and re-walked
+
+- **D1: a super admin saw every account as "Not linked".** Their `super_admin` calling is not admitted
+  to the ward's links by policy, and the page read them through the caller's client. The links and the
+  review now read through the service role, after `canManageMemberLinks()`.
+- **D2: applying the last row removed its own result.** The refresh emptied the review and the page
+  unmounted it. The review now stays mounted and hides itself when it has nothing to show.
+- **D3: applied rows stayed on screen under "Applied …" until the refresh landed.** They are now
+  hidden when the server answers, and the button reads "Updating…" until the refresh arrives.
+
+**Pattern:** a page that gates on a permission and then reads through a policy can disagree with
+itself for a role the policy does not name. Nothing errors; the rows are simply absent.
+
+### Verification
+
+Full suite 398 files and 5,783 tests passed, production build passed, and scenario 103b was walked and
+re-walked by Claude in a browser. **The user has not walked it themselves** and chose to test later.
+
+### Gaps and follow-ups
+
+- **`endCalling()` stamps `ended_on` in UTC** (`lib/callings/writeCalling.ts:187`), so a release after
+  5pm Mountain is dated the next day. Seen on the walk, not fixed.
+- **React "missing key" warning pointing at `UserRow`.** Cause not confirmed.
+- **Sending `role` in the user PATCH body is refused with "Say whether the account is active."** The
+  refusal is right and the sentence does not explain it.
+- **A released account logs a `console.error` on each request.**
+- **The longer pending-review line was not re-checked at 375px.**

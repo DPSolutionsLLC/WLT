@@ -1,0 +1,155 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { displayName, listWardOrganizations } from "@/lib/auth/adminUsers";
+import {
+  buildCallingReview,
+  type CallingReviewRow,
+  type ReviewMember,
+  type ReviewOrganization,
+} from "@/lib/callings/callingReview";
+import { listActiveWardLinks } from "@/lib/callings/memberLinks";
+import { listWardCallings } from "@/lib/callings/queries";
+import type { Database } from "@/types/database";
+import { MEMBER_STATUSES, type MemberStatus } from "@/types/domain";
+
+// THE READS BEHIND ONE WARD'S CALLING REVIEW (ITER-058 cr2).
+//
+// THROUGH THE SERVICE-ROLE CLIENT, AFTER THE CALLER'S GATE. The review is read by the bishopric and
+// by the super admin, and a super admin acting under a `super_admin` calling is not admitted to the
+// ward's links by migration 105a's policy (`user_id = auth.uid() or is_bishopric()`). The route or
+// page calls canManageMemberLinks() first; that check is the boundary, exactly as it is for every
+// write to `user_member_links`. EVERY QUERY HERE FILTERS ON `ward_id` (CLAUDE.md rule 1), because
+// the service role would otherwise read every ward.
+//
+// `members.callings` is read here and NOWHERE ELSE for a calling: "every 'who holds this role'
+// query reads callings" (ward-callings-model). The review is the one place the roster's text is
+// compared with the app.
+
+export type CallingReviewData = {
+  rows: CallingReviewRow[];
+  organizationNames: Map<string, string>;
+};
+
+// A paste preview (cr3) passes the PASTED callings text, keyed by member id, in place of the
+// stored text. Absent means "use what is stored".
+export type CallingTextOverrides = ReadonlyMap<string, string | null>;
+
+function toMemberStatus(value: string): MemberStatus {
+  if (!(MEMBER_STATUSES as readonly string[]).includes(value)) {
+    throw new Error(
+      `members.status holds "${value}", which is not a known status. The CHECK constraint and ` +
+        "MEMBER_STATUSES in types/domain.ts have drifted.",
+    );
+  }
+  return value as MemberStatus;
+}
+
+async function readLinkedMembers(
+  wardId: string,
+  memberIds: readonly string[],
+  service: SupabaseClient<Database>,
+): Promise<ReviewMember[]> {
+  if (memberIds.length === 0) return [];
+
+  const { data, error } = await service
+    .from("members")
+    .select("id, first_name, last_name, status, callings")
+    .eq("ward_id", wardId)
+    .in("id", [...memberIds]);
+
+  if (error) {
+    console.error(`Could not read the linked members — ${error.message}`, { wardId });
+    throw new Error(`Could not read the linked members: ${error.message}`);
+  }
+
+  return (data ?? []).map((member) => ({
+    id: member.id,
+    name: [member.first_name, member.last_name].filter(Boolean).join(" "),
+    status: toMemberStatus(member.status),
+    callings: member.callings,
+  }));
+}
+
+async function readAccountNames(
+  userIds: readonly string[],
+  service: SupabaseClient<Database>,
+): Promise<Map<string, string>> {
+  if (userIds.length === 0) return new Map();
+
+  const { data, error } = await service
+    .from("users")
+    .select("id, first_name, last_name, username, email")
+    .in("id", [...new Set(userIds)]);
+
+  if (error) {
+    console.error(`Could not read the linked accounts' names — ${error.message}`);
+    throw new Error(`Could not read the linked accounts: ${error.message}`);
+  }
+
+  return new Map(
+    (data ?? []).map((account) => [
+      account.id,
+      displayName({
+        firstName: account.first_name,
+        lastName: account.last_name,
+        username: account.username,
+        email: account.email,
+      }),
+    ]),
+  );
+}
+
+export async function loadCallingReview(
+  wardId: string,
+  service: SupabaseClient<Database>,
+  callingTextOverrides?: CallingTextOverrides,
+): Promise<CallingReviewData> {
+  const links = await listActiveWardLinks(wardId, service);
+
+  const [storedMembers, callings, wardOrganizations, accountNames] = await Promise.all([
+    readLinkedMembers(
+      wardId,
+      links.map((link) => link.memberId),
+      service,
+    ),
+    listWardCallings(wardId, service),
+    listWardOrganizations(wardId, service),
+    readAccountNames(
+      links.map((link) => link.userId),
+      service,
+    ),
+  ]);
+
+  const members = callingTextOverrides
+    ? storedMembers.map((member) =>
+        callingTextOverrides.has(member.id)
+          ? { ...member, callings: callingTextOverrides.get(member.id) ?? null }
+          : member,
+      )
+    : storedMembers;
+
+  const organizations: ReviewOrganization[] = wardOrganizations.map((organization) => ({
+    id: organization.id,
+    type: organization.type,
+    name: organization.name,
+  }));
+
+  const rows = buildCallingReview({
+    links,
+    members,
+    callings: callings.map((calling) => ({
+      id: calling.id,
+      userId: calling.userId,
+      role: calling.role,
+      orgId: calling.orgId,
+      counselorPosition: calling.counselorPosition,
+      source: calling.source,
+    })),
+    organizations,
+    accountNames,
+  });
+
+  return {
+    rows,
+    organizationNames: new Map(organizations.map((organization) => [organization.id, organization.name])),
+  };
+}

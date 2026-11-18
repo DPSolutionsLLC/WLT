@@ -1,30 +1,17 @@
 import { z } from "zod";
-import { ROLES, type Role } from "@/types/domain";
 
-// `super_admin` IS NOT REACHABLE THROUGH THE ORDINARY ROLE-CHANGE PATH, AND THAT IS THE POINT.
-// It bypasses the access matrix entirely (CLAUDE.md §7), so it must not be a value in a ward's
-// role dropdown — a ward has no standing to create an app-wide administrator, and the authority
-// it carries does not come from a ward at all. INVITABLE_ROLES excludes it for the same reason.
+// ADMIN → USERS NO LONGER SETS A CALLING (ITER-058 cr2). The role, organization and counselor
+// position used to be fields here; they are gone, because a linked account's calling now follows
+// the ward list through the Calling review, and the only hand edit left is the super admin's
+// marked override (`/api/callings/override`). `.strict()` makes a body that still sends `role` a
+// 400 rather than a silently ignored key — including `role: "super_admin"`, which this path was
+// always meant to refuse.
 //
-// THE FRICTION UI IS proto-d's. What this slice guarantees is that the ORDINARY path cannot reach
-// it: the schema refuses the value, so a hand-rolled PATCH is a 400 rather than a promotion.
-// lib/auth/adminUsers.ts guards the LAST one from being removed.
-const ASSIGNABLE_ROLES = ROLES.filter((role) => role !== "super_admin") as [Role, ...Role[]];
-
 // No wardId, ever — it comes from the session (conventions.md §Validation). No userId either:
 // the target is the route parameter, not something the body may assert.
 export const updateUserSchema = z
   .object({
-    role: z.enum(ASSIGNABLE_ROLES).optional(),
-    orgId: z.uuid("Choose an organization from the list.").nullable().optional(),
-    counselorPosition: z
-      .union([z.literal(1), z.literal(2)])
-      .nullable()
-      .optional(),
-    isActive: z.boolean().optional(),
+    isActive: z.boolean("Say whether the account is active."),
   })
-  .refine(
-    (changes) => Object.values(changes).some((value) => value !== undefined),
-    { message: "Include at least one field to change." },
-  );
+  .strict();
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;

@@ -851,7 +851,8 @@ All admin capabilities are shared equally by the bishop and both counselors. Any
 ### User Management
 - View all users, roles, and organizations
 - Generate invite links (tied to role and org)
-- Deactivate accounts, change roles
+- Deactivate accounts (never your own). **Roles are no longer set here** (ITER-058 cr2): see the
+  Calling review below
 - Re-enable notification subscriptions
 - **Link each account to its person on the ward list** (ITER-058). An account whose login email is
   on exactly one person's ward-list record is asked **"Is this you?"** on its dashboard; anyone else
@@ -859,6 +860,17 @@ All admin capabilities are shared equally by the bishop and both counselors. Any
   each row says whether the account is linked; a bishopric member links, declines or unlinks with a
   ward-list picker. **Nobody can link their own account** except by confirming their own email
   match. Linking alone changes nobody's calling (from cr2 on, the ward list decides it after review)
+- **Calling review** (ITER-058 cr2). Above the user list, for every linked account where the ward
+  list and the app disagree: *Aaron Pike: from 1st Counselor to 2nd Counselor*, a calling to give, a
+  release (moved out, or no calling the app recognises), or a calling that cannot be applied here.
+  **Nothing changes until it is ticked**; releases are ticked one at a time. Each row says what it
+  set aside and which LCR titles were not recognised. You cannot apply your own calling. Each row on
+  the list shows where its calling came from: *From the ward list*, *Set by hand*, or *Overridden —
+  differs from the ward list*
+- **Override a calling** — the super admin only. The override is marked and comes back on every
+  Calling review until it is cleared
+- Somebody whose only calling is released sees a plain page — *You no longer hold a calling in
+  {ward}* — with Sign out
 
 ### Role Access Summary Page
 - Visual table of all roles and their module access

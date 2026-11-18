@@ -232,7 +232,7 @@ describe("/api/zoom remote links", () => {
     const counselor = fixtures.user("counselor1");
     try {
       await updateCalling(
-        { userId: counselor.id, wardId: fixtures.wardAId, changes: { counselorPosition: 2 }, actorUserId },
+        { userId: counselor.id, wardId: fixtures.wardAId, changes: { counselorPosition: 2 }, actorUserId, source: "manual" },
         fixtures.service,
       );
       expect(await linkRow("counselor_1")).toMatchObject({
@@ -247,13 +247,13 @@ describe("/api/zoom remote links", () => {
       ).toBe(true);
 
       await updateCalling(
-        { userId: counselor.id, wardId: fixtures.wardAId, changes: { counselorPosition: 1 }, actorUserId },
+        { userId: counselor.id, wardId: fixtures.wardAId, changes: { counselorPosition: 1 }, actorUserId, source: "manual" },
         fixtures.service,
       );
       expect((await linkRow("counselor_1"))?.url).toBeNull();
     } finally {
       await updateCalling(
-        { userId: counselor.id, wardId: fixtures.wardAId, changes: { counselorPosition: 1 }, actorUserId },
+        { userId: counselor.id, wardId: fixtures.wardAId, changes: { counselorPosition: 1 }, actorUserId, source: "manual" },
         fixtures.service,
       );
     }

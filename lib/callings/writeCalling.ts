@@ -3,7 +3,7 @@ import { CALLING_COLUMNS, toCalling } from "@/lib/callings/queries";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import { retireRemoteLinksForCalling } from "@/lib/zoom/remoteLinks";
 import type { Database } from "@/types/database";
-import type { Calling, Role } from "@/types/domain";
+import type { Calling, CallingSource, Role } from "@/types/domain";
 
 // WRITING A CALLING. Every path that used to write `users.role` / `users.org_id` /
 // `users.counselor_position` comes through here instead — redeeming an invite, creating a youth
@@ -42,6 +42,10 @@ export type CreateCallingParams = {
   // It is null for a calling created by a system path with no acting user, such as the first
   // account in a ward.
   createdBy?: string | null;
+  // WHERE THE CALLING CAME FROM (ITER-058). Required, with no default, so every caller says so: a
+  // calling typed in by hand is `manual`, one applied from a reviewed roster calling is `roster`.
+  // `override` is never created, only set by updateCalling() on the super admin's override path.
+  source: Exclude<CallingSource, "override">;
 };
 
 export type UpdateCallingParams = {
@@ -56,6 +60,10 @@ export type UpdateCallingParams = {
   // Required, with no default: a missing one is a compile error rather than a link turned off by
   // nobody (ITER-005's lesson).
   actorUserId: string;
+  // WHERE THE RESULT CAME FROM, required for the same reason. `override` stamps `override_by` (the
+  // actor) and `override_at`; any other source clears both, so applying the roster over an
+  // override, or clearing one, leaves no stale marker behind (ITER-058 D3).
+  source: CallingSource;
 };
 
 export type EndCallingParams = {
@@ -90,6 +98,7 @@ export async function createCalling(
       counselor_position: params.counselorPosition ?? null,
       started_on: params.startedOn ?? null,
       created_by: params.createdBy ?? null,
+      source: params.source,
     })
     .select(CALLING_COLUMNS)
     .single();
@@ -137,6 +146,9 @@ export async function updateCalling(
         ? { counselor_position: changes.counselorPosition }
         : {}),
       ...(changes.isActive !== undefined ? { is_active: changes.isActive } : {}),
+      source: params.source,
+      override_by: params.source === "override" ? params.actorUserId : null,
+      override_at: params.source === "override" ? new Date().toISOString() : null,
     })
     .eq("user_id", params.userId)
     .eq("ward_id", params.wardId)

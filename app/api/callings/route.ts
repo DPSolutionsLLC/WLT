@@ -103,6 +103,7 @@ export async function POST(request: Request) {
       counselorPosition: input.counselorPosition ?? null,
       startedOn: input.startedOn ?? null,
       createdBy: user.id,
+      source: "manual",
     });
 
     // Filed under the ward the CALLING is in, not the ward the session is in. That is where the
@@ -192,6 +193,7 @@ export async function PATCH(request: Request) {
           wardId: input.wardId,
           changes: { isActive: true },
           actorUserId: user.id,
+          source: "manual",
         })
       : await endCalling({
           userId: input.userId,

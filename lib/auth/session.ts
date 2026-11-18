@@ -61,6 +61,28 @@ function toOrganizationType(value: string | null): OrganizationType | null {
   return value as OrganizationType;
 }
 
+// A SIGNED-IN ACCOUNT WITH NO ACTIVE CALLING IN THE WARD ITS SESSION RESOLVED TO. Before ITER-058
+// cr2 this was a fault no ordinary flow could produce; since the Calling review can release a
+// calling, it is a state a real person reaches. It still throws rather than defaulting to a role
+// nobody chose — but as its own class, so a page can send the person to /no-calling (a plain
+// sentence and a sign-out button) instead of an error screen, and sign-out can still audit.
+export class NoCallingError extends Error {
+  readonly userId: string;
+  readonly wardId: string;
+
+  constructor(userId: string, wardId: string) {
+    super(
+      `${userId} holds no active calling in ward ${wardId}, so this session has no role. ` +
+        "Check ward_role_assignments for this account.",
+    );
+    this.name = "NoCallingError";
+    this.userId = userId;
+    this.wardId = wardId;
+  }
+}
+
+export const NO_CALLING_PATH = "/no-calling";
+
 async function resolveSessionUser(
   client?: SupabaseClient<Database>,
 ): Promise<SessionUser | null> {
@@ -150,20 +172,15 @@ async function resolveSessionUser(
   // this arrives as a row with a null role rather than as no row at all — "no row" would read as
   // a half-created account and bounce the user to /login with nothing said.
   //
-  // It should be unreachable: migration 068's backfill gave every account a calling in its home
-  // ward, current_ward_id() falls back to that ward, and every path that creates an account
-  // creates a calling with it. So this is a real fault rather than a state to render, and it
-  // throws with a sentence naming the cause (CLAUDE.md rule 7) rather than defaulting to a role
-  // nobody chose.
+  // It used to be unreachable. Since ITER-058 cr2 the Calling review can release somebody's only
+  // calling, so it is a state a real person reaches. It still throws rather than defaulting to a
+  // role nobody chose — as NoCallingError, which pages turn into /no-calling.
   if (!context.role || !context.calling_id) {
     console.error("A session resolved to a ward the user holds no active calling in", {
       userId: user.id,
       wardId: context.ward_id,
     });
-    throw new Error(
-      `${user.id} holds no active calling in ward ${context.ward_id}, so this session has no ` +
-        "role. Check ward_role_assignments for this account.",
-    );
+    throw new NoCallingError(user.id, context.ward_id);
   }
 
   // `?? null` on active_ward_id and org_id is NOT redundant, whatever the generated type says.
@@ -228,7 +245,27 @@ export const getSessionUser = cache(
 export async function requireSessionUser(
   client?: SupabaseClient<Database>,
 ): Promise<SessionUser> {
-  const user = await getSessionUser(client);
+  const user = await getSessionUserForPage(client);
   if (!user) redirect("/login");
+  return user;
+}
+
+// getSessionUser(), except that an account with no calling here is sent to /no-calling rather
+// than thrown at an error screen. The redirect is OUTSIDE the catch on purpose: redirect() itself
+// throws, and catching it would carry on as if nothing happened.
+export async function getSessionUserForPage(
+  client?: SupabaseClient<Database>,
+): Promise<SessionUser | null> {
+  let hasNoCalling = false;
+  let user: SessionUser | null = null;
+
+  try {
+    user = await getSessionUser(client);
+  } catch (error) {
+    if (!(error instanceof NoCallingError)) throw error;
+    hasNoCalling = true;
+  }
+
+  if (hasNoCalling) redirect(NO_CALLING_PATH);
   return user;
 }

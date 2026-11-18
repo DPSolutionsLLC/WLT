@@ -348,6 +348,7 @@ export async function redeemInvite(
         orgId: invite.org_id,
         counselorPosition: toCounselorPosition(invite.counselor_position),
         createdBy: invite.invited_by,
+        source: "manual",
       },
       service,
     );

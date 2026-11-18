@@ -482,6 +482,54 @@ export async function readLink(
   return data ? toMemberLink(data) : null;
 }
 
+// EVERY ACTIVE LINK IN ONE WARD, for the Calling review (ITER-058 cr2). Through the service role
+// after the caller's gate (lib/callings/loadCallingReview.ts says why); `ward_id` is filtered here
+// because the service role would otherwise read every ward.
+export async function listActiveWardLinks(
+  wardId: string,
+  client?: SupabaseClient<Database>,
+): Promise<Array<{ userId: string; memberId: string }>> {
+  const service = resolveClient(client);
+  const { data, error } = await service
+    .from("user_member_links")
+    .select("user_id, member_id")
+    .eq("ward_id", wardId)
+    .eq("status", "active");
+
+  if (error) {
+    console.error(`Could not read the ward's active roster links — ${error.message}`, { wardId });
+    throw new Error(`Could not read the ward's roster links: ${error.message}`);
+  }
+
+  return (data ?? [])
+    .filter((link): link is { user_id: string; member_id: string } => link.member_id !== null)
+    .map((link) => ({ userId: link.user_id, memberId: link.member_id }));
+}
+
+// Is this account linked to someone on this ward's list? Used when an override is cleared, to say
+// whether the calling goes back to the ward list or to "set by hand".
+export async function hasActiveLink(
+  userId: string,
+  wardId: string,
+  client?: SupabaseClient<Database>,
+): Promise<boolean> {
+  const service = resolveClient(client);
+  const { data, error } = await service
+    .from("user_member_links")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("ward_id", wardId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (error) {
+    console.error(`Could not read the account's roster link — ${error.message}`, { userId, wardId });
+    throw new Error(`Could not read the account's roster link: ${error.message}`);
+  }
+
+  return data !== null;
+}
+
 export type WardLinkSummary = MemberLink & { memberName: string | null };
 
 // Every open link in the ward, with the linked member's name, for Admin → Users. Read through the

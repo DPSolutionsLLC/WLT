@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 101,
+  "scenarioCount": 102,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -178,7 +178,7 @@
         "ITER-058"
       ],
       "prerequisites": "Migration 105 applied; Admin released for the Harness Test Ward.",
-      "purpose": "ITER-058 slice **cr1**. Each login is linked, once per ward, to its person on the ward list. Linking\non its own **changes nobody's calling or access**. From cr2 on, a linked account's calling follows\nthe ward list, after a review.\n\nThere are three ways to be linked:\n\n- **Is this you?** — when exactly one person on the ward list has the account's login email, the\n  dashboard offers that person; **Yes, this is me** links them.\n- **Ask the bishopric** — anyone else asks, and never browses or picks from the ward list.\n- **A bishopric member links them** on Admin → Users, choosing the person. **Nobody can link their\n  own account** this way, the super admin included.\n\nA link decides privileges from cr2 on, so `user_member_links` has no write policy at all: only the\nserver writes it.",
+      "purpose": "ITER-058 slice **cr1**. Each login is linked, once per ward, to its person on the ward list. Linking\r\non its own **changes nobody's calling or access**. From cr2 on, a linked account's calling follows\r\nthe ward list, after a review.\r\n\r\nThere are three ways to be linked:\r\n\r\n- **Is this you?** — when exactly one person on the ward list has the account's login email, the\r\n  dashboard offers that person; **Yes, this is me** links them.\r\n- **Ask the bishopric** — anyone else asks, and never browses or picks from the ward list.\r\n- **A bishopric member links them** on Admin → Users, choosing the person. **Nobody can link their\r\n  own account** this way, the super admin included.\r\n\r\nA link decides privileges from cr2 on, so `user_member_links` has no write policy at all: only the\r\nserver writes it.",
       "checklist": [
         "Step 1: a small card titled **Is this you?** reads *Aaron Pike, born 1979*, with **Yes, this is",
         "Step 2: **No** swaps the card to *Your account isn't linked to the ward list yet…* with **Ask the",
@@ -186,14 +186,46 @@
         "Step 4: the card reads *Waiting for the bishopric to link your account.*, before and after the",
         "Step 5: Ruth gets the **ask** card, not *Is this you?* — two people share her email",
         "Step 6: **Waiting to be linked to the ward list** sits above the invite form, listing Tom Reyes",
-        "Step 7: Tom leaves the waiting list and his row reads **Linked to Tom Reyes**. The same row id",
-        "Step 8: Unlink leaves the Hannah Baker row as `ended` with `ended_by` = the bishop — never",
+        "Step 7: choosing Tom Reyes saves nothing yet — the request shows *Link Tom Reyes to Tom",
+        "Step 8: the first press of **Unlink** only changes its label to *Unlink? Tap again* (the link",
+        "Step 8b: in the picker Mark Andersen reads *Linked to Mark Andersen's account*. Linking Ruth to",
         "Step 9: the bishop's own row has **no** link controls. A direct",
         "Step 10: Lena's card is gone",
         "Every step: nobody's role, organization or counselor position changed (read back",
         "Step 11 (375px): the card's buttons wrap without overflow; the waiting list and the row controls"
       ],
       "seedCommand": "npm run seed -- admin/scenario-103-link-accounts-to-the-ward-list"
+    },
+    {
+      "id": "admin:scenario-103b-the-calling-review",
+      "path": "admin/scenario-103b-the-calling-review",
+      "name": "The calling review",
+      "scope": "admin",
+      "part": 2,
+      "tags": [
+        "callings",
+        "admin",
+        "full",
+        "security",
+        "ITER-058"
+      ],
+      "prerequisites": "Migration 105 applied; Admin released for the Harness Test Ward.",
+      "purpose": "ITER-058 slice **cr2** (scenario 103, Part 2). For an account linked to its person on the ward list,\nthe app calling now **follows the ward list** — but only through the **Calling review** on Admin →\nUsers, where a person ticks each change. Nothing applies on its own, in either direction.\n\n- Admin → Users **no longer sets roles** for anybody.\n- The **super admin** alone may **override** a calling. It is marked *Overridden — differs from the\n  ward list* and comes back on every review until it is cleared.\n- Releasing somebody's only calling sends them to a plain page, not an error.",
+      "checklist": [
+        "Step 1–3: Aaron links himself through *Is this you?*; Lena's card reads *Waiting…*; after the",
+        "Step 4: the review lists, all **unticked**: *Aaron Pike: from 1st Counselor to 2nd Counselor*;",
+        "Step 4: no user row has a role or organization dropdown. Each shows its calling and *From the",
+        "Step 5: Aaron cannot tick his own row (it sits under *Can't apply here* with *This is your own",
+        "Step 6: the result reads *Applied 3 calling changes*. Aaron is 2nd and Lena 1st, Tom is",
+        "Step 7: the 1st Counselor position reads **Needs a new link** — the old link was turned off",
+        "Step 8: **Tick all** is disabled in Releases. Paul's release applies only when ticked; Sam's",
+        "Step 9: Paul sees *You no longer hold a calling in Harness Test Ward. If this is a mistake,",
+        "Step 10: Ruth's row reads **Executive Secretary** and *Overridden — differs from the ward list*",
+        "Step 11: Ruth's row reads *From the ward list* again (`source = roster`, override columns null)",
+        "A bishopric member (not the super admin) has **no** Override button, and a direct",
+        "Step 12 (375px): the review groups, the result card and the override window wrap without"
+      ],
+      "seedCommand": "npm run seed -- admin/scenario-103b-the-calling-review"
     },
     {
       "id": "ai:scenario-020-preview-before-you-save",

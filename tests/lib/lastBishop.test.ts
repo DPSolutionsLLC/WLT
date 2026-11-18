@@ -3,9 +3,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   LAST_BISHOP_MESSAGE,
+  SELF_DEACTIVATE_MESSAGE,
   countActiveBishops,
   updateWardUser,
 } from "@/lib/auth/adminUsers";
+import { updateCalling } from "@/lib/callings/writeCalling";
 import { seedFixtures, type Fixtures } from "@/tests/helpers/seed";
 
 // The ward must never be able to lock itself out of its own admin surface. Every assertion that
@@ -58,13 +60,35 @@ describe("last active bishop guard", () => {
     expect(await countActiveBishops(fixtures.wardAId, fixtures.service)).toBe(1);
   });
 
+  // ITER-058 cr2: nobody deactivates their own account. Counselor 1 is active, in the ward and not
+  // a bishop, so the only thing refusing this is that it is their own.
+  it("refuses an account deactivating itself", async () => {
+    const counselor = fixtures.user("counselor1");
+
+    const result = await updateWardUser(
+      {
+        wardId: fixtures.wardAId,
+        actorUserId: counselor.id,
+        targetUserId: counselor.id,
+        changes: { isActive: false },
+      },
+      fixtures.service,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toBe(SELF_DEACTIVATE_MESSAGE);
+    expect((await readUser(counselor.id))?.is_active).toBe(true);
+  });
+
+  // The actor is NOT the bishop, so the self-deactivation refusal cannot be what stops it.
   it("refuses to deactivate the only active bishop", async () => {
     const bishop = fixtures.user("bishop");
 
     const result = await updateWardUser(
       {
         wardId: fixtures.wardAId,
-        actorUserId: fixtures.user("bishop").id,
+        actorUserId: fixtures.user("counselor1").id,
         targetUserId: bishop.id,
         changes: { isActive: false },
       },
@@ -78,42 +102,21 @@ describe("last active bishop guard", () => {
     expect((await readUser(bishop.id))?.is_active).toBe(true);
   });
 
-  it("refuses to move the only active bishop off the bishop role", async () => {
-    const bishop = fixtures.user("bishop");
-
-    const result = await updateWardUser(
+  // Admin → Users no longer changes a calling (ITER-058 cr2), so a second bishop is made through the
+  // one writer, and the review's own last-bishop guard is tests/routes/calling-review.test.ts's.
+  it("counts a second bishop once one is appointed", async () => {
+    const updated = await updateCalling(
       {
+        userId: fixtures.user("wardCouncilMember").id,
         wardId: fixtures.wardAId,
-        actorUserId: fixtures.user("bishop").id,
-        targetUserId: bishop.id,
-        changes: { role: "counselor" },
-      },
-      fixtures.service,
-    );
-
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.message).toBe(LAST_BISHOP_MESSAGE);
-
-    expect((await readUser(bishop.id))?.role).toBe("bishop");
-  });
-
-  it("allows a second bishop to be appointed", async () => {
-    const result = await updateWardUser(
-      {
-        wardId: fixtures.wardAId,
-        actorUserId: fixtures.user("bishop").id,
-        targetUserId: fixtures.user("wardCouncilMember").id,
         changes: { role: "bishop" },
+        actorUserId: fixtures.user("bishop").id,
+        source: "manual",
       },
       fixtures.service,
     );
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-
-    expect(result.user.role).toBe("bishop");
-    expect(result.changeSummaries.join(" ")).toContain("role changed");
+    expect(updated?.role).toBe("bishop");
     expect(await countActiveBishops(fixtures.wardAId, fixtures.service)).toBe(2);
   });
 
@@ -144,7 +147,7 @@ describe("last active bishop guard", () => {
     const result = await updateWardUser(
       {
         wardId: fixtures.wardAId,
-        actorUserId: fixtures.user("bishop").id,
+        actorUserId: fixtures.user("counselor1").id,
         targetUserId: bishop.id,
         changes: { isActive: false },
       },
@@ -190,21 +193,5 @@ describe("last active bishop guard", () => {
     expect(result.message).toContain("not in your ward");
 
     expect((await readUser(wardBBishop.id))?.is_active).toBe(true);
-  });
-
-  it("refuses an organization from another ward", async () => {
-    const result = await updateWardUser(
-      {
-        wardId: fixtures.wardAId,
-        actorUserId: fixtures.user("bishop").id,
-        targetUserId: fixtures.user("counselor1").id,
-        changes: { orgId: fixtures.wardBOrgId },
-      },
-      fixtures.service,
-    );
-
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.message).toContain("not in your ward");
   });
 });

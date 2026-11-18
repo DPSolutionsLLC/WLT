@@ -1,15 +1,20 @@
+import { CallingReview } from "@/app/(app)/admin/users/CallingReview";
 import { InviteForm } from "@/app/(app)/admin/users/InviteForm";
 import { MemberLinkControls } from "@/app/(app)/admin/users/MemberLinkControls";
+import { OverrideControls } from "@/app/(app)/admin/users/OverrideControls";
 import { UserRow } from "@/app/(app)/admin/users/UserRow";
 import { YouthAccountForm } from "@/app/(app)/admin/users/YouthAccountForm";
 import { NotPermitted } from "@/components/ui/NotPermitted";
 import { displayName, listWardOrganizations, listWardUsers } from "@/lib/auth/adminUsers";
 import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
+import { describeTarget } from "@/lib/callings/callingReview";
 import { canManageMemberLinks, roleNeedsRosterLink } from "@/lib/callings/linkAccess";
+import { loadCallingReview } from "@/lib/callings/loadCallingReview";
 import { listOpenWardLinks } from "@/lib/callings/memberLinks";
 import { listYouthAccounts } from "@/lib/auth/youthAccounts";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServiceSupabaseClient } from "@/lib/supabase/service";
 
 // The layout above already gated on admin.view. This second check is not redundant: Phase 11's
 // Role Access page can widen admin.view without widening admin.manage_users.
@@ -22,14 +27,25 @@ export default async function AdminUsersPage() {
     return <NotPermitted detail="Managing accounts is limited to the bishopric." />;
   }
 
+  const canLink = canManageMemberLinks(user, roleAccess);
+
+  // The links and the Calling review (ITER-058 cr2) read through the service role AFTER
+  // canManageMemberLinks(): a super admin acting under a `super_admin` calling is not admitted to
+  // the ward's links by policy, and that check is the boundary (lib/callings/loadCallingReview.ts).
+  // Read through the caller's client, every row read "Not linked" for them (defect 103b-D1).
+  const linkClient = canLink ? createServiceSupabaseClient() : supabase;
+
   const [users, organizations, youthAccounts, links] = await Promise.all([
     listWardUsers(user.wardId, supabase),
     listWardOrganizations(user.wardId, supabase),
     listYouthAccounts(user.wardId, supabase),
-    listOpenWardLinks(user.wardId, supabase),
+    listOpenWardLinks(user.wardId, linkClient),
   ]);
 
-  const canLink = canManageMemberLinks(user, roleAccess);
+  const review = canLink ? await loadCallingReview(user.wardId, linkClient) : null;
+  const usersWithPendingReview = new Set(review?.rows.map((row) => row.userId) ?? []);
+  const organizationNames = new Map(organizations.map((organization) => [organization.id, organization.name]));
+
   const linksByUser = new Map(links.map((link) => [link.userId, link]));
   const usersById = new Map(users.map((wardUser) => [wardUser.id, wardUser]));
 
@@ -93,15 +109,24 @@ export default async function AdminUsersPage() {
         </section>
       )}
 
+      {/* Mounted even with no rows, so Apply clearing the last of them keeps its result on screen;
+          the review hides itself when there is nothing to show (defect 103b-D2). */}
+      {review && (
+        <CallingReview
+          rows={review.rows}
+          actorUserId={user.id}
+          actorIsSuperAdmin={user.isSuperAdmin}
+        />
+      )}
+
       <InviteForm organizations={organizations} />
 
       {/* One list at every width: stacked cards on a phone, aligned columns from md up. A
           table that scrolls sideways at 375px is not usable. */}
       <section className="flex flex-col gap-3">
-        <div className="hidden px-3 text-xs font-medium text-muted md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_auto] md:gap-3">
+        <div className="hidden px-3 text-xs font-medium text-muted md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_auto] md:gap-3">
           <span>Name</span>
-          <span>Role</span>
-          <span>Organization</span>
+          <span>Calling</span>
           <span>Status</span>
         </div>
 
@@ -110,8 +135,18 @@ export default async function AdminUsersPage() {
             <UserRow
               key={wardUser.id}
               user={wardUser}
-              organizations={organizations}
+              callingLabel={describeTarget(wardUser, organizationNames)}
               isSelf={wardUser.id === user.id}
+              reviewPending={usersWithPendingReview.has(wardUser.id)}
+              overrideControls={
+                user.isSuperAdmin && roleNeedsRosterLink(wardUser.role) ? (
+                  <OverrideControls
+                    user={wardUser}
+                    targetName={displayName(wardUser)}
+                    organizations={organizations}
+                  />
+                ) : null
+              }
               link={linksByUser.get(wardUser.id) ?? null}
               linkControls={
                 canLink && wardUser.id !== user.id && roleNeedsRosterLink(wardUser.role) ? (

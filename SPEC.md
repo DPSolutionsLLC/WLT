@@ -848,7 +848,38 @@ Audit: `member_link_created` / `_requested` / `_approved` / `_declined` / `_ende
 only. Each notifies the bishopric (`notifyOtherBishopric`).
 
 `ward_role_assignments` gains `source` (`manual` | `roster` | `override`, default `manual`),
-`override_by` and `override_at` (set exactly when `source = 'override'`). cr1 only reads them.
+`override_by` and `override_at` (set exactly when `source = 'override'`).
+
+**The Calling review (cr2).** Computed on read by `buildCallingReview()` (`lib/callings/callingReview.ts`),
+never stored: for every account with an **active** link, the roster's calling (through
+`lib/callings/lcrCallingMap.ts`) against the app's. Row kinds: `change`, `call` (no calling here yet),
+`release` (moved out, gone from the list, or no recognised calling), `override` (the super admin's,
+differing from the list), `unresolvable` (no or several organizations of the type; cannot be applied).
+Roles the roster does not decide (`super_admin`, `sacrament_manager`, stake roles) are skipped, and a
+`ward_council_member` is never proposed for release unless they left the list. Row ids carry the
+target, so a tick the recompute no longer produces is **stale**, never guessed. Every row starts
+unticked.
+
+- `GET /api/callings/review` — the rows. `POST /api/callings/review` `{ selectedIds }` — recomputes,
+  then applies each ticked row through `createCalling` / `updateCalling` / `endCalling` with
+  `source: 'roster'`. Each guard refuses only its own row: the last active bishop, **your own calling
+  unless you are the super admin**, and a row that cannot be applied. Answers
+  `{ applied, refused: [{ id, sentence }], stale }`. Both verbs: `admin.manage_users` AND a bishopric
+  calling or super admin; reads and writes on the service role after that check.
+- `POST /api/callings/override` `{ userId, role, orgId, counselorPosition }` — **super admin only**
+  (`session_context().is_super_admin`), own calling allowed. Writes `source: 'override'`,
+  `override_by`, `override_at`. `role` is one of `INVITABLE_ROLES`; the last-bishop guard applies.
+  `DELETE /api/callings/override` `{ userId }` — clears it back to `roster` (linked) or `manual`.
+- `PATCH /api/admin/users/[id]` now takes `{ isActive }` only (`.strict()`): **Admin → Users no longer
+  sets a role, organization or counselor position.** Deactivating your own account is a 400.
+
+Audit: `calling_changed_from_roster` (one per applied row), `calling_override_set`,
+`calling_override_cleared` — ids, roles, organizations and positions, never names. An apply sends one
+`notifyOtherBishopric` naming every change.
+
+An account whose session resolves to a ward where it holds no active calling (a released calling)
+lands on **`/no-calling`**: one sentence and Sign out. `lib/auth/session.ts` throws `NoCallingError`,
+and `requireSessionUser()` / `getSessionUserForPage()` redirect on it; sign-out still audits.
 
 ### `visit_appointment_companions` (migration 104, ITER-055 bv6)
 

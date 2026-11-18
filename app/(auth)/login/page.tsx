@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUserForPage } from "@/lib/auth/session";
 import { LoginForm } from "@/app/(auth)/login/LoginForm";
 
 export default async function LoginPage({
@@ -7,7 +7,7 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ redirectTo?: string; reset?: string; registered?: string }>;
 }) {
-  const user = await getSessionUser();
+  const user = await getSessionUserForPage();
   if (user) redirect("/dashboard");
 
   const { redirectTo, reset, registered } = await searchParams;

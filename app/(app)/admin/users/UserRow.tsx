@@ -3,17 +3,23 @@
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { FormError } from "@/components/ui/FormError";
-import type { WardOrganization, WardUser } from "@/lib/auth/adminUsers";
+import type { WardUser } from "@/lib/auth/adminUsers";
 import type { WardLinkSummary } from "@/lib/callings/memberLinks";
 import type { UpdateUserInput } from "@/lib/validation/adminUser";
-import { INVITABLE_ROLES, ROLE_LABELS, type Role } from "@/types/domain";
+
+// ONE ACCOUNT ON ADMIN → USERS. Since ITER-058 cr2 a row no longer sets a calling: a linked
+// account's calling follows the ward list through the Calling review above the list, and the only
+// hand edit left is the super admin's marked override (`overrideControls`). What a row still does
+// is show the calling and where it came from, and switch the account on or off.
 
 export type UserRowProps = {
   user: WardUser;
-  organizations: WardOrganization[];
+  callingLabel: string;
   isSelf: boolean;
   link: WardLinkSummary | null;
   linkControls: ReactNode;
+  overrideControls: ReactNode;
+  reviewPending: boolean;
 };
 
 function describeLink(link: WardLinkSummary | null): string {
@@ -22,15 +28,31 @@ function describeLink(link: WardLinkSummary | null): string {
   return "Not linked to the ward list";
 }
 
-const SELECT_CLASSES =
-  "min-h-11 w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm " +
-  "text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 " +
-  "focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60";
+const REVIEW_PENDING_NOTE = "Change waiting in the Calling review";
 
-export function UserRow({ user, organizations, isSelf, link, linkControls }: UserRowProps) {
+// An override always has a review row, so the pending note would add nothing there (walking
+// scenario 103b, question 5).
+function describeSource(user: WardUser, link: WardLinkSummary | null, reviewPending: boolean): string {
+  if (user.callingSource === "override") return "Overridden — differs from the ward list";
+  const source =
+    user.callingSource === "roster"
+      ? "From the ward list"
+      : link?.status === "active"
+        ? "Set by hand"
+        : "Set by hand (not linked)";
+  return reviewPending ? `${source} · ${REVIEW_PENDING_NOTE}` : source;
+}
+
+export function UserRow({
+  user,
+  callingLabel,
+  isSelf,
+  link,
+  linkControls,
+  overrideControls,
+  reviewPending,
+}: UserRowProps) {
   const router = useRouter();
-  const [role, setRole] = useState<Role>(user.role);
-  const [orgId, setOrgId] = useState<string>(user.orgId ?? "");
   const [isActive, setIsActive] = useState(user.isActive);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string>();
@@ -58,7 +80,10 @@ export function UserRow({ user, organizations, isSelf, link, linkControls }: Use
 
       router.refresh();
     } catch (caught) {
-      console.error("Could not update the account", { userId: user.id, error: caught });
+      console.error("Could not update the account", {
+        userId: user.id,
+        error: caught instanceof Error ? caught.message : String(caught),
+      });
       revert();
       setError("Could not reach the server. Check your connection and try again.");
     } finally {
@@ -67,74 +92,29 @@ export function UserRow({ user, organizations, isSelf, link, linkControls }: Use
   }
 
   return (
-    <li className="rounded-lg border border-border bg-surface-raised p-3 md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_auto] md:items-center md:gap-3">
+    <li className="rounded-lg border border-border bg-surface-raised p-3 md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_auto] md:items-center md:gap-3">
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-foreground">
           {fullName || user.email || user.username || "Unnamed account"}
           {isSelf && <span className="ml-2 text-xs text-muted">(you)</span>}
         </p>
         <p className="truncate text-xs text-muted">{user.email ?? user.username ?? "—"}</p>
-        {user.counselorPosition && (
-          <p className="text-xs text-muted">Counselor {user.counselorPosition}</p>
-        )}
         <p className="text-xs text-muted">{describeLink(link)}</p>
       </div>
 
-      <div className="mt-3 md:mt-0">
-        <label htmlFor={`role-${user.id}`} className="sr-only">
-          Role for {fullName || user.email}
-        </label>
-        <select
-          id={`role-${user.id}`}
-          className={SELECT_CLASSES}
-          value={role}
-          // Changing your own role is disabled here: the last-bishop guard does not catch a
-          // bishopric member demoting themselves while another bishop still exists, and the
-          // result is a self-lockout out of the admin surface.
-          disabled={isSaving || isSelf}
-          onChange={(event) => {
-            const previous = role;
-            const next = event.target.value as Role;
-            setRole(next);
-            void save({ role: next }, () => setRole(previous));
-          }}
+      <div className="mt-3 min-w-0 md:mt-0">
+        <p className="text-sm text-foreground">{callingLabel}</p>
+        <p
+          className={`text-xs ${user.callingSource === "override" ? "font-medium text-warning" : "text-muted"}`}
         >
-          {INVITABLE_ROLES.map((option) => (
-            <option key={option} value={option}>
-              {ROLE_LABELS[option]}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="mt-3 md:mt-0">
-        <label htmlFor={`organization-${user.id}`} className="sr-only">
-          Organization for {fullName || user.email}
-        </label>
-        <select
-          id={`organization-${user.id}`}
-          className={SELECT_CLASSES}
-          value={orgId}
-          disabled={isSaving}
-          onChange={(event) => {
-            const previous = orgId;
-            const next = event.target.value;
-            setOrgId(next);
-            void save({ orgId: next === "" ? null : next }, () => setOrgId(previous));
-          }}
-        >
-          <option value="">No organization</option>
-          {organizations.map((organization) => (
-            <option key={organization.id} value={organization.id}>
-              {organization.name}
-            </option>
-          ))}
-        </select>
+          {describeSource(user, link, reviewPending)}
+        </p>
       </div>
 
       <div className="mt-3 md:mt-0">
         <button
           type="button"
+          // Deactivating your own account is also refused by the server (ITER-058 cr2).
           disabled={isSaving || isSelf}
           onClick={() => {
             const previous = isActive;
@@ -152,9 +132,14 @@ export function UserRow({ user, organizations, isSelf, link, linkControls }: Use
         </button>
       </div>
 
-      {linkControls && <div className="mt-3 md:col-span-4 md:mt-0">{linkControls}</div>}
+      {(linkControls || overrideControls) && (
+        <div className="mt-3 flex flex-col gap-2 md:col-span-3 md:mt-0">
+          {linkControls}
+          {overrideControls}
+        </div>
+      )}
 
-      <div className="md:col-span-4">
+      <div className="md:col-span-3">
         <FormError message={error} />
       </div>
     </li>
