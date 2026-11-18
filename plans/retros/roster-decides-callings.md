@@ -2,7 +2,7 @@
 id: roster-decides-callings
 type: feature
 iter: ITER-058
-commits: ["642cc97"]
+commits: ["642cc97", "6e49314"]
 date: 2026-11-16
 files:
   - supabase/migrations/105_user_member_links.sql
