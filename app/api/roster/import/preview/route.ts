@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { readJsonBody, respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
+import { canManageMemberLinks } from "@/lib/callings/linkAccess";
 import { toReviewView } from "@/lib/roster/paste/buildRosterDiff";
+import { loadPasteCallingReview } from "@/lib/roster/paste/pasteCallings";
 import { capProblems, hashPaste, runPastePipeline } from "@/lib/roster/paste/pasteRequest";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import { pastePreviewSchema } from "@/lib/validation/rosterPaste";
 
 // This route WRITES NOTHING. No insert, no update, no rpc, and deliberately no audit row: a
@@ -26,10 +29,18 @@ export async function POST(request: Request) {
     const { text } = pastePreviewSchema.parse(await readJsonBody(request));
     const pipeline = await runPastePipeline(text, user.wardId, supabase);
     const capped = capProblems(pipeline.problems);
+    const callingChanges = await loadPasteCallingReview(
+      {
+        diff: pipeline.diff,
+        actor: user,
+        canReview: canManageMemberLinks(user, roleAccess),
+      },
+      createServiceSupabaseClient(),
+    );
 
     return NextResponse.json({
       pasteHash: hashPaste(text),
-      review: toReviewView(pipeline.diff),
+      review: toReviewView(pipeline.diff, callingChanges),
       problems: capped.problems,
       problemsTruncated: capped.problemsTruncated,
       ignoredColumns: pipeline.ignoredColumns,

@@ -3,9 +3,14 @@
 import type { ReactNode } from "react";
 import { formatBirthDate } from "@/lib/calendar/dates";
 import type { FieldChange, RosterReview } from "@/lib/roster/paste/buildRosterDiff";
+import type { PasteCallingRow } from "@/lib/roster/paste/callingRows";
 
-// The four groups of a paste's differences. UNTICK ONLY: nothing is editable here. To fix a value,
-// fix it in LCR and paste again, or edit the member afterwards (the user's decision, ITER-040).
+// The groups of a paste's differences. UNTICK ONLY: nothing is editable here. To fix a value, fix
+// it in LCR and paste again, or edit the member afterwards (the user's decision, ITER-040).
+//
+// CALLINGS START UNTICKED (ITER-058 cr3): a calling change moves somebody's access, so each one is
+// chosen by a person. Releases are ticked one at a time, as move-outs are. A release for somebody
+// this paste leaves off sits inside their No longer listed row, one person, one checkbox.
 
 export type ReviewChecklistProps = {
   review: RosterReview;
@@ -154,6 +159,97 @@ export function ChecklistItem({ id, name, selectedIds, onChange, disabled, child
   );
 }
 
+function CallingRowText({ row }: { row: PasteCallingRow }) {
+  return (
+    <>
+      {row.details.map((detail) => (
+        <span key={detail} className="block break-words">
+          {detail}
+        </span>
+      ))}
+    </>
+  );
+}
+
+type CallingGroupsProps = {
+  review: RosterReview;
+  selectedIds: ReadonlySet<string>;
+  onChange: (next: Set<string>) => void;
+  disabled: boolean;
+};
+
+function CallingGroups({ review, selectedIds, onChange, disabled }: CallingGroupsProps) {
+  const { rows, reviewedByBishopric } = review.callingChanges;
+  const itemProps = { selectedIds, onChange, disabled };
+
+  if (reviewedByBishopric) {
+    return (
+      <p className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-muted">
+        Calling changes are reviewed by the bishopric on Admin → Users.
+      </p>
+    );
+  }
+
+  const changes = rows.filter((row) => row.canApply && !row.isRelease);
+  const releases = rows.filter((row) => row.canApply && row.isRelease && row.moveOutId === null);
+  const notHere = rows.filter((row) => !row.canApply);
+
+  return (
+    <>
+      {changes.length > 0 && (
+        <ChecklistGroup
+          title="Calling changes"
+          emptyText=""
+          ids={changes.map((row) => row.id)}
+          {...itemProps}
+        >
+          {changes.map((row) => (
+            <ChecklistItem key={row.id} id={row.id} name={row.sentence} {...itemProps}>
+              <CallingRowText row={row} />
+            </ChecklistItem>
+          ))}
+        </ChecklistGroup>
+      )}
+
+      {releases.length > 0 && (
+        <ChecklistGroup
+          title="Calling releases"
+          emptyText=""
+          ids={releases.map((row) => row.id)}
+          tickAllDisabled
+          {...itemProps}
+        >
+          {releases.map((row) => (
+            <ChecklistItem key={row.id} id={row.id} name={row.sentence} {...itemProps}>
+              <CallingRowText row={row} />
+            </ChecklistItem>
+          ))}
+        </ChecklistGroup>
+      )}
+
+      {notHere.length > 0 && (
+        <div className="rounded-md border border-border bg-surface px-3 py-2">
+          <p className="text-sm font-semibold text-foreground">
+            Calling changes you can&apos;t apply here{" "}
+            <span className="font-normal text-muted">({notHere.length})</span>
+          </p>
+          <ul className="mt-1 flex flex-col">
+            {notHere.map((row) => (
+              <li key={row.id} className="border-t border-border py-2 first:border-t-0">
+                <span className="block text-sm text-foreground">{row.sentence}</span>
+                <span className="block text-xs text-muted">{row.refusal}</span>
+                <span className="block text-xs text-muted">
+                  <CallingRowText row={row} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function ReviewChecklist({
   review,
   selectedIds,
@@ -162,6 +258,11 @@ export function ReviewChecklist({
   disabled,
 }: ReviewChecklistProps) {
   const itemProps = { selectedIds, onChange, disabled };
+  const releaseByMoveOut = new Map(
+    review.callingChanges.rows
+      .filter((row) => row.moveOutId !== null)
+      .map((row) => [row.moveOutId, row]),
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -224,12 +325,22 @@ export function ReviewChecklist({
         tickAllDisabled={moveOutTickAllLocked}
         {...itemProps}
       >
-        {review.movedOut.map((item) => (
-          <ChecklistItem key={item.id} id={item.id} name={item.name} {...itemProps}>
-            {item.householdName ?? "No household"} · Ticking this marks them moved out
-          </ChecklistItem>
-        ))}
+        {review.movedOut.map((item) => {
+          const release = releaseByMoveOut.get(item.id);
+          return (
+            <ChecklistItem key={item.id} id={item.id} name={item.name} {...itemProps}>
+              {item.householdName ?? "No household"} · Ticking this marks them moved out
+              {release?.releasedCallingLabel && (
+                <span className="block">
+                  and ends their {release.releasedCallingLabel} calling
+                </span>
+              )}
+            </ChecklistItem>
+          );
+        })}
       </ChecklistGroup>
+
+      <CallingGroups review={review} {...itemProps} />
     </div>
   );
 }

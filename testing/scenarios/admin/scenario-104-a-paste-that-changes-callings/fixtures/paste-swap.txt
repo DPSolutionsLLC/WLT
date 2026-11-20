@@ -1,0 +1,39 @@
+
+Preferred Name
+
+Full Name
+
+Age
+
+Individual Phone
+
+Individual E-mail
+
+Address - Street 1
+
+Birth Date (1 Jan 1990)
+
+Gender
+
+Class Assignment
+
+Head of House and Spouse
+
+Callings
+
+Callings with Date Sustained
+
+Callings with Date Sustained and Set Apart
+
+Ministering Brothers
+
+Ministering Sisters
+
+Has Ministering Sisters
+
+Has Ministering Brothers
+
+Andersen, Mark	Andersen, Mark					14 Mar 1971			Scenario, Household	Bishop					No	No
+Pike, Aaron	Pike, Aaron					2 Aug 1979			Scenario, Household	Bishopric Second Counselor					No	No
+Ortiz, Lena	Ortiz, Lena					20 Nov 1983			Scenario, Household	Bishopric First Counselor					No	No
+Reyes, Tom	Reyes, Tom		555-0199			5 Sep 1968			Scenario, Household	Primary Teacher					No	No

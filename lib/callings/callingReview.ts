@@ -58,6 +58,14 @@ export type ReviewCalling = CallingTarget & {
 
 export type ReviewOrganization = OrganizationForMapping & { name: string };
 
+// WHAT A PASTE WOULD MAKE TRUE, keyed by member id (cr3). A preview reads the review as if the paste
+// had landed: the pasted callings text, and the status of anybody it brings back or leaves off.
+// Absent means "use what is stored", so a paste with no Callings column changes no calling.
+export type PastedRosterFacts = {
+  callings: ReadonlyMap<string, string | null>;
+  statuses: ReadonlyMap<string, MemberStatus>;
+};
+
 export type CallingReviewInput = {
   links: readonly ReviewLink[];
   members: readonly ReviewMember[];
@@ -71,9 +79,11 @@ export type CallingReviewRow = {
   kind: CallingReviewKind;
   userId: string;
   accountName: string;
+  memberId: string;
   memberName: string | null;
   callingId: string | null;
   current: CallingTarget | null;
+  currentLabel: string | null;
   // null on a release: the row ends the calling.
   target: CallingTarget | null;
   sentence: string;
@@ -151,6 +161,7 @@ function unresolvableRefusal(derived: Extract<DerivedCalling, { kind: "unresolva
 type AccountContext = {
   userId: string;
   accountName: string;
+  memberId: string;
   memberName: string | null;
   calling: ReviewCalling | null;
   derived: DerivedCalling;
@@ -164,16 +175,19 @@ function row(
     Partial<Pick<CallingReviewRow, "canApply" | "refusal">>,
 ): CallingReviewRow {
   const { calling } = context;
+  const current: CallingTarget | null = calling
+    ? { role: calling.role, orgId: calling.orgId, counselorPosition: calling.counselorPosition }
+    : null;
   return {
     id: fields.id,
     kind: fields.kind,
     userId: context.userId,
     accountName: context.accountName,
+    memberId: context.memberId,
     memberName: context.memberName,
     callingId: calling?.id ?? null,
-    current: calling
-      ? { role: calling.role, orgId: calling.orgId, counselorPosition: calling.counselorPosition }
-      : null,
+    current,
+    currentLabel: current ? describeTarget(current, context.organizationNames) : null,
     target: fields.target,
     sentence: fields.sentence,
     details: detailsOf(context.derived),
@@ -292,6 +306,7 @@ export function buildCallingReview(input: CallingReviewInput): CallingReviewRow[
     const reviewed = reviewAccount({
       userId: link.userId,
       accountName: input.accountNames.get(link.userId) ?? "An account",
+      memberId: link.memberId,
       memberName: member?.name ?? null,
       calling,
       derived,

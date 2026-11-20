@@ -126,3 +126,45 @@ re-walked by Claude in a browser. **The user has not walked it themselves** and 
   refusal is right and the sentence does not explain it.
 - **A released account logs a `console.error` on each request.**
 - **The longer pending-review line was not re-checked at 375px.**
+
+## cr3 — calling changes on a roster paste (2026-11-19)
+
+### What was done
+
+**cr3 (ITER-058, slice 3 of 4, no migration).** A pasted ward list now proposes calling changes on the
+paste checklist, and never makes one by itself. The preview runs `buildCallingReview()` over the roster
+as if the paste had landed (`diff.pastedRoster`: the pasted callings text, plus who the paste brings back
+or leaves off). The apply writes the roster first, then `applyCallingReview()` recomputes from what was
+stored and applies only the ticked calling ids. `members.callings` updates on every paste; the app
+calling waits for a tick. An importer outside the bishopric is told changes exist and is sent none of
+them, and any calling id from them is a 403 before anything is written.
+
+### Key decisions
+
+- **One comparison, again.** The paste calls `loadCallingReview(wardId, service, pasted)` with the
+  pasted facts laid over the stored roster, so the checklist and Admin → Users cannot disagree.
+- **Departure from the plan:** the plan had `runPastePipeline` load the links. A separate
+  `loadPasteCallingReview()` on the service role runs after the `canManageMemberLinks()` gate instead,
+  so `pasteRequest.ts` is unchanged and the gate sits beside the read it protects (cr2's D1 lesson).
+- **Calling ids are not roster ids.** `isCallingReviewId()` keeps them out of the paste's own stale count.
+- **A release for somebody the paste leaves off is part of their move-out (defect 104-D1, the user's
+  call on walking scenario 104).** It first shipped as two linked rows, "No longer listed" and "Calling
+  releases", ticking together; the user said it read as two separate things. It is now one row, *and ends
+  their {calling} calling*, one checkbox, counted once by `countTickedChanges()`. A release is only
+  tied to a move-out when the actor can apply it, so a person who pastes themselves off the list is
+  never handed their own release through their move-out.
+- **The audit row is the record of who changed a calling** (the user, question 5). The done card counts;
+  `calling_changed_from_roster` carries `user_id` and `targetUserId`.
+
+### Verification
+
+Full suite 400 files and 5,815 tests passed after the 104-D1 fix, and the production build passed. Scenario
+104 was walked by Claude and the user answered its five questions; 104-D1 was fixed and re-walked.
+
+### Gaps and follow-ups
+
+- **Rename `ROLE_LABELS.ward_secretary` to "Ward Clerk" app-wide** — the user's answer to question 1,
+  deliberately a separate change after cr3 (one label, 33 reading files, tests that assert the wording).
+- **`endCalling()` still stamps `ended_on` in UTC.** Seen again on the re-walk: a release at 01:13 UTC,
+  the ward's evening of 11-19, was dated 2026-11-20.
+- **The `UserRow` "missing key" warning** is still there on Admin → Users.

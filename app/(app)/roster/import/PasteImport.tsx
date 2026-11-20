@@ -10,6 +10,11 @@ import { Card } from "@/components/ui/Card";
 import { FormError } from "@/components/ui/FormError";
 import type { ApplyResult } from "@/lib/roster/paste/applyRosterPaste";
 import { defaultSelectedIds, type RosterReview } from "@/lib/roster/paste/buildRosterDiff";
+import {
+  countTickedChanges,
+  reconcileMoveOutTicks,
+  type PasteCallingOutcome,
+} from "@/lib/roster/paste/callingRows";
 import type { ImportProblem } from "@/lib/roster/paste/normalizeReportRow";
 import { parsePastedReport } from "@/lib/roster/paste/parsePastedReport";
 import {
@@ -37,7 +42,9 @@ type PreviewResponse = {
 
 type Preview = Required<Omit<PreviewResponse, "error">>;
 
-type ApplyResponse = { result?: ApplyResult; error?: string };
+type PasteApplyResult = ApplyResult & PasteCallingOutcome;
+
+type ApplyResponse = { result?: PasteApplyResult; error?: string };
 
 const NETWORK_ERROR = "Could not reach the server. Check your connection and try again.";
 
@@ -72,7 +79,7 @@ export function PasteImport() {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [goneAcknowledged, setGoneAcknowledged] = useState(false);
-  const [result, setResult] = useState<ApplyResult | null>(null);
+  const [result, setResult] = useState<PasteApplyResult | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [isBusy, setIsBusy] = useState(false);
 
@@ -165,6 +172,10 @@ export function PasteImport() {
   }
 
   if (step === "done" && result) {
+    const callingSentences = new Map(
+      preview?.review.callingChanges.rows.map((row) => [row.id, row.sentence]) ?? [],
+    );
+
     return (
       <div className="flex flex-col gap-4">
         <Card>
@@ -187,7 +198,44 @@ export function PasteImport() {
                 {plural(result.silentFieldUpdates, "person", "people")}
               </li>
             )}
+            {result.callingsApplied > 0 && (
+              <li>Callings: {plural(result.callingsApplied, "change", "changes")} applied</li>
+            )}
           </ul>
+
+          {result.callingsRefused.length > 0 && (
+            <div className="mt-3 rounded-md border border-warning px-3 py-2 text-sm text-foreground">
+              <p>
+                {plural(result.callingsRefused.length, "calling change was", "calling changes were")}{" "}
+                not applied:
+              </p>
+              <ul className="mt-1 flex flex-col gap-1 text-xs">
+                {result.callingsRefused.map((refusal) => (
+                  <li key={refusal.id}>
+                    {callingSentences.get(refusal.id) ?? "A calling change."} {refusal.sentence}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {result.callingsStale > 0 && (
+            <p className="mt-3 rounded-md border border-warning px-3 py-2 text-sm text-foreground">
+              {plural(result.callingsStale, "calling change", "calling changes")} no longer matched
+              the ward list and {result.callingsStale === 1 ? "was" : "were"} skipped. Admin → Users
+              shows what is still waiting.
+            </p>
+          )}
+
+          {result.callingsFailed && (
+            <p
+              role="alert"
+              className="mt-3 rounded-md border border-warning px-3 py-2 text-sm text-foreground"
+            >
+              The roster was saved, but the calling changes could not be finished. Admin → Users
+              shows what is still waiting.
+            </p>
+          )}
 
           {result.staleSelections > 0 && (
             <p className="mt-3 rounded-md border border-warning px-3 py-2 text-sm text-foreground">
@@ -216,7 +264,7 @@ export function PasteImport() {
 
   if (step === "review" && preview) {
     const { review } = preview;
-    const tickedCount = selectedIds.size;
+    const tickedCount = countTickedChanges(selectedIds, review.callingChanges.rows);
     const hasSilentUpdates = review.silentUpdateCount > 0;
     const nothingToApply = tickedCount === 0 && !hasSilentUpdates;
     const moveOutLocked = review.guard.suspicious && !goneAcknowledged;
@@ -270,7 +318,9 @@ export function PasteImport() {
         <ReviewChecklist
           review={review}
           selectedIds={selectedIds}
-          onChange={setSelectedIds}
+          onChange={(next) =>
+            setSelectedIds(reconcileMoveOutTicks(next, review.callingChanges.rows))
+          }
           moveOutTickAllLocked={moveOutLocked}
           disabled={isBusy}
         />

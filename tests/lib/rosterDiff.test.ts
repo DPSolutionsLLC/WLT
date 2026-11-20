@@ -14,6 +14,8 @@ import type { ReportColumnKey } from "@/lib/roster/paste/reportColumns";
 // Pure: no database. The same inputs must give the same checklist, because the preview and the
 // apply each compute it independently.
 
+const NO_CALLING_CHANGES = { rows: [], reviewedByBishopric: false };
+
 const ALL_OPTIONAL: ReportColumnKey[] = [
   "gender",
   "phone",
@@ -265,7 +267,7 @@ describe("buildRosterDiff: defaults, guard and stability", () => {
     expect(diff.movedOut).toHaveLength(1);
     expect(diff.movedOut.every((item) => !item.defaultSelected)).toBe(true);
 
-    const ids = defaultSelectedIds(toReviewView(diff));
+    const ids = defaultSelectedIds(toReviewView(diff, NO_CALLING_CHANGES));
     expect(ids).not.toContain("moveout:gone");
     expect(ids).toHaveLength(3);
   });
@@ -305,7 +307,9 @@ describe("buildRosterDiff: defaults, guard and stability", () => {
     const first = buildRosterDiff(current, people);
     const second = buildRosterDiff(current, people);
 
-    expect(toReviewView(second)).toEqual(toReviewView(first));
+    expect(toReviewView(second, NO_CALLING_CHANGES)).toEqual(
+      toReviewView(first, NO_CALLING_CHANGES),
+    );
   });
 
   it("reports nothing to do when the roster already matches the paste", () => {

@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 102,
+  "scenarioCount": 103,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -221,11 +221,42 @@
         "Step 8: **Tick all** is disabled in Releases. Paul's release applies only when ticked; Sam's",
         "Step 9: Paul sees *You no longer hold a calling in Harness Test Ward. If this is a mistake,",
         "Step 10: Ruth's row reads **Executive Secretary** and *Overridden — differs from the ward list*",
-        "Step 11: Ruth's row reads *From the ward list* again (`source = roster`, override columns null)",
+        "Step 11: Ruth's row reads *From the ward list · Change waiting in the Calling review*",
+        "Step 4: Aaron's, Lena's, Tom's, Paul's and Sam's rows each end *· Change waiting in the Calling",
         "A bishopric member (not the super admin) has **no** Override button, and a direct",
         "Step 12 (375px): the review groups, the result card and the override window wrap without"
       ],
       "seedCommand": "npm run seed -- admin/scenario-103b-the-calling-review"
+    },
+    {
+      "id": "admin:scenario-104-a-paste-that-changes-callings",
+      "path": "admin/scenario-104-a-paste-that-changes-callings",
+      "name": "A roster paste that changes callings",
+      "scope": "admin",
+      "part": 1,
+      "tags": [
+        "callings",
+        "roster",
+        "import",
+        "full",
+        "destructive",
+        "ITER-058"
+      ],
+      "prerequisites": "Migration 105 applied; Admin released for the Harness Test Ward.",
+      "purpose": "ITER-058 slice **cr3**. A pasted ward list can now say that somebody's calling has changed. The\nroster's own details still update as they always did, but **an app calling moves only when a person\nticks it** on the paste checklist. Somebody who may import the list but not decide callings is told\nchanges exist and is shown none of them.",
+      "checklist": [
+        "Step 2: the checklist reads *Calling changes are reviewed by the bishopric on Admin → Users.*",
+        "Step 3: Aaron's own row sits under *Calling changes you can't apply here* with *This is your own",
+        "Step 4: **Calling changes (2)** lists *Aaron Pike: from 1st Counselor to 2nd Counselor* and *Lena",
+        "Step 4 after Apply: `members.callings` for Aaron reads *Bishopric Second Counselor* and Tom's phone",
+        "Step 5: the Calling review on Admin → Users shows the same three rows",
+        "Step 6: the result reads *Callings: 2 changes applied*. Aaron is 2nd and Lena 1st, each",
+        "Step 7: Admin → Users shows Aaron as 2nd Counselor and Lena as 1st, with no change waiting for them",
+        "Step 8: **Tick all** is disabled under Calling releases. Ticking Ruth's release ticks her row under",
+        "Step 9: Ruth is `moved_out` and her calling has `is_active = false` (read back). Nobody was deleted",
+        "Step 10 (375px): every group wraps without horizontal overflow, and every checkbox row and button"
+      ],
+      "seedCommand": "npm run seed -- admin/scenario-104-a-paste-that-changes-callings"
     },
     {
       "id": "ai:scenario-020-preview-before-you-save",

@@ -529,7 +529,7 @@ calling — an empty page with no error to explain it.
 
 ---
 
-### The roster decides the calling — ITER-058, BEING BUILT (cr1 and cr2 shipped, migration 105)
+### The roster decides the calling — ITER-058, BEING BUILT (cr1–cr3 shipped, migration 105)
 
 `plans/roster-decides-callings.md`. **`user_member_links` says which person on the ward list an
 account is, per ward**, and has a SELECT policy and NO write policy: `lib/callings/memberLinks.ts` on
@@ -559,6 +559,14 @@ and refuses self-deactivation on the server); the one hand edit left is the **su
 marked and put back on every review. A `ward_council_member` is never proposed for release by a roster
 that cannot name the role — only by leaving the list. **A released account is not a 500:**
 `lib/auth/session.ts` throws `NoCallingError`, pages redirect to `/no-calling`, and sign-out still audits.
+
+**cr3: A PASTE PROPOSES CALLING CHANGES AND NEVER MAKES ONE.** The preview runs `buildCallingReview()`
+over `diff.pastedRoster` (the pasted callings text, plus who the paste brings back or leaves off); the
+apply writes the roster first, then `applyCallingReview()` recomputes from what was stored. **`members.callings`
+updates on every paste; the app calling waits for a tick.** Seeing or applying calling rows needs
+`canManageMemberLinks()` on top of `roster.import`. **A release for somebody this paste leaves off is part of
+their No longer listed row, one checkbox for both** (`reconcileMoveOutTicks()`, decided walking scenario 104), because until
+they are moved out the recompute has nothing to release.
 
 ## 8. Testing
 

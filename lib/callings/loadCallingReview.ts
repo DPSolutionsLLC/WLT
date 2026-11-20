@@ -3,6 +3,7 @@ import { displayName, listWardOrganizations } from "@/lib/auth/adminUsers";
 import {
   buildCallingReview,
   type CallingReviewRow,
+  type PastedRosterFacts,
   type ReviewMember,
   type ReviewOrganization,
 } from "@/lib/callings/callingReview";
@@ -29,9 +30,15 @@ export type CallingReviewData = {
   organizationNames: Map<string, string>;
 };
 
-// A paste preview (cr3) passes the PASTED callings text, keyed by member id, in place of the
-// stored text. Absent means "use what is stored".
-export type CallingTextOverrides = ReadonlyMap<string, string | null>;
+function applyPastedFacts(member: ReviewMember, pasted: PastedRosterFacts): ReviewMember {
+  return {
+    ...member,
+    callings: pasted.callings.has(member.id)
+      ? (pasted.callings.get(member.id) ?? null)
+      : member.callings,
+    status: pasted.statuses.get(member.id) ?? member.status,
+  };
+}
 
 function toMemberStatus(value: string): MemberStatus {
   if (!(MEMBER_STATUSES as readonly string[]).includes(value)) {
@@ -101,7 +108,7 @@ async function readAccountNames(
 export async function loadCallingReview(
   wardId: string,
   service: SupabaseClient<Database>,
-  callingTextOverrides?: CallingTextOverrides,
+  pasted?: PastedRosterFacts,
 ): Promise<CallingReviewData> {
   const links = await listActiveWardLinks(wardId, service);
 
@@ -119,12 +126,8 @@ export async function loadCallingReview(
     ),
   ]);
 
-  const members = callingTextOverrides
-    ? storedMembers.map((member) =>
-        callingTextOverrides.has(member.id)
-          ? { ...member, callings: callingTextOverrides.get(member.id) ?? null }
-          : member,
-      )
+  const members = pasted
+    ? storedMembers.map((member) => applyPastedFacts(member, pasted))
     : storedMembers;
 
   const organizations: ReviewOrganization[] = wardOrganizations.map((organization) => ({

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { writeAuditLog } from "@/lib/audit/writeAuditLog";
 import { emitNotification } from "@/lib/notifications/emitNotification";
+import { isCallingReviewId } from "@/lib/roster/paste/callingRows";
 import {
   newPersonColumns,
   type HouseholdTarget,
@@ -103,8 +104,11 @@ export function buildApplyPlan(
     }
   }
 
+  // A calling id is not this checklist's to judge: lib/roster/paste/pasteCallings.ts counts its own.
   const known = allItemIds(diff);
-  const staleSelections = [...selectedIds].filter((id) => !known.has(id)).length;
+  const staleSelections = [...selectedIds].filter(
+    (id) => !known.has(id) && !isCallingReviewId(id),
+  ).length;
 
   return {
     plan: {

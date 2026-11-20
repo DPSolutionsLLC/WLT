@@ -1,4 +1,6 @@
+import type { PastedRosterFacts } from "@/lib/callings/callingReview";
 import type { DateOnly } from "@/lib/calendar/dates";
+import type { PasteCallingReview } from "@/lib/roster/paste/callingRows";
 import {
   personMatchKey,
   type ImportProblem,
@@ -123,6 +125,7 @@ export type RosterDiff = {
   newHouseholds: NewHousehold[];
   guard: PartialPasteGuard;
   problems: ImportProblem[];
+  pastedRoster: PastedRosterFacts;
 };
 
 const FIELD_LABELS: Record<ReviewedField, string> = {
@@ -495,6 +498,8 @@ export function buildRosterDiff(
   const changedPeople: ChangedPersonItem[] = [];
   const silentUpdates: SilentUpdate[] = [];
   const changedSortNames = new Map<string, ReportPerson>();
+  const pastedCallings = new Map<string, string | null>();
+  const pastedStatuses = new Map<string, MemberStatus>();
   let unchangedCount = 0;
 
   for (const person of orderedPeople) {
@@ -538,6 +543,9 @@ export function buildRosterDiff(
     if (Object.keys(silent).length > 0) silentUpdates.push({ memberId: member.id, set: silent });
 
     const returning = member.status === "moved_out";
+
+    if (person.supplied.has("callings")) pastedCallings.set(member.id, person.silent.callings);
+    if (returning) pastedStatuses.set(member.id, "active");
 
     if (changes.length === 0 && !returning) {
       unchangedCount += 1;
@@ -588,6 +596,8 @@ export function buildRosterDiff(
       defaultSelected: false as const,
     }));
 
+  for (const item of movedOut) pastedStatuses.set(item.memberId, "moved_out");
+
   const activeCount = current.members.filter(stillListed).length;
   const movedOutCount = movedOut.length;
 
@@ -614,6 +624,7 @@ export function buildRosterDiff(
         movedOutCount >= PARTIAL_PASTE_MINIMUM && movedOutCount > activeCount * PARTIAL_PASTE_SHARE,
     },
     problems,
+    pastedRoster: { callings: pastedCallings, statuses: pastedStatuses },
   };
 }
 
@@ -631,14 +642,16 @@ export type RosterReview = {
   changedPeople: { id: string; name: string; changes: FieldChange[]; returning: boolean }[];
   householdAddresses: { id: string; name: string; before: string | null; after: string | null }[];
   movedOut: { id: string; name: string; householdName: string | null }[];
+  callingChanges: PasteCallingReview;
   silentUpdateCount: number;
   unchangedCount: number;
   newHouseholdCount: number;
   guard: PartialPasteGuard;
 };
 
-export function toReviewView(diff: RosterDiff): RosterReview {
+export function toReviewView(diff: RosterDiff, callingChanges: PasteCallingReview): RosterReview {
   return {
+    callingChanges,
     newPeople: diff.newPeople.map((item) => ({
       id: item.id,
       name: item.name,
@@ -671,7 +684,8 @@ export function toReviewView(diff: RosterDiff): RosterReview {
   };
 }
 
-// The ticks a checklist starts with: everything except a move-out, so every move-out is chosen.
+// The ticks a checklist starts with: everything except a move-out and a calling change, so each of
+// those is chosen by a person.
 export function defaultSelectedIds(review: RosterReview): string[] {
   return [
     ...review.newPeople.map((item) => item.id),

@@ -21,6 +21,7 @@ import {
 import type { Database } from "@/types/database";
 
 const AS_OF = "2026-10-14";
+const NO_CALLING_CHANGES = { rows: [], reviewedByBishopric: false };
 
 const ANN: SyntheticPerson = {
   preferredName: "Pastetest, Ann",
@@ -160,7 +161,7 @@ describe("apply_roster_paste", () => {
 
   it("builds the first checklist: one new person, two matched, one no longer listed", async () => {
     const { diff, problems } = await paste(FIRST_PASTE);
-    const review = toReviewView(diff);
+    const review = toReviewView(diff, NO_CALLING_CHANGES);
 
     expect(problems).toEqual([]);
     expect(review.newPeople.map((item) => item.name)).toEqual(["Ann Pastetest"]);
@@ -175,7 +176,10 @@ describe("apply_roster_paste", () => {
     const before = await countMembers(fixtures.wardAId);
     const { diff } = await paste(FIRST_PASTE);
 
-    const result = await apply(FIRST_PASTE, defaultSelectedIds(toReviewView(diff)));
+    const result = await apply(
+      FIRST_PASTE,
+      defaultSelectedIds(toReviewView(diff, NO_CALLING_CHANGES)),
+    );
 
     expect(result).toMatchObject({
       householdsCreated: 2,

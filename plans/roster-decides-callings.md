@@ -14,8 +14,9 @@ leaves the app working.
 | **cr4** | Invites tied to a roster person ("Yes, this is me"), and "no account yet" with an Invite button | A new ward clerk is invited from the review |
 
 **Status (2026-11-17):** Task 0 done (title map agreed, below). **cr1 built**: migration **105**
-(applied), scenario **103** Part 1. **cr2 built** (no migration): scenario **103b** (Part 2). cr3/cr4
-take the next free numbers (bishopric-visits bv7 now expects migration 106 and scenario 104 — re-check).
+(applied), scenario **103** Part 1. **cr2 built** (no migration): scenario **103b** (Part 2). **cr3
+built** (no migration): scenario **104**. cr4 takes the next free migration (bishopric-visits bv7
+expects 106, and now scenario 105 — re-check).
 Run vitest from **PowerShell**, not Git Bash (see the retro).
 
 ---

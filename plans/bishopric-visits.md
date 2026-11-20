@@ -22,7 +22,7 @@ retro. Build them in order; each depends on the ones before it.
 
 **What the 2026-11-09 refresh changed — no decision (D1–D9, P1–P16) moved:**
 - **Migration numbers are one later than first written.** 100 went to `100_zoom_join_links_w_to_j.sql`, so bv3 used 101. From here: **bv4 → 102, bv5 → 103, bv6 → 104, bv7 → 106** (ITER-058 cr1 took 105). Always re-check `ls supabase/migrations | tail -3` before creating one.
-- **Scenario numbers shift by one** for the same reason: bv4 → 101, bv5/bv6 → 102, bv7 → **104** (ITER-058 cr1 took 103).
+- **Scenario numbers shift by one** for the same reason: bv4 → 101, bv5/bv6 → 102, bv7 → **105** (ITER-058 took 103 and 104).
 - **bv3 did not create `RecordVisitWindow` or `ScheduleVisitWindow`.** It extended `VisitLogForm.tsx` (outcome, reason, attempt detail) and reused `AppointmentPanel.tsx` for scheduling (`ContactPanel`'s `onSchedule`). Later slices extend those components; they do not create the two windows (bv6 creates `ScheduleVisitWindow` — see its section).
 - **"Done" already has one meaning: `isDoneVisit()` in `lib/visits/householdStatus.ts`** (CLAUDE.md §9, bv3). `sweepProgress()` (bv4) and the to-do closing in bv5 must call it, never re-test `outcome`/`needs_another_visit` themselves. A phone call is only ever an attempt.
 - **The tabs live in `lib/visits/visitsView.ts`** (`VISITS_TABS`, `VISITS_TAB_LABELS`, `visibleVisitsTabs()`), not in `VisitsScreen`. bv4 adds `goal_history`, bv5 adds `my_visits`; the stored page view parses through `visitsViewSchema`, so a new tab value must be added there too.
