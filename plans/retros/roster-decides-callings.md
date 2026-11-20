@@ -33,6 +33,18 @@ files:
   - app/(app)/admin/users/CallingReview.tsx
   - app/(app)/admin/users/OverrideControls.tsx
   - app/(auth)/no-calling/page.tsx
+  - supabase/migrations/106_invite_member.sql
+  - supabase/migrations/107_invite_declined.sql
+  - lib/auth/invites.ts
+  - lib/validation/invite.ts
+  - app/api/auth/invite/route.ts
+  - app/api/auth/invite/not-me/route.ts
+  - app/api/auth/register/route.ts
+  - app/(auth)/invite/[token]/page.tsx
+  - app/(auth)/invite/[token]/RegisterForm.tsx
+  - app/(app)/admin/users/InviteForm.tsx
+  - app/(app)/admin/users/CallingsWithoutAccount.tsx
+  - lib/notifications/triggerDefaults.ts
 related: [ward-callings-model, zoom-remote-links, roster-paste-import, bishopric-visits, p2-admin-and-access]
 ---
 
@@ -168,3 +180,63 @@ Full suite 400 files and 5,815 tests passed after the 104-D1 fix, and the produc
 - **`endCalling()` still stamps `ended_on` in UTC.** Seen again on the re-walk: a release at 01:13 UTC,
   the ward's evening of 11-19, was dated 2026-11-20.
 - **The `UserRow` "missing key" warning** is still there on Admin → Users.
+
+## cr4 — invites name a person on the ward list (2026-11-19)
+
+### What was done
+
+**cr4 (ITER-058, slice 4 of 4, migrations 106 and 107).** An invite now names a **person on the ward
+list** and never a role. `POST /api/auth/invite` takes `{ email, memberId }` (`.strict()`), and the server
+works the calling out from that person's ward list callings when the invite is made, when its page opens,
+and again at redemption, before any auth user exists. The invitee must tick **Yes, this is me**.
+Redemption creates the calling as `source: 'roster'` and the link with `method: 'invite'`, and any failure
+undoes the whole account. Admin → Users gained **Callings with no linked account**, a collapsed group with
+an Invite button on each row, and the Invite card picks a person instead of a role.
+
+Walking scenario 105 added two more things (migration 107). **One live link per person:** a new invite
+cancels the person's older waiting ones, and reopening the window fetches the waiting link back.
+**"No, this isn't me" now does something:** it asks once, then a public token-only route stamps
+`invites.declined_at` (the link is dead), audits with a null user and ids only, and notifies the sender.
+
+### Key decisions
+
+- **Departure from the plan:** the plan made "no account yet" a `noAccount` row kind inside the Calling
+  review. It shipped as a separate pure function, `listUnlinkedHolders()`, in its own collapsed group
+  (`CallingsWithoutAccount.tsx`). Nothing on it is applied, so as a review row it would have sat on Apply
+  and on the paste checklist doing nothing.
+- **An unlinked account with the person's roster email suppresses Invite** ("may be this person — link
+  them on their row"), because inviting would make a second account for somebody who has one.
+- **A new link cancels the old one after the insert, not before**, so a failure leaves two working links
+  and a `warning` sentence rather than none.
+- **The waiting link is fetched when the window opens** (`GET /api/auth/invite?memberId=`, through the
+  caller's client under 019's bishopric policy), never written into the page HTML.
+- **A declined invite is "dead", not deleted.** Claim and preview both refuse it, and it reads like any
+  other invalid link, so a token's state is never disclosed.
+- **No To Do item for the sender** on "not me": it would need a new link column and writer on `todos`.
+  The flagged row plus the notification do the job. The user accepted this in the plan.
+
+### Defects and findings from the walks
+
+- **Invalid UTF-8 broke `next build`.** Python edits wrote `—` as cp1252 byte 0x97 in two files. Vitest
+  accepted it and `next build` refused it. Fixed by re-encoding those lines. **Pattern:** a script that
+  writes source must say `encoding="utf-8"`. Run the build, not only the tests, before calling a slice done.
+- **The bell is a placeholder until P12**, so `invite_declined` (like every notification) is stored but
+  shown nowhere. The scenario's "open the bell" step was corrected to a database check. The user kept the
+  thank-you page's "We've told the person who sent this invite" as it is.
+- **The first walk's dark screenshot came out light.** The app applies the theme when the page loads, so
+  scenario 105 now says to reload after switching.
+
+### Verification
+
+Full suite 401 files and 5,831 tests passed before the walk follow-up. After it, typecheck, lint (0
+errors), the harness typecheck, `next build`, and the 88 tests across the 9 files that touch the changed
+code passed. Scenario 105 was walked twice by Claude in Playwright, every write read back with the service
+role, and the user answered all eight judgement questions (all accepted as built).
+
+### Gaps and follow-ups
+
+- **ITER-070** (backlogged): an email the ward list must know, a hand link plus an LCR to-do when it does
+  not, and a calling the sender chooses that overrides the roster. That reverses cr4's core rule.
+- **A super admin acting under a `super_admin` calling still cannot invite**: `invites` inserts through
+  019's bishopric-only policy (unchanged; an open gap).
+- **The `UserRow` "missing key" warning** is still there. It predates cr4.

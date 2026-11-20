@@ -2,7 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { displayName, listWardOrganizations } from "@/lib/auth/adminUsers";
 import {
   buildCallingReview,
+  listUnlinkedHolders,
   type CallingReviewRow,
+  type UnlinkedHolder,
+  type UnlinkedHolderMember,
   type PastedRosterFacts,
   type ReviewMember,
   type ReviewOrganization,
@@ -155,4 +158,142 @@ export async function loadCallingReview(
     rows,
     organizationNames: new Map(organizations.map((organization) => [organization.id, organization.name])),
   };
+}
+
+// THE READS BEHIND "CALLINGS WITH NO LINKED ACCOUNT" (cr4). Same boundary as loadCallingReview():
+// the service role, after canManageMemberLinks(), every query on `ward_id`.
+//
+// The account email compared is `users.email`, the address the account was invited or created with
+// — the same one Supabase Auth signs it in with. It only ever SUPPRESSES an Invite button ("may be
+// this person — link them"); it never links anybody, so a stale address costs a hint, not access.
+
+async function readMembersWithCallings(
+  wardId: string,
+  service: SupabaseClient<Database>,
+): Promise<UnlinkedHolderMember[]> {
+  const { data, error } = await service
+    .from("members")
+    .select("id, first_name, last_name, status, callings, email")
+    .eq("ward_id", wardId)
+    .eq("status", "active")
+    .not("callings", "is", null);
+
+  if (error) {
+    console.error(`Could not read the ward list's callings — ${error.message}`, { wardId });
+    throw new Error(`Could not read the ward list's callings: ${error.message}`);
+  }
+
+  return (data ?? []).map((member) => ({
+    id: member.id,
+    name: [member.first_name, member.last_name].filter(Boolean).join(" "),
+    status: toMemberStatus(member.status),
+    callings: member.callings,
+    email: member.email,
+  }));
+}
+
+// Every person invite in the ward, newest first, read once. A member is INVITED while any of theirs
+// is still usable (unused, not declined, not expired), and DECLINED only when their newest invite was
+// answered "No, this isn't me" — an older refusal says nothing once a fresh link has been made.
+async function readInviteStates(
+  wardId: string,
+  service: SupabaseClient<Database>,
+): Promise<{ invitedMemberIds: Set<string>; declinedMemberIds: Map<string, string> }> {
+  const { data, error } = await service
+    .from("invites")
+    .select("member_id, used_at, declined_at, expires_at, created_at")
+    .eq("ward_id", wardId)
+    .not("member_id", "is", null)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error(`Could not read the ward's invites — ${error.message}`, { wardId });
+    throw new Error(`Could not read the invites: ${error.message}`);
+  }
+
+  const now = Date.now();
+  const invitedMemberIds = new Set<string>();
+  const declinedMemberIds = new Map<string, string>();
+  const seen = new Set<string>();
+
+  for (const invite of data ?? []) {
+    if (invite.member_id === null) continue;
+    const usable =
+      invite.used_at === null &&
+      invite.declined_at === null &&
+      invite.expires_at !== null &&
+      new Date(invite.expires_at).getTime() > now;
+    if (usable) invitedMemberIds.add(invite.member_id);
+    if (!seen.has(invite.member_id) && invite.declined_at !== null) {
+      declinedMemberIds.set(invite.member_id, invite.declined_at);
+    }
+    seen.add(invite.member_id);
+  }
+
+  return { invitedMemberIds, declinedMemberIds };
+}
+
+async function readUnlinkedAccountsByEmail(
+  userIds: readonly string[],
+  service: SupabaseClient<Database>,
+): Promise<Map<string, string>> {
+  if (userIds.length === 0) return new Map();
+
+  const { data, error } = await service
+    .from("users")
+    .select("id, first_name, last_name, username, email")
+    .in("id", [...new Set(userIds)]);
+
+  if (error) {
+    console.error(`Could not read the unlinked accounts — ${error.message}`);
+    throw new Error(`Could not read the unlinked accounts: ${error.message}`);
+  }
+
+  const byEmail = new Map<string, string>();
+  for (const account of data ?? []) {
+    const email = account.email?.trim().toLowerCase();
+    if (!email) continue;
+    byEmail.set(
+      email,
+      displayName({
+        firstName: account.first_name,
+        lastName: account.last_name,
+        username: account.username,
+        email: account.email,
+      }),
+    );
+  }
+  return byEmail;
+}
+
+export async function loadUnlinkedHolders(
+  wardId: string,
+  service: SupabaseClient<Database>,
+): Promise<UnlinkedHolder[]> {
+  const [links, members, callings, wardOrganizations, { invitedMemberIds, declinedMemberIds }] = await Promise.all([
+    listActiveWardLinks(wardId, service),
+    readMembersWithCallings(wardId, service),
+    listWardCallings(wardId, service),
+    listWardOrganizations(wardId, service),
+    readInviteStates(wardId, service),
+  ]);
+
+  const linkedUserIds = new Set(links.map((link) => link.userId));
+  const unlinkedAccountsByEmail = await readUnlinkedAccountsByEmail(
+    callings.map((calling) => calling.userId).filter((userId) => !linkedUserIds.has(userId)),
+    service,
+  );
+
+  return listUnlinkedHolders({
+    members,
+    linkedMemberIds: new Set(links.map((link) => link.memberId)),
+    invitedMemberIds,
+    declinedMemberIds,
+    unlinkedAccountsByEmail,
+    organizations: wardOrganizations.map((organization) => ({
+      id: organization.id,
+      type: organization.type,
+      name: organization.name,
+    })),
+  });
 }

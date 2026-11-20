@@ -25,6 +25,7 @@ export const NOTIFICATION_TRIGGER_DEFAULTS: readonly NotificationTriggerDefault[
   { triggerKey: "appreciation_comments_ready", defaultRoles: ["bishop", "counselor"] },
   { triggerKey: "assignment_reverted", defaultRoles: ["bishop", "counselor"] },
   { triggerKey: "admin_setting_changed", defaultRoles: ["bishop", "counselor"] },
+  { triggerKey: "invite_declined", defaultRoles: ["bishop", "counselor"] },
   { triggerKey: "org_conducting_rotation_changed", defaultRoles: ["org_president", "org_counselor", "org_secretary"] },
   { triggerKey: "visit_overdue", defaultRoles: ["org_president", "org_counselor", "org_secretary"] },
   { triggerKey: "visit_flagged_for_ward_council", defaultRoles: ["executive_secretary"] },

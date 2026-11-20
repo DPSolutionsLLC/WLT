@@ -27,7 +27,7 @@ export async function POST(request: Request) {
         userId: result.userId,
         action: "user_registered",
         module: "auth",
-        detail: { inviteId: result.inviteId, role: result.role },
+        detail: { inviteId: result.inviteId, role: result.role, memberId: result.memberId },
       },
       createServiceSupabaseClient(),
     );

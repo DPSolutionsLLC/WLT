@@ -1639,10 +1639,12 @@ export type Database = {
         Row: {
           counselor_position: number | null
           created_at: string
+          declined_at: string | null
           email: string | null
           expires_at: string | null
           id: string
           invited_by: string | null
+          member_id: string | null
           org_id: string | null
           role: string | null
           token: string
@@ -1652,10 +1654,12 @@ export type Database = {
         Insert: {
           counselor_position?: number | null
           created_at?: string
+          declined_at?: string | null
           email?: string | null
           expires_at?: string | null
           id?: string
           invited_by?: string | null
+          member_id?: string | null
           org_id?: string | null
           role?: string | null
           token: string
@@ -1665,10 +1669,12 @@ export type Database = {
         Update: {
           counselor_position?: number | null
           created_at?: string
+          declined_at?: string | null
           email?: string | null
           expires_at?: string | null
           id?: string
           invited_by?: string | null
+          member_id?: string | null
           org_id?: string | null
           role?: string | null
           token?: string
@@ -1682,6 +1688,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invites_member_fkey"
+            columns: ["member_id", "ward_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id", "ward_id"]
           },
           {
             foreignKeyName: "invites_org_id_ward_id_fkey"

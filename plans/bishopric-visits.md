@@ -18,7 +18,7 @@ retro. Build them in order; each depends on the ones before it.
 | bv5 | **Built 2026-11-11, NOT committed** — migration **103** (applied), scenario **102** (`visits/scenario-102-assign-households-to-the-bishopric`, bv5 half; not yet walked). Decided at start: assigning needs an active Bishopric goal; only a finished **Bishopric** visit closes an assignment; ending a goal closes every open assignment either way. Added beyond the plan: close reason `goal_ended` and line kinds `visit_unassigned` / `visit_goal_ended`. |
 | bv5 commit | ✅ committed `fecc891` |
 | bv6 | **Committed 65fcc38** (built 2026-11-12) — migration **104** (applied), scenario **102** Part 2 (walked by Claude 2026-11-15; three defects fixed and re-walked: the booking window keeps its confirmation, companions sort leaders-first A–Z, a booked visit sets the to-do's state; a second booking asks first). Decided at start: any ward leader can be invited; an invite is answered once, while pending; cancel/reschedule notifies nobody. Added beyond the plan: to-do log kind `visit_companion_declined`; the booker's My Appointments row lists companions with their answers. |
-| bv7–bv8 | Not started. bv7's migration is **106** (ITER-058 cr1 took 105 on 2026-11-16). |
+| bv7–bv8 | Not started. bv7's migration is **108** and its scenario **106** (ITER-058 took migrations 105–107 and scenarios 103–105, last on 2026-11-19). |
 
 **What the 2026-11-09 refresh changed — no decision (D1–D9, P1–P16) moved:**
 - **Migration numbers are one later than first written.** 100 went to `100_zoom_join_links_w_to_j.sql`, so bv3 used 101. From here: **bv4 → 102, bv5 → 103, bv6 → 104, bv7 → 106** (ITER-058 cr1 took 105). Always re-check `ls supabase/migrations | tail -3` before creating one.

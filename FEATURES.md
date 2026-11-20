@@ -851,7 +851,19 @@ All admin capabilities are shared equally by the bishop and both counselors. Any
 
 ### User Management
 - View all users, roles, and organizations
-- Generate invite links (tied to role and org)
+- **Invite a person on the ward list** (ITER-058 cr4). Pick the person; the app names the calling
+  their ward list record gives them (there is no role to choose) and refuses somebody with no calling
+  it recognises or who already has a linked account. The person opens the link, reads *You're invited
+  as {name}, {calling}*, ticks **Yes, this is me**, and their account lands with that calling, already
+  linked. **No, this isn't me** asks once, then cancels the link and tells whoever sent it.
+  Each person has one live link: reopening their invite window shows the link still waiting, and
+  **Create new invite link** replaces it. If their calling
+  changed to one the app does not recognise before they register, the link says so and asks for a
+  new invite
+- **Callings with no linked account** (cr4). A collapsed list on Admin → Users of everybody the ward
+  list gives a calling whose record no account is linked to, each with **Invite**, or *Invited — not
+  registered yet* or *Said this invite wasn't them* with **Invite again**. When an existing account has that person's roster email the
+  row says the account may be them, to be linked on its row, and offers no invite
 - Deactivate accounts (never your own). **Roles are no longer set here** (ITER-058 cr2): see the
   Calling review below
 - Re-enable notification subscriptions

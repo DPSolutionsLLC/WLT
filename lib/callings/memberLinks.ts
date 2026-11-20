@@ -399,6 +399,55 @@ export async function linkByAdmin(
   return { ok: true, link: toMemberLink(data) };
 }
 
+// Is somebody on the ward list already linked to an account? Asked by an invite before it is made
+// and again before it is redeemed (cr4), so the second account to claim a person is refused with a
+// sentence before an auth user exists, rather than by the unique index after one does.
+export async function isMemberLinked(
+  memberId: string,
+  client?: SupabaseClient<Database>,
+): Promise<boolean> {
+  return isMemberActivelyLinked(resolveClient(client), memberId);
+}
+
+// A REDEEMED INVITE LINKS THE NEW ACCOUNT TO THE PERSON THE INVITE NAMED (ITER-058 cr4). Not the
+// self-link P3 forbids: the registrant did not choose the person — the bishopric member who SENT the
+// invite did, which is why `linked_by` is the sender. Called only from redeemInvite(), on the
+// service role, right after the calling is created; a refusal there undoes the whole registration.
+export async function linkByInvite(
+  params: { userId: string; wardId: string; memberId: string; invitedBy: string | null },
+  client?: SupabaseClient<Database>,
+): Promise<LinkResult> {
+  const service = resolveClient(client);
+
+  const { data, error } = await service
+    .from("user_member_links")
+    .insert({
+      user_id: params.userId,
+      ward_id: params.wardId,
+      member_id: params.memberId,
+      status: "active",
+      method: "invite",
+      linked_by: params.invitedBy,
+      decided_by: params.invitedBy,
+      decided_at: new Date().toISOString(),
+    })
+    .select(LINK_COLUMNS)
+    .single();
+
+  if (isUniqueViolation(error)) {
+    return { ok: false, status: 409, message: uniqueViolationMessage(error ?? {}) };
+  }
+  if (error) {
+    console.error(`Could not link the new account to the ward list — ${error.message}`, {
+      userId: params.userId,
+      wardId: params.wardId,
+    });
+    throw new Error(`Could not link the new account: ${error.message}`);
+  }
+
+  return { ok: true, link: toMemberLink(data) };
+}
+
 type DecideParams = { actorUserId: string; linkId: string; wardId: string };
 
 async function moveLink(

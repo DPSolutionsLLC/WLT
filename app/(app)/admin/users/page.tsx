@@ -1,5 +1,6 @@
 import { CallingReview } from "@/app/(app)/admin/users/CallingReview";
-import { InviteForm } from "@/app/(app)/admin/users/InviteForm";
+import { CallingsWithoutAccount } from "@/app/(app)/admin/users/CallingsWithoutAccount";
+import { InviteForm, type InviteCandidate } from "@/app/(app)/admin/users/InviteForm";
 import { MemberLinkControls } from "@/app/(app)/admin/users/MemberLinkControls";
 import { OverrideControls } from "@/app/(app)/admin/users/OverrideControls";
 import { UserRow } from "@/app/(app)/admin/users/UserRow";
@@ -10,7 +11,7 @@ import { can, resolveRoleAccess } from "@/lib/auth/permissions";
 import { requireSessionUser } from "@/lib/auth/session";
 import { describeTarget } from "@/lib/callings/callingReview";
 import { canManageMemberLinks, roleNeedsRosterLink } from "@/lib/callings/linkAccess";
-import { loadCallingReview } from "@/lib/callings/loadCallingReview";
+import { loadCallingReview, loadUnlinkedHolders } from "@/lib/callings/loadCallingReview";
 import { listOpenWardLinks } from "@/lib/callings/memberLinks";
 import { listYouthAccounts } from "@/lib/auth/youthAccounts";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -42,7 +43,12 @@ export default async function AdminUsersPage() {
     listOpenWardLinks(user.wardId, linkClient),
   ]);
 
-  const review = canLink ? await loadCallingReview(user.wardId, linkClient) : null;
+  const [review, unlinkedHolders] = canLink
+    ? await Promise.all([
+        loadCallingReview(user.wardId, linkClient),
+        loadUnlinkedHolders(user.wardId, linkClient),
+      ])
+    : [null, []];
   const usersWithPendingReview = new Set(review?.rows.map((row) => row.userId) ?? []);
   const organizationNames = new Map(organizations.map((organization) => [organization.id, organization.name]));
 
@@ -58,6 +64,31 @@ export default async function AdminUsersPage() {
     linkedMemberNotes[link.memberId] = holder
       ? `Linked to ${displayName(holder)}'s account`
       : "Linked to another account";
+  }
+
+  // WHO CAN BE INVITED, AND WHY NOT (ITER-058 cr4). The calling an invite leads to is worked out
+  // here, from the same title map, so the form names it the moment a person is picked; the server
+  // works it out again when the invite is made and again when it is redeemed.
+  const inviteCandidates: Record<string, InviteCandidate> = {};
+  const inviteRefusals: Record<string, string> = {};
+  const invitePickerNotes: Record<string, string> = { ...linkedMemberNotes };
+  for (const link of links) {
+    if (link.status !== "active" || link.memberId === null) continue;
+    inviteRefusals[link.memberId] =
+      `${link.memberName ?? "This person"} already has an account linked to the ward list. They can sign in as they are.`;
+  }
+  for (const holder of unlinkedHolders) {
+    if (holder.state === "maybe_account") {
+      inviteRefusals[holder.memberId] =
+        `${holder.possibleAccountName ?? "An account"} may be ${holder.memberName} already. Link that account on its row instead of sending an invite.`;
+      invitePickerNotes[holder.memberId] = `May be ${holder.possibleAccountName ?? "an account"} already`;
+      continue;
+    }
+    inviteCandidates[holder.memberId] = {
+      memberName: holder.memberName,
+      email: holder.email,
+      callingLabel: holder.callingLabel,
+    };
   }
 
   // Youth accounts get their own section below, so the adult list does not show rows with no
@@ -119,7 +150,25 @@ export default async function AdminUsersPage() {
         />
       )}
 
-      <InviteForm organizations={organizations} />
+      {canLink ? (
+        <>
+          <CallingsWithoutAccount
+            holders={unlinkedHolders}
+            sessionUser={user}
+            candidates={inviteCandidates}
+            refusals={inviteRefusals}
+            pickerNotes={invitePickerNotes}
+          />
+          <InviteForm
+            sessionUser={user}
+            candidates={inviteCandidates}
+            refusals={inviteRefusals}
+            pickerNotes={invitePickerNotes}
+          />
+        </>
+      ) : (
+        <p className="text-sm text-muted">Inviting people is limited to the bishopric.</p>
+      )}
 
       {/* One list at every width: stacked cards on a phone, aligned columns from md up. A
           table that scrolls sideways at 375px is not usable. */}

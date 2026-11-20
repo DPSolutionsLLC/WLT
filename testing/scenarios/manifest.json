@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 103,
+  "scenarioCount": 104,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -249,14 +249,44 @@
         "Step 3: Aaron's own row sits under *Calling changes you can't apply here* with *This is your own",
         "Step 4: **Calling changes (2)** lists *Aaron Pike: from 1st Counselor to 2nd Counselor* and *Lena",
         "Step 4 after Apply: `members.callings` for Aaron reads *Bishopric Second Counselor* and Tom's phone",
-        "Step 5: the Calling review on Admin → Users shows the same three rows",
+        "Step 5: the Calling review on Admin → Users shows the two counselor rows, still unticked. Ruth Kim",
         "Step 6: the result reads *Callings: 2 changes applied*. Aaron is 2nd and Lena 1st, each",
         "Step 7: Admin → Users shows Aaron as 2nd Counselor and Lena as 1st, with no change waiting for them",
-        "Step 8: **Tick all** is disabled under Calling releases. Ticking Ruth's release ticks her row under",
+        "Step 8: Ruth has one checkbox, and ticking it makes the button read *Apply 1 change*",
         "Step 9: Ruth is `moved_out` and her calling has `is_active = false` (read back). Nobody was deleted",
         "Step 10 (375px): every group wraps without horizontal overflow, and every checkbox row and button"
       ],
       "seedCommand": "npm run seed -- admin/scenario-104-a-paste-that-changes-callings"
+    },
+    {
+      "id": "admin:scenario-105-invite-a-new-calling-holder",
+      "path": "admin/scenario-105-invite-a-new-calling-holder",
+      "name": "Invite a new calling holder from the ward list",
+      "scope": "admin",
+      "part": 1,
+      "tags": [
+        "callings",
+        "admin",
+        "invites",
+        "full",
+        "security",
+        "ITER-058"
+      ],
+      "prerequisites": "Migrations 105, 106 and 107 applied; Admin released for the Harness Test Ward.",
+      "purpose": "ITER-058 slice **cr4**. An invite now names a **person on the ward list**, never a role: the app works\nout the calling from that person's ward list callings, when the invite is made and again when it is\nredeemed. The person being invited confirms **\"Yes, this is me\"**, and their new account lands with\nthat calling and linked to their ward list record. Admin → Users lists everybody the ward list gives a\ncalling who has no linked account, with **Invite**, but not when an existing account looks like theirs.\n\nAdded walking this scenario (migration 107): each person has **one live link**. Reopening their window\nshows the link still waiting, and **Create new invite link** replaces it. **No, this isn't me** asks\nonce, then cancels the link and tells whoever sent it.",
+      "checklist": [
+        "Step 2: the group reads *Callings with no linked account (3)*, collapsed until opened. **Nora",
+        "Step 3: there is **no Role, Organization or Counselor position** field. Tom reads *Tom Reyes holds",
+        "Step 4: the window's email is filled with Nora's roster email. After creating, it says *Send this",
+        "Step 4: reopening shows *Link already made for Nora Diaz* with link A and *A new link cancels the",
+        "Step 4: each `invite_created` audit row holds `inviteId`, `memberId` and `role` and **no names and",
+        "Step 6: the page reads *You're invited as Lena Ortiz, Music Coordinator…*. **No, this isn't me**",
+        "Step 7: link A reads as not valid. On link B, without the tick, **Create account** shows *Tick",
+        "Step 8: Nora signs in with no \"Is this you?\" card on the dashboard. Read back: her calling is",
+        "Step 9: Nora is listed as *Linked to Nora Diaz*, and is gone from **Callings with no linked",
+        "Step 10 (375px): no horizontal overflow; the checkbox, **No, this isn't me**, both confirm buttons,"
+      ],
+      "seedCommand": "npm run seed -- admin/scenario-105-invite-a-new-calling-holder"
     },
     {
       "id": "ai:scenario-020-preview-before-you-save",

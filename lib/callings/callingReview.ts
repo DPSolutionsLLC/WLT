@@ -2,6 +2,7 @@ import { roleNeedsRosterLink } from "@/lib/callings/linkAccess";
 import {
   deriveCalling,
   parseLcrCallings,
+  ROLE_PRECEDENCE,
   type DerivedCalling,
   type OrganizationForMapping,
 } from "@/lib/callings/lcrCallingMap";
@@ -151,7 +152,7 @@ function detailsOf(derived: DerivedCalling): string[] {
   return details;
 }
 
-function unresolvableRefusal(derived: Extract<DerivedCalling, { kind: "unresolvable" }>): string {
+export function unresolvableRefusal(derived: Extract<DerivedCalling, { kind: "unresolvable" }>): string {
   const organization = ORGANIZATION_TYPE_NAMES[derived.orgType];
   return derived.reason === "no_organization"
     ? `Can't apply: this ward has no ${organization} organization.`
@@ -330,4 +331,101 @@ export function describeRowTarget(
   organizationNames: ReadonlyMap<string, string>,
 ): string {
   return reviewRow.target ? describeTarget(reviewRow.target, organizationNames) : "released";
+}
+
+// ---------------------------------------------------------------------------
+// CALLINGS WITH NO LINKED ACCOUNT (ITER-058 cr4)
+// ---------------------------------------------------------------------------
+// Everybody the ward list gives an app calling whose record no account is linked to. NOT a review
+// row: there is nothing to tick or apply — the act is an invite — so it is kept out of
+// buildCallingReview(), out of Apply, and off the paste checklist, while reading the same title map.
+//
+// "No linked account" is not "no account": until every existing account is linked (D1), most of a
+// ward's leaders have an account the ward list does not know about yet. So a row whose roster email
+// is an unlinked ward account's login email says so and offers no Invite — inviting them would make
+// a second account for somebody who already has one. One already invited says so and offers Invite
+// again, since the first link may have been lost. One whose latest invite was answered "No, this
+// isn't me" says so and offers Invite again: the email is the likely mistake, and checking it is the
+// sender's job.
+
+export type UnlinkedHolderState = "invite" | "invited" | "declined" | "maybe_account";
+
+export type UnlinkedHolderMember = ReviewMember & { email: string | null };
+
+export type UnlinkedHolderInput = {
+  members: readonly UnlinkedHolderMember[];
+  linkedMemberIds: ReadonlySet<string>;
+  invitedMemberIds: ReadonlySet<string>;
+  // Member id → when the person said their LATEST invite was not them.
+  declinedMemberIds: ReadonlyMap<string, string>;
+  // Lower-cased login email → account name, for ward accounts with no active link.
+  unlinkedAccountsByEmail: ReadonlyMap<string, string>;
+  organizations: readonly ReviewOrganization[];
+};
+
+export type UnlinkedHolder = {
+  memberId: string;
+  memberName: string;
+  email: string | null;
+  role: Role;
+  callingLabel: string;
+  state: UnlinkedHolderState;
+  possibleAccountName: string | null;
+  declinedAt: string | null;
+};
+
+export function listUnlinkedHolders(input: UnlinkedHolderInput): UnlinkedHolder[] {
+  const organizationNames = new Map(
+    input.organizations.map((organization) => [organization.id, organization.name]),
+  );
+  const mappingOrganizations = input.organizations.map(({ id, type }) => ({ id, type }));
+
+  const holders: UnlinkedHolder[] = [];
+
+  for (const member of input.members) {
+    if (member.status !== "active" || input.linkedMemberIds.has(member.id)) continue;
+
+    const derived = deriveCalling(parseLcrCallings(member.callings), mappingOrganizations);
+    if (derived.kind !== "calling" || !roleNeedsRosterLink(derived.role)) continue;
+
+    const email = member.email?.trim() ? member.email.trim() : null;
+    const possibleAccountName = email
+      ? (input.unlinkedAccountsByEmail.get(email.toLowerCase()) ?? null)
+      : null;
+
+    holders.push({
+      memberId: member.id,
+      memberName: member.name,
+      email,
+      role: derived.role,
+      callingLabel: describeTarget(
+        { role: derived.role, orgId: derived.orgId, counselorPosition: derived.counselorPosition },
+        organizationNames,
+      ),
+      state: holderState(member.id, possibleAccountName, input),
+      possibleAccountName,
+      declinedAt: input.declinedMemberIds.get(member.id) ?? null,
+    });
+  }
+
+  return holders.sort(
+    (left, right) =>
+      rankOfRole(left.role) - rankOfRole(right.role) || left.memberName.localeCompare(right.memberName),
+  );
+}
+
+function holderState(
+  memberId: string,
+  possibleAccountName: string | null,
+  input: UnlinkedHolderInput,
+): UnlinkedHolderState {
+  if (possibleAccountName) return "maybe_account";
+  if (input.invitedMemberIds.has(memberId)) return "invited";
+  if (input.declinedMemberIds.has(memberId)) return "declined";
+  return "invite";
+}
+
+function rankOfRole(role: Role): number {
+  const rank = ROLE_PRECEDENCE.indexOf(role);
+  return rank === -1 ? ROLE_PRECEDENCE.length : rank;
 }

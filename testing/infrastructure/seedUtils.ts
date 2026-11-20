@@ -2441,6 +2441,7 @@ export const NOTIFICATION_TRIGGERS: Array<{ key: string; defaultRoles: Role[] }>
   // Surfaced by scenario 015, the first walkthrough to confirm a cancellation.
   { key: "assignment_reverted", defaultRoles: ["bishop", "counselor"] },
   { key: "admin_setting_changed", defaultRoles: ["bishop", "counselor"] },
+  { key: "invite_declined", defaultRoles: ["bishop", "counselor"] },
   {
     key: "org_conducting_rotation_changed",
     defaultRoles: ["org_president", "org_counselor", "org_secretary"],

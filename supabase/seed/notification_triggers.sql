@@ -36,6 +36,9 @@ cross join (values
 
   -- Admin
   ('admin_setting_changed',         array['bishop', 'counselor']),
+  -- The person an invite named said it was not them (ITER-058 cr4, migration 107b). Addressed to
+  -- whoever sent the invite, so this list is the opt-out surface rather than the address list.
+  ('invite_declined',               array['bishop', 'counselor']),
 
   -- Calendar
   -- Recipients are resolved EXPLICITLY by lib/notifications/notifyOrgLeadership.ts, so this

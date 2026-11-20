@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { RegisterForm } from "@/app/(auth)/invite/[token]/RegisterForm";
 import { Card } from "@/components/ui/Card";
-import { INVITE_REFUSED_MESSAGE, readInvitePreview } from "@/lib/auth/invites";
+import {
+  INVITE_CALLING_CHANGED_MESSAGE,
+  INVITE_REFUSED_MESSAGE,
+  readInvitePreview,
+} from "@/lib/auth/invites";
 
 // In the (auth) route group, so it inherits the unauthenticated layout and stays out of the
 // middleware redirect — /invite is already in PUBLIC_PATHS.
@@ -33,7 +37,34 @@ export default async function InvitePage({
     );
   }
 
-  return (
-    <RegisterForm token={token} roleLabel={preview.roleLabel} email={preview.email} />
+  // The roster no longer gives this person a calling the app recognises (ITER-058 cr4). Said
+  // before a password is typed, rather than after the form is sent.
+  if (preview.kind === "calling_changed") {
+    return (
+      <Card>
+        <h2 className="text-base font-semibold text-foreground">Invite out of date</h2>
+        <p className="mt-2 text-sm text-muted">{INVITE_CALLING_CHANGED_MESSAGE}</p>
+        <Link
+          href="/login"
+          className="mt-4 inline-block text-sm text-primary underline underline-offset-4"
+        >
+          Go to sign in
+        </Link>
+      </Card>
+    );
+  }
+
+  return preview.kind === "member" ? (
+    <RegisterForm
+      token={token}
+      email={preview.email}
+      invitedAs={{ kind: "member", memberName: preview.memberName, callingLabel: preview.callingLabel }}
+    />
+  ) : (
+    <RegisterForm
+      token={token}
+      email={preview.email}
+      invitedAs={{ kind: "role", roleLabel: preview.roleLabel }}
+    />
   );
 }

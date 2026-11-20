@@ -1,6 +1,6 @@
 # Backlog
 
-_Last updated: 2026-11-16_
+_Last updated: 2026-11-19_
 
 ---
 
@@ -125,6 +125,11 @@ Suggested order: 051 → 053 → 052 → 054. Future (design for, don't build): 
 
 ## Standalone Work
 Each of these is large or complex enough to tackle on its own.
+
+- [ ] ITER-070 — Invites by email, and a calling the sender chooses → [scope](.iterate/scopes/ITER-070.md)
+  _Reason: reverses cr4's "an invite never names a role" (the sender's calling overrides the ward
+  list), adds an email-must-match rule with a hand-link fallback and an LCR to-do, and reconciles both
+  on the next roster paste. Raised 2026-11-19 walking scenario 105; follows ITER-058._
 
 - [ ] ITER-060 — Callings sandbox on the real roster → [scope](.iterate/scopes/ITER-060.md)
   _Reason: a new module (P9) porting the prototype's scenario engine with branching onto the real

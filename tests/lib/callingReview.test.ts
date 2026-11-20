@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCallingReview,
+  listUnlinkedHolders,
   type CallingReviewInput,
+  type UnlinkedHolderInput,
   type ReviewCalling,
   type ReviewMember,
 } from "@/lib/callings/callingReview";
@@ -298,5 +300,118 @@ describe("buildCallingReview", () => {
     const toClerk = buildCallingReview(input({ ...base, members: [member("m-a", "Ward Executive Secretary")] }));
     const toMusic = buildCallingReview(input({ ...base, members: [member("m-a", "Music Coordinator")] }));
     expect(toClerk[0].id).not.toBe(toMusic[0].id);
+  });
+});
+
+describe("listUnlinkedHolders (cr4)", () => {
+  function holderInput(overrides: Partial<UnlinkedHolderInput>): UnlinkedHolderInput {
+    return {
+      members: [],
+      linkedMemberIds: new Set(),
+      invitedMemberIds: new Set(),
+      declinedMemberIds: new Map(),
+      unlinkedAccountsByEmail: new Map(),
+      organizations: [EQ, RS],
+      ...overrides,
+    };
+  }
+
+  function withEmail(id: string, callings: string | null, email: string | null = null) {
+    return { ...member(id, callings), email };
+  }
+
+  it("lists a ward list calling with no linked account, offering an invite", () => {
+    const holders = listUnlinkedHolders(
+      holderInput({ members: [withEmail("m-clerk", "Ward Clerk", "clerk@example.com")] }),
+    );
+    expect(holders).toEqual([
+      {
+        memberId: "m-clerk",
+        memberName: "Member m-clerk",
+        email: "clerk@example.com",
+        role: "ward_secretary",
+        callingLabel: expect.any(String),
+        state: "invite",
+        possibleAccountName: null,
+        declinedAt: null,
+      },
+    ]);
+  });
+
+  it("leaves out linked people, moved-out people and titles the app does not recognise", () => {
+    const holders = listUnlinkedHolders(
+      holderInput({
+        members: [
+          withEmail("m-linked", "Ward Clerk"),
+          { ...withEmail("m-gone", "Bishop"), status: "moved_out" },
+          withEmail("m-assistant", "Ward Assistant Clerk"),
+          withEmail("m-ym", "Young Men President"),
+        ],
+        linkedMemberIds: new Set(["m-linked"]),
+      }),
+    );
+    expect(holders).toEqual([]);
+  });
+
+  it("leaves out a calling whose organization cannot be resolved", () => {
+    const holders = listUnlinkedHolders(
+      holderInput({ members: [withEmail("m-p", "Primary President")] }),
+    );
+    expect(holders).toEqual([]);
+  });
+
+  it("says when somebody has already been invited", () => {
+    const [holder] = listUnlinkedHolders(
+      holderInput({
+        members: [withEmail("m-eq", "Elders Quorum President")],
+        invitedMemberIds: new Set(["m-eq"]),
+      }),
+    );
+    expect(holder.state).toBe("invited");
+  });
+
+  it("says when the person answered their latest invite \"not me\"", () => {
+    const [holder] = listUnlinkedHolders(
+      holderInput({
+        members: [withEmail("m-eq", "Elders Quorum President")],
+        declinedMemberIds: new Map([["m-eq", "2026-11-18T12:00:00Z"]]),
+      }),
+    );
+    expect(holder).toMatchObject({ state: "declined", declinedAt: "2026-11-18T12:00:00Z" });
+  });
+
+  it("prefers a fresh invite over an older \"not me\"", () => {
+    const [holder] = listUnlinkedHolders(
+      holderInput({
+        members: [withEmail("m-eq", "Elders Quorum President")],
+        invitedMemberIds: new Set(["m-eq"]),
+        declinedMemberIds: new Map([["m-eq", "2026-11-18T12:00:00Z"]]),
+      }),
+    );
+    expect(holder.state).toBe("invited");
+  });
+
+  it("names an unlinked account with the same email, case-insensitively, instead of offering an invite", () => {
+    const [holder] = listUnlinkedHolders(
+      holderInput({
+        members: [withEmail("m-rs", "Relief Society President", " Rosa@Example.com ")],
+        invitedMemberIds: new Set(["m-rs"]),
+        unlinkedAccountsByEmail: new Map([["rosa@example.com", "Rosa Account"]]),
+      }),
+    );
+    expect(holder).toMatchObject({ state: "maybe_account", possibleAccountName: "Rosa Account" });
+  });
+
+  it("orders by calling precedence, then name", () => {
+    const holders = listUnlinkedHolders(
+      holderInput({
+        members: [
+          withEmail("m-2", "Music Coordinator"),
+          withEmail("m-1", "Bishop"),
+          withEmail("m-3", "Ward Clerk"),
+        ],
+      }),
+    );
+    expect(holders.map((holder) => holder.role)).toEqual(["bishop", "ward_secretary", "music_coordinator"]);
   });
 });

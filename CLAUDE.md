@@ -529,7 +529,7 @@ calling — an empty page with no error to explain it.
 
 ---
 
-### The roster decides the calling — ITER-058, BEING BUILT (cr1–cr3 shipped, migration 105)
+### The roster decides the calling — ITER-058, BUILT (cr1–cr4, migrations 105–107)
 
 `plans/roster-decides-callings.md`. **`user_member_links` says which person on the ward list an
 account is, per ward**, and has a SELECT policy and NO write policy: `lib/callings/memberLinks.ts` on
@@ -567,6 +567,29 @@ updates on every paste; the app calling waits for a tick.** Seeing or applying c
 `canManageMemberLinks()` on top of `roster.import`. **A release for somebody this paste leaves off is part of
 their No longer listed row, one checkbox for both** (`reconcileMoveOutTicks()`, decided walking scenario 104), because until
 they are moved out the recompute has nothing to release.
+
+**cr4: AN INVITE NAMES A PERSON, NEVER A ROLE (migration 106).** The body is `{ email, memberId }`,
+`.strict()`, so the server cannot be asked for `super_admin`; `deriveMemberCalling()` (`lib/auth/invites.ts`)
+works the calling out from the title map when the invite is made, when its page opens, and **again at
+redemption, before any auth user exists** — a calling the roster no longer gives is refused, never granted
+from the invite. The invitee must tick **"Yes, this is me"**; they never pick a record. Redemption creates
+the calling as `source: 'roster'` and the link through `linkByInvite()` (`method: 'invite'`, `linked_by` the
+sender), and any failure undoes the whole account. An invite made before cr4 still carries its role. **Callings
+with no linked account** (`listUnlinkedHolders()`) is NOT a review row — nothing applies — and offers no
+Invite when an unlinked ward account already has that person's roster email, because that is a link to make,
+not a second account. Creating an invite now takes `canManageMemberLinks()`, and still inserts through the
+caller's client under 019's bishopric-only policy, so a super admin acting under a `super_admin` calling
+cannot invite (unchanged; an open gap).
+**ONE LIVE LINK PER PERSON, AND "NOT ME" ENDS IT (decided walking scenario 105, migration 107).** Making an
+invite expires the person's other waiting ones (`cancelOtherInvites()`, after the insert, so a failure
+leaves two links and a `warning` sentence, never none); `GET /api/auth/invite?memberId=` reads the waiting
+link back for the window, fetched on open and never written into the page. **"No, this isn't me"** confirms
+in the page, then `POST /api/auth/invite/not-me` (public, token-only, service role) stamps
+`invites.declined_at`, which the claim and the preview refuse; it audits `invite_declined` with a **null
+user** and ids only, and notifies the sender (`invite_declined`, in all four trigger copies plus 107b's
+backfill). The person's row then reads *Said this invite wasn't them* with Invite again. **ITER-070** holds
+what the walk raised beyond this: an email the ward list must know, and a calling the sender chooses that
+overrides the roster — which reverses this paragraph's first rule, so it needs its own plan.
 
 ## 8. Testing
 

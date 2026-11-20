@@ -15,8 +15,10 @@ leaves the app working.
 
 **Status (2026-11-17):** Task 0 done (title map agreed, below). **cr1 built**: migration **105**
 (applied), scenario **103** Part 1. **cr2 built** (no migration): scenario **103b** (Part 2). **cr3
-built** (no migration): scenario **104**. cr4 takes the next free migration (bishopric-visits bv7
-expects 106, and now scenario 105 — re-check).
+built** (no migration): scenario **104**. **cr4 built** (2026-11-19): migration **106** (applied),
+scenario **105**. Walking 105 added one live link per person and a working "No, this isn't me"
+(migration **107**, applied); the rest of what it raised is **ITER-070**. bishopric-visits bv7 now takes
+migration **108** and scenario **106**.
 Run vitest from **PowerShell**, not Git Bash (see the retro).
 
 ---

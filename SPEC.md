@@ -166,15 +166,48 @@ created_at      timestamptz DEFAULT now()
 id              uuid PRIMARY KEY DEFAULT gen_random_uuid()
 ward_id         uuid REFERENCES wards(id)
 email           text
-role            text
+role            text            -- null on a person invite (ITER-058 cr4); kept for invites made before it
+member_id       uuid            -- (member_id, ward_id) → members; the person the invite names (migration 106)
 org_id          uuid REFERENCES organizations(id)
 counselor_position  integer
 invited_by      uuid REFERENCES users(id)
 token           text UNIQUE NOT NULL
 expires_at      timestamptz
 used_at         timestamptz
+declined_at     timestamptz     -- "No, this isn't me"; the link is dead (migration 107)
 created_at      timestamptz DEFAULT now()
+-- CHECK (member_id IS NOT NULL OR role IS NOT NULL)
 ```
+
+**An invite names a person on the ward list, not a role (ITER-058 cr4).** `POST /api/auth/invite`
+takes `{ email, memberId }` (`.strict()`, so a body carrying `role` is a 400) behind
+`canManageMemberLinks()`. The server derives the calling from the person's ward list callings
+(`deriveMemberCalling()` in `lib/auth/invites.ts`, over `lib/callings/lcrCallingMap.ts`) and refuses,
+with a sentence, a person with no recognised or resolvable calling or one already linked to an
+account. The row stores `member_id` and **no role**. The invite page re-derives, so it names the
+calling the roster gives today. `POST /api/auth/register` requires `confirmedIdentity: true` for a
+person invite ("Yes, this is me"; `false` is refused by the schema), re-derives, and refuses a calling
+that is no longer recognised **before the auth user is created**. It then creates the calling with
+`source: 'roster'` and the link with `method: 'invite'`, `linked_by` = the sender, through
+`linkByInvite()` in `lib/callings/memberLinks.ts`; a failure undoes the whole registration. An invite
+made before cr4 still carries its role and redeems as `source: 'manual'`. Audit `invite_created` and
+`user_registered` carry `memberId` and `role`, never a name.
+
+**One live link per person, and "not me" (migration 107, decided walking scenario 105).** A new invite
+expires the person's other waiting invites; if that fails the response's `warning` says so. `GET
+/api/auth/invite?memberId=` (same gate, caller's client) returns `{ waiting: { url, email, expiresAt } |
+null }` so the window can show a link that was never copied. `POST /api/auth/invite/not-me` takes `{ token
+}` (`.strict()`, public, service role): one conditional UPDATE sets `invites.declined_at` on a usable person
+invite, after which claiming and previewing refuse it. It writes audit `invite_declined` with `user_id`
+null and `{ inviteId, memberId }`, and notifies whoever sent the invite (`invite_declined`). A second
+press or an unknown token answers 400 with the ordinary refused-invite sentence.
+
+**Callings with no linked account (cr4).** `listUnlinkedHolders()` (pure, `lib/callings/callingReview.ts`),
+loaded by `loadUnlinkedHolders()`: every active member the title map gives a resolvable calling whose
+record no account is linked to. Each is `invite`, `invited` (an unused, undeclined, unexpired invite names them),
+`declined` (their NEWEST invite was answered "not me"; offers Invite again)
+or `maybe_account` (an unlinked ward account's email equals their roster email, so no Invite is
+offered). Not a review row: nothing on it is ticked or applied, and it is not on the paste checklist.
 
 ### `youth_login_attempts`
 ```sql
@@ -2495,6 +2528,7 @@ assignment_reverted            -- a calendar change voided planning work (migrat
 
 -- Admin
 admin_setting_changed
+invite_declined                -- the person an invite named said it was not them; sent to whoever sent it (ITER-058 cr4)
 
 -- Calendar
 org_conducting_rotation_changed
