@@ -64,6 +64,8 @@ function doneVisit(householdId: string, visitDate: string, orgId: string | null)
     sharedNotes: null,
     flaggedForWardCouncil: false,
     flagSentAt: null,
+    discussInBishopric: false,
+    bishopricDiscussedAt: null,
     createdAt: `${visitDate}T00:00:00.000Z`,
     householdName: null,
     recordedByName: null,

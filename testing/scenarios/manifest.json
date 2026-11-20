@@ -1,6 +1,6 @@
 {
   "generatedFrom": "testing/scenarios",
-  "scenarioCount": 104,
+  "scenarioCount": 105,
   "scenarios": [
     {
       "id": "admin:scenario-067-asking-for-a-permission",
@@ -3316,6 +3316,36 @@
         "Step 14 (375px): six tabs scroll sideways rather than wrapping; the Assign window's household"
       ],
       "seedCommand": "npm run seed -- visits/scenario-102-assign-households-to-the-bishopric"
+    },
+    {
+      "id": "visits:scenario-106-follow-ups-and-bishopric-discussion",
+      "path": "visits/scenario-106-follow-ups-and-bishopric-discussion",
+      "name": "Follow-ups and bishopric discussion",
+      "scope": "visits",
+      "part": 1,
+      "tags": [
+        "visits",
+        "agendas",
+        "todos",
+        "full",
+        "ITER-055"
+      ],
+      "prerequisites": "Migration 108 applied; Visits and Agendas released for the Harness Test Ward.",
+      "purpose": "ITER-055 slice **bv7**. Two ways the bishopric sends a recorded visit onward, both on the visit's\ncard under **Recent visits** on the Visits **Households** tab:\n\n- **Add a follow-up** puts a to-do on a bishopric member's **To Do**, yourself by default, with an\n  optional due date. The card reads **From a visit to the ___ family**. It is an ordinary to-do once\n  given: it can be ticked and deleted.\n- **Discuss in bishopric meeting** puts one line, **Visit — ___ family — to discuss**, under\n  **Visits to discuss** on the next **bishopric** agenda. Never a ward council agenda, and never the\n  report or the private note. **No agenda is ever created to hold it:** with a draft bishopric agenda\n  dated today or later, the line goes on it at once; otherwise the visit waits, and the next\n  bishopric agenda somebody creates gathers it. Publishing that agenda marks the visit\n  **discussed**, so the line doesn't come back.\n\nBoth buttons are the bishopric's alone (the same check as dividing the households).\n\nDecided with the user at bv7 start: the line has its **own tag**, `visit_discussion`, not the\nward-council `flag`. Publishing stamps every `flag` line's visit as sent to the ward council, so\nsharing that tag would silently clear a ward-council flag on the same visit.",
+      "checklist": [
+        "Step 1: each visit card under Recent visits has **Add a follow-up** and **Discuss in bishopric",
+        "Step 2: the window says **Added to Aaron Pike's To Do.** A `todos` row owned by Aaron with",
+        "Step 3: Ellis reads **On the bishopric agenda for {the draft's date}**; the button now reads",
+        "Step 4: the bishopric draft has a **Visits to discuss** section right after *Flagged ward",
+        "Step 5: the line is gone from the bishopric draft; the section heading stays; Ellis shows no",
+        "Step 6: after publishing, `visit_logs.bishopric_discussed_at` is set for Ellis and",
+        "Step 7: Ellis reads **Discussed in bishopric meeting** with **Discuss again**. Foster reads",
+        "Step 8: the new bishopric agenda carries **Visit — Foster family — to discuss**, and **not**",
+        "Step 9: the card reads **From a visit to the Ellis family**, has its ordinary checkbox, and the",
+        "Step 10: no **Add a follow-up** or **Discuss** buttons anywhere",
+        "Step 11: at 375px the two buttons wrap cleanly, every control is at least 44px, and the"
+      ],
+      "seedCommand": "npm run seed -- visits/scenario-106-follow-ups-and-bishopric-discussion"
     },
     {
       "id": "youth:scenario-049-entering-an-activity-that-is-not-yours",

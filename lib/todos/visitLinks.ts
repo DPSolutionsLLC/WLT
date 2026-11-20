@@ -104,6 +104,46 @@ export async function createVisitTodo(
   return data.id;
 }
 
+// A FOLLOW-UP FROM A VISIT (ITER-055 bv7, P14). An ordinary to-do once given — tickable and
+// deletable like any other — carrying `visit_log_id` so the card can link back. Called only from
+// POST /api/visits/[id]/follow-ups, after canAssignVisits(), after the visit was read through the
+// caller's own client, and after the owner was checked to hold a bishopric calling here. No line is
+// written: nothing about it happens automatically.
+export async function createFollowUpTodo(
+  params: {
+    wardId: string;
+    ownerUserId: string;
+    assignedByUserId: string;
+    visitLogId: string;
+    title: string;
+    dueDate: string | null;
+  },
+  service: Client,
+): Promise<string> {
+  const { data, error } = await service
+    .from("todos")
+    .insert({
+      ward_id: params.wardId,
+      user_id: params.ownerUserId,
+      assigned_by: params.assignedByUserId === params.ownerUserId ? null : params.assignedByUserId,
+      title: params.title,
+      tag: VISIT_TAG,
+      notes: null,
+      due_date: params.dueDate,
+      visit_log_id: params.visitLogId,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    fail("Could not create a follow-up to-do", error, {
+      wardId: params.wardId,
+      visitLogId: params.visitLogId,
+    });
+  }
+  return data.id;
+}
+
 // Closes every OPEN to-do for these assignments, whoever holds it. `closedReason` is null for a
 // finished visit — the to-do did its job — and names why otherwise. One line per to-do says so.
 export async function closeVisitTodos(

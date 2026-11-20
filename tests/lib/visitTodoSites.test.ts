@@ -101,3 +101,38 @@ describe("every route that records a visit or ends a goal brings the assignments
     expect(callers).toEqual(Object.keys(RECONCILING_ROUTES).sort());
   });
 });
+
+// ITER-055 bv7: a follow-up's link to its visit, and the "discuss in bishopric meeting" pair. Each
+// has one writer: a second place stamping `bishopric_discussed_at` would be a second meaning of
+// "discussed", and a second writer of `visit_log_id` a second door onto another member's To Do.
+// Scoped to `todos`: visit_participants and visit_private_notes have a `visit_log_id` of their own.
+const FOLLOW_UP_LINK_WRITE = /\.from\(\s*"todos"\s*\)[^;]*?\bvisit_log_id\s*:(?!\s*string\b)/;
+const DISCUSSION_REQUEST_WRITE = /\bdiscuss_in_bishopric\s*:(?!\s*boolean\b)/;
+const DISCUSSED_STAMP_WRITE = /\bbishopric_discussed_at\s*:(?!\s*string\b)/;
+
+describe("follow-ups and bishopric discussion have one writer each", () => {
+  it("finds a write the way the checks below rely on", () => {
+    expect(FOLLOW_UP_LINK_WRITE.test(`db.from("todos").insert({ visit_log_id: params.visitLogId })`)).toBe(true);
+    expect(FOLLOW_UP_LINK_WRITE.test(`db.from("visit_participants").insert({ visit_log_id: id })`)).toBe(false);
+    expect(FOLLOW_UP_LINK_WRITE.test(`  visit_log_id: string | null;`)).toBe(false);
+    expect(DISCUSSION_REQUEST_WRITE.test(`.update({ discuss_in_bishopric: discuss })`)).toBe(true);
+    expect(DISCUSSION_REQUEST_WRITE.test(`  discuss_in_bishopric: boolean;`)).toBe(false);
+    expect(DISCUSSED_STAMP_WRITE.test(`.update({ bishopric_discussed_at: now })`)).toBe(true);
+    expect(DISCUSSED_STAMP_WRITE.test(`  bishopric_discussed_at: string | null;`)).toBe(false);
+  });
+
+  it("writes todos.visit_log_id only from lib/todos/visitLinks.ts", () => {
+    const writers = SOURCE_FILES.filter((file) => FOLLOW_UP_LINK_WRITE.test(read(file))).sort();
+    expect(writers).toEqual(["lib/todos/visitLinks.ts"]);
+  });
+
+  it("asks for or withdraws a discussion only from lib/visits/queries.ts", () => {
+    const writers = SOURCE_FILES.filter((file) => DISCUSSION_REQUEST_WRITE.test(read(file))).sort();
+    expect(writers).toEqual(["lib/visits/queries.ts"]);
+  });
+
+  it("stamps a visit discussed only on publish (lib/agendas/flaggedItems.ts) or clears it on a new request", () => {
+    const writers = SOURCE_FILES.filter((file) => DISCUSSED_STAMP_WRITE.test(read(file))).sort();
+    expect(writers).toEqual(["lib/agendas/flaggedItems.ts", "lib/visits/queries.ts"]);
+  });
+});

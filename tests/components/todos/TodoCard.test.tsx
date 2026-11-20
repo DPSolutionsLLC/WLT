@@ -64,6 +64,7 @@ function visitTodo(bookedFor: string | null, otherBookingCount = 0): TodoSummary
     zoomLink: null,
     zoomRegistrationLink: null,
     visitLink: { assignmentId: "assignment-1" },
+    visitLogId: null,
     closedReason: null,
     talkOffAt: null,
     createdAt: "2026-11-01T00:00:00.000Z",
@@ -73,6 +74,7 @@ function visitTodo(bookedFor: string | null, otherBookingCount = 0): TodoSummary
     askSource: null,
     scheduledWithMemberName: null,
     visitSource: { householdId: "house-ellis", familyName: "Ellis", bookedFor, otherBookingCount },
+    followUpSource: null,
   };
 }
 
@@ -136,5 +138,27 @@ describe("TodoCard — a visit to-do", () => {
     renderCard(visitTodo("2026-11-21T02:30:00.000Z"));
     expect(screen.getByText("Upcoming")).toBeTruthy();
     expect(screen.queryByText("Someday")).toBeNull();
+  });
+});
+
+// A follow-up from a visit (ITER-055 bv7). Decided walking scenario 106: Open Visits lands on THAT
+// visit's card on the Households tab, not on whatever tab Visits last remembered.
+function followUpTodo(): TodoSummary {
+  return {
+    ...visitTodo(null),
+    title: "Ask about the temple trip",
+    visitLink: null,
+    visitSource: null,
+    visitLogId: "visit-ellis",
+    followUpSource: { familyName: "Ellis" },
+  };
+}
+
+describe("TodoCard — a follow-up from a visit", () => {
+  it("opens that visit's card on the Households tab", () => {
+    renderCard(followUpTodo());
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    const link = screen.getByRole("link", { name: "Open Visits" });
+    expect(link.getAttribute("href")).toBe("/visits?tab=households&from=todos#visit-visit-ellis");
   });
 });

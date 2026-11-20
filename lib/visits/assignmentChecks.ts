@@ -21,19 +21,25 @@ type Client = SupabaseClient<Database>;
 export const NOT_BISHOPRIC_ASSIGNEE =
   "Households can only be assigned to the bishop or one of the counselors.";
 
+export const NOT_BISHOPRIC_FOLLOW_UP_OWNER =
+  "A follow-up can only go to the bishop or one of the counselors.";
+
 // `assignedTo` is a SUBJECT column written from a request body (CLAUDE.md §7, the 069 warning). The
 // person must hold a calling in this ward (findUsersOutsideWard asks about the CALLING, never
 // users.ward_id) AND that calling must be a serving bishopric one.
+//
+// `refusal` is the sentence a person reads; a follow-up (bv7) says it in its own words.
 export async function assertAssignableBishopricMember(
   wardId: string,
   userId: string,
   client: Client,
+  refusal: string = NOT_BISHOPRIC_ASSIGNEE,
 ): Promise<BishopricMember> {
   const outside = await findUsersOutsideWard(wardId, [userId], client);
-  if (outside.length > 0) throw new InvalidInputError(NOT_BISHOPRIC_ASSIGNEE);
+  if (outside.length > 0) throw new InvalidInputError(refusal);
 
   const member = (await listBishopricUsers(wardId, client)).find((candidate) => candidate.id === userId);
-  if (member === undefined) throw new InvalidInputError(NOT_BISHOPRIC_ASSIGNEE);
+  if (member === undefined) throw new InvalidInputError(refusal);
   return member;
 }
 

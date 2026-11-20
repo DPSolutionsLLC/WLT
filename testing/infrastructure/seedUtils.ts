@@ -1487,6 +1487,10 @@ export async function createVisitLog(options: {
   // route notifies on false -> true only while flag_sent_at is null, so a fixture that left it
   // null would make "flagging again sends nothing" untestable by hand (07-visits.md §Step 3).
   flagSentAt?: string;
+  // "Discuss in bishopric meeting" (ITER-055 bv7, migration 108b). A stamp needs the request too —
+  // 108b's CHECK refuses one alone.
+  discussInBishopric?: boolean;
+  bishopricDiscussedAt?: string;
 }): Promise<string> {
   return insertRow("visit_logs", {
     id: options.id ?? testUuid(`visit:${options.org}:${options.visitDate}`),
@@ -1504,6 +1508,8 @@ export async function createVisitLog(options: {
     shared_notes: options.sharedNotes ?? null,
     flagged_for_ward_council: options.flaggedForWardCouncil ?? false,
     flag_sent_at: options.flagSentAt ?? null,
+    discuss_in_bishopric: options.discussInBishopric ?? false,
+    bishopric_discussed_at: options.bishopricDiscussedAt ?? null,
   });
 }
 
@@ -2075,6 +2081,8 @@ export async function createTodo(options: {
   zoomRegistrationId?: string;
   // A household visit assignment (ITER-055 bv5, migration 103b): "Visit the ___ family".
   visitAssignmentId?: string;
+  // A follow-up from a visit (ITER-055 bv7, migration 108a): "From a visit to the ___ family".
+  visitLogId?: string;
   createdAt?: string;
 }): Promise<string> {
   return insertRow("todos", {
@@ -2097,6 +2105,7 @@ export async function createTodo(options: {
     music_role: options.musicRole ?? null,
     zoom_registration_id: options.zoomRegistrationId ?? null,
     visit_assignment_id: options.visitAssignmentId ?? null,
+    visit_log_id: options.visitLogId ?? null,
     ...(options.createdAt === undefined ? {} : { created_at: options.createdAt }),
   });
 }

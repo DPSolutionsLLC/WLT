@@ -963,8 +963,21 @@ arrangement     text NOT NULL DEFAULT 'drop_in'  -- appointment | drop_in (046)
 shared_notes    text  -- visible to the organization, the bishopric, and organizations it is shared with (099)
 flagged_for_ward_council    boolean DEFAULT false
 flag_sent_at    timestamptz
+discuss_in_bishopric    boolean NOT NULL DEFAULT false  -- "Discuss in bishopric meeting" (108, ITER-055 bv7)
+bishopric_discussed_at  timestamptz  -- a published bishopric agenda carried the line; CHECK: only while discuss_in_bishopric (108)
 created_at      timestamptz DEFAULT now()
 ```
+
+**Discuss in bishopric meeting (ITER-055 bv7, migration 108b).** Its own pair, never the ward-council
+flag: publishing stamps `flag_sent_at` for every `flag` line, so the agenda line has its own source,
+`visit_discussion`. Asking (`POST /api/visits/[id]/discussion`, bishopric only) puts **one line**,
+"Visit — ___ family — to discuss", under **Visits to discuss** on the soonest **draft bishopric**
+agenda dated today or later (ward zone), or it waits and `POST /api/agendas` gathers it for the next
+bishopric agenda — never a ward council one, and **no agenda is created to hold it**. Withdrawing
+takes it off every draft; asking again clears the stamp. Publishing a bishopric agenda stamps
+`bishopric_discussed_at`. The gather and the stamp use the service role, because the clerk and the
+executive secretary build bishopric agendas and read no Bishopric visit; only the family name
+crosses.
 
 ### `visit_private_notes`
 ```sql
@@ -1249,6 +1262,7 @@ closed_reason            text  -- migration 083: 'handed_over' | 'assistant_rele
                                -- | 'music_reopened' | 'meeting_cancelled'  (migration 089)
                                -- | 'reassigned' | 'unassigned' | 'goal_ended'  (migration 103)
 visit_assignment_id      uuid REFERENCES visit_assignments(id) ON DELETE SET NULL  -- migration 103: "Visit the ___ family"
+visit_log_id             uuid REFERENCES visit_logs(id) ON DELETE SET NULL  -- migration 108: a follow-up from a visit; an ordinary to-do otherwise
 talk_off_at              timestamptz  -- migration 084: when the owner was told the talk is off
 created_at               timestamptz DEFAULT now()
 updated_at               timestamptz DEFAULT now()
@@ -2018,6 +2032,8 @@ GET    /api/visits               List visit logs (scoped by org)
 POST   /api/visits               Create visit log
 PATCH  /api/visits/[id]          Update shared notes, flag
 POST   /api/visits/[id]/private-note  Add/update private note
+POST   /api/visits/[id]/follow-ups    A follow-up to-do for a bishopric member (ITER-055 bv7; visits.assign + bishopric)
+POST   /api/visits/[id]/discussion    { discuss } — ask for / withdraw "Discuss in bishopric meeting" (bv7; same check)
 GET    /api/visits/progress      Dashboard summary by org
 
 PUT    /api/households/[id]/visit-cadence    Set this org's cadence for one household

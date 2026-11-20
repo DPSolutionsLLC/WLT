@@ -58,6 +58,16 @@ files:
   - app/(app)/visits/AssignWindow.tsx
   - app/(app)/visits/MyVisits.tsx
   - app/(app)/todos/TodoCard.tsx
+  - supabase/migrations/108_visit_followups_and_discussion.sql
+  - lib/agendas/visitDiscussions.ts
+  - lib/agendas/sections.ts
+  - lib/agendas/flaggedItems.ts
+  - app/api/visits/[id]/follow-ups/route.ts
+  - app/api/visits/[id]/discussion/route.ts
+  - app/api/agendas/route.ts
+  - app/api/agendas/[id]/publish/route.ts
+  - app/(app)/visits/VisitBishopricActions.tsx
+  - app/(app)/agendas/[id]/AgendaBuilder.tsx
 related: [visits-c-report-feed-and-cross-org, visits-f-stewardship-and-all-orgs, zoom-remote-links, notification-trigger-drift, role-access-overrides]
 ---
 
@@ -367,3 +377,59 @@ timeline (`visit_companion_declined`). Booking is one form, `ScheduleVisitForm`,
   `ScheduleVisitWindow` and `TodoCard` component tests.
 - The production build is clean.
 - Migration 104 is applied.
+
+## bv7 — Follow-ups, and "Discuss in bishopric meeting" (pending commit)
+
+### What was done
+Each visit card under Recent visits gives the bishopric two ways to send a visit onward. **Add a
+follow-up** (`POST /api/visits/[id]/follow-ups`) puts an ordinary to-do on a bishopric member's list,
+yourself by default, with an optional due date. It is linked by `todos.visit_log_id`, reads "From a
+visit to the ___ family", and can be ticked and deleted. **Discuss in bishopric meeting** (`POST
+/api/visits/[id]/discussion`) sets `visit_logs.discuss_in_bishopric` and puts one line, "Visit — ___
+family — to discuss", under **Visits to discuss** on the soonest draft **bishopric** agenda dated today
+or later. If there is none, the visit waits for the next one `POST /api/agendas` creates. Publishing
+stamps `bishopric_discussed_at`; "Don't discuss" takes the line off every draft; "Discuss again" clears
+the stamp. Migration 108.
+
+### Key decisions
+- **The line has its own source, `visit_discussion`, never `flag`** (decided with the user at bv7
+  start). Publishing stamps `flag_sent_at` for every `flag` id, so sharing the tag would let a bishopric
+  publish silently clear a ward-council flag on the same visit. `tests/routes/visitDiscussion.test.ts`
+  holds it, and the assertion was proved able to fail.
+- **No agenda is ever created to hold a line, and a ward council agenda never gathers one.**
+- **The gather and the stamp run on the service role** (`gatherVisitDiscussions`,
+  `markVisitDiscussionsDone`). The clerk and executive secretary build bishopric agendas but read no
+  Bishopric visit; only the family name crosses, which is what a ward-council flag already tells them.
+- **The follow-up's owner is a subject column**, checked by `assertAssignableBishopricMember`, and
+  `lib/todos/visitLinks.ts` stays the only writer of `todos.visit_log_id`
+  (`tests/lib/visitTodoSites.test.ts`). The audit detail carries ids and booleans, never the title.
+
+### Found on the walk (scenario 106, 2026-11-20, driven by Claude)
+- All 11 steps passed and were read back from the database. No bv7 defect.
+- **Checklist correction:** step 7 said "there is no draft now". The ward council draft is still a
+  draft, so it now says "no bishopric draft".
+- **The user's answers:** the phone layout, "(me)" in the owner picker, the Agendas intro and an
+  emptied "Visits to discuss" heading all stay as built.
+- **Changed after the walk (the user's call):** a follow-up's **Open Visits** went to `/visits`,
+  which reopens on the last tab used. It now goes to `/visits?tab=households&from=todos#visit-<id>`,
+  and each Recent visits card has that id, a scroll margin and an outline while it is the target.
+  Held by `tests/components/todos/TodoCard.test.tsx`. **Not re-walked in the browser**, because the
+  drive was at 0.45 GB; the scroll and the outline need one look by hand.
+- **Not from bv7:** the executive secretary's Visits page says "This ward has no organizations yet",
+  because they have no organization of their own.
+
+### Follow-ups (not built)
+- **Agendas as one living document per meeting type**, raised by the user during the review. The ward
+  council can add, only the bishopric removes, and a meeting is *marked as held* (including a quick call
+  without the clerk) rather than published per date, so the audit log tells meeting changes from
+  changes made between meetings. This changes bv7's "next bishopric agenda" and "publishing marks it
+  discussed". It needs its own `/iterate`.
+- The executive secretary's misleading "no organizations yet" sentence on Visits.
+- From bv5, still open: the visit form's default date is in UTC, not the ward's zone.
+- bv8 is next in this plan.
+
+### Validation
+- Typecheck and lint are clean, including the post-walk change.
+- Full suite: 5,875 tests passing. One Zoom invitees test timed out in the full run and passed 14/14
+  when rerun alone. `TodoCard.test.tsx` passes 7/7 after the post-walk change.
+- Migration 108 is applied.

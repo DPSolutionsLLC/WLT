@@ -1916,6 +1916,9 @@ export type Todo = {
   // 103b); null for every other to-do. A finished bishopric visit closes it, so it has no checkbox
   // and cannot be removed while open.
   visitLink: { assignmentId: string } | null;
+  // The visit a follow-up came from (ITER-055 bv7, migration 108a); null on every other to-do. An
+  // ordinary to-do otherwise: it can be ticked and deleted, and nothing closes it automatically.
+  visitLogId: string | null;
   // Set only on an ask that left this list unanswered — see TODO_CLOSED_REASONS.
   closedReason: TodoClosedReason | null;
   // When the owner was told this ask's talk is off (Sacrament slice f2b, migration 084).
@@ -2033,6 +2036,9 @@ export type TodoSummary = Todo & {
     bookedFor: string | null;
     otherBookingCount: number;
   } | null;
+  // A follow-up's "From a visit to the ___ family" line (bv7). The family is null when the visit or
+  // its household can no longer be read; the line then says "From a visit". Null on every other.
+  followUpSource: { familyName: string | null } | null;
 };
 
 // COMPUTED, never stored — lib/todos/viewState.ts. "Overdue" is decided by the clock, and nothing

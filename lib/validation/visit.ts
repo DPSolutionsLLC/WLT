@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { formatDateOnly, isValidDateOnly } from "@/lib/calendar/dates";
 import { compareCadences, type Cadence } from "@/lib/visits/cadence";
+import { MAX_TODO_TITLE } from "@/lib/validation/todo";
 import {
   APPOINTMENT_STATUSES,
   CADENCE_UNITS,
@@ -689,3 +690,31 @@ export const respondToInviteSchema = z.object({
   accept: z.boolean({ error: "Say whether you can come." }),
 });
 export type RespondToInviteInput = z.infer<typeof respondToInviteSchema>;
+
+// ---------------------------------------------------------------------------
+// Follow-ups and "discuss in bishopric meeting" — ITER-055 bv7
+// ---------------------------------------------------------------------------
+// `ownerUserId` is a SUBJECT column from a request body (CLAUDE.md §7): the route checks the person
+// holds a bishopric calling in this ward before anything is written.
+// A follow-up IS a to-do, so it keeps the to-do title limit rather than a second number.
+export const MAX_FOLLOW_UP_TITLE = MAX_TODO_TITLE;
+
+export const visitFollowUpSchema = z
+  .object({
+    ownerUserId: z.uuid("Choose who the follow-up is for."),
+    title: z
+      .string()
+      .trim()
+      .min(1, "Say what needs following up.")
+      .max(MAX_FOLLOW_UP_TITLE, `Keep it to ${MAX_FOLLOW_UP_TITLE} characters.`),
+    dueDate: z
+      .string()
+      .refine(isValidDateOnly, "Give the date as YYYY-MM-DD.")
+      .nullable()
+      .optional(),
+  })
+  .strict();
+export type VisitFollowUpInput = z.infer<typeof visitFollowUpSchema>;
+
+export const visitDiscussionSchema = z.object({ discuss: z.boolean() }).strict();
+export type VisitDiscussionInput = z.infer<typeof visitDiscussionSchema>;

@@ -30,7 +30,10 @@ export type AgendaItem = {
   sourceId: string | null;
 };
 
-export const AGENDA_ITEM_SOURCES = ["manual", "flag", "carried"] as const;
+// `visit_discussion` — a visit the bishopric asked to discuss (ITER-055 bv7). NOT a `flag`:
+// publishing stamps `flag_sent_at` for every `flag` id, so sharing the tag would silence a
+// ward-council flag on the same visit. It appears on bishopric agendas only.
+export const AGENDA_ITEM_SOURCES = ["manual", "flag", "carried", "visit_discussion"] as const;
 export type AgendaItemSource = (typeof AGENDA_ITEM_SOURCES)[number];
 
 // One heading and its lines.
@@ -132,6 +135,65 @@ export function findSectionByTitle(
 // `source` decides that. A ward that renames the heading gets its flags in a section of their own
 // making, which is the behaviour a rename is asking for.
 export const FLAGGED_SECTION_TITLE = "Flagged ward council items";
+
+// ---------------------------------------------------------------------------
+// VISITS TO DISCUSS — BISHOPRIC AGENDAS ONLY (ITER-055 bv7)
+// ---------------------------------------------------------------------------
+// Not a standing section: both meeting types share one template, and a ward council agenda must
+// never carry these. The section is made when the first line arrives, right after the flagged
+// section (or at the end when a ward removed that heading), and found again by title.
+export const VISIT_DISCUSSION_SECTION_TITLE = "Visits to discuss";
+
+// ONE LINE, AND ONLY THE FAMILY NAME. Never the report, never the private note.
+export function visitDiscussionLine(familyName: string | null): string {
+  return `Visit — ${familyName ?? "A household"} family — to discuss`;
+}
+
+export function visitDiscussionIds(sections: AgendaSections): string[] {
+  return sections
+    .flatMap((section) => section.items)
+    .filter((item) => item.source === "visit_discussion" && item.sourceId !== null)
+    .map((item) => item.sourceId as string);
+}
+
+// Returns new sections with the lines added; a visit already on the agenda is not added twice.
+export function addVisitDiscussions(
+  sections: AgendaSections,
+  lines: readonly { sourceId: string; text: string }[],
+): AgendaSections {
+  const present = new Set(visitDiscussionIds(sections));
+  const fresh = lines.filter((line) => !present.has(line.sourceId));
+  if (fresh.length === 0) return sections;
+
+  const items = fresh.map((line) => newAgendaItem(line.text, "visit_discussion", line.sourceId));
+  const existing = findSectionByTitle(sections, VISIT_DISCUSSION_SECTION_TITLE);
+  if (existing !== null) {
+    return sections.map((section) =>
+      section.id === existing.id ? { ...section, items: [...section.items, ...items] } : section,
+    );
+  }
+
+  const created: AgendaSection = {
+    id: newId(),
+    title: VISIT_DISCUSSION_SECTION_TITLE,
+    items,
+    carryForward: false,
+  };
+  const flagged = findSectionByTitle(sections, FLAGGED_SECTION_TITLE);
+  const at = flagged === null ? sections.length : sections.indexOf(flagged) + 1;
+  return [...sections.slice(0, at), created, ...sections.slice(at)];
+}
+
+// Takes one visit's line off. The section stays, even empty, because a secretary may have typed
+// under it.
+export function removeVisitDiscussion(sections: AgendaSections, sourceId: string): AgendaSections {
+  return sections.map((section) => ({
+    ...section,
+    items: section.items.filter(
+      (item) => !(item.source === "visit_discussion" && item.sourceId === sourceId),
+    ),
+  }));
+}
 
 // Total lines on the agenda, for the "3 items" summary beside a date in the list. Counted from the
 // sections themselves rather than stored, so it cannot disagree with what the page renders — the

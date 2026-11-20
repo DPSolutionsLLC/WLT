@@ -356,6 +356,15 @@ export function TodoCard({
               {dayLabel(todo.agendaSource.meetingDate)}
             </span>
           )}
+          {/* A follow-up from a visit (ITER-055 bv7). Text here — this is inside the expand button;
+              the link back to Visits is in the opened card. */}
+          {todo.followUpSource === null ? null : (
+            <span className="text-xs text-muted">
+              {todo.followUpSource.familyName === null
+                ? "From a visit"
+                : `From a visit to the ${todo.followUpSource.familyName} family`}
+            </span>
+          )}
         </button>
 
       </div>
@@ -459,6 +468,15 @@ export function TodoCard({
         <div id={bodyId} className="flex flex-col gap-4 border-t border-border pt-3">
           {todo.notes === null ? null : (
             <p className="whitespace-pre-wrap break-words text-sm text-foreground">{todo.notes}</p>
+          )}
+
+          {todo.followUpSource === null || todo.visitLogId === null ? null : (
+            <Link
+              href={`/visits?tab=households&from=todos#visit-${todo.visitLogId}`}
+              className="inline-flex min-h-11 items-center self-start text-sm font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              Open Visits
+            </Link>
           )}
 
           <section aria-label="Steps" className="flex flex-col gap-1">

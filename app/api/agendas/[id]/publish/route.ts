@@ -4,13 +4,14 @@ import { assertCan, resolveRoleAccess } from "@/lib/auth/permissions";
 import { respondToRouteError } from "@/lib/auth/routeErrors";
 import { requireSessionUser } from "@/lib/auth/session";
 import { compareActionItems, describeCarriedFrom } from "@/lib/agendas/carryForward";
-import { markFlagsSent } from "@/lib/agendas/flaggedItems";
+import { markFlagsSent, markVisitDiscussionsDone } from "@/lib/agendas/flaggedItems";
 import {
   getAgenda,
   listActionItems,
   markAgendaPublished,
 } from "@/lib/agendas/queries";
-import { carryForwardSection } from "@/lib/agendas/sections";
+import { carryForwardSection, visitDiscussionIds } from "@/lib/agendas/sections";
+import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import { storeAgendaPdf } from "@/lib/agendas/storage";
 import { formatMeetingDateLabel } from "@/lib/calendar/dates";
 import { emitNotification } from "@/lib/notifications/emitNotification";
@@ -140,6 +141,19 @@ export async function POST(
 
     const flagResult = await markFlagsSent(user.wardId, carriedFlagIds, supabase);
 
+    // The visits this BISHOPRIC agenda carried for discussion (ITER-055 bv7), marked discussed so
+    // they do not return. Read from the sections for the same reason as the flags: a line the
+    // secretary deleted was not discussed. A ward council agenda never carries one, and is not
+    // asked to.
+    const discussionResult =
+      agenda.meetingType === "bishopric"
+        ? await markVisitDiscussionsDone(
+            user.wardId,
+            visitDiscussionIds(agenda.sections),
+            createServiceSupabaseClient(),
+          )
+        : { resolved: 0, failed: 0 };
+
     await emitNotification(
       {
         wardId: user.wardId,
@@ -170,6 +184,8 @@ export async function POST(
           // Surfaced rather than swallowed (rule 7): a flag that could not be stamped will
           // reappear on the next agenda, and this is where that becomes explicable.
           flagsFailed: flagResult.failed,
+          visitDiscussionsResolved: discussionResult.resolved,
+          visitDiscussionsFailed: discussionResult.failed,
           republished: agenda.status === "published",
         },
       },

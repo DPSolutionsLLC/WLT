@@ -345,6 +345,11 @@ label**. ⚠️ **Do not port the prototype's date handling** — [decisions.md]
 > Appointments, plus the bell; an accepted one joins the companion's My Appointments. Schedule on a
 > visit to-do books the appointment itself (P11). Decided at bv6 start: any ward leader may be
 > invited; cancel or reschedule notifies nobody.
+>
+> **bv7 BUILT 2026-11-19 (migration 108).** A visit's card offers the bishopric **Add a follow-up**
+> (a to-do on a bishopric member's list, linked back by `todos.visit_log_id`) and **Discuss in
+> bishopric meeting** (one line on the next bishopric agenda, under its own `visit_discussion`
+> source so publishing never clears a ward-council flag). No agenda is created to hold it.
 
 ### 2.10 To Do — NEW
 Build this **early** — Sacrament's accept/decline, Agendas' delegation, My Appointments and the

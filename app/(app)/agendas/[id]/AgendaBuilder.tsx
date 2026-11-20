@@ -341,6 +341,8 @@ export function AgendaBuilder({
                             will not discuss it — worth knowing before they do. */}
                         {item.source === "flag" ? (
                           <p className="mt-1 text-xs text-muted">Flagged for the ward council</p>
+                        ) : item.source === "visit_discussion" ? (
+                          <p className="mt-1 text-xs text-muted">Asked for from Visits</p>
                         ) : null}
                       </div>
                       {canManage ? (

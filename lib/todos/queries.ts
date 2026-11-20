@@ -74,6 +74,7 @@ type TodoRow = {
   zoom_invitee_id: string | null;
   zoom_registration_id: string | null;
   visit_assignment_id: string | null;
+  visit_log_id: string | null;
   closed_reason: string | null;
   talk_off_at: string | null;
   created_at: string;
@@ -94,7 +95,12 @@ type TodoSummaryRow = TodoRow & {
   prayer: PrayerAskSourceRow;
   scheduled_member: ScheduledMemberRow;
   visit_assignment: VisitAssignmentRow;
+  follow_up_visit: FollowUpVisitRow;
 };
+
+// Read through visit_logs' own SELECT (099): a follow-up's owner holds a bishopric calling, which
+// reads every visit. Null once the visit is gone or no longer readable.
+type FollowUpVisitRow = { households: { family_name: string } | null } | null;
 
 // Read through visit_assignments' own SELECT (103a): the to-do's owner is the assignee, who always
 // reads their own assignment, and the bishopric reads every appointment (099c).
@@ -131,9 +137,9 @@ type LogRow = {
 // `action_items` has TWO foreign keys to `agendas` (the agenda it is on, and the one it was carried
 // from), so the embed names its constraint — without the hint PostgREST refuses the ambiguity.
 const TODO_COLUMNS =
-  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, ask_prayer_id, music_sunday_id, music_role, zoom_invitee_id, zoom_registration_id, visit_assignment_id, closed_reason, talk_off_at, created_at, updated_at";
+  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, ask_prayer_id, music_sunday_id, music_role, zoom_invitee_id, zoom_registration_id, visit_assignment_id, visit_log_id, closed_reason, talk_off_at, created_at, updated_at";
 const TODO_WITH_STEPS_COLUMNS =
-  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, ask_prayer_id, music_sunday_id, music_role, zoom_invitee_id, zoom_registration_id, visit_assignment_id, closed_reason, talk_off_at, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date)), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number, cancelled_at, topic_title, sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), talk_references!talk_references_assignment_id_ward_id_fkey (citation, created_at)), prayer:prayer_assignments!todos_ask_prayer_id_fkey (id, member_id, prayer_type, cancelled_at, sundays!prayer_assignments_sunday_id_ward_id_fkey (date), members!prayer_assignments_member_id_ward_id_fkey (first_name, last_name, phone)), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name), visit_assignment:visit_assignments!todos_visit_assignment_id_fkey (household_id, households!visit_assignments_household_fkey (family_name), visit_appointments!visit_appointments_assignment_id_fkey (scheduled_for, status))";
+  "id, title, notes, tag, do_date, due_date, scheduled_for, scheduled_with_member_id, completed_at, assigned_by, action_item_id, source_completed_at, ask_assignment_id, ask_prayer_id, music_sunday_id, music_role, zoom_invitee_id, zoom_registration_id, visit_assignment_id, visit_log_id, closed_reason, talk_off_at, created_at, updated_at, todo_steps (id, todo_id, label, position, done_at), action_items (status, agendas!action_items_agenda_id_ward_id_fkey (meeting_type, meeting_date)), ask:assignments!todos_ask_assignment_id_fkey (id, member_id, external_speaker_name, slot_number, cancelled_at, topic_title, sundays!assignments_sunday_id_ward_id_fkey (date, type, speaking_slots), members!assignments_member_id_ward_id_fkey (first_name, last_name, phone), talk_references!talk_references_assignment_id_ward_id_fkey (citation, created_at)), prayer:prayer_assignments!todos_ask_prayer_id_fkey (id, member_id, prayer_type, cancelled_at, sundays!prayer_assignments_sunday_id_ward_id_fkey (date), members!prayer_assignments_member_id_ward_id_fkey (first_name, last_name, phone)), scheduled_member:members!todos_scheduled_with_member_id_ward_id_fkey (first_name, last_name), visit_assignment:visit_assignments!todos_visit_assignment_id_fkey (household_id, households!visit_assignments_household_fkey (family_name), visit_appointments!visit_appointments_assignment_id_fkey (scheduled_for, status)), follow_up_visit:visit_logs!todos_visit_log_id_fkey (households (family_name))";
 const STEP_COLUMNS = "id, todo_id, label, position, done_at";
 const LOG_COLUMNS = "id, todo_id, kind, body, created_at";
 
@@ -222,6 +228,7 @@ function mapTodoRow(row: TodoRow): Todo {
     zoomRegistrationLink:
       row.zoom_registration_id === null ? null : { registrationId: row.zoom_registration_id },
     visitLink: row.visit_assignment_id === null ? null : { assignmentId: row.visit_assignment_id },
+    visitLogId: row.visit_log_id,
     closedReason: toClosedReason(row.closed_reason),
     talkOffAt: row.talk_off_at,
     createdAt: row.created_at,
@@ -283,6 +290,10 @@ function mapTodoWithSteps(row: TodoSummaryRow): TodoSummary {
     askSource: mapAskSource(row.ask, row.completed_at) ?? mapPrayerAskSource(row.prayer, row.completed_at),
     scheduledWithMemberName: memberName(row.scheduled_member),
     visitSource: mapVisitSource(row.visit_assignment),
+    followUpSource:
+      row.visit_log_id === null
+        ? null
+        : { familyName: row.follow_up_visit?.households?.family_name ?? null },
   };
 }
 
@@ -487,6 +498,7 @@ export async function createTodo(
     askSource: null,
     scheduledWithMemberName: null,
     visitSource: null,
+    followUpSource: null,
   };
 }
 
@@ -619,6 +631,7 @@ export async function updateTodo(
       steps: current.steps,
       agendaSource: current.agendaSource,
       visitSource: current.visitSource,
+      followUpSource: current.followUpSource,
       // Scheduling their own time retires the note about somebody else's (f3a).
       askSource:
         current.askSource !== null && data.scheduled_for !== null

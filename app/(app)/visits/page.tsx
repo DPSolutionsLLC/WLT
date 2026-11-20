@@ -52,6 +52,15 @@ import {
 import { wardDateOnly } from "@/lib/ward/wardDate";
 import { readWardTimezone } from "@/lib/ward/wardTimezone";
 import {
+  discussionPlacements,
+  listDraftBishopricAgendas,
+} from "@/lib/agendas/visitDiscussions";
+import { bishopricCallingLabel, memberDisplayName } from "@/lib/visits/assignmentShares";
+import {
+  VisitBishopricActions,
+  type FollowUpOwnerOption,
+} from "@/app/(app)/visits/VisitBishopricActions";
+import {
   VISIT_ARRANGEMENT_LABELS,
   VISIT_CONDUCTED_PREFIX,
   VISIT_NOBODY_RECORDED,
@@ -352,6 +361,26 @@ export default async function VisitsPage({
           };
         })();
 
+  // FOLLOW-UPS AND "DISCUSS IN BISHOPRIC MEETING" (ITER-055 bv7) — the same boundary as dividing
+  // the households. Which draft bishopric agenda carries each visit is read through the caller's
+  // client, so the card can say where its line is.
+  const bishopricActions = canAssignVisits(user, roleAccess)
+    ? await (async () => {
+        const [members, drafts] = await Promise.all([
+          listBishopricUsers(user.wardId, supabase),
+          listDraftBishopricAgendas(user.wardId, asOf, supabase),
+        ]);
+        return {
+          owners: members.map((member) => ({
+            id: member.id,
+            label: `${memberDisplayName(member)} (${bishopricCallingLabel(member)})`,
+            name: memberDisplayName(member),
+          })),
+          placements: discussionPlacements(drafts),
+        };
+      })()
+    : null;
+
   // My visits reads the Bishopric's own progress rows, so its cards say exactly what the
   // Households tab says. The page already read them when the Bishopric is the selected organization.
   const myVisitRows =
@@ -441,7 +470,14 @@ export default async function VisitsPage({
           companionLeaders,
           memberNames,
           appointmentPrefill,
-          recentVisits: <RecentVisits visits={visits} canLog={canLog} user={user} />,
+          recentVisits: (
+            <RecentVisits
+              visits={visits}
+              canLog={canLog}
+              user={user}
+              bishopricActions={bishopricActions}
+            />
+          ),
           assignments: householdAssignments,
         }}
         feed={{ initialPage: feedPage, ownOrganizationId: user.orgId, sharingSentence }}
@@ -488,17 +524,26 @@ function RecentVisits({
   visits,
   canLog,
   user,
+  bishopricActions,
 }: {
   visits: VisitLogWithContext[];
   canLog: boolean;
   user: SessionUser;
+  bishopricActions: {
+    owners: FollowUpOwnerOption[];
+    placements: Map<string, string>;
+  } | null;
 }) {
   if (visits.length === 0) return <p className="text-sm text-muted">No visits logged yet.</p>;
 
   return (
     <ul className="flex flex-col gap-2">
       {visits.map((visit) => (
-        <li key={visit.id} className="rounded-lg border border-border bg-surface-raised px-3 py-2">
+        <li
+          key={visit.id}
+          id={`visit-${visit.id}`}
+          className="scroll-mt-20 rounded-lg border border-border bg-surface-raised px-3 py-2 target:ring-2 target:ring-primary"
+        >
           <p className="py-1 text-sm font-medium text-foreground">
             {visit.householdName ?? "Unknown household"}
           </p>
@@ -547,6 +592,20 @@ function RecentVisits({
               />
             </div>
           ) : null}
+
+          {bishopricActions === null ? null : (
+            <div className="mt-2">
+              <VisitBishopricActions
+                visitId={visit.id}
+                familyName={visit.householdName}
+                discussInBishopric={visit.discussInBishopric}
+                bishopricDiscussedAt={visit.bishopricDiscussedAt}
+                placedOn={bishopricActions.placements.get(visit.id) ?? null}
+                owners={bishopricActions.owners}
+                currentUserId={user.id}
+              />
+            </div>
+          )}
         </li>
       ))}
     </ul>

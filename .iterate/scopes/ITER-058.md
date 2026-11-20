@@ -1,7 +1,9 @@
 # ITER-058: The ward roster decides who holds which calling
 
 **Type:** Modification
-**Status:** In Progress
+**Status:** Completed
+**Completed:** 2026-11-19
+**Commit:** 1ee1382 (cr4; cr1 642cc97, cr2 6e49314, cr3 28270c2)
 **Plan:** plans/roster-decides-callings.md
 **Created:** 2026-10-30
 

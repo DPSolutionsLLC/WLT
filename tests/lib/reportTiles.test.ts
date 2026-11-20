@@ -38,6 +38,8 @@ function visitLog(overrides: Partial<VisitLogWithContext> = {}): VisitLogWithCon
     sharedNotes: "Brought a meal round.",
     flaggedForWardCouncil: false,
     flagSentAt: null,
+    discussInBishopric: false,
+    bishopricDiscussedAt: null,
     createdAt: "2026-04-05T18:00:00.000Z",
     householdName: "Andersen",
     recordedByName: "Wendy Secretary",

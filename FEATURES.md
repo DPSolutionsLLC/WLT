@@ -654,6 +654,14 @@ Available to all organizations. Each org manages its own visit goals and logs in
   the soonest booked visit (and how many more), and reads Upcoming, Do today or Overdue from it. A
   second visit can be booked for the same family after the card asks "Book another visit?" — the first
   one stays. Times are the ward's clock
+- **Sending a visit onward** (the bishopric only). On a visit under Recent visits, **Add a follow-up**
+  puts a to-do on a bishopric member's To Do (yourself by default, with an optional due date), reading
+  "From a visit to the ___ family"; it is an ordinary to-do once given. **Discuss in bishopric
+  meeting** puts one line — "Visit — ___ family — to discuss", never the report — under **Visits to
+  discuss** on the next **bishopric** agenda: straight onto an upcoming draft if there is one,
+  otherwise onto the next one somebody creates. No agenda is made for it, a ward council agenda never
+  carries it, and publishing the agenda marks the visit discussed. **Don't discuss** takes it back off;
+  **Discuss again** raises it once more
 - The banner states the goal **in words** first — "Every household, every year. Warning 2 months
   ahead." — then the four counts, then the percentage on track. The numbers are read against their
   own definition rather than against an assumption

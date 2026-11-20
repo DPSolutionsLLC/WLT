@@ -3362,6 +3362,7 @@ export type Database = {
           updated_at: string
           user_id: string
           visit_assignment_id: string | null
+          visit_log_id: string | null
           ward_id: string
           zoom_invitee_id: string | null
           zoom_registration_id: string | null
@@ -3390,6 +3391,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           visit_assignment_id?: string | null
+          visit_log_id?: string | null
           ward_id: string
           zoom_invitee_id?: string | null
           zoom_registration_id?: string | null
@@ -3418,6 +3420,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           visit_assignment_id?: string | null
+          visit_log_id?: string | null
           ward_id?: string
           zoom_invitee_id?: string | null
           zoom_registration_id?: string | null
@@ -3484,6 +3487,13 @@ export type Database = {
             columns: ["visit_assignment_id"]
             isOneToOne: false
             referencedRelation: "visit_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_visit_log_id_fkey"
+            columns: ["visit_log_id"]
+            isOneToOne: false
+            referencedRelation: "visit_logs"
             referencedColumns: ["id"]
           },
           {
@@ -4176,7 +4186,9 @@ export type Database = {
         Row: {
           arrangement: string
           attempt_detail: string | null
+          bishopric_discussed_at: string | null
           created_at: string
+          discuss_in_bishopric: boolean
           flag_sent_at: string | null
           flagged_for_ward_council: boolean
           household_id: string | null
@@ -4194,7 +4206,9 @@ export type Database = {
         Insert: {
           arrangement?: string
           attempt_detail?: string | null
+          bishopric_discussed_at?: string | null
           created_at?: string
+          discuss_in_bishopric?: boolean
           flag_sent_at?: string | null
           flagged_for_ward_council?: boolean
           household_id?: string | null
@@ -4212,7 +4226,9 @@ export type Database = {
         Update: {
           arrangement?: string
           attempt_detail?: string | null
+          bishopric_discussed_at?: string | null
           created_at?: string
+          discuss_in_bishopric?: boolean
           flag_sent_at?: string | null
           flagged_for_ward_council?: boolean
           household_id?: string | null

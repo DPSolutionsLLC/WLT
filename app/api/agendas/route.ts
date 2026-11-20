@@ -11,7 +11,13 @@ import {
 import {
   flaggedItemsToAgendaItems,
   gatherFlaggedItems,
+  gatherVisitDiscussions,
 } from "@/lib/agendas/flaggedItems";
+import {
+  discussionPlacements,
+  listDraftBishopricAgendas,
+} from "@/lib/agendas/visitDiscussions";
+import { createServiceSupabaseClient } from "@/lib/supabase/service";
 import {
   createActionItems,
   createAgenda,
@@ -21,6 +27,7 @@ import {
 } from "@/lib/agendas/queries";
 import { relinkCarriedActionItemTodos } from "@/lib/todos/sourceLinks";
 import {
+  addVisitDiscussions,
   agendaTemplate,
   findSectionByTitle,
   FLAGGED_SECTION_TITLE,
@@ -128,7 +135,7 @@ export async function POST(request: Request) {
 
     const input = createAgendaSchema.parse(await readJsonBody(request));
 
-    const sections = input.sections ?? agendaTemplate();
+    let sections = input.sections ?? agendaTemplate();
 
     // The flagged one-liners, dropped into their section if the template still has it. A ward that
     // renamed or deleted that heading gets an agenda without them rather than a surprise section —
@@ -137,6 +144,33 @@ export async function POST(request: Request) {
     const flaggedSection = findSectionByTitle(sections, FLAGGED_SECTION_TITLE);
     if (flaggedSection !== null && flagged.length > 0) {
       flaggedSection.items = [...flaggedSection.items, ...flaggedItemsToAgendaItems(flagged)];
+    }
+
+    // VISITS THE BISHOPRIC ASKED TO DISCUSS (ITER-055 bv7) — a BISHOPRIC agenda only, never a ward
+    // council one. A visit already on another draft is left there. lib/agendas/flaggedItems.ts
+    // §gatherVisitDiscussions says why this read uses the service role.
+    //
+    // A failure here degrades like the flags above: the agenda still opens without the lines, the
+    // failure is logged and recorded on the audit row, and the visits keep waiting for the next one.
+    let visitDiscussionCount = 0;
+    let visitDiscussionsFailed = false;
+    if (input.meetingType === "bishopric") {
+      try {
+        const drafts = await listDraftBishopricAgendas(user.wardId, new Date(), supabase);
+        const discussions = await gatherVisitDiscussions(
+          user.wardId,
+          [...discussionPlacements(drafts).keys()],
+          createServiceSupabaseClient(),
+        );
+        sections = addVisitDiscussions(sections, discussions);
+        visitDiscussionCount = discussions.length;
+      } catch (error) {
+        console.error("POST /api/agendas could not gather the visits to discuss", {
+          wardId: user.wardId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        visitDiscussionsFailed = true;
+      }
     }
 
     const agenda = await createAgenda(
@@ -201,6 +235,8 @@ export async function POST(request: Request) {
           // answerable from the log rather than by re-deriving it (youth-h's rule: three bare ids
           // was half of that defect).
           flaggedItems: flaggedSection === null ? 0 : flagged.length,
+          visitDiscussions: visitDiscussionCount,
+          visitDiscussionsFailed,
           carriedActionItems: carriedCount,
           carriedFrom: previous?.id ?? null,
           movedTodoLinks,

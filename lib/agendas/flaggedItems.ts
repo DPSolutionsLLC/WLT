@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { newAgendaItem, type AgendaItem } from "@/lib/agendas/sections";
+import { newAgendaItem, visitDiscussionLine, type AgendaItem } from "@/lib/agendas/sections";
 import type { Database } from "@/types/database";
 
 // The flagged ward council items an agenda opens with.
@@ -148,6 +148,76 @@ export async function gatherFlaggedItems(
   }
 
   return items;
+}
+
+// ---------------------------------------------------------------------------------------------
+// VISITS TO DISCUSS IN BISHOPRIC MEETING (ITER-055 bv7) — BISHOPRIC AGENDAS ONLY
+// ---------------------------------------------------------------------------------------------
+// The third gatherer, and the one the create route calls ONLY for `meeting_type = 'bishopric'`.
+// Same boundary as the two above: the select names no note column, so the line can carry nothing
+// but the family name.
+//
+// THE SERVICE ROLE, deliberately. The clerk and the executive secretary build bishopric agendas
+// (`agendas.manage`) but read no Bishopric visit (099's policies), so through their own client the
+// line the bishopric asked for would silently never arrive. What crosses is exactly what the
+// ward-council flag already tells the executive secretary: a family name. The callers hold
+// `agendas.manage`, and every query below filters `ward_id`.
+//
+// `excludeIds` are visits already on another draft bishopric agenda, so creating a second draft
+// does not put the same line on both.
+export async function gatherVisitDiscussions(
+  wardId: string,
+  excludeIds: readonly string[],
+  service: Client,
+): Promise<{ sourceId: string; text: string }[]> {
+  const { data, error } = await service
+    .from("visit_logs")
+    .select("id, households (family_name)")
+    .eq("ward_id", wardId)
+    .eq("discuss_in_bishopric", true)
+    .is("bishopric_discussed_at", null)
+    .order("created_at");
+
+  if (error) throw new Error(`Could not load the visits to discuss: ${error.message}`);
+
+  const skip = new Set(excludeIds);
+  return (data ?? [])
+    .filter((row) => !skip.has(row.id))
+    .map((row) => {
+      const record = row as unknown as { id: string; households: { family_name: string } | null };
+      return {
+        sourceId: record.id,
+        text: visitDiscussionLine(record.households?.family_name ?? null),
+      };
+    });
+}
+
+// Publishing a bishopric agenda marks the visits it carried as discussed, so they do not return
+// on the next one. The service role for the same reason as the gatherer; the ids come from an
+// agenda the caller just published. Only a request still standing is stamped (108b's CHECK), and
+// a failure is returned, never thrown — the agenda is already published.
+export async function markVisitDiscussionsDone(
+  wardId: string,
+  sourceIds: readonly string[],
+  service: Client,
+): Promise<{ resolved: number; failed: number }> {
+  const ids = [...new Set(sourceIds)];
+  if (ids.length === 0) return { resolved: 0, failed: 0 };
+
+  const { data, error } = await service
+    .from("visit_logs")
+    .update({ bishopric_discussed_at: new Date().toISOString() })
+    .eq("ward_id", wardId)
+    .in("id", ids)
+    .eq("discuss_in_bishopric", true)
+    .is("bishopric_discussed_at", null)
+    .select("id");
+
+  if (error) {
+    console.error("Could not mark visits as discussed:", error.message, { wardId });
+    return { resolved: 0, failed: 1 };
+  }
+  return { resolved: (data ?? []).length, failed: 0 };
 }
 
 export function flaggedItemsToAgendaItems(items: readonly FlaggedItem[]): AgendaItem[] {

@@ -114,6 +114,10 @@ export type VisitLog = {
   sharedNotes: string | null;
   flaggedForWardCouncil: boolean;
   flagSentAt: string | null;
+  // "Discuss in bishopric meeting" (ITER-055 bv7, migration 108b) — its own pair, never the
+  // ward-council flag. The stamp is set when a published bishopric agenda carried the line.
+  discussInBishopric: boolean;
+  bishopricDiscussedAt: string | null;
   createdAt: string;
 };
 
@@ -164,6 +168,8 @@ type VisitLogRow = {
   shared_notes: string | null;
   flagged_for_ward_council: boolean;
   flag_sent_at: string | null;
+  discuss_in_bishopric: boolean;
+  bishopric_discussed_at: string | null;
   created_at: string;
 };
 
@@ -180,7 +186,7 @@ const VISIT_GOAL_COLUMNS =
   "id, org_id, title, target_type, cadence_amount, cadence_unit, notice_amount, notice_unit, deadline, kind, started_on, ended_at, end_reason, created_by, created_at";
 
 const VISIT_LOG_COLUMNS =
-  "id, org_id, household_id, recorded_by, visit_date, visit_type, outcome, needs_another_visit, needs_another_reason, attempt_detail, arrangement, shared_notes, flagged_for_ward_council, flag_sent_at, created_at";
+  "id, org_id, household_id, recorded_by, visit_date, visit_type, outcome, needs_another_visit, needs_another_reason, attempt_detail, arrangement, shared_notes, flagged_for_ward_council, flag_sent_at, discuss_in_bishopric, bishopric_discussed_at, created_at";
 
 // Households and users, for the family/who-recorded display. NOT private notes, and there is no
 // arrangement of this string that could reach them — visit_private_notes has no foreign key
@@ -284,6 +290,8 @@ export function mapVisitLogRow(row: VisitLogRow): VisitLog {
     sharedNotes: row.shared_notes,
     flaggedForWardCouncil: row.flagged_for_ward_council,
     flagSentAt: row.flag_sent_at,
+    discussInBishopric: row.discuss_in_bishopric,
+    bishopricDiscussedAt: row.bishopric_discussed_at,
     createdAt: row.created_at,
   };
 }
@@ -660,6 +668,36 @@ export async function createVisitLog(
   }
 
   return mapVisitLogRow(data);
+}
+
+// "Discuss in bishopric meeting" (ITER-055 bv7). Asking always clears the stamp, so a visit already
+// discussed can be raised again; withdrawing clears both (108b's CHECK). Through the caller's
+// client: visit_logs_update decides, and a refusal is the usual zero-row null.
+export async function setVisitDiscussion(
+  wardId: string,
+  visitLogId: string,
+  discuss: boolean,
+  client?: SupabaseClient<Database>,
+): Promise<VisitLog | null> {
+  const supabase = await resolveClient(client);
+
+  const { data, error } = await supabase
+    .from("visit_logs")
+    .update({ discuss_in_bishopric: discuss, bishopric_discussed_at: null })
+    .eq("ward_id", wardId)
+    .eq("id", visitLogId)
+    .select(VISIT_LOG_COLUMNS)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`Could not change a visit's discussion request — ${error.message}`, {
+      wardId,
+      visitLogId,
+    });
+    throw new Error(`Could not save that visit: ${error.message}`);
+  }
+
+  return data === null ? null : mapVisitLogRow(data);
 }
 
 // `flagSentAt` is a separate parameter rather than a field on UpdateVisitLogInput because no

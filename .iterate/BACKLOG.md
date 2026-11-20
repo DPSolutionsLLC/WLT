@@ -12,8 +12,6 @@ Items currently being planned or actively worked.
   _Three slices, three commits: z3a public form + auto-approve, z3b approvals + matching, z3c emails (send nothing until ITER-039)._
 - [ ] ITER-055 — Bishopric Visits: the ward-wide visiting effort → [scope](.iterate/scopes/ITER-055.md) | [plan](plans/bishopric-visits.md)
   _Eight slices, eight commits (bv1 sharing … bv8 street grouping)._
-- [ ] ITER-058 — The ward roster decides who holds which calling → [scope](.iterate/scopes/ITER-058.md) | [plan](plans/roster-decides-callings.md)
-  _Four slices, four commits (cr1 link … cr4 invites). Task 0 confirms the LCR title map with the user first._
 - [ ] ITER-043 — Keep the screen on while the tithing calculator is open → [scope](.iterate/scopes/ITER-043.md) | [plan](plans/tithing-screen-wake-lock.md)
 - [ ] ITER-034 — Youth Support: the module the user actually wants → [scope](.iterate/scopes/ITER-034.md) — **PARKED 2026-08-31**
   _Raised by the user 2026-08-31 after walking 062 and 063, and **this is the destination Phase 8
@@ -402,6 +400,7 @@ _Items that need testing or further exploration before scoping. Each entry shoul
 
 ## Completed
 
+- [x] ITER-058 — The ward roster decides who holds which calling _(completed 2026-11-19, 1ee1382 — four slices: cr1 links each account to its ward list record, cr2 the Calling review, cr3 calling changes on a roster paste, cr4 invites name a person (one live link each; "No, this isn't me" cancels it and tells the sender). Follow-up backlogged as ITER-070)_
 - [x] ITER-047 — The light/dark button on the top bar _(completed 2026-10-30, f40ea65 — a Sun / Moon / Monitor icon button on the chrome bar between Help and the bell, still three states; the ☰ menu lost its Appearance row; the back link shows only "←" below sm. Measured at 375px: no overflow, every control 44×44)_
 - [x] ITER-057 — Who's Next selection panel hides the bottom of the list on a phone _(completed 2026-10-30, 9853e5a — the list keeps room for the floating panel, which folds to one line and is remembered per device)_
 - [x] ITER-056 — Place on Sunday straight from Who's Next _(completed 2026-10-30, 9853e5a — every ticked person placed in one save and one Undo; do-not-ask and full slots skipped and named)_
