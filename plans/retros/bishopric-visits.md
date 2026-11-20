@@ -2,7 +2,7 @@
 id: bishopric-visits
 type: feature
 iter: ITER-055
-commits: ["393a98c", "280b9aa", "cd8823b", "9b1dcf8", "fecc891"]
+commits: ["393a98c", "280b9aa", "cd8823b", "9b1dcf8", "fecc891", "65fcc38", "69ded73"]
 date: 2026-10-31
 files:
   - supabase/migrations/099_visit_org_sharing.sql
@@ -378,7 +378,7 @@ timeline (`visit_companion_declined`). Booking is one form, `ScheduleVisitForm`,
 - The production build is clean.
 - Migration 104 is applied.
 
-## bv7 — Follow-ups, and "Discuss in bishopric meeting" (pending commit)
+## bv7 — Follow-ups, and "Discuss in bishopric meeting" (69ded73)
 
 ### What was done
 Each visit card under Recent visits gives the bishopric two ways to send a visit onward. **Add a
