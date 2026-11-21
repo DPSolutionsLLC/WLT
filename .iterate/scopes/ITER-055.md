@@ -1,7 +1,9 @@
 # ITER-055: Bishopric Visits — the ward-wide visiting effort
 
 **Type:** Modification
-**Status:** In Progress
+**Status:** Completed
+**Completed:** 2026-11-20
+**Commit:** 73749b9 (bv8; bv1–bv7: 393a98c, 280b9aa, cd8823b, 9b1dcf8, fecc891, 65fcc38, 69ded73)
 **Plan:** plans/bishopric-visits.md
 **Created:** 2026-10-28
 

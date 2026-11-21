@@ -2,7 +2,7 @@
 id: bishopric-visits
 type: feature
 iter: ITER-055
-commits: ["393a98c", "280b9aa", "cd8823b", "9b1dcf8", "fecc891", "65fcc38", "69ded73"]
+commits: ["393a98c", "280b9aa", "cd8823b", "9b1dcf8", "fecc891", "65fcc38", "69ded73", "73749b9"]
 date: 2026-10-31
 files:
   - supabase/migrations/099_visit_org_sharing.sql
@@ -435,7 +435,7 @@ the stamp. Migration 108.
   when rerun alone. `TodoCard.test.tsx` passes 7/7 after the post-walk change.
 - Migration 108 is applied.
 
-## bv8 — Group by street (pending commit)
+## bv8 — Group by street (73749b9)
 
 ### What was done
 The Households tab gains a **Group by street** switch. When it is on, the cards sit under each
