@@ -350,6 +350,11 @@ label**. ⚠️ **Do not port the prototype's date handling** — [decisions.md]
 > (a to-do on a bishopric member's list, linked back by `todos.visit_log_id`) and **Discuss in
 > bishopric meeting** (one line on the next bishopric agenda, under its own `visit_discussion`
 > source so publishing never clears a ward-council flag). No agenda is created to hold it.
+>
+> **bv8 BUILT 2026-11-20 (no migration) — ITER-055 complete.** **Group by street** on the Households
+> tab, remembered on the account: streets A to Z from a boring parse of the free-text address
+> (`lib/visits/streetKey.ts`), "No street on file" last, the sort kept inside each. While it is on,
+> the Assign window groups the same way with **Choose unassigned** per street. Not a map.
 
 ### 2.10 To Do — NEW
 Build this **early** — Sacrament's accept/decline, Agendas' delegation, My Appointments and the

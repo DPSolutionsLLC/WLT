@@ -8,7 +8,7 @@ import {
   visibleVisitsTabs,
 } from "@/lib/visits/visitsView";
 
-// How /visits remembers the tab and the household sort (ITER-055 bv2).
+// How /visits remembers the tab and the household sort (ITER-055 bv2), and street grouping (bv8).
 
 describe("visibleVisitsTabs", () => {
   it("gives the bishopric every tab, in order", () => {
@@ -67,13 +67,27 @@ describe("initialVisitsTab", () => {
 
 describe("parseVisitsView", () => {
   it("reads a stored view", () => {
-    expect(parseVisitsView({ tab: "feed", sort: "dueOn" })).toEqual({ tab: "feed", sort: "dueOn" });
+    expect(parseVisitsView({ tab: "feed", sort: "dueOn", byStreet: true })).toEqual({
+      tab: "feed",
+      sort: "dueOn",
+      byStreet: true,
+    });
+  });
+
+  it("opens a view saved before street grouping existed ungrouped", () => {
+    expect(parseVisitsView({ tab: "feed", sort: "dueOn" })).toEqual({
+      tab: "feed",
+      sort: "dueOn",
+      byStreet: false,
+    });
+    expect(parseVisitsView({ tab: "feed", sort: "dueOn", byStreet: "yes" }).byStreet).toBe(false);
   });
 
   it("falls back field by field, keeping the part it can read", () => {
-    expect(parseVisitsView({ tab: "not_a_tab", sort: "dueOn" })).toEqual({
+    expect(parseVisitsView({ tab: "not_a_tab", sort: "dueOn", byStreet: true })).toEqual({
       tab: "households",
       sort: "dueOn",
+      byStreet: true,
     });
     expect(parseVisitsView(undefined)).toEqual(DEFAULT_VISITS_VIEW);
     expect(parseVisitsView("nonsense")).toEqual(DEFAULT_VISITS_VIEW);
@@ -95,14 +109,25 @@ describe("parseVisitsTabParam", () => {
 describe("the page-view route accepts the visits view", () => {
   it("parses a visits save and refuses an unknown sort", () => {
     expect(
+      pageViewSchema.safeParse({
+        page: "visits",
+        view: { tab: "feed", sort: "priority", byStreet: false },
+      }).success,
+    ).toBe(true);
+    expect(
+      pageViewSchema.safeParse({
+        page: "visits",
+        view: { tab: "goal_history", sort: "priority", byStreet: true },
+      }).success,
+    ).toBe(true);
+    expect(
+      pageViewSchema.safeParse({
+        page: "visits",
+        view: { tab: "feed", sort: "loudest", byStreet: false },
+      }).success,
+    ).toBe(false);
+    expect(
       pageViewSchema.safeParse({ page: "visits", view: { tab: "feed", sort: "priority" } }).success,
-    ).toBe(true);
-    expect(
-      pageViewSchema.safeParse({ page: "visits", view: { tab: "goal_history", sort: "priority" } })
-        .success,
-    ).toBe(true);
-    expect(
-      pageViewSchema.safeParse({ page: "visits", view: { tab: "feed", sort: "loudest" } }).success,
     ).toBe(false);
   });
 });

@@ -10,6 +10,7 @@ import {
   memberDisplayName,
   type BishopricMember,
 } from "@/lib/visits/assignmentShares";
+import { groupByStreet } from "@/lib/visits/streetKey";
 import type { VisitAssignment } from "@/types/domain";
 
 // DIVIDING THE BISHOPRIC'S HOUSEHOLDS (ITER-055 bv5, D4, D8). Tick households, choose who will
@@ -21,16 +22,21 @@ import type { VisitAssignment } from "@/types/domain";
 // says what EACH button would do (decided walking scenario 102), including that Unassign skips the
 // ticked households nobody holds.
 //
+// GROUPED BY STREET when the Households tab is (ITER-055 bv8), each street with "Choose unassigned",
+// so a street can go to one person in two taps. Like "Choose every unassigned one" it never ticks a
+// household somebody already holds: a reassignment is always ticked by hand.
+//
 // The server checks everything again (canAssignVisits, the assignee's calling, the households'
 // ward); this window only keeps a person from being offered what it would refuse.
 
-export type AssignableHousehold = { id: string; familyName: string };
+export type AssignableHousehold = { id: string; familyName: string; address: string | null };
 
 export type AssignWindowProps = {
   households: AssignableHousehold[];
   members: BishopricMember[];
   openAssignments: VisitAssignment[];
   appointments: AppointmentRow[];
+  byStreet: boolean;
   onDone: () => void;
 };
 
@@ -73,6 +79,7 @@ export function AssignWindow({
   members,
   openAssignments,
   appointments,
+  byStreet,
   onDone,
 }: AssignWindowProps) {
   const router = useRouter();
@@ -112,6 +119,14 @@ export function AssignWindow({
     .filter((household) => !holderByHousehold.has(household.id))
     .map((household) => household.id);
 
+  function chooseUnassigned(list: AssignableHousehold[]) {
+    setSelected((current) => {
+      const next = new Set(current);
+      for (const household of list) if (!holderByHousehold.has(household.id)) next.add(household.id);
+      return next;
+    });
+  }
+
   function toggle(householdId: string) {
     setSelected((current) => {
       const next = new Set(current);
@@ -148,6 +163,26 @@ export function AssignWindow({
         }
       }
     });
+
+  function renderRow(household: AssignableHousehold) {
+    const holder = holderByHousehold.get(household.id);
+    return (
+      <label key={household.id} className={CHECKBOX_ROW_CLASSES}>
+        <input
+          type="checkbox"
+          className="h-5 w-5 shrink-0"
+          checked={selected.has(household.id)}
+          onChange={() => toggle(household.id)}
+        />
+        <span className="flex min-w-0 flex-col">
+          <span>{household.familyName}</span>
+          {holder === undefined ? null : (
+            <span className="text-xs text-muted">Assigned to {labelFor(holder.assignedTo)}</span>
+          )}
+        </span>
+      </label>
+    );
+  }
 
   if (members.length === 0) {
     return (
@@ -196,25 +231,31 @@ export function AssignWindow({
         <p className="text-sm text-muted">There are no households to assign.</p>
       ) : (
         <div className="max-h-96 overflow-y-auto rounded-md border border-border">
-          {households.map((household) => {
-            const holder = holderByHousehold.get(household.id);
-            return (
-              <label key={household.id} className={CHECKBOX_ROW_CLASSES}>
-                <input
-                  type="checkbox"
-                  className="h-5 w-5 shrink-0"
-                  checked={selected.has(household.id)}
-                  onChange={() => toggle(household.id)}
-                />
-                <span className="flex min-w-0 flex-col">
-                  <span>{household.familyName}</span>
-                  {holder === undefined ? null : (
-                    <span className="text-xs text-muted">Assigned to {labelFor(holder.assignedTo)}</span>
-                  )}
-                </span>
-              </label>
-            );
-          })}
+          {byStreet
+            ? groupByStreet(households).map((group) => {
+                const hasUnassigned = group.rows.some(
+                  (household) => !holderByHousehold.has(household.id),
+                );
+                return (
+                  <section key={group.key ?? "no-street"} aria-label={group.label}>
+                    <div className="flex min-h-11 items-center justify-between gap-2 border-b border-border bg-surface-raised px-2">
+                      <h3 className="text-sm font-semibold text-foreground">{group.label}</h3>
+                      {hasUnassigned ? (
+                        <Button
+                          variant="secondary"
+                          onClick={() => chooseUnassigned(group.rows)}
+                          disabled={saving}
+                          aria-label={`Choose unassigned on ${group.label}`}
+                        >
+                          Choose unassigned
+                        </Button>
+                      ) : null}
+                    </div>
+                    {group.rows.map(renderRow)}
+                  </section>
+                );
+              })
+            : households.map(renderRow)}
         </div>
       )}
 

@@ -20,8 +20,8 @@ import {
 } from "@/lib/visits/visitsView";
 
 // The Visits page's tabs (ITER-055 bv2, prototype VisitsPage, module-map §6 sub-view machine).
-// The page decides which tabs a reader sees (visibleVisitsTabs()); the tab and the household sort
-// are remembered on the account, so the page reopens as it was left.
+// The page decides which tabs a reader sees (visibleVisitsTabs()); the tab, the household sort and
+// street grouping are remembered on the account, so the page reopens as it was left.
 
 async function saveView(view: VisitsView): Promise<void> {
   const response = await fetch("/api/session/page-view", {
@@ -45,7 +45,7 @@ async function saveView(view: VisitsView): Promise<void> {
 export type VisitsScreenProps = {
   visibleTabs: readonly VisitsTab[];
   initialView: VisitsView;
-  households: Omit<HouseholdsPanelProps, "sort" | "onSortChange">;
+  households: Omit<HouseholdsPanelProps, "sort" | "onSortChange" | "byStreet" | "onByStreetChange">;
   feed: { initialPage: ReportFeedPage; ownOrganizationId: string | null; sharingSentence: string };
   // Null when the reader cannot see that tab.
   allOrganizations: AllOrgProgress | null;
@@ -82,6 +82,10 @@ export function VisitsScreen({
 
   function changeSort(sort: VisitHouseholdSort) {
     if (sort !== view.sort) remember({ ...view, sort });
+  }
+
+  function changeByStreet(byStreet: boolean) {
+    if (byStreet !== view.byStreet) remember({ ...view, byStreet });
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
@@ -132,7 +136,15 @@ export function VisitsScreen({
 
     if (tab === "my_visits" && myVisits !== null) return <MyVisits {...myVisits} />;
 
-    return <HouseholdsPanel {...households} sort={view.sort} onSortChange={changeSort} />;
+    return (
+      <HouseholdsPanel
+        {...households}
+        sort={view.sort}
+        onSortChange={changeSort}
+        byStreet={view.byStreet}
+        onByStreetChange={changeByStreet}
+      />
+    );
   }
 
   const activeTab = visibleTabs.includes(view.tab) ? view.tab : "households";

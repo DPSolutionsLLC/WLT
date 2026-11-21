@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// How a leader last left /visits — the tab and the household sort — remembered on their account
+// How a leader last left /visits — the tab, the household sort and street grouping — remembered on their account
 // (the user's standing rule: every page reopens as it was left). A reader who cannot see a stored
 // tab gets Households; the page decides that through visibleVisitsTabs(), not this parse.
 //
@@ -49,10 +49,16 @@ export const VISIT_HOUSEHOLD_SORT_LABELS: Record<VisitHouseholdSort, string> = {
 export const visitsViewSchema = z.object({
   tab: z.enum(VISITS_TABS),
   sort: z.enum(VISIT_HOUSEHOLD_SORTS),
+  // Group the household list by street (ITER-055 bv8).
+  byStreet: z.boolean(),
 });
 export type VisitsView = z.infer<typeof visitsViewSchema>;
 
-export const DEFAULT_VISITS_VIEW: VisitsView = { tab: "households", sort: "priority" };
+export const DEFAULT_VISITS_VIEW: VisitsView = {
+  tab: "households",
+  sort: "priority",
+  byStreet: false,
+};
 
 // Falls back field by field rather than throwing: a preference nobody can parse must not take the
 // page down, and a stored tab from a later slice must not throw away a good sort.
@@ -63,6 +69,8 @@ export function parseVisitsView(value: unknown): VisitsView {
   return {
     tab: tab.success ? tab.data : DEFAULT_VISITS_VIEW.tab,
     sort: sort.success ? sort.data : DEFAULT_VISITS_VIEW.sort,
+    // A view saved before bv8 has no byStreet and opens ungrouped.
+    byStreet: typeof record.byStreet === "boolean" ? record.byStreet : DEFAULT_VISITS_VIEW.byStreet,
   };
 }
 

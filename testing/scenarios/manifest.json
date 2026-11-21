@@ -3276,7 +3276,13 @@
         "Step 7: the sweep is listed first, *Every household once · … · Completed*, with",
         "Step 8: the new goal saves, starts **today** (the ward's date) and the banner reads",
         "Step 9: the counselor sees the same active goal and the same *End the current goal…*",
-        "Step 10 (375px): the five tabs scroll sideways rather than wrapping; the three banner tiles"
+        "Step 10 (375px): the five tabs scroll sideways rather than wrapping; the three banner tiles",
+        "Step 11: the cards sit under **Cedar Lane · 3** (Garcia, Hughes, Ivers), **Maple Street · 3**",
+        "Step 11: inside each street the cards keep the chosen sort (change **Sort by** to Household",
+        "Step 12: the page reopens grouped; `users.settings.page_views.visits.byStreet` is `true`",
+        "Step 13: the Assign window is grouped the same way, and **Choose unassigned** ticks Dalton,",
+        "Step 14: ungrouped, the Assign window is one A to Z list with no street headings or street",
+        "Step 15 (375px): street headings and **Choose unassigned** fit without sideways scrolling;"
       ],
       "seedCommand": "npm run seed -- visits/scenario-101-a-sweep-and-goal-history"
     },

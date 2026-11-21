@@ -147,6 +147,8 @@ export function describeHouseholdForVisits(
 export type VisitProgressRow = {
   householdId: string;
   familyName: string;
+  // The household's free-text address, for grouping by street (ITER-055 bv8). Null when none.
+  address: string | null;
   // ALL TIME. A leader wants to know a family was last seen fourteen months ago, and now that
   // there is no period there is nothing else this could have meant.
   lastVisitedOn: DateOnly | null;
@@ -470,6 +472,7 @@ export function buildVisitProgress({
     return {
       householdId: household.id,
       familyName: household.familyName,
+      address: household.address,
       lastVisitedOn: tally.lastCompletedOn,
       lastAttemptedOn: tally.lastAttemptedOn,
       attemptsSinceLastVisit: countAttemptsSince(tally),

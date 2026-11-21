@@ -608,6 +608,12 @@ Available to all organizations. Each org manages its own visit goals and logs in
   attempted, due date or conducted by), with small **Contact**, **Log visit** and **Cadence** buttons; the
   visit goal, which households are ours, and appointments each open in their own window and
   follow the organization selected
+- **Group by street.** A switch above the household list groups the cards under each street, A to Z,
+  with "No street on file" last; the chosen sort still orders each street. The street is read from
+  the address with its house number and unit dropped, so "15 Maple St" and "22 Maple Street Apt 3"
+  are one street — but a misspelling is its own street, never a guess. The page remembers the
+  switch, and while it is on the bishopric's **Assign** window is grouped the same way, each street
+  with **Choose unassigned**
 - **A priority scale, not a set of buckets.** Every household reads one of four bands — `Never
   visited`, `Overdue`, `Approaching`, `On track` — together with how far through its own interval
   it is, so a family at 95% and one at 10% no longer look the same. No cell reads "Visited"

@@ -68,6 +68,7 @@ files:
   - app/api/agendas/[id]/publish/route.ts
   - app/(app)/visits/VisitBishopricActions.tsx
   - app/(app)/agendas/[id]/AgendaBuilder.tsx
+  - lib/visits/streetKey.ts
 related: [visits-c-report-feed-and-cross-org, visits-f-stewardship-and-all-orgs, zoom-remote-links, notification-trigger-drift, role-access-overrides]
 ---
 
@@ -433,3 +434,51 @@ the stamp. Migration 108.
 - Full suite: 5,875 tests passing. One Zoom invitees test timed out in the full run and passed 14/14
   when rerun alone. `TodoCard.test.tsx` passes 7/7 after the post-walk change.
 - Migration 108 is applied.
+
+## bv8 — Group by street (pending commit)
+
+### What was done
+The Households tab gains a **Group by street** switch. When it is on, the cards sit under each
+street, A to Z, with "No street on file" last, and the chosen sort orders the cards inside each
+street. The switch is remembered on the account, as `byStreet` in the stored `visits` view.
+`lib/visits/streetKey.ts` reads the street from the free-text `households.address`: it drops the
+house number, any unit and everything after the first comma, then folds case, periods and a fixed
+list of suffix and direction spellings. **On the user's yes at bv8 start**, the Assign window follows
+the same switch. Each street there has a **Choose unassigned** button, which is the "Select the
+street" that the bv5 section held for this slice. No migration and no route.
+
+### Key decisions
+- **The matching is deliberately simple, and a near-miss stays its own street**
+  (`classifyLocation.ts`'s rule). "Mapel St" is not merged into Maple Street, because a household
+  put on the wrong street is one somebody walks past.
+- **A direction is folded only at either end of the street, and a suffix only as the last word**
+  (or just before a trailing direction). So "St Charles Ave" keeps its saint, and "450 N 300 E"
+  reads as North 300 East.
+- **Choose unassigned never ticks a household somebody already holds.** It works like the
+  existing "Choose every unassigned one", so a reassignment is always ticked by hand and always
+  shows its warning box.
+- **A view saved before bv8 opens ungrouped.** `parseVisitsView` falls back field by field, as it
+  already did for the tab and the sort. The write schema requires `byStreet`, so the app's own saves
+  always carry it.
+- The progress row gained a required `address` field, so every place that builds a row had to
+  supply one. The type checker found the five test fixtures that build rows.
+
+### Follow-ups (not built)
+- From bv7, still open: agendas as one living document per meeting type (needs its own
+  `/iterate`), and the executive secretary's misleading "no organizations yet" sentence.
+- From bv5, still open: the visit form's default date is in UTC, not the ward's zone.
+- ITER-055's eight slices are all built. Close the item when bv8 is committed.
+
+### Found on the walk (scenario 101 Part 2, 2026-11-20, driven by Claude)
+- All five steps (11–15) passed and were read back from the database. No bv8 defect. The user said
+  "tests pass" after the review page.
+- **Checklist correction:** Part 2 said to continue after step 8, but it needs only an active
+  Bishopric goal, which a fresh seed already has.
+- **Seen, not from bv8:** each card's Contact and Log visit buttons are shorter than 44px (bv2).
+  The app follows its own theme switch rather than the system setting, so the dark shots were taken
+  with the `dark` class set directly.
+
+### Validation
+- Lint shows no errors (5 older warnings in untouched files). `typecheck` and `harness:typecheck`
+  are clean. `npm run manifest` was regenerated.
+- Full suite: 406 files, 5,892 tests passing. `npm run build` passes.

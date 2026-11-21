@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppointmentRow } from "@/app/(app)/visits/AppointmentPanel";
-import { AssignWindow } from "@/app/(app)/visits/AssignWindow";
+import { AssignWindow, type AssignableHousehold } from "@/app/(app)/visits/AssignWindow";
 import type { BishopricMember } from "@/lib/visits/assignmentShares";
 import type { VisitAssignment } from "@/types/domain";
 
@@ -22,8 +22,8 @@ const MEMBERS: BishopricMember[] = [
 ];
 
 const HOUSEHOLDS = [
-  { id: "house-ellis", familyName: "Ellis" },
-  { id: "house-garcia", familyName: "Garcia" },
+  { id: "house-ellis", familyName: "Ellis", address: "4 Ridge Road" },
+  { id: "house-garcia", familyName: "Garcia", address: "301 Cedar Lane" },
 ];
 
 const ELLIS_HELD_BY_LENA: VisitAssignment = {
@@ -50,13 +50,17 @@ const ELLIS_APPOINTMENT: AppointmentRow = {
   companionsText: null,
 };
 
-function renderWindow(appointments: AppointmentRow[] = []) {
+function renderWindow(
+  appointments: AppointmentRow[] = [],
+  options: { byStreet?: boolean; households?: AssignableHousehold[] } = {},
+) {
   return render(
     <AssignWindow
-      households={HOUSEHOLDS}
+      households={options.households ?? HOUSEHOLDS}
       members={MEMBERS}
       openAssignments={[ELLIS_HELD_BY_LENA]}
       appointments={appointments}
+      byStreet={options.byStreet ?? false}
       onDone={vi.fn()}
     />,
   );
@@ -104,5 +108,51 @@ describe("AssignWindow", () => {
 
     expect(screen.getByText(/gives Ellis to 2nd Counselor/)).toBeTruthy();
     expect(screen.queryByText(/moves from/)).toBeNull();
+  });
+});
+
+// ITER-055 bv8: a street goes to one person in two taps, and never takes a held household with it.
+describe("AssignWindow grouped by street", () => {
+  const RIDGE_AND_CEDAR: AssignableHousehold[] = [
+    ...HOUSEHOLDS,
+    { id: "house-dalton", familyName: "Dalton", address: "8 Ridge Rd" },
+    { id: "house-jensen", familyName: "Jensen", address: null },
+  ];
+
+  function checked(familyName: string): boolean {
+    return (screen.getByRole("checkbox", { name: new RegExp(familyName) }) as HTMLInputElement).checked;
+  }
+
+  it("groups the list by street with no street last", () => {
+    renderWindow([], { byStreet: true, households: RIDGE_AND_CEDAR });
+
+    expect(screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      "Cedar Lane",
+      "Ridge Road",
+      "No street on file",
+    ]);
+  });
+
+  it("chooses a street's unassigned households and leaves a held one unticked", () => {
+    renderWindow([], { byStreet: true, households: RIDGE_AND_CEDAR });
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose unassigned on Ridge Road" }));
+
+    expect(checked("Dalton")).toBe(true);
+    expect(checked("Ellis")).toBe(false);
+    expect(checked("Garcia")).toBe(false);
+  });
+
+  it("offers no street button once everybody on the street is held", () => {
+    renderWindow([], { byStreet: true });
+
+    expect(screen.queryByRole("button", { name: "Choose unassigned on Ridge Road" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Choose unassigned on Cedar Lane" })).toBeTruthy();
+  });
+
+  it("is a plain list when the Households tab is not grouped", () => {
+    renderWindow([], { byStreet: false, households: RIDGE_AND_CEDAR });
+
+    expect(screen.queryAllByRole("heading", { level: 3 })).toEqual([]);
   });
 });

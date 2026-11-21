@@ -8,6 +8,7 @@ function row(familyName: string, overrides: Partial<VisitProgressRow> = {}): Vis
   return {
     householdId: familyName,
     familyName,
+    address: null,
     lastVisitedOn: null,
     lastAttemptedOn: null,
     attemptsSinceLastVisit: 0,

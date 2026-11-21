@@ -2054,8 +2054,11 @@ There is **no** route behind the All organizations view: `/visits` reads it serv
 bishopric only) and passes rows to a client component that only sorts, so there is no second read
 path to keep in step. Since ITER-055 bv2 it and the feed are **tabs of `/visits`**;
 `/visits/all-organizations` and `/visits/feed` redirect to `/visits?tab=all_organizations` and
-`?tab=feed`. The tab and the household sort are saved through `PUT /api/session/page-view` as page
-`visits` (`lib/visits/visitsView.ts`).
+`?tab=feed`. The tab, the household sort and **Group by street** (`byStreet`, ITER-055 bv8) are
+saved through `PUT /api/session/page-view` as page `visits` (`lib/visits/visitsView.ts`); a view
+saved before bv8 opens ungrouped. Street grouping is client-side over the progress rows, which carry
+`households.address`; `lib/visits/streetKey.ts` (`streetKeyFor`, `groupByStreet`) is the one parse
+of an address into a street, and adds no column or route.
 
 ### Youth Activities
 ```

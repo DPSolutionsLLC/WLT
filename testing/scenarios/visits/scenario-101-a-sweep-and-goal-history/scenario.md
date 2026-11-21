@@ -57,6 +57,16 @@ blank, for bv8.
 9. As the **1st counselor**, open **Visits** and press **Visit goal**.
 10. Repeat steps 1–2 and 5 at **375px** wide, in light and dark.
 
+**Part 2 — Group by street (bv8).** As the **bishop**, with an active Bishopric goal: the seeded
+sweep on a fresh seed, or the goal set in step 8 if Part 1 was walked first. Part 2 does not depend
+on anything Part 1 changes.
+
+11. On **Households**, tick **Group by street**.
+12. Reload the page.
+13. Press **Assign**, then **Choose unassigned** under **Ridge Road**.
+14. Close the window without assigning. Untick **Group by street** and press **Assign** again.
+15. Repeat steps 11 and 13 at **375px** wide, in light and dark.
+
 ## Verification Checklist
 
 - [ ] Step 1: the **Organization** picker lists **Bishopric first** and opens on it
@@ -92,6 +102,19 @@ blank, for bv8.
       sentence (bishopric authority is shared)
 - [ ] Step 10 (375px): the five tabs scroll sideways rather than wrapping; the three banner tiles
       wrap cleanly; the goal window's radio rows are at least 44px tall
+- [ ] Step 11: the cards sit under **Cedar Lane · 3** (Garcia, Hughes, Ivers), **Maple Street · 3**
+      (Abbott, Brooks, Carver), **Ridge Road · 3** (Dalton, Ellis, Foster) and **No street on file
+      · 1** (Jensen), in that order — "15 Maple St" and "22 Maple Street Apt 3" are one street
+- [ ] Step 11: inside each street the cards keep the chosen sort (change **Sort by** to Household
+      and the order inside each street follows)
+- [ ] Step 12: the page reopens grouped; `users.settings.page_views.visits.byStreet` is `true`
+      (read back from the database), and an audit row `page_view_saved` names page `visits`
+- [ ] Step 13: the Assign window is grouped the same way, and **Choose unassigned** ticks Dalton,
+      Ellis and Foster and nothing else (**3 households chosen**)
+- [ ] Step 14: ungrouped, the Assign window is one A to Z list with no street headings or street
+      buttons, and the Households cards are one list again
+- [ ] Step 15 (375px): street headings and **Choose unassigned** fit without sideways scrolling;
+      the switch and **Sort by** wrap cleanly; every control is at least 44px tall
 
 ## Edge Cases
 
@@ -101,6 +124,32 @@ blank, for bv8.
   This is a known limit of bv4, not a defect.
 
 ## Walkthrough record
+
+**Part 2 (bv8, steps 11–15): 2026-11-20, driven by Claude** (Playwright, against the dev server
+and the hosted database, on a fresh seed; the user reviews screenshots on the review page). Signed
+in with the browser's saved login, with the email changed to the bishop's.
+
+- Step 11: groups and cards `Cedar Lane · 3` (Garcia, Hughes, Ivers), `Maple Street · 3` (Abbott,
+  Brooks, Carver), `Ridge Road · 3` (Ellis, Foster, Dalton under Priority: partly reached before
+  done), `No street on file · 1` (Jensen). After changing Sort by to Household, Ridge Road read
+  Dalton, Ellis, Foster.
+- Step 12: after a reload the switch was ticked and the sort still Household. Read back:
+  `users.settings.page_views.visits` = `{"tab":"households","sort":"familyName","byStreet":true}`,
+  with `page_view_saved` audit rows `{"page":"visits"}` for each change (four in all by the end).
+- Step 13: the Assign window was grouped the same way, with `Choose unassigned on <street>` on all
+  four groups. Ridge Road's button ticked Dalton, Ellis and Foster only, reading **3 households
+  chosen**. No household is held in this seed, so "never ticks a held household" is covered by
+  `tests/components/visits/AssignWindow.test.tsx`, not by this walk.
+- Step 14: ungrouped, neither the page nor the Assign window had any street section or street
+  button; the window listed Abbott … Jensen A to Z.
+- Step 15 (375px): no sideways overflow on the page, the window or its list; the switch's row is
+  44px; each **Choose unassigned** is 44×166. Light and dark screenshots taken. Dark was produced
+  by adding the `dark` class the app's theme toggle sets, because the app does not follow the
+  system setting.
+- **Checklist correction:** Part 2 said to continue after step 8. It only needs an active goal,
+  which a fresh seed already has, so the intro now says so.
+- **Seen, not from bv8:** each card's **Contact** and **Log visit** buttons are shorter than 44px
+  (from bv2).
 
 **2026-11-10, driven by Claude** (Playwright, against the dev server and the hosted database; the
 user reviews screenshots on the review page). Seeded on 2026-11-10, so the sweep started Oct 11,

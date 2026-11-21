@@ -887,6 +887,13 @@ names its zone. See rule 12. This is the single most dangerous thing to port.
   `markVisitDiscussionsDone` in `lib/agendas/flaggedItems.ts`): the clerk and executive secretary build
   bishopric agendas and read no Bishopric visit, and only the family name crosses — what the
   ward-council flag already tells the executive secretary.
+  **bv8 (2026-11-20, no migration): Group by street, and ITER-055 is complete.** A switch on the
+  Households tab, remembered on the account (`byStreet` in `visitsViewSchema`; an older saved view
+  opens ungrouped). `lib/visits/streetKey.ts` is the **one** parse of `households.address` into a
+  street — house number and unit dropped, a fixed list of suffix and direction spellings folded, a
+  near-miss its own street (`classifyLocation.ts`'s rule), blank or PO Box "No street on file", last.
+  The Assign window follows the same switch, and its per-street **Choose unassigned** never ticks a
+  household somebody holds, so a reassignment is always ticked by hand.
 - **SUPERSEDED for visits by ITER-055 (above).** **Cross-org visibility widens an organization's whole PROGRESS — DECIDED 2026-08-27, REVERSING
   ITER-018.** `ward_allows_cross_org_visibility()` now appears in **four** SELECT policies:
   `visit_logs_select` (019), `household_stewardships_select` (052), and — added by migration 053 —

@@ -11,6 +11,7 @@ function row(overrides: Partial<VisitProgressRow> = {}): VisitProgressRow {
   return {
     householdId: "household-1",
     familyName: "Rivera",
+    address: null,
     lastVisitedOn: "2026-09-10",
     lastAttemptedOn: null,
     attemptsSinceLastVisit: 0,

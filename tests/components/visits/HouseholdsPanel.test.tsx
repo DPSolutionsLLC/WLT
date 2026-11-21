@@ -35,6 +35,7 @@ const ORG_ID = "org-eq";
 const carver: VisitProgressRow = {
   householdId: "household-carver",
   familyName: "Carver",
+  address: "22 Maple Street",
   lastVisitedOn: null,
   lastAttemptedOn: null,
   attemptsSinceLastVisit: 0,
@@ -55,7 +56,7 @@ const progress: VisitProgress = {
   stewardship: null,
 } as unknown as VisitProgress; // Only the fields the Households tab reads are needed here.
 
-function renderPanel() {
+function renderPanel(overrides: Partial<HouseholdsPanelProps> = {}) {
   const props: HouseholdsPanelProps = {
     initialProgress: progress,
     organizations: [{ id: ORG_ID, label: "Elders Quorum" }],
@@ -66,6 +67,8 @@ function renderPanel() {
     user: { id: "user-1", orgId: ORG_ID } as unknown as SessionUser,
     sort: "priority",
     onSortChange: () => undefined,
+    byStreet: false,
+    onByStreetChange: () => undefined,
     goals: [],
     goalOrganizations: [],
     householdOptions: [{ id: carver.householdId, label: "Carver" }],
@@ -83,6 +86,7 @@ function renderPanel() {
     recentVisits: null,
     // An Elders Quorum reader: the Bishopric's assignments are never handed to this tab.
     assignments: null,
+    ...overrides,
   };
 
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -105,6 +109,36 @@ async function flushDialogEvents() {
     await new Promise((resolve) => setTimeout(resolve, 10));
   });
 }
+
+// ITER-055 bv8: Group by street.
+describe("HouseholdsPanel street grouping", () => {
+  const rivera: VisitProgressRow = { ...carver, householdId: "household-rivera", familyName: "Rivera", address: "4 Ridge Rd" };
+  const abbott: VisitProgressRow = { ...carver, householdId: "household-abbott", familyName: "Abbott", address: "11 Maple St" };
+  const jensen: VisitProgressRow = { ...carver, householdId: "household-jensen", familyName: "Jensen", address: null };
+  const threeStreets = { ...progress, rows: [jensen, rivera, carver, abbott] } as VisitProgress;
+
+  it("groups streets A to Z, no street last, with the sort inside each", () => {
+    renderPanel({ initialProgress: threeStreets, byStreet: true, sort: "familyName" });
+
+    const groups = screen.getAllByRole("region");
+    expect(groups.map((group) => group.getAttribute("aria-label"))).toEqual([
+      "Maple Street",
+      "Ridge Road",
+      "No street on file",
+    ]);
+    expect(groups[0].textContent).toMatch(/Abbott[\s\S]*Carver/);
+    expect(groups[0].querySelector("h3")?.textContent).toBe("Maple Street · 2");
+  });
+
+  it("is one list when the switch is off, and the switch reports a change", () => {
+    const onByStreetChange = vi.fn();
+    renderPanel({ initialProgress: threeStreets, byStreet: false, onByStreetChange });
+
+    expect(screen.queryAllByRole("region")).toEqual([]);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Group by street" }));
+    expect(onByStreetChange).toHaveBeenCalledWith(true);
+  });
+});
 
 describe("HouseholdsPanel windows", () => {
   it("opens Appointments from the Contact window and keeps it open (defect 100-D1)", async () => {

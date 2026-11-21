@@ -29,6 +29,7 @@ import {
   type BishopricMember,
 } from "@/lib/visits/assignmentShares";
 import { compareByPriority } from "@/lib/visits/householdStatus";
+import { groupByStreet } from "@/lib/visits/streetKey";
 import { compareSweepStatus } from "@/lib/visits/sweep";
 // Type-only, so nothing from the server-only module survives the build (roster-b).
 import type { VisitProgress, VisitProgressRow } from "@/lib/visits/progress";
@@ -48,7 +49,9 @@ import type { SessionUser, VisitAssignment } from "@/types/domain";
 // the bishopric shared with theirs sees its goal and stewardship read-only — migration 099 widens
 // reads and never writes, so offering a control there would offer a write the policy refuses.
 //
-// SORTING IS CLIENT-SIDE over the already-fetched rows; only the organization is a refetch.
+// SORTING IS CLIENT-SIDE over the already-fetched rows; only the organization is a refetch. So is
+// GROUPING BY STREET (ITER-055 bv8): streets A to Z, "No street on file" last, and the chosen sort
+// inside each street.
 
 type OpenWindow =
   | { kind: "log"; householdId?: string }
@@ -81,6 +84,8 @@ export type HouseholdsPanelProps = {
   user: SessionUser;
   sort: VisitHouseholdSort;
   onSortChange: (sort: VisitHouseholdSort) => void;
+  byStreet: boolean;
+  onByStreetChange: (byStreet: boolean) => void;
   goals: VisitGoal[];
   goalOrganizations: { id: string; label: string }[];
   householdOptions: HouseholdOption[];
@@ -174,6 +179,8 @@ export function HouseholdsPanel({
   user,
   sort,
   onSortChange,
+  byStreet,
+  onByStreetChange,
   goals,
   goalOrganizations,
   householdOptions,
@@ -223,6 +230,7 @@ export function HouseholdsPanel({
 
   const progress = progressQuery.data;
   const rows = progress === undefined ? [] : sortHouseholdRows(progress.rows, sort);
+  const streetGroups = byStreet ? groupByStreet(rows) : null;
   // The server's own instant, never `new Date()`: every pill is judged against the moment the
   // bands were computed.
   const asOf = progress === undefined ? new Date(0) : new Date(progress.asOf);
@@ -253,6 +261,24 @@ export function HouseholdsPanel({
     const member = memberById.get(userId);
     return member === undefined ? "a former member of the bishopric" : bishopricCallingLabel(member);
   };
+
+  const renderCard = (row: VisitProgressRow) => (
+    <HouseholdPriorityCard
+      key={row.householdId}
+      row={row}
+      asOf={asOf}
+      onContact={row.doNotContact ? undefined : () => setOpenWindow({ kind: "contact", row })}
+      onLogVisit={
+        canLog && !row.doNotContact
+          ? () => setOpenWindow({ kind: "log", householdId: row.householdId })
+          : undefined
+      }
+      onOpenCadence={
+        row.priority === null ? undefined : () => setOpenWindow({ kind: "cadence", row })
+      }
+      assigneeLabel={assigneeLabelFor(row.householdId)}
+    />
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -343,6 +369,16 @@ export function HouseholdsPanel({
             <h2 className="font-display text-base font-semibold text-foreground">
               Households, by {VISIT_HOUSEHOLD_SORT_LABELS[sort].toLowerCase()}
             </h2>
+            <div className="flex flex-wrap items-center gap-3">
+            <label className="flex min-h-11 items-center gap-2 text-sm text-muted">
+              <input
+                type="checkbox"
+                className="size-5 accent-primary"
+                checked={byStreet}
+                onChange={(event) => onByStreetChange(event.target.checked)}
+              />
+              Group by street
+            </label>
             <label className="flex items-center gap-2 text-sm text-muted">
               Sort by
               <select
@@ -357,36 +393,31 @@ export function HouseholdsPanel({
                 ))}
               </select>
             </label>
+            </div>
           </div>
 
           {rows.length === 0 ? (
             <p className="text-sm text-muted">
               No households with active members, so there is nothing to visit yet.
             </p>
+          ) : streetGroups === null ? (
+            <ul className="flex flex-col gap-2">{rows.map(renderCard)}</ul>
           ) : (
-            <ul className="flex flex-col gap-2">
-              {rows.map((row) => (
-                <HouseholdPriorityCard
-                  key={row.householdId}
-                  row={row}
-                  asOf={asOf}
-                  onContact={
-                    row.doNotContact
-                      ? undefined
-                      : () => setOpenWindow({ kind: "contact", row })
-                  }
-                  onLogVisit={
-                    canLog && !row.doNotContact
-                      ? () => setOpenWindow({ kind: "log", householdId: row.householdId })
-                      : undefined
-                  }
-                  onOpenCadence={
-                    row.priority === null ? undefined : () => setOpenWindow({ kind: "cadence", row })
-                  }
-                  assigneeLabel={assigneeLabelFor(row.householdId)}
-                />
+            <div className="flex flex-col gap-4">
+              {streetGroups.map((group) => (
+                <section
+                  key={group.key ?? "no-street"}
+                  aria-label={group.label}
+                  className="flex flex-col gap-2"
+                >
+                  <h3 className="text-sm font-semibold text-foreground">
+                    {group.label}{" "}
+                    <span className="font-normal text-muted">· {group.rows.length}</span>
+                  </h3>
+                  <ul className="flex flex-col gap-2">{group.rows.map(renderCard)}</ul>
+                </section>
               ))}
-            </ul>
+            </div>
           )}
         </>
       )}
@@ -499,10 +530,15 @@ export function HouseholdsPanel({
             households={sortHouseholdRows(
               progress.rows.filter((row) => !row.doNotContact),
               "familyName",
-            ).map((row) => ({ id: row.householdId, familyName: row.familyName }))}
+            ).map((row) => ({
+              id: row.householdId,
+              familyName: row.familyName,
+              address: row.address,
+            }))}
             members={dividing.members}
             openAssignments={openAssignments}
             appointments={appointments}
+            byStreet={byStreet}
             onDone={() => closeWindow("assign")}
           />
         ) : null}
