@@ -1,15 +1,14 @@
 # Backlog
 
-_Last updated: 2026-11-20_
+_Last updated: 2026-11-22_
 
 ---
 
 ## In Progress
 Items currently being planned or actively worked.
 
-- [ ] ITER-039 — Move the app to wardleadershiptools.com and send email from it → [scope](.iterate/scopes/ITER-039.md) | [plan](plans/custom-domain-and-email-sender.md)
 - [ ] ITER-052 — Public Zoom self-registration with bishopric approval → [scope](.iterate/scopes/ITER-052.md) | [plan](plans/zoom-self-registration.md)
-  _Three slices, three commits: z3a public form + auto-approve, z3b approvals + matching, z3c emails (send nothing until ITER-039)._
+  _Three slices, three commits: z3a public form + auto-approve, z3b approvals + matching, z3c emails (unblocked 2026-11-22: ITER-039 set `RESEND_FROM_ADDRESS`)._
 - [ ] ITER-043 — Keep the screen on while the tithing calculator is open → [scope](.iterate/scopes/ITER-043.md) | [plan](plans/tithing-screen-wake-lock.md)
 - [ ] ITER-034 — Youth Support: the module the user actually wants → [scope](.iterate/scopes/ITER-034.md) — **PARKED 2026-08-31**
   _Raised by the user 2026-08-31 after walking 062 and 063, and **this is the destination Phase 8
@@ -398,6 +397,7 @@ _Items that need testing or further exploration before scoping. Each entry shoul
 
 ## Completed
 
+- [x] ITER-039 — Move the app to wardleadershiptools.com and send email from it _(completed 2026-11-22, d075b8e — www and the old wlt-iota.vercel.app both 308 to the new domain with the path kept; Supabase SMTP and `RESEND_FROM_ADDRESS` send from noreply@wardleadershiptools.com, so a reset reaches any inbox and the app's own email is on. Dashboard-only)_
 - [x] ITER-055 — Bishopric Visits: the ward-wide visiting effort _(completed 2026-11-20, 73749b9 — eight slices: bv1 per-organization sharing 393a98c, bv2 the sub-view machine 280b9aa, bv3 partly reached cd8823b, bv4 sweep goals and Past goals 9b1dcf8, bv5 assigning households fecc891, bv6 companions and invites 65fcc38, bv7 follow-ups and bishopric discussion 69ded73, bv8 group by street 73749b9)_
 - [x] ITER-058 — The ward roster decides who holds which calling _(completed 2026-11-19, 1ee1382 — four slices: cr1 links each account to its ward list record, cr2 the Calling review, cr3 calling changes on a roster paste, cr4 invites name a person (one live link each; "No, this isn't me" cancels it and tells the sender). Follow-up backlogged as ITER-070)_
 - [x] ITER-047 — The light/dark button on the top bar _(completed 2026-10-30, f40ea65 — a Sun / Moon / Monitor icon button on the chrome bar between Help and the bell, still three states; the ☰ menu lost its Appearance row; the back link shows only "←" below sm. Measured at 375px: no overflow, every control 44×44)_

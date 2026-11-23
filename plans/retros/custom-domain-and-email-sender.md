@@ -2,7 +2,7 @@
 id: custom-domain-and-email-sender
 type: feature
 iter: [ITER-039]
-commits: []
+commits: ["d075b8e"]
 date: 2026-11-22
 files:
   - plans/deployment.md

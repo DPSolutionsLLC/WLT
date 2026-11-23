@@ -1,7 +1,9 @@
 # ITER-039: Move the app to wardleadershiptools.com and send email from it
 
 **Type:** Modification
-**Status:** In Progress
+**Status:** Completed
+**Completed:** 2026-11-22
+**Commit:** d075b8e
 **Plan:** plans/custom-domain-and-email-sender.md
 **Created:** 2026-10-10
 
