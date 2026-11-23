@@ -56,7 +56,7 @@ than printing a code that scans to a developer's laptop.
 
 For the QR checks below you need an address your **phone** can reach:
 
-- **Simplest and most realistic:** deploy and set `NEXT_PUBLIC_SITE_URL=https://wlt-iota.vercel.app`.
+- **Simplest and most realistic:** deploy and set `NEXT_PUBLIC_SITE_URL=https://wardleadershiptools.com`.
 - **Locally:** set `NEXT_PUBLIC_SITE_URL=http://<your-machine's-LAN-IP>:3000` in `.env.local`, run
   `npm run dev`, and confirm the phone can open that address in a browser first.
 

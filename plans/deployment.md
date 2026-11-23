@@ -33,8 +33,8 @@ rather than a separate decision.
 
 ## Step 2 — Environment variables
 
-Six variables, from `.env.local.example`. Set them in the Vercel project, not in a committed
-file.
+Eight variables, from `.env.local.example`. Set them in the Vercel project, not in a committed
+file. The last two were added on 2026-11-22 by ITER-039 (see **Custom domain** below).
 
 | Variable | Scope | Notes |
 |---|---|---|
@@ -44,6 +44,8 @@ file.
 | `ANTHROPIC_API_KEY` | server | Never `NEXT_PUBLIC_` (CLAUDE.md rule 4) |
 | `OPENAI_API_KEY` | server | Never `NEXT_PUBLIC_` |
 | `RESEND_API_KEY` | server | Never `NEXT_PUBLIC_` |
+| `NEXT_PUBLIC_SITE_URL` | all | `https://wardleadershiptools.com`, no trailing slash. Not secret; fixed into the build, so a change needs a redeploy |
+| `RESEND_FROM_ADDRESS` | server | `Ward Leadership Tools <noreply@wardleadershiptools.com>`. Not secret. Unset or `onboarding@resend.dev` switches the app's own email off |
 
 `HARNESS_TEST_PASSWORD` is **not** a production variable. It exists so harness accounts can sign
 in to the real app; setting it in Vercel serves no purpose and documents a working password in
@@ -74,6 +76,10 @@ In the Supabase dashboard, Authentication → URL Configuration:
 - **Site URL** — the production Vercel domain.
 - **Redirect URLs** — add the production domain *and* `http://localhost:3000/**` so local
   development keeps working. If preview deploys are enabled, add the preview wildcard too.
+
+**Current values (2026-11-22, ITER-039):** Site URL `https://wardleadershiptools.com`; Redirect
+URLs `https://wardleadershiptools.com/**`, `https://wlt-iota.vercel.app/**` (kept; the old address
+now forwards, so it is harmless) and `http://localhost:3000/**`.
 
 Supabase generates the password-reset link server-side, so it uses Site URL and ignores whatever
 the app thinks its origin is. Leave it on `localhost:3000` and every reset email sent to a real
@@ -112,6 +118,12 @@ account is the developer's. It stops being safe the moment a ward leader is invi
 adult account has **no** admin-initiated password reset — `app/api/admin/users/[id]/reset-pin`
 exists for youth accounts only. See [retros/deployment.md](retros/deployment.md) for the options
 and the trigger for revisiting.
+
+**Closed 2026-11-22 by ITER-039.** The domain `wardleadershiptools.com` is verified in Resend, and
+the sender is now `noreply@wardleadershiptools.com` in **both** places: Supabase's SMTP settings
+(sender name "Ward Leadership Tools", host/port/credentials unchanged) and the app's own
+`RESEND_FROM_ADDRESS`. A password reset was requested, received and completed at an inbox that is
+**not** the Resend account owner's, which is the test the old sender could never pass.
 
 ---
 
@@ -176,6 +188,9 @@ Live at **https://wlt-iota.vercel.app**, Production tracking `main`, Node 22.x, 
 disabled by `vercel.json`. Two commits: `0a4c33a` (Node pin, decisions recorded) and `1febf89`
 (`git.deploymentEnabled`).
 
+**Moved 2026-11-22 to https://wardleadershiptools.com** (ITER-039). The old address forwards with a
+308 that keeps the path, so bookmarks and QR codes already printed still land on the right page.
+
 Verified rather than assumed:
 
 | Check | Method |
@@ -192,7 +207,50 @@ public proves it would have caught a leak.
 
 ---
 
+## Custom domain — 2026-11-22 (ITER-039)
+
+A dashboard walkthrough with no application code change. The app does not name its own address
+anywhere: invite links follow the request's host, and everything else that prints an absolute link
+reads `resolveSiteUrl()` (`NEXT_PUBLIC_SITE_URL`, then `VERCEL_PROJECT_PRODUCTION_URL`). That covers
+the programme's QR code and public link, the music emails' links, and the Zoom sign-up page's link
+and QR code, a registrant's status-page link and their "share with a friend" link.
+
+| Piece | Setting |
+|---|---|
+| Registrar / DNS | GoDaddy (nameservers `ns17`/`ns18.domaincontrol.com`) |
+| `A @` | `216.198.79.1` (was GoDaddy's `Parked`) |
+| `CNAME www` | `b26a1243b8523ff1.vercel-dns-017.com` (was `wardleadershiptools.com.`) |
+| Resend records, untouched | `CNAME send`, `CNAME rsend` (Resend Forge, `*.forge.rmta.net`), `TXT resend._domainkey`. Forge uses these CNAMEs, not an MX record |
+| `_dmarc` | Already present from GoDaddy: `v=DMARC1; p=quarantine; adkim=r; aspf=r; …`. Resend's DKIM signs for the domain, so mail passes it; no record was added |
+| Vercel domains | `wardleadershiptools.com` → Production; `www` → 308 to the main address; `wlt-iota.vercel.app` → 308 to the main address |
+| Supabase email rate limit | 30 emails per hour (Authentication → Rate Limits): the first place to look if resets stop arriving |
+
+Verified from the terminal on 2026-11-22: `/login` 200 on the new domain; `www` 308 to it;
+`/dashboard` signed out 307 to `/login?redirectTo=%2Fdashboard`; the old address 308 to the same
+path on the new one. Walked by hand on the new domain: adult sign-in survives a reload, youth `/pin`
+on a phone, a password reset to a non-owner inbox from `noreply@`, a regenerated programme QR, the
+programme's Distribute offering email, and the Zoom sign-up QR.
+
+**Rollback values (the state before the move):** Vercel domains `wlt-iota.vercel.app` only;
+`NEXT_PUBLIC_SITE_URL=https://wlt-iota.vercel.app`; `RESEND_FROM_ADDRESS` unset; Supabase Site URL
+`https://wlt-iota.vercel.app` with Redirect URLs `https://wlt-iota.vercel.app/**` and
+`http://localhost:3000/**`; Supabase SMTP sender `onboarding@resend.dev`. To undo: restore those,
+remove the redirect on the `vercel.app` row, and redeploy.
+
+---
+
 ## Pitfalls
+
+- **GoDaddy's default records must be EDITED, not added beside.** A new domain ships an `A @`
+  pointing at `Parked` and a `CNAME www` pointing at the domain itself. Adding Vercel's records next
+  to them leaves two answers for one name. Edit those two rows; leave `NS`, `SOA` and Resend's
+  records alone, because deleting one of Resend's breaks email with nothing saying so until a send
+  fails. GoDaddy Forwarding must be off.
+- **Vercel's add-domain flow defaults to the apex redirecting to `www`**, the opposite of this
+  project's choice (the plain address is the main one). Check the arrow on the Domains page after
+  adding, and choose 308 rather than 307 for a permanent redirect.
+- **Nobody can reply to `noreply@wardleadershiptools.com`.** There is no mailbox at the domain, so a
+  reply to any app or reset email bounces. Every email the app sends is written for that.
 
 - **Never wire `npm test` into CI or the Vercel build.** The RLS suites run against the linked
   *hosted* project: they create wards and auth users, and [foundation-c](retros/foundation-c-services.md)
